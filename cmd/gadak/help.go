@@ -373,7 +373,10 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak issue", "gadak comment", "gadak fields"},
 	},
 	"issue": {
-		summary: "print full detail for one or more issues from the local mirror; --editmeta asks the origin which configured fields this issue can edit",
+		// The summary names comments and history on purpose (GDK-257): the
+		// flagless form already prints them, and an agent that does not know
+		// guesses at a --comments flag that does not exist.
+		summary: "print full detail — fields, comments, attachments, links and history — for one or more issues from the local mirror; --editmeta asks the origin which configured fields this issue can edit",
 		usage: "gadak [--workspace <name>] issue <KEY> [KEY...] [--keys …]\n" +
 			"[--json] [--derive] [--link] [--editmeta]",
 		examples: []string{
@@ -389,7 +392,7 @@ var helps = map[string]cmdHelp{
 	// Five blind sessions asked to read one issue all reached for
 	// `show` first. The verb they typed now works.
 	"show": {
-		summary: "alias of issue — full detail for one or more issues from the local mirror; --editmeta asks the origin which configured fields this issue can edit",
+		summary: "alias of issue — full detail — fields, comments, attachments, links and history — for one or more issues from the local mirror; --editmeta asks the origin which configured fields this issue can edit",
 		usage: "gadak [--workspace <name>] show <KEY> [KEY...] [--keys …]\n" +
 			"[--json] [--derive] [--link] [--editmeta]",
 		examples: []string{
@@ -614,9 +617,9 @@ var helps = map[string]cmdHelp{
 	"comment": {
 		summary: "add a comment (@Name resolves to a site user; ambiguous names are refused), edit one, or delete one — ids come from `gadak sql` (`jira:91653`) or `gadak issue` (`91653`); both work",
 		usage: "gadak [--workspace <name>] comment <KEY> [<text> | -m <text|->]\n" +
-			"[--visibility role=NAME|group=NAME] [--internal] [--json] | --batch -\n" +
-			"| comment edit <KEY> <ID> [-m <text|-> | --adf-file F] [--json]\n" +
-			"| comment rm <KEY> <ID> --yes [--json]",
+			"[--visibility role=NAME|group=NAME] [--internal] [--json] [--dry-run] | --batch -\n" +
+			"| comment edit <KEY> <ID> [-m <text|-> | --adf-file F] [--json] [--dry-run]\n" +
+			"| comment rm <KEY> <ID> --yes [--json] [--dry-run]",
 		options: []helpOption{
 			{name: "m", desc: "comment body; `-` reads it from stdin"},
 			{name: "adf-file", desc: "comment body as an ADF JSON document file, sent to the origin as it is; exclusive with -m"},
@@ -644,13 +647,14 @@ var helps = map[string]cmdHelp{
 			"[--project KEY] [--type NAME-or-id] [--priority NAME-or-id]\n" +
 			"[--due YYYY-MM-DD] [--parent KEY]\n" +
 			"[--label L]... [--attach FILE]... [-m <text|->]\n" +
-			"[--field alias=value]... [--json]",
+			"[--field alias=value]... [--json] [--dry-run]",
 		examples: []string{
 			"gadak create Fix the flaky gate --project NMB --type Task \\\n    -m \"repro on staging\" --label batch",
 			"gadak create 로그인 실패 --project NMB --type 작업",
 			"gadak create Night triage item --project NMB --type Task --priority High --due 2026-09-01",
 			"gadak create Severity required --project NMB --type Task --field severity=High",
 			"gadak create --project NMB --type Task -- --rollback-on-failure",
+			"gadak create Dry run first --project NMB --type Task --dry-run   # print the request, send nothing",
 			`printf '%s\n' '{"summary":"one"}' '{"summary":"two"}' | gadak create --batch - --project NMB --type Task`,
 		},
 		seeAlso: []string{"gadak attach", "gadak edit", "gadak comment", "gadak transition", "gadak assign", "gadak issue"},
@@ -678,7 +682,7 @@ var helps = map[string]cmdHelp{
 			"[--label +x|-x]... [--component +x|-x]...\n" +
 			"[--fix-version +id-or-name|-id-or-name]...\n" +
 			"[--type NAME-or-id] [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none]\n" +
-			"[--field alias=value]... [--json] | --batch -",
+			"[--field alias=value]... [--json] [--dry-run] | --batch - [--dry-run]",
 		examples: []string{
 			"gadak edit NMB-140 --summary \"Rename without opening Jira\"",
 			"gadak edit NMB-140 --label +batch --label -legacy --priority High",
@@ -800,7 +804,7 @@ var helps = map[string]cmdHelp{
 		summary: "change issue status; accepts transition id, target status id, name, target status name, or status category new|inprogress|done; already in that category is a no-op; a category token folds destinations that share a display name and refuses the rest by name",
 		usage: "gadak [--workspace <name>] transition <KEY>\n" +
 			"<transition-id|status-id|name|new|inprogress|done>\n" +
-			"[--resolution name|id] [--field key=JSON]... [-m text] [--json] | --batch - [--dry-run]",
+			"[--resolution name|id] [--field key=JSON]... [-m text] [--json] [--dry-run] | --batch - [--dry-run]",
 		examples: []string{
 			"gadak transition NMB-140 \"In Review\"",
 			"gadak transition NMB-140 31",
@@ -815,7 +819,7 @@ var helps = map[string]cmdHelp{
 	"close": {
 		summary: "close an issue (transition to status category done); already done is a no-op",
 		usage: "gadak [--workspace <name>] close <KEY>\n" +
-			"[--resolution name|id] [--field key=JSON]... [-m text] [--json]",
+			"[--resolution name|id] [--field key=JSON]... [-m text] [--json] [--dry-run]",
 		examples: []string{
 			"gadak close NMB-140",
 			"gadak close NMB-140 -m \"fixed in 1.2\"",
@@ -829,7 +833,7 @@ var helps = map[string]cmdHelp{
 	"done": {
 		summary: "alias of close — transition an issue to status category done; already done is a no-op",
 		usage: "gadak [--workspace <name>] done <KEY>\n" +
-			"[--resolution name|id] [--field key=JSON]... [-m text] [--json]",
+			"[--resolution name|id] [--field key=JSON]... [-m text] [--json] [--dry-run]",
 		examples: []string{
 			"gadak done NMB-140",
 			"gadak done NMB-140 -m \"fixed in 1.2\"",
@@ -840,7 +844,7 @@ var helps = map[string]cmdHelp{
 	},
 	"assign": {
 		summary: "set the assignee; pass - to unassign",
-		usage:   "gadak [--workspace <name>] assign <KEY> <email|name|accountId|-> [--json] | --batch -",
+		usage:   "gadak [--workspace <name>] assign <KEY> <email|name|accountId|-> [--json] [--dry-run] | --batch -",
 		examples: []string{
 			"gadak assign NMB-140 dana@example.com",
 			"gadak assign NMB-140 -                 # unassign",
@@ -864,7 +868,7 @@ var helps = map[string]cmdHelp{
 	},
 	"claim": {
 		summary: "take an issue as yours — assignee plus the in-progress transition in one step (an issue not in progress is moved there); refuses (exit 75) while another actor holds it",
-		usage:   "gadak [--workspace <name>] claim <KEY> [--take-over] [--json]",
+		usage:   "gadak [--workspace <name>] claim <KEY> [--take-over] [--json] [--dry-run]",
 		examples: []string{
 			"gadak claim NMB-140",
 			"gadak claim NMB-140 --json             # adds the claim answer to the JSON",
@@ -874,7 +878,7 @@ var helps = map[string]cmdHelp{
 	},
 	"link": {
 		summary: "create an issue link (A <type> B); not `gadak issue --link`, which prints a gadak:// URL",
-		usage:   "gadak [--workspace <name>] link <A> <B> --type <name|inward|outward|id> [--json]",
+		usage:   "gadak [--workspace <name>] link <A> <B> --type <name|inward|outward|id> [--json] [--dry-run]",
 		examples: []string{
 			"gadak link NMB-140 NMB-141 --type blocks",
 			"gadak link NMB-140 NMB-141 --type \"is blocked by\"",
@@ -883,7 +887,7 @@ var helps = map[string]cmdHelp{
 	},
 	"unlink": {
 		summary: "remove an issue link — the one `gadak link A B --type t` created (looked up live for its id; the mirror carries none)",
-		usage:   "gadak [--workspace <name>] unlink <A> <B> --type <name|inward|outward|id> [--json]",
+		usage:   "gadak [--workspace <name>] unlink <A> <B> --type <name|inward|outward|id> [--json] [--dry-run]",
 		examples: []string{
 			"gadak unlink NMB-140 NMB-141 --type blocks",
 			"gadak unlink NMB-140 NMB-141 --type \"is blocked by\"",

@@ -48,18 +48,32 @@ var hintTables = []string{"issues", "items", "pages", "comments"}
 
 var noSuchColumnRe = regexp.MustCompile(`(?i)no such column:\s+([^\s(]+)`)
 
+// ambiguousColumnRe matches SQLite's "ambiguous column name: X" — two
+// relations in one FROM both carrying X.
+var ambiguousColumnRe = regexp.MustCompile(`(?i)ambiguous column name:\s+([^\s(]+)`)
+
 // WithColumnSuggestion appends `did you mean "col"?` to a SQLite
 // "no such column" error when one column from hintTables is close enough.
 // When the name exists verbatim on a hint table, the query hit the wrong
 // table — say which one holds it (GDK-974: summary lives on issues_full,
 // and the miss was silent). Distant names stay unadorned — a bad guess is
 // worse than none.
-func WithColumnSuggestion(db *sql.DB, err error) error {
+//
+// A "no such column"-shaped miss is not the only silent zero: json_each in
+// the FROM list makes `key`/`value` ambiguous against issues_full, and the
+// bare SQLite sentence does not say the function brought its own columns
+// (GDK-595). query is the statement that failed, so the hint can be scoped
+// to it — an ambiguity between two ordinary tables stays unhinted.
+func WithColumnSuggestion(db *sql.DB, query string, err error) error {
 	if err == nil || db == nil {
 		return err
 	}
 	name, ok := parseNoSuchColumn(err.Error())
 	if !ok {
+		if col, amb := parseAmbiguousColumn(err.Error()); amb && (col == "key" || col == "value") &&
+			strings.Contains(strings.ToLower(StripComments(query)), "json_each") {
+			return fmt.Errorf(`%w; hint: json_each exposes its own "key"/"value" columns — qualify as issues_full.key or alias the tables (see RECIPES)`, err)
+		}
 		return err
 	}
 	cols, owner, colErr := hintColumns(db)
@@ -74,6 +88,21 @@ func WithColumnSuggestion(db *sql.DB, err error) error {
 		return err
 	}
 	return fmt.Errorf("%w; did you mean %q?", err, sug)
+}
+
+func parseAmbiguousColumn(msg string) (string, bool) {
+	m := ambiguousColumnRe.FindStringSubmatch(msg)
+	if len(m) < 2 {
+		return "", false
+	}
+	name := strings.Trim(m[1], "`\"[]")
+	if i := strings.LastIndex(name, "."); i >= 0 {
+		name = name[i+1:]
+	}
+	if name == "" {
+		return "", false
+	}
+	return name, true
 }
 
 func parseNoSuchColumn(msg string) (string, bool) {

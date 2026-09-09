@@ -234,14 +234,20 @@ func TestTransitionBatchDryRunAlreadyDoneIsNoop(t *testing.T) {
 	}
 }
 
-func TestTransitionDryRunRequiresBatch(t *testing.T) {
+// Re-pinned for GDK-1446 (2026-09-10): this test pinned the refusal
+// "--dry-run requires --batch -" — exactly the gap that issue closes. A
+// single-key --dry-run now plans the write through the same Preview the
+// batch path uses; TestTransitionDryRunSingleKey in dryrun_gap_test.go holds
+// the plan's shape, and this one keeps the older invariant that mattered
+// before and still does: no transition POST leaves the process.
+func TestTransitionSingleKeyDryRunDoesNotWrite(t *testing.T) {
 	f := newFakeJira(t)
 	mirror(t, f.URL)
 	_, err := capture(t, func() error {
 		return cmdTransition([]string{"NMB-1", "done", "--dry-run"})
 	})
-	if err == nil || !strings.Contains(err.Error(), "--dry-run requires --batch") {
-		t.Fatalf("dry-run without batch: %v", err)
+	if err != nil {
+		t.Fatalf("single-key dry-run must plan, not refuse: %v", err)
 	}
 	mustNotTransition(t, f, "NMB-1")
 }

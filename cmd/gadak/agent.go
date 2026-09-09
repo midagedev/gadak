@@ -385,7 +385,7 @@ func cmdIssue(args []string) error {
 			return err
 		}
 	} else {
-		printIssueDocs(docs)
+		printIssueDocs(docs, linkTypePhrases(db))
 	}
 	if len(notFound) > 0 {
 		return fmt.Errorf("%d of %d keys not in the mirror", len(notFound), len(keys))
@@ -488,12 +488,36 @@ func attachmentTruncationMark(size int64) string {
 	return "\t" + attachaudit.Mark
 }
 
-func printIssueDocs(docs []issueDoc) {
+// linkTypePhrases reads the mirror's link_types catalog (schemaV43; sync
+// fills it) into a name → (inward, outward) map, lowercased by name. A nil
+// map — unreadable or empty catalog, like the demo fixture — keeps the wire
+// pair wording, and the JSON contract is untouched either way: this is the
+// human line's phrase source only (GDK-1734).
+func linkTypePhrases(db *store.DB) map[string][2]string {
+	if db == nil {
+		return nil
+	}
+	rows, err := db.Query(`SELECT name, inward, outward FROM link_types`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	out := map[string][2]string{}
+	for rows.Next() {
+		var name, inward, outward string
+		if rows.Scan(&name, &inward, &outward) == nil {
+			out[strings.ToLower(strings.TrimSpace(name))] = [2]string{inward, outward}
+		}
+	}
+	return out
+}
+
+func printIssueDocs(docs []issueDoc, phrases map[string][2]string) {
 	for i, doc := range docs {
 		if i > 0 {
 			fmt.Printf("--- %s ---\n", doc.Issue.IssueKey)
 		}
-		printIssue(doc.Issue, doc.Detail, doc.durations)
+		printIssue(doc.Issue, doc.Detail, doc.durations, phrases)
 	}
 }
 
@@ -625,7 +649,7 @@ func printIssueLink(db *store.DB, key string, asJSON bool) error {
 	return nil
 }
 
-func printIssue(l store.IssueLite, d *store.Detail, dur store.Spans) {
+func printIssue(l store.IssueLite, d *store.Detail, dur store.Spans, phrases map[string][2]string) {
 	fmt.Printf("%s\t%s\n", l.IssueKey, l.Summary)
 	kv := func(label, value string) {
 		if value != "" {
@@ -709,7 +733,17 @@ func printIssue(l store.IssueLite, d *store.Detail, dur store.Spans) {
 	if len(d.LinkedIssues) > 0 {
 		fmt.Printf("\nlinks (%d)\n", len(d.LinkedIssues))
 		for _, k := range d.LinkedIssues {
-			fmt.Printf("  %s %s\t%s\t%s\n", k.Type, k.Direction, k.Key, k.Summary)
+			// The type's own sentence ("blocks"), not the wire pair ("Blocks
+			// outward") — that is what the line says on the origin's own page
+			// (GDK-1734). A catalog without the type keeps the pair, which is
+			// what this line printed before the catalog existed.
+			label := k.Type + " " + k.Direction
+			if lt, ok := phrases[strings.ToLower(k.Type)]; ok {
+				if p := origin.LinkPhrase(k.Direction, lt[0], lt[1]); p != "" {
+					label = p
+				}
+			}
+			fmt.Printf("  %s\t%s\t%s\n", label, k.Key, k.Summary)
 		}
 	}
 	if prs := server.ListLinkedPRs(d.DevLinks, d.Attachments); len(prs) > 0 {
@@ -1571,7 +1605,15 @@ func withCreateSession(project string, fn func(context.Context, *config.Config, 
 // withKeyWriteSession is create's sibling routed per key: the mirror says
 // which origin owns the row (store.KeySource — a "MID-5" can be Linear or
 // Jira, the shape cannot tell), and the credential gate is that origin's.
+//
+// The empty-key check is the single owner for every key-addressed write
+// (edit, comment, transition, assign, claim, link, unlink, attach): a blank
+// key used to fall through to the origin as PUT /issue/ (GDK-1593 pt 3),
+// so it fires before anything else this session might do.
 func withKeyWriteSession(key string, fn func(context.Context, *config.Config, *store.DB, origin.Writer, string) error) error {
+	if strings.TrimSpace(key) == "" {
+		return fmt.Errorf("empty issue key — a write needs the issue it applies to (ABC-123)")
+	}
 	warnWorkspaceIfEnv()
 	cfg, err := config.Load()
 	if err != nil {
@@ -1891,8 +1933,10 @@ func ambiguousMention(token string, users []jira.User) error {
 	}
 	// Two or more hits is the opposite of "no user matching": the refusal has
 	// to say the name is over-specified, not absent, or the next attempt is a
-	// longer search for someone who was already found twice.
-	return fmt.Errorf("@%s matches %d users on this origin (%s) — nothing was posted. Type enough of the name that exactly one matches",
+	// longer search for someone who was already found twice. When the @word was
+	// never meant as a person, the escape is backticks — a code span is not a
+	// mention site (GDK-843), and saying so ends the guessing.
+	return fmt.Errorf("@%s matches %d users on this origin (%s) — nothing was posted. Type enough of the name that exactly one matches, or wrap a literal @word in backticks",
 		token, len(users), strings.Join(names, "; "))
 }
 
@@ -2040,6 +2084,7 @@ func cmdComment(args []string) error {
 	text := fs.String("m", "", "comment body; `-` reads it from stdin")
 	adfFile := fs.String("adf-file", "", "comment body as an ADF JSON document file, sent to the origin as it is; exclusive with -m and positional text")
 	asJSON := fs.Bool("json", false, "emit JSON")
+	dryRun := fs.Bool("dry-run", false, "print the request this comment would send and exit; nothing reaches the origin")
 	internal := fs.Bool("internal", false, "post as a JSM internal comment")
 	var visRaw labelFlags
 	fs.Var(&visRaw, "visibility", "restrict to role=NAME or group=NAME (once)")
@@ -2088,9 +2133,18 @@ func cmdComment(args []string) error {
 		if err != nil {
 			return fmt.Errorf("comment %s: %w", key, err)
 		}
-		return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
+		return foldDryRun(mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
+			if *dryRun {
+				// The file is the body the origin would carry verbatim, so
+				// the plan carries it verbatim too — no mention pass runs on
+				// a document the caller already wrote (GDK-1446).
+				if err := emitDryRun("comment", map[string]any{"body_adf": doc}, key); err != nil {
+					return nil, err
+				}
+				return nil, errDryRun
+			}
 			return postCommentDoc(ctx, c, key, doc, vis, *internal)
-		})
+		}))
 	}
 	if body == "-" {
 		buf, err := io.ReadAll(os.Stdin)
@@ -2102,12 +2156,33 @@ func cmdComment(args []string) error {
 	if strings.TrimSpace(body) == "" {
 		return errors.New("empty comment — pass -m <text>, or -m - to read stdin, or gadak comment KEY <text>")
 	}
-	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
+	return foldDryRun(mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
+		if *dryRun {
+			// Run the body reader a real write runs — placeholder refusal, the
+			// mention pass — so a plan that would refuse refuses instead of
+			// promising a write the origin would reject (GDK-1446). The plan
+			// itself carries the typed text, the person's words, not the ADF
+			// the origin would wrap them in.
+			if _, err := commentBodyDoc(ctx, c, key, body); err != nil {
+				return nil, err
+			}
+			req := map[string]any{"body": body}
+			if vis != nil {
+				req["visibility"] = vis.Type + "=" + vis.Value
+			}
+			if *internal {
+				req["internal"] = true
+			}
+			if err := emitDryRun("comment", req, key); err != nil {
+				return nil, err
+			}
+			return nil, errDryRun
+		}
 		return postComment(ctx, c, key, body, vis, *internal)
-	})
+	}))
 }
 
-const commentUsage = "usage: gadak comment <KEY> [<text> | -m <text|-> | --adf-file F] [--visibility role=NAME|group=NAME] [--internal] [--json] | --batch -\n" +
+const commentUsage = "usage: gadak comment <KEY> [<text> | -m <text|-> | --adf-file F] [--visibility role=NAME|group=NAME] [--internal] [--json] [--dry-run] | --batch -\n" +
 	"       gadak comment edit <KEY> <ID> [-m <text|-> | --adf-file F] [--json]\n" +
 	"       gadak comment rm <KEY> <ID> --yes [--json]"
 
@@ -2125,6 +2200,7 @@ func cmdCommentEdit(args []string) error {
 	text := fs.String("m", "", "comment body; `-` reads it from stdin")
 	adfFile := fs.String("adf-file", "", "comment body as an ADF JSON document file, sent to the origin as it is; exclusive with -m")
 	asJSON := fs.Bool("json", false, "emit JSON")
+	dryRun := fs.Bool("dry-run", false, "print the request this edit would send and exit; nothing reaches the origin")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("comment", fs))
 		return nil
@@ -2152,9 +2228,15 @@ func cmdCommentEdit(args []string) error {
 		if err != nil {
 			return fmt.Errorf("comment %s: %w", key, err)
 		}
-		return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
+		return foldDryRun(mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
+			if *dryRun {
+				if err := emitDryRun("comment edit", map[string]any{"comment_id": id, "body_adf": doc}, key); err != nil {
+					return nil, err
+				}
+				return nil, errDryRun
+			}
 			return editCommentDoc(ctx, c, key, id, doc)
-		})
+		}))
 	}
 	if body == "-" {
 		buf, err := io.ReadAll(os.Stdin)
@@ -2166,9 +2248,20 @@ func cmdCommentEdit(args []string) error {
 	if strings.TrimSpace(body) == "" {
 		return errors.New("empty comment — pass -m <text>, or -m - to read stdin, or --adf-file F")
 	}
-	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
+	return foldDryRun(mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
+		if *dryRun {
+			// Same validation contract as comment's dry run (GDK-1446): the
+			// body reader runs, the plan carries the typed text.
+			if _, err := commentBodyDoc(ctx, c, key, body); err != nil {
+				return nil, err
+			}
+			if err := emitDryRun("comment edit", map[string]any{"comment_id": id, "body": body}, key); err != nil {
+				return nil, err
+			}
+			return nil, errDryRun
+		}
 		return editComment(ctx, c, key, id, body)
-	})
+	}))
 }
 
 // cmdCommentRm is `gadak comment rm <KEY> <ID> --yes` (GDK-1647). --yes is
@@ -2178,6 +2271,7 @@ func cmdCommentRm(args []string) error {
 	fs := newFlagSet("comment")
 	yes := fs.Bool("yes", false, "delete the comment — without it, rm explains and refuses")
 	asJSON := fs.Bool("json", false, "emit JSON")
+	dryRun := fs.Bool("dry-run", false, "print the delete this rm would send and exit; nothing reaches the origin")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("comment", fs))
 		return nil
@@ -2196,6 +2290,11 @@ func cmdCommentRm(args []string) error {
 	id := commentOriginID(pos[1])
 	if id == "" {
 		return usageError("comment", commentRmUsage)
+	}
+	if *dryRun {
+		// The delete needs no read to plan — the id is the whole request —
+		// so there is no origin session to open (GDK-1446).
+		return emitDryRun("comment rm", map[string]any{"comment_id": id}, key)
 	}
 	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
 		ed, err := origin.AsCommentEditor(c)
@@ -2309,7 +2408,7 @@ func editCommentDoc(ctx context.Context, c origin.Writer, key, id string, doc js
 }
 
 func runCommentBatch(asJSON, internalDefault bool, visDefault *jira.CommentVisibility, bodyDefault string) error {
-	return runWriteBatch("comment", asJSON, func(raw string) batchResult {
+	return runWriteBatch("comment", asJSON, false, func(raw string) batchResult {
 		obj, key, err := parseBatchLine(raw, commentBatchFields)
 		if err != nil {
 			return batchErr(key, false, err)
@@ -2379,24 +2478,24 @@ func commentMark(c store.DetailComment) string {
 	return strings.Join(parts, " ")
 }
 
-const transitionUsage = "usage: gadak transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--resolution name|id] [--field key=JSON]... [-m text] [--json] | --batch - [--dry-run]"
+const transitionUsage = "usage: gadak transition <KEY> <transition-id|status-id|name|new|inprogress|done> [--resolution name|id] [--field key=JSON]... [-m text] [--json] [--dry-run] | --batch - [--dry-run]"
 
-const closeUsage = "usage: gadak close <KEY> [--resolution name|id] [--field key=JSON]... [-m text] [--json]"
+const closeUsage = "usage: gadak close <KEY> [--resolution name|id] [--field key=JSON]... [-m text] [--json] [--dry-run]"
 
-func newTransitionFlags(name string) (*flag.FlagSet, *bool, *string, *labelFlags, *string) {
+func newTransitionFlags(name string) (*flag.FlagSet, *bool, *string, *labelFlags, *string, *bool) {
 	fs := newFlagSet(name)
 	asJSON := fs.Bool("json", false, "emit JSON")
 	resolution := fs.String("resolution", "", "resolution name or id; a name is resolved from the transition's allowedValues, else GET /resolution")
 	var fieldFlags labelFlags
 	fs.Var(&fieldFlags, "field", "screen field key from `gadak transition KEY` (not a configured alias); key=JSON (repeatable); a value that is not JSON is sent as a string")
 	text := fs.String("m", "", "comment posted with the transition; `-` reads it from stdin")
-	return fs, asJSON, resolution, &fieldFlags, text
+	dryRun := fs.Bool("dry-run", false, "print the resolved transition id (or the no-op) this write would send and exit; nothing reaches the origin")
+	return fs, asJSON, resolution, &fieldFlags, text, dryRun
 }
 
 func cmdTransition(args []string) error {
-	fs, asJSON, resolution, fieldFlags, text := newTransitionFlags("transition")
+	fs, asJSON, resolution, fieldFlags, text, dryRun := newTransitionFlags("transition")
 	batch := fs.String("batch", "", "JSON lines from stdin (`-` only); each object needs key and target")
-	dryRun := fs.Bool("dry-run", false, "with --batch -: print the resolved transition id or no-op per line without writing")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("transition", fs))
 		return nil
@@ -2418,9 +2517,6 @@ func cmdTransition(args []string) error {
 		}
 		return runTransitionBatch(*asJSON, *dryRun, *resolution, parsed, *text)
 	}
-	if *dryRun {
-		return fmt.Errorf("--dry-run requires --batch -")
-	}
 	if len(pos) < 1 {
 		return usageError("transition", transitionUsage)
 	}
@@ -2441,11 +2537,11 @@ func cmdTransition(args []string) error {
 	if err != nil {
 		return err
 	}
-	return applyTransitionWrite(key, want, *resolution, parsed, body, *asJSON)
+	return applyTransitionWrite("transition", key, want, *resolution, parsed, body, *asJSON, *dryRun)
 }
 
 func cmdClose(args []string) error {
-	fs, asJSON, resolution, fieldFlags, text := newTransitionFlags("close")
+	fs, asJSON, resolution, fieldFlags, text, dryRun := newTransitionFlags("close")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("close", fs))
 		return nil
@@ -2466,7 +2562,7 @@ func cmdClose(args []string) error {
 	if err != nil {
 		return err
 	}
-	return applyTransitionWrite(key, "done", *resolution, parsed, body, *asJSON)
+	return applyTransitionWrite("close", key, "done", *resolution, parsed, body, *asJSON, *dryRun)
 }
 
 func readTransitionComment(text string) (string, error) {
@@ -2484,14 +2580,47 @@ func readTransitionComment(text string) (string, error) {
 	return body, nil
 }
 
-func applyTransitionWrite(key, want, resolution string, fields map[string]any, comment string, asJSON bool) error {
-	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
+// applyTransitionWrite is transition's and close's shared write path. verb
+// names the command the person typed (the dry-run note and plan carry it);
+// close and transition send the same request. dryRun resolves the transition
+// through Preview — the same resolveTransition the write runs, so a plan
+// cannot name an id the write would not fire — and prints it instead of
+// sending (GDK-1446).
+func applyTransitionWrite(verb, key, want, resolution string, fields map[string]any, comment string, asJSON bool, dryRun bool) error {
+	return foldDryRun(withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
+		if dryRun {
+			id, changed, err := transition.Preview(ctx, c, key, want, mirrorStatusUse(ctx, db, key))
+			if err != nil {
+				return formatTransitionError(err, cfg)
+			}
+			req := map[string]any{}
+			if !changed {
+				// A category token the issue already reports is a no-op the
+				// write would not send; the plan says that instead of an id.
+				req["noop"] = true
+			} else {
+				req["transition_id"] = id
+				if strings.TrimSpace(resolution) != "" {
+					req["resolution"] = resolution
+				}
+				if len(fields) > 0 {
+					req["fields"] = fields
+				}
+				if strings.TrimSpace(comment) != "" {
+					req["comment"] = comment
+				}
+			}
+			if err := emitDryRun(verb, req, key); err != nil {
+				return err
+			}
+			return errDryRun
+		}
 		res, err := applyTransition(ctx, c, cfg, db, key, want, resolution, fields, comment)
 		if err != nil {
 			return err
 		}
 		return emitTransitionResult(ctx, cfg, db, src, key, want, comment, asJSON, res)
-	})
+	}))
 }
 
 // mirrorStatusUse answers "how many issues does this project actually hold in
@@ -2543,7 +2672,7 @@ func applyTransition(ctx context.Context, c origin.Writer, cfg *config.Config, d
 var transitionBatchFields = []string{"key", "target", "resolution", "fields", "comment"}
 
 func runTransitionBatch(asJSON, dryRun bool, resolutionDefault string, fieldsDefault map[string]any, commentDefault string) error {
-	return runWriteBatch("transition", asJSON, func(raw string) batchResult {
+	return runWriteBatch("transition", asJSON, false, func(raw string) batchResult {
 		obj, key, err := parseBatchLine(raw, transitionBatchFields)
 		if err != nil {
 			return batchErr(key, false, err)
@@ -2707,13 +2836,14 @@ func parseTransitionFieldFlags(raw []string) (map[string]any, error) {
 	return out, nil
 }
 
-const assignUsage = "usage: gadak assign <KEY> <email|name|accountId|-> [--json] | --batch -"
+const assignUsage = "usage: gadak assign <KEY> <email|name|accountId|-> [--json] [--dry-run] | --batch -"
 
 var assignBatchFields = []string{"key", "assignee"}
 
 func cmdAssign(args []string) error {
 	fs := newFlagSet("assign")
 	asJSON := fs.Bool("json", false, "emit JSON")
+	dryRun := fs.Bool("dry-run", false, "print the assignee id this write would send and exit; nothing reaches the origin")
 	batch := fs.String("batch", "", "JSON lines from stdin (`-` only); each object needs key and assignee")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("assign", fs))
@@ -2737,12 +2867,30 @@ func cmdAssign(args []string) error {
 	}
 	key, who := normalizeKey(pos[0]), strings.TrimSpace(strings.Join(pos[1:], " "))
 
-	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
+	return foldDryRun(withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
+		if *dryRun {
+			// The account resolution a real write pays is the plan's whole
+			// content: the id, or null for `-` (unassign) — the request the
+			// origin would receive (GDK-1446).
+			id, err := resolveAccount(ctx, c, who, src)
+			if err != nil {
+				return err
+			}
+			var assignee any = id
+			if id == "" {
+				assignee = nil // `-`: resolveAccount's empty id is the unassign
+			}
+			req := map[string]any{"assignee": assignee}
+			if err := emitDryRun("assign", req, key); err != nil {
+				return err
+			}
+			return errDryRun
+		}
 		if err := assignTo(ctx, c, src, key, who); err != nil {
 			return err
 		}
 		return emitAfterWrite(ctx, cfg, db, src, key, *asJSON, nil)
-	})
+	}))
 }
 
 func assignTo(ctx context.Context, c origin.Writer, src, key, who string) error {
@@ -2754,7 +2902,7 @@ func assignTo(ctx context.Context, c origin.Writer, src, key, who string) error 
 }
 
 func runAssignBatch(asJSON bool) error {
-	return runWriteBatch("assign", asJSON, func(raw string) batchResult {
+	return runWriteBatch("assign", asJSON, false, func(raw string) batchResult {
 		obj, key, err := parseBatchLine(raw, assignBatchFields)
 		if err != nil {
 			return batchErr(key, false, err)
@@ -2798,6 +2946,7 @@ const exitClaimConflict = 75
 func cmdClaim(args []string) error {
 	fs := newFlagSet("claim")
 	asJSON := fs.Bool("json", false, "emit JSON")
+	dryRun := fs.Bool("dry-run", false, "print the assignee and in-progress transition this claim would send and exit; nothing reaches the origin")
 	takeOver := fs.Bool("take-over", false, "claim even when another assignee holds the issue in progress (replaces them)")
 	trans := fs.String("transition", "", "which in-progress transition to take when more than one lands there (id, name, or status id)")
 	if wantsHelp(args) {
@@ -2813,10 +2962,33 @@ func cmdClaim(args []string) error {
 	}
 	key := normalizeKey(pos[0])
 
-	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
+	return foldDryRun(withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
 		o, ok := c.(claim.Origin)
 		if !ok {
 			return fmt.Errorf("claim has no counterpart on this issue's origin (%s) — it is a Jira-workflow verb: assignee plus the in-progress transition; `gadak transition` and `gadak assign` are the two halves", src)
+		}
+		if *dryRun {
+			// The claim's two halves as a plan: the account id (Myself —
+			// the read the real claim pays too) and the in-progress target.
+			// A holder conflict is the origin's runtime refusal, the same
+			// boundary transition's dry run has with required fields; the
+			// real write still refuses (exit 75) rather than replacing.
+			me, err := o.Myself(ctx)
+			if err != nil {
+				return err
+			}
+			target := *trans
+			if target == "" {
+				target = "inprogress"
+			}
+			req := map[string]any{"assignee": me.ID(), "transition": target}
+			if *takeOver {
+				req["take_over"] = true
+			}
+			if err := emitDryRun("claim", req, key); err != nil {
+				return err
+			}
+			return errDryRun
 		}
 		res, err := claim.Apply(ctx, o, cfg, claim.Request{Key: key, TransitionID: *trans, TakeOver: *takeOver})
 		if err != nil {
@@ -2860,7 +3032,7 @@ func cmdClaim(args []string) error {
 			fmt.Printf("bound to session %s…\n", short)
 		}
 		return nil
-	})
+	}))
 }
 
 // claimBindTimeout bounds the loopback POST that reflects a claim into the

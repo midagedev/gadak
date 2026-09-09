@@ -82,6 +82,21 @@ func ResolveLinkType(token string, catalog []jira.IssueLinkType) (lt jira.IssueL
 	}
 }
 
+// LinkPhrase is the sentence one link row prints for a direction: the type's
+// own description ("blocks" / "is blocked by"), or "" when the pair does not
+// name one. The mirror's links.direction is the wire pair ("Blocks outward")
+// and stays a contract column; this is the human line (GDK-1734) — reading
+// "blocks NMB-2" instead of "Blocks outward NMB-2".
+func LinkPhrase(direction, inward, outward string) string {
+	switch strings.ToLower(strings.TrimSpace(direction)) {
+	case "inward":
+		return strings.TrimSpace(inward)
+	case "outward":
+		return strings.TrimSpace(outward)
+	}
+	return ""
+}
+
 // formatLinkTypes renders a catalog for an error message or a listing.
 func formatLinkTypes(list []jira.IssueLinkType) string {
 	if len(list) == 0 {

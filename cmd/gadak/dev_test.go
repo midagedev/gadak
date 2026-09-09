@@ -310,7 +310,7 @@ func TestIssuePrintsDeploymentAndBuildLinks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, _ := capture(t, func() error { printIssue(lites[0], d, store.Spans{}); return nil })
+	out, _ := capture(t, func() error { printIssue(lites[0], d, store.Spans{}, nil); return nil })
 	for _, want := range []string{
 		"Linked PRs (1)",
 		"https://github.com/o/r/pull/9",

@@ -59,7 +59,14 @@ func (e *batchFailedError) Error() string {
 // (parse failures included) and prints one envelope row per input line in
 // input order. Any failure makes the returned error non-nil after the
 // envelopes are written.
-func runWriteBatch(verb string, asJSON bool, apply func(raw string) batchResult) error {
+//
+// dryRunPlan (edit, GDK-1446) is the mode where each line's apply emits its
+// own --dry-run plan JSON instead of writing: those lines already printed
+// their output, so only the failures keep an envelope row — a reader gets
+// one plan per plannable line and one error row per refused line, never both
+// for the same input. Transition's batch dry-run does not use this mode: its
+// plan is one id, and it rides inside the envelope (batchDryRun).
+func runWriteBatch(verb string, asJSON, dryRunPlan bool, apply func(raw string) batchResult) error {
 	lines, err := readBatchLines()
 	if err != nil {
 		return err
@@ -75,7 +82,16 @@ func runWriteBatch(verb string, asJSON bool, apply func(raw string) batchResult)
 			fails++
 		}
 	}
-	if err := emitBatchResults(asJSON, results); err != nil {
+	emit := results
+	if dryRunPlan {
+		emit = nil
+		for _, r := range results {
+			if !r.OK {
+				emit = append(emit, r)
+			}
+		}
+	}
+	if err := emitBatchResults(asJSON, emit); err != nil {
 		return err
 	}
 	if fails > 0 {
@@ -108,6 +124,11 @@ func readBatchLines() ([]string, error) {
 }
 
 func emitBatchResults(asJSON bool, results []batchResult) error {
+	// Zero rows prints nothing: the dry-run plan mode filters to failures,
+	// and a run with none must not leave a lone TSV header behind.
+	if len(results) == 0 {
+		return nil
+	}
 	if asJSON {
 		enc := json.NewEncoder(os.Stdout)
 		for _, r := range results {

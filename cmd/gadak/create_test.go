@@ -396,7 +396,9 @@ func TestFormatCreateErrorKeepsFlagAndCatalog(t *testing.T) {
 		t.Fatalf("configured: %q", got)
 	}
 	types := []jira.NamedID{{ID: "10001", Name: "Task"}, {ID: "10002", Name: "작업"}, {ID: "10004", Name: "Bug"}}
-	if got := formatCreateError(&create.NeedTypeError{Available: types}).Error(); got != "pass --type, available: Task (id 10001); 작업 (id 10002); Bug (id 10004)" {
+	// GDK-1593 pt 2: the refusal also names the config escape, so a paired
+	// workspace (no recorded type default) learns it can stop paying --type.
+	if got := formatCreateError(&create.NeedTypeError{Available: types}).Error(); got != "pass --type, available: Task (id 10001); 작업 (id 10002); Bug (id 10004) — or set a workspace default: gadak config set defaultIssueTypeId <id>" {
 		t.Fatalf("type: %q", got)
 	}
 	pris := []jira.NamedID{{ID: "1", Name: "Highest"}, {ID: "2", Name: "High"}, {ID: "3", Name: "Medium"}}
@@ -997,8 +999,12 @@ func TestCreateBatchHappyPathPreservesOrder(t *testing.T) {
 		t.Fatalf("POST /issue count %d in %v", n, f.calls)
 	}
 	lines := nonEmptyLines(out)
-	if len(lines) != 3 {
+	// Batch opens with a header row (GDK-1487), then one line per create.
+	if len(lines) != 4 {
 		t.Fatalf("stdout lines %q", out)
+	}
+	if lines[0] != "key\tsummary" {
+		t.Fatalf("header = %q, want key\\tsummary", lines[0])
 	}
 	want := []struct{ key, summary string }{
 		{"NMB-42", "first"},
@@ -1006,13 +1012,13 @@ func TestCreateBatchHappyPathPreservesOrder(t *testing.T) {
 		{"NMB-44", "third"},
 	}
 	for i, w := range want {
-		fields := strings.Split(lines[i], "\t")
+		fields := strings.Split(lines[i+1], "\t")
 		if len(fields) != 2 {
-			t.Errorf("line %d: want KEY\\tsummary, got %d fields in %q", i+1, len(fields), lines[i])
+			t.Errorf("line %d: want KEY\\tsummary, got %d fields in %q", i+1, len(fields), lines[i+1])
 		}
-		key, summary := tsvKeySummary(lines[i])
+		key, summary := tsvKeySummary(lines[i+1])
 		if key != w.key || summary != w.summary {
-			t.Errorf("line %d: %q want %s / %s", i+1, lines[i], w.key, w.summary)
+			t.Errorf("line %d: %q want %s / %s", i+1, lines[i+1], w.key, w.summary)
 		}
 		if !strings.Contains(f.createBodies[i], `"summary":"`+w.summary+`"`) {
 			t.Errorf("POST %d missing summary %q: %s", i+1, w.summary, f.createBodies[i])
@@ -1083,12 +1089,13 @@ func TestCreateBatchStopsOnCreateFailure(t *testing.T) {
 		t.Errorf("error must carry the Jira message: %v", err)
 	}
 	lines := nonEmptyLines(stdout)
-	if len(lines) != 1 {
-		t.Fatalf("stdout must be the first success only, got %q", stdout)
+	// Header (GDK-1487) + the first success only.
+	if len(lines) != 2 {
+		t.Fatalf("stdout must be the header + first success only, got %q", stdout)
 	}
-	key, summary := tsvKeySummary(lines[0])
+	key, summary := tsvKeySummary(lines[1])
 	if key != "NMB-42" || summary != "kept" {
-		t.Errorf("printed %q", lines[0])
+		t.Errorf("printed %q", lines[1])
 	}
 	if n := countCalls(f, "POST /issue"); n != 2 {
 		t.Fatalf("want 2 POSTs (line 3 must not create), got %d in %v", n, f.calls)
@@ -1144,7 +1151,8 @@ func TestCreateBatchMalformedJSONAfterSuccessStops(t *testing.T) {
 		t.Errorf("shape reminder: %v", err)
 	}
 	lines := nonEmptyLines(stdout)
-	if len(lines) != 1 {
+	// Header (GDK-1487) + the one line that succeeded.
+	if len(lines) != 2 {
 		t.Fatalf("stdout %q", stdout)
 	}
 	if n := countCalls(f, "POST /issue"); n != 1 {
@@ -1271,7 +1279,8 @@ func TestCreateBatchAttachValidatesThatLineOnly(t *testing.T) {
 		t.Errorf("must name line 2: %v", err)
 	}
 	lines := nonEmptyLines(stdout)
-	if len(lines) != 1 {
+	// Header (GDK-1487) + the one line that succeeded.
+	if len(lines) != 2 {
 		t.Fatalf("stdout %q", stdout)
 	}
 	if n := countCalls(f, "POST /issue"); n != 1 {
@@ -1468,8 +1477,9 @@ func TestCreateBatchPriorityUnmatchedWritesNothing(t *testing.T) {
 		}
 	}
 	lines := nonEmptyLines(stdout)
-	if len(lines) != 1 {
-		t.Fatalf("stdout must be the first success only, got %q", stdout)
+	// Header (GDK-1487) + the first success only.
+	if len(lines) != 2 {
+		t.Fatalf("stdout must be the header + first success only, got %q", stdout)
 	}
 	if n := countCalls(f, "POST /issue"); n != 1 {
 		t.Fatalf("want 1 POST (line 2 must not create), got %d in %v", n, f.calls)
@@ -1692,8 +1702,9 @@ func TestCreateBatchParentInvalidWritesNothing(t *testing.T) {
 		t.Errorf("must use the key wording: %v", err)
 	}
 	lines := nonEmptyLines(stdout)
-	if len(lines) != 1 {
-		t.Fatalf("stdout must be the first success only, got %q", stdout)
+	// Header (GDK-1487) + the first success only.
+	if len(lines) != 2 {
+		t.Fatalf("stdout must be the header + first success only, got %q", stdout)
 	}
 	if n := countCalls(f, "POST /issue"); n != 1 {
 		t.Fatalf("want 1 POST (line 2 must not create), got %d in %v", n, f.calls)

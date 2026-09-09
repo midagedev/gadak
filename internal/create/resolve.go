@@ -21,10 +21,13 @@ import (
 // the catalog id or display name — untranslatedName, a hierarchy-derived
 // epic/subtask token, or the small standard-name locale table.
 const (
-	SourceFlag   = "flag"
-	SourceConfig = "config"
-	SourceSole   = "sole"
-	SourceAlias  = "alias"
+	SourceFlag    = "flag"
+	SourceConfig  = "config"
+	SourceSole    = "sole"
+	SourceAlias   = "alias"
+	SourceCatalog = "catalog" // the site's createmeta said it, not the profile (GDK-1733)
+	SourceParent  = "parent"  // a --parent key named it (GDK-1620)
+	SourceMirror  = "mirror"  // the local mirror's rows settled it (GDK-1458)
 )
 
 // Resolved is one filled create field and where it came from.
@@ -136,7 +139,7 @@ func settleType(want, source string, hits []origin.CreateMetaIssueType) (string,
 	if len(hits) == 1 {
 		return hits[0].ID, source, nil
 	}
-	return "", "", fmt.Errorf("issue type %q matches more than one catalog type: %s — an id settles it", want, FormatTypes(namedTypes(hits)))
+	return "", "", &AmbiguousTypeError{Want: want, Hits: namedTypes(hits)}
 }
 
 func typesMatching(types []origin.CreateMetaIssueType, ok func(origin.CreateMetaIssueType) bool) []origin.CreateMetaIssueType {
@@ -309,6 +312,40 @@ func FillNeedProject(err error, catalog []origin.CreateMetaProject) error {
 	return &NeedProjectError{Configured: copyStrings(keys)}
 }
 
+// SoleCatalogProject resolves the project when the site's createmeta offers
+// exactly one createable project — the paired-workspace shape where the
+// profile carries no DefaultProject/Projects but the origin answer leaves
+// nothing to choose (GDK-1733). The catalog, not a guess, is the authority;
+// zero or two projects still refuse.
+func SoleCatalogProject(catalog []origin.CreateMetaProject) (Resolved, bool) {
+	if len(catalog) != 1 {
+		return Resolved{}, false
+	}
+	k := strings.TrimSpace(catalog[0].Key)
+	if k == "" {
+		return Resolved{}, false
+	}
+	return Resolved{Value: k, Source: SourceCatalog}, true
+}
+
+// ParentCatalogProject resolves the project from a --parent issue key: the
+// key's project prefix names where the child must live, so `--parent NMB-1`
+// is itself the `--project NMB` answer (GDK-1620). Case-insensitive against
+// the catalog keys; a prefix with no catalog match or a key without a "-"
+// (a bare id is not a key) leaves the choice open.
+func ParentCatalogProject(parentKey string, catalog []origin.CreateMetaProject) (Resolved, bool) {
+	prefix, _, ok := strings.Cut(strings.TrimSpace(parentKey), "-")
+	if !ok || prefix == "" {
+		return Resolved{}, false
+	}
+	for _, p := range catalog {
+		if strings.EqualFold(strings.TrimSpace(p.Key), prefix) {
+			return Resolved{Value: p.Key, Source: SourceParent}, true
+		}
+	}
+	return Resolved{}, false
+}
+
 // FormatTypes is the "Name (id N); …" list used in type-resolution errors.
 func FormatTypes(types []origin.NamedID) string {
 	parts := make([]string, 0, len(types))
@@ -356,6 +393,22 @@ func (e *NeedProjectError) Error() string {
 // Available is the createmeta catalog. Surfaces format this.
 type NeedTypeError struct {
 	Available []origin.NamedID
+}
+
+// AmbiguousTypeError is returned when one type name matches more than one
+// catalog entry — a site whose admin duplicated a type (GDK-1458). Hits
+// carries the duplicates so a surface with more context than the catalog
+// (the local mirror's own rows) can still settle the pair.
+type AmbiguousTypeError struct {
+	Want string
+	Hits []origin.NamedID
+}
+
+func (e *AmbiguousTypeError) Error() string {
+	if e == nil {
+		return "issue type is ambiguous"
+	}
+	return fmt.Sprintf("issue type %q matches more than one catalog type: %s — an id settles it", e.Want, FormatTypes(e.Hits))
 }
 
 func (e *NeedTypeError) Error() string {

@@ -106,6 +106,10 @@ type fakeJira struct {
 	// the fallback's read. Empty keeps NMB-1 in progress, held by Dana
 	// (acc-hc), matching the mirror fixture.
 	issueStatusJSON string
+	// createMetaJSON overrides GET /issue/createmeta (the write-gap round's
+	// sole-catalog and duplicate-type-name tests). Empty keeps the default
+	// NMB + GDK payload below.
+	createMetaJSON string
 }
 
 // recordEdit keeps the scalar fields of a PUT /issue/NMB-1 so the re-read
@@ -300,14 +304,18 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 	case strings.HasSuffix(path, "/attachments") && r.Method == http.MethodPost:
 		f.handleAttach(w, r, path, body)
 	case path == "/issue/createmeta":
-		_, _ = w.Write([]byte(`{"projects":[
-			{"key":"NMB","name":"Numbers","issuetypes":[
-				{"id":"10001","name":"Task"},
-				{"id":"10002","name":"작업"},
-				{"id":"10004","name":"Bug"}]},
-			{"key":"GDK","name":"Gadak","issuetypes":[
-				{"id":"10001","name":"Task"}]}
-		]}`))
+		raw := f.createMetaJSON
+		if raw == "" {
+			raw = `{"projects":[
+				{"key":"NMB","name":"Numbers","issuetypes":[
+					{"id":"10001","name":"Task"},
+					{"id":"10002","name":"작업"},
+					{"id":"10004","name":"Bug"}]},
+				{"key":"GDK","name":"Gadak","issuetypes":[
+					{"id":"10001","name":"Task"}]}
+			]}`
+		}
+		_, _ = w.Write([]byte(raw))
 	case strings.HasSuffix(path, "/editmeta"):
 		raw := f.editMeta
 		if raw == "" {

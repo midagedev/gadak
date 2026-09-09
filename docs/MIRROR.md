@@ -100,7 +100,10 @@ The schema in one paragraph: `items` is the source-neutral spine (title,
 `pages` is the Confluence projection (`pages.item_id = items.id`);
 `comments`, `attachments`, `changelog`, `links`, and `dev_links` hang off `items.id`;
 `items_fts` is the FTS5 index over titles, bodies, and comment text (issues and pages);
-`sync_state` holds freshness. `labels`, `components`, and `fix_versions` are
+`sync_state` holds freshness. There is no `description` column — the plain
+text is `issues_full.description_text` and the origin document (ADF) is
+`issues.description_adf`; a query naming bare `description` fails. `labels`,
+`components`, and `fix_versions` are
 JSON arrays — reach them with `json_each`. Sprint is three columns on `issues`
 (`sprint_id`, `sprint_name`, `sprint_state` — filter on id or state, never the
 name). `versions` is the project catalog; join it on `fix_version_ids` (same-order

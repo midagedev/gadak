@@ -86,7 +86,7 @@ func runQuery(dbPath string, query string, limit int) (*queryResult, error) {
 
 	rows, err := db.Query(query)
 	if err != nil {
-		return nil, sqlhint.WithColumnSuggestion(db, err)
+		return nil, sqlhint.WithColumnSuggestion(db, query, err)
 	}
 	defer rows.Close()
 

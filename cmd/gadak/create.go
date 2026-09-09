@@ -20,7 +20,7 @@ import (
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
-const createUsage = "usage: gadak create [--] <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--priority NAME-or-id] [--due YYYY-MM-DD] [--parent KEY] [--label L]... [--attach FILE]... [-m <text|->] [--field alias=value]... [--json]"
+const createUsage = "usage: gadak create [--] <SUMMARY> | --batch - [--project KEY] [--type NAME-or-id] [--priority NAME-or-id] [--due YYYY-MM-DD] [--parent KEY] [--label L]... [--attach FILE]... [-m <text|->] [--field alias=value]... [--dry-run] [--json]"
 
 // createBatchShape is the one-line reminder printed when a --batch line is
 // not an object we can file. Field names match createBatchLine.
@@ -51,6 +51,7 @@ func cmdCreate(args []string) error {
 	var fieldFlags labelFlags
 	fs.Var(&fieldFlags, "field", fieldFlagUsage)
 	asJSON := fs.Bool("json", false, "emit JSON")
+	dryRun := fs.Bool("dry-run", false, "print the request this create would send and exit; nothing reaches the origin")
 	batch := fs.String("batch", "", "JSON lines from stdin (`-` only); each object needs summary, and may set type, project, labels, description, attach, priority, parent, due, fields")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("create", fs))
@@ -82,7 +83,7 @@ func cmdCreate(args []string) error {
 		if err := refuseSignedCreateLabels(labels); err != nil {
 			return err
 		}
-		return cmdCreateBatch(*projectFlag, *typeFlag, *text, *priorityFlag, *parentFlag, *dueFlag, []string(labels), []string(attachFiles), fieldRaws, *asJSON)
+		return cmdCreateBatch(*projectFlag, *typeFlag, *text, *priorityFlag, *parentFlag, *dueFlag, []string(labels), []string(attachFiles), fieldRaws, *asJSON, *dryRun)
 	}
 
 	summary := strings.TrimSpace(strings.Join(pos, " "))
@@ -121,7 +122,10 @@ func cmdCreate(args []string) error {
 	}
 
 	return withCreateSession(*projectFlag, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
-		key, extra, err := createOn(ctx, cfg, db, c, src, *projectFlag, *typeFlag, summary, body, *priorityFlag, *parentFlag, *dueFlag, []string(labels), attachFiles, fieldRaws)
+		key, extra, err := createOn(ctx, cfg, db, c, src, *projectFlag, *typeFlag, summary, body, *priorityFlag, *parentFlag, *dueFlag, []string(labels), attachFiles, fieldRaws, *dryRun)
+		if errors.Is(err, errDryRun) {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
@@ -132,7 +136,7 @@ func cmdCreate(args []string) error {
 			// Print it and exit 0 — retrying would create a second issue.
 			fmt.Fprintf(os.Stderr, "warning: %s\n", missed.Error())
 			if *asJSON {
-				body := map[string]any{"created": map[string]string{"key": key}}
+				body := map[string]any{"key": key, "created": map[string]string{"key": key}}
 				if att, ok := extra["attached"]; ok {
 					body["attached"] = att
 				}
@@ -165,8 +169,15 @@ type createBatchLine struct {
 	Fields      map[string]json.RawMessage `json:"fields"`
 }
 
-func cmdCreateBatch(projectFlag, typeFlag, defaultBody, defaultPriority, defaultParent, defaultDue string, defaultLabels, defaultAttach []string, defaultFields map[string]json.RawMessage, asJSON bool) error {
+func cmdCreateBatch(projectFlag, typeFlag, defaultBody, defaultPriority, defaultParent, defaultDue string, defaultLabels, defaultAttach []string, defaultFields map[string]json.RawMessage, asJSON, dryRun bool) error {
 	return withCreateSession(projectFlag, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
+		if !asJSON {
+			// Every batch form opens with a header naming its columns —
+			// comment/transition/edit do; create's row is the created issue,
+			// not an envelope, but the header's presence is the same contract
+			// (GDK-1487).
+			fmt.Println("key\tsummary")
+		}
 		sc := bufio.NewScanner(os.Stdin)
 		lineNo := 0
 		for sc.Scan() {
@@ -228,7 +239,10 @@ func cmdCreateBatch(projectFlag, typeFlag, defaultBody, defaultPriority, default
 					w, lineSrc = nw, routed
 				}
 			}
-			key, extra, err := createOn(ctx, cfg, db, w, lineSrc, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant, labels, attach, fieldRaws)
+			key, extra, err := createOn(ctx, cfg, db, w, lineSrc, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant, labels, attach, fieldRaws, dryRun)
+			if errors.Is(err, errDryRun) {
+				continue
+			}
 			if err != nil {
 				return fmt.Errorf("line %d: %w", lineNo, err)
 			}
@@ -313,16 +327,16 @@ func refuseSignedCreateLabels(labels []string) error {
 	return nil
 }
 
-func createOn(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string, fieldRaws map[string]json.RawMessage) (string, map[string]any, error) {
+func createOn(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string, fieldRaws map[string]json.RawMessage, dryRun bool) (string, map[string]any, error) {
 	if projRes, err := create.Project(projectWant, cfg); err == nil {
 		if err := refuseUnmirroredProject(ctx, db, cfg, projRes.Value); err != nil {
 			return "", nil, err
 		}
 	}
 	if src == "linear" {
-		return createLinearOne(ctx, cfg, c, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant, labels, attach, fieldRaws)
+		return createLinearOne(ctx, cfg, c, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant, labels, attach, fieldRaws, dryRun)
 	}
-	return createOne(ctx, cfg, c, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant, labels, attach, fieldRaws)
+	return createOne(ctx, cfg, db, c, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant, labels, attach, fieldRaws, dryRun)
 }
 
 // refuseUnmirroredProject is the CLI pre-check matching REST's
@@ -354,7 +368,7 @@ func refuseUnmirroredProject(ctx context.Context, db *store.DB, cfg *config.Conf
 	return fmt.Errorf("%s", msg)
 }
 
-func createLinearOne(ctx context.Context, cfg *config.Config, c origin.Writer, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string, fieldRaws map[string]json.RawMessage) (string, map[string]any, error) {
+func createLinearOne(ctx context.Context, cfg *config.Config, c origin.Writer, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string, fieldRaws map[string]json.RawMessage, dryRun bool) (string, map[string]any, error) {
 	if err := refuseSignedCreateLabels(labels); err != nil {
 		return "", nil, err
 	}
@@ -384,9 +398,18 @@ func createLinearOne(ctx context.Context, cfg *config.Config, c origin.Writer, p
 	if err != nil {
 		catalog, cerr := c.CreateMeta(ctx, createMetaScope(cfg))
 		if cerr == nil {
-			err = create.FillNeedProject(err, catalog)
+			// Same ladder as the Jira path, minus --parent (Linear create
+			// refuses it above): the sole catalog project is the paired-
+			// workspace default (GDK-1733), then the refusal lists the keys.
+			if res, ok := create.SoleCatalogProject(catalog); ok {
+				projRes, err = res, nil
+			} else {
+				err = create.FillNeedProject(err, catalog)
+			}
 		}
-		return "", nil, formatCreateError(err)
+		if err != nil {
+			return "", nil, formatCreateError(err)
+		}
 	}
 	meta, err := c.CreateMeta(ctx, []string{projRes.Value})
 	if err != nil {
@@ -434,11 +457,18 @@ func createLinearOne(ctx context.Context, cfg *config.Config, c origin.Writer, p
 	if due != "" {
 		fields["duedate"] = due
 	}
+	if dryRun {
+		if err := emitDryRun("create", map[string]any{"fields": fields}); err != nil {
+			return "", nil, err
+		}
+		return "", nil, errDryRun
+	}
 	key, err := c.CreateIssue(ctx, fields)
 	if err != nil {
 		return "", nil, err
 	}
 	extra := map[string]any{
+		"key":     key,
 		"created": map[string]string{"key": key},
 		"resolved": map[string]any{
 			"project":    projRes,
@@ -459,7 +489,7 @@ func createLinearOne(ctx context.Context, cfg *config.Config, c origin.Writer, p
 	return key, extra, nil
 }
 
-func createOne(ctx context.Context, cfg *config.Config, c origin.Writer, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string, fieldRaws map[string]json.RawMessage) (string, map[string]any, error) {
+func createOne(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string, fieldRaws map[string]json.RawMessage, dryRun bool) (string, map[string]any, error) {
 	if err := refuseSignedCreateLabels(labels); err != nil {
 		return "", nil, err
 	}
@@ -485,14 +515,28 @@ func createOne(ctx context.Context, cfg *config.Config, c origin.Writer, project
 		// list is filled from createmeta so a paired workspace can print
 		// origin keys (GDK-467) without copying home defaults into this
 		// profile.
+		//
+		// Before refusing, two origins of truth can answer the question the
+		// flag would: the catalog, when --parent's key already names the
+		// project the child must live in (GDK-1620), and a createmeta that
+		// offers exactly one createable project (GDK-1733). Both record
+		// themselves in resolved.source so --json still says why.
 		catalog, cerr := c.CreateMeta(ctx, createMetaScope(cfg))
 		if cerr != nil && origin.IsPairingFailure(cerr) {
 			return "", nil, cerr
 		}
 		if cerr == nil {
-			err = create.FillNeedProject(err, catalog)
+			if res, ok := create.ParentCatalogProject(parentKey, catalog); ok {
+				projRes, err = res, nil
+			} else if res, ok := create.SoleCatalogProject(catalog); ok {
+				projRes, err = res, nil
+			} else {
+				err = create.FillNeedProject(err, catalog)
+			}
 		}
-		return "", nil, formatCreateError(err)
+		if err != nil {
+			return "", nil, formatCreateError(err)
+		}
 	}
 	meta, err := c.CreateMeta(ctx, []string{projRes.Value})
 	if err != nil {
@@ -504,7 +548,14 @@ func createOne(ctx context.Context, cfg *config.Config, c origin.Writer, project
 	}
 	typeRes, err := create.Type(typeWant, types, cfg, projRes.Value)
 	if err != nil {
-		return "", nil, formatCreateError(err)
+		// One display name over two catalog ids is the admin-duplicated-type
+		// shape (GDK-1458). The mirror's own rows for this project are the
+		// tiebreaker the catalog lacks: exactly one id in use settles on it.
+		if settled, ok := settleAmbiguousTypeByMirror(db, projRes.Value, err); ok {
+			typeRes = settled
+		} else {
+			return "", nil, formatCreateError(err)
+		}
 	}
 
 	fields := map[string]any{
@@ -561,11 +612,20 @@ func createOne(ctx context.Context, cfg *config.Config, c origin.Writer, project
 		}
 	}
 
+	if dryRun {
+		if err := emitDryRun("create", map[string]any{"fields": fields}); err != nil {
+			return "", nil, err
+		}
+		return "", nil, errDryRun
+	}
 	key, err := c.CreateIssue(ctx, fields)
 	if err != nil {
 		return "", nil, withParentHint(ctx, err, parentKey)
 	}
 	extra := map[string]any{
+		// Top-level "key" beside "created.key": the first extractor a script
+		// writes is ["key"], and it must find the new issue (GDK-1716).
+		"key":     key,
 		"created": map[string]string{"key": key},
 		"resolved": map[string]any{
 			"project":    projRes,
@@ -600,6 +660,39 @@ func mergeFieldRaws(base, overlay map[string]json.RawMessage) map[string]json.Ra
 	return out
 }
 
+// settleAmbiguousTypeByMirror closes GDK-1458: one display name over two
+// catalog ids, but this mirror's rows for that project/name use exactly one
+// id — the site's own answer, already recorded. Zero ids in use (a brand-new
+// project) or both in use keeps the refusal: the mirror is a witness, never
+// a tiebreaker.
+func settleAmbiguousTypeByMirror(db *store.DB, project string, err error) (create.Resolved, bool) {
+	var amb *create.AmbiguousTypeError
+	if db == nil || !errors.As(err, &amb) {
+		return create.Resolved{}, false
+	}
+	rows, qerr := db.Query(`SELECT issue_type_id, COUNT(*) AS uses
+		FROM issues WHERE project_key = ? AND issue_type = ? AND issue_type_id != ''
+		GROUP BY issue_type_id`, project, amb.Want)
+	if qerr != nil {
+		return create.Resolved{}, false
+	}
+	defer rows.Close()
+	var id string
+	var uses, distinct int
+	for rows.Next() {
+		if serr := rows.Scan(&id, &uses); serr != nil {
+			return create.Resolved{}, false
+		}
+		distinct++
+	}
+	if rerr := rows.Err(); rerr != nil || distinct != 1 {
+		return create.Resolved{}, false
+	}
+	fmt.Fprintf(os.Stderr, "gadak: issue type %q matches %s; using id %s — the only one this mirror's %s rows use\n",
+		amb.Want, create.FormatTypes(amb.Hits), id, project)
+	return create.Resolved{Value: id, Source: create.SourceMirror}, true
+}
+
 // formatCreateError turns shared Need* catalogue data into the CLI flag +
 // catalog sentences. The shared package must not compose those flags itself.
 func formatCreateError(err error) error {
@@ -612,7 +705,10 @@ func formatCreateError(err error) error {
 	}
 	var nt *create.NeedTypeError
 	if errors.As(err, &nt) {
-		return fmt.Errorf("pass --type, available: %s", create.FormatTypes(nt.Available))
+		// The config escape belongs in the refusal: a paired workspace has no
+		// recorded type default, and paying --type on every create is exactly
+		// the friction that made the workspace hard to script (GDK-1593 pt 2).
+		return fmt.Errorf("pass --type, available: %s — or set a workspace default: gadak config set defaultIssueTypeId <id>", create.FormatTypes(nt.Available))
 	}
 	var npri *create.NeedPriorityError
 	if errors.As(err, &npri) {
@@ -639,7 +735,7 @@ func emitBatchLine(ctx context.Context, cfg *config.Config, db *store.DB, src, k
 		var missed writeNotMirroredError
 		if errors.As(err, &missed) {
 			fmt.Fprintf(os.Stderr, "warning: %s\n", missed.Error())
-			body := map[string]any{"created": map[string]string{"key": key}}
+			body := map[string]any{"key": key, "created": map[string]string{"key": key}}
 			if att, ok := extra["attached"]; ok {
 				body["attached"] = att
 			}

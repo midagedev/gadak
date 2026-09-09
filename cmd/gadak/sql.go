@@ -93,7 +93,7 @@ func runReadOnlySQL(query string, out sqlOutput) error {
 func writeSQLQuery(db *sql.DB, query string, out sqlOutput) error {
 	rows, err := db.Query(query)
 	if err != nil {
-		return sqlhint.WithColumnSuggestion(db, err)
+		return sqlhint.WithColumnSuggestion(db, query, err)
 	}
 	defer rows.Close()
 	return formatSQLRows(rows, query, out)
@@ -105,7 +105,7 @@ func writeSQLQuery(db *sql.DB, query string, out sqlOutput) error {
 func drainSQLQuery(db *sql.DB, query string) error {
 	rows, err := db.Query(query)
 	if err != nil {
-		return sqlhint.WithColumnSuggestion(db, err)
+		return sqlhint.WithColumnSuggestion(db, query, err)
 	}
 	defer rows.Close()
 	for rows.Next() {

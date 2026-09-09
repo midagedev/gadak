@@ -53,37 +53,83 @@ func TestWithColumnSuggestionWrongTable(t *testing.T) {
 		CREATE TABLE changelog (item_id INTEGER, at TEXT)`); err != nil {
 		t.Fatal(err)
 	}
-	queryErr := func(q string) error {
+	hintFor := func(q string) error {
 		rows, err := db.Query(q)
 		if err == nil {
 			rows.Close()
 			t.Fatalf("query %q unexpectedly succeeded", q)
 		}
-		return err
+		return WithColumnSuggestion(db, q, err)
 	}
 
 	// Wrong table: the name exists verbatim on a hint table — name it,
 	// instead of the old silence (GDK-974).
-	got := WithColumnSuggestion(db, queryErr(`SELECT summary FROM changelog`))
+	got := hintFor(`SELECT summary FROM changelog`)
 	want := `column "summary" exists on issues — query issues`
 	if !strings.Contains(got.Error(), want) {
 		t.Fatalf("wrong-table hint missing: %q", got)
 	}
-	got = WithColumnSuggestion(db, queryErr(`SELECT title FROM changelog`))
+	got = hintFor(`SELECT title FROM changelog`)
 	if !strings.Contains(got.Error(), `exists on items — query items`) {
 		t.Fatalf("items ownership missing: %q", got)
 	}
 
 	// Typo path is unchanged.
-	got = WithColumnSuggestion(db, queryErr(`SELECT sumary FROM issues`))
+	got = hintFor(`SELECT sumary FROM issues`)
 	if !strings.Contains(got.Error(), `did you mean "summary"?`) {
 		t.Fatalf("typo hint missing: %q", got)
 	}
 
 	// A name nowhere near any column stays unadorned.
-	base := queryErr(`SELECT zzqx FROM issues`)
-	if got := WithColumnSuggestion(db, base); got.Error() != base.Error() {
+	q := `SELECT zzqx FROM issues`
+	rows, baseErr := db.Query(q)
+	if baseErr == nil {
+		rows.Close()
+		t.Fatalf("query %q unexpectedly succeeded", q)
+	}
+	if got := WithColumnSuggestion(db, q, baseErr); got.Error() != baseErr.Error() {
 		t.Fatalf("distant name must stay unadorned: %q", got)
+	}
+}
+
+// GDK-595: json_each in the FROM list makes `key`/`value` ambiguous, and the
+// bare SQLite sentence does not say the function brought its own columns.
+// The hint is scoped to json_each queries — an ambiguity between two ordinary
+// tables keeps the plain error.
+func TestWithColumnSuggestionJSONEachAmbiguity(t *testing.T) {
+	db, err := sql.Open("sqlite", "file::memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`CREATE TABLE issues (key TEXT, labels TEXT);
+		CREATE TABLE items (key TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+	hintFor := func(q string) error {
+		rows, err := db.Query(q)
+		if err == nil {
+			rows.Close()
+			t.Fatalf("query %q unexpectedly succeeded", q)
+		}
+		return WithColumnSuggestion(db, q, err)
+	}
+
+	got := hintFor(`SELECT key FROM issues, json_each(labels) WHERE json_each.value='batch'`)
+	for _, want := range []string{"ambiguous column name: key", "json_each exposes", "issues_full.key"} {
+		if !strings.Contains(got.Error(), want) {
+			t.Errorf("hint missing %q: %q", want, got)
+		}
+	}
+
+	// Same ambiguity, no json_each: the plain SQLite error, no hint.
+	q := `SELECT key FROM issues, items`
+	plain := hintFor(q)
+	if !strings.Contains(plain.Error(), "ambiguous column name: key") {
+		t.Fatalf("plain ambiguity lost its error: %q", plain)
+	}
+	if strings.Contains(plain.Error(), "hint:") {
+		t.Fatalf("ordinary ambiguity got the json_each hint: %q", plain)
 	}
 }
 

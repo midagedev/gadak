@@ -25,7 +25,7 @@ import (
 	"github.com/midagedev/gadak/internal/transition"
 )
 
-const editUsage = "usage: gadak edit <KEY> [--summary S] [-m <text|->|--adf-file F] [--force-plain] [--label +x|-x]... [--component +x|-x]... [--fix-version +id-or-name|-id-or-name]... [--type NAME-or-id] [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none] [--field alias=value]... [--json] | --batch -"
+const editUsage = "usage: gadak edit <KEY> [--summary S] [-m <text|->|--adf-file F] [--force-plain] [--label +x|-x]... [--component +x|-x]... [--fix-version +id-or-name|-id-or-name]... [--type NAME-or-id] [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none] [--field alias=value]... [--json] [--dry-run] | --batch - [--dry-run]"
 
 // fieldFlagUsage is the FlagSet description for create/edit --field.
 // Parse rule matches parseTransitionFieldFlags: JSON if valid, otherwise a string.
@@ -50,6 +50,7 @@ func cmdEdit(args []string) error {
 	var fieldFlags labelFlags
 	fs.Var(&fieldFlags, "field", fieldFlagUsage)
 	asJSON := fs.Bool("json", false, "emit JSON")
+	dryRun := fs.Bool("dry-run", false, "print the request this edit would send and exit; nothing reaches the origin")
 	batch := fs.String("batch", "", "JSON lines from stdin (`-` only); each object needs key, plus any edit axis")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("edit", fs))
@@ -111,7 +112,7 @@ func cmdEdit(args []string) error {
 			return err
 		}
 		base.forcePlain = *forcePlain
-		return runEditBatch(*asJSON, base)
+		return runEditBatch(*asJSON, *dryRun, base)
 	}
 
 	if len(pos) != 1 {
@@ -160,7 +161,10 @@ func cmdEdit(args []string) error {
 	// mutate's, unchanged.
 	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
 		pre := lookupOne(db, key)
-		if err := applyEditChange(ctx, cfg, db, c, src, ch); err != nil {
+		if err := applyEditChange(ctx, cfg, db, c, src, ch, *dryRun); err != nil {
+			if errors.Is(err, errDryRun) {
+				return nil
+			}
 			return err
 		}
 		// The re-read is the write's evidence (GDK-1645): compare before
@@ -285,7 +289,7 @@ func parseEditChange(hasSummary, hasM, hasLabel, hasComponent, hasFixVersion, ha
 	return ch, nil
 }
 
-func applyEditChange(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string, ch editChange) error {
+func applyEditChange(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string, ch editChange, dryRun bool) error {
 	key := ch.key
 	fields := map[string]any{}
 	update := map[string]any{}
@@ -381,6 +385,17 @@ func applyEditChange(ctx context.Context, cfg *config.Config, db *store.DB, c or
 	// the same one create gives. withParentHint owns the "is this a
 	// parent rejection" test because the field key differs by verb
 	// (create: parent/parentId, edit: pid — GDK-525).
+	//
+	// The dry-run split sits after every resolution above (priority
+	// catalog, type createmeta, EditMeta, fix-version ops) so the plan is
+	// the request the origin would actually receive — ids, not the typed
+	// names (GDK-1446). A would-refuse dry-run still refuses here.
+	if dryRun {
+		if err := emitDryRun("edit", map[string]any{"fields": fields, "update": update}, key); err != nil {
+			return err
+		}
+		return errDryRun
+	}
 	err := c.EditIssue(ctx, key, fields, update)
 	err = withParentHint(ctx, err, ch.parentKey)
 	return withComponentHint(ctx, c, key, err, ch.hasComponent)
@@ -445,8 +460,8 @@ func foldBatchSingulars(obj map[string]json.RawMessage) error {
 	return nil
 }
 
-func runEditBatch(asJSON bool, base editChange) error {
-	return runWriteBatch("edit", asJSON, func(raw string) batchResult {
+func runEditBatch(asJSON, dryRun bool, base editChange) error {
+	return runWriteBatch("edit", asJSON, dryRun, func(raw string) batchResult {
 		obj, key, err := parseBatchLine(raw, editBatchFields)
 		if err != nil {
 			return batchErr(key, false, err)
@@ -462,7 +477,12 @@ func runEditBatch(asJSON bool, base editChange) error {
 		var wrote bool
 		err = withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
 			pre := lookupOne(db, key)
-			if err := applyEditChange(ctx, cfg, db, c, src, ch); err != nil {
+			if err := applyEditChange(ctx, cfg, db, c, src, ch, dryRun); err != nil {
+				if errors.Is(err, errDryRun) {
+					// The plan is already on stdout (GDK-1446); the envelope
+					// row below says ok with nothing changed.
+					return nil
+				}
 				return err
 			}
 			wrote = true

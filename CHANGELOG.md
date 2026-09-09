@@ -173,7 +173,19 @@ capability check, which now looks through the wrapper ([GDK-1655]).
 built-in tracker; the id is whatever a read handed you (`gadak sql` prints
 `jira:91653`, `gadak issue` prints `91653`, both accepted), an edit sends
 what a post sends, and the actor trailer survives it without doubling
-([GDK-1647]). On the built-in tracker, attachment bytes live in a directory
+([GDK-1647]). The write verbs meet the reader where the reads left them:
+`gadak create` resolves its project and issue type through one catalog path
+on every origin — a lone project needs no `--project`, a parent key names
+its own project, a localized type name answers to its English spelling, and
+an ambiguous type asks the mirror before refusing — and `create --json`
+names the default that chose each field. Every write verb takes `--dry-run`:
+one JSON line carrying the ids the resolutions found — a transition that
+would change nothing says so, and a link that does not exist still refuses —
+and nothing reaches the origin. A `link` or `unlink` refusal quotes the
+phrase as the issue displays it, a query that trips over an unqualified
+column in a `json_each` join is told both tables it could have meant, and
+the one-line help for reading an issue says its comments and history are
+already in what it prints. On the built-in tracker, attachment bytes live in a directory
 beside the database, one content-addressed file each, streaming both ways
 (`gadak attach`, `gadak attach get`, and the app, where `Range` makes video
 seeking work); the upload cap is `gadak config set attachmentMaxMB <n>`,

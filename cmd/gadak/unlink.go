@@ -12,7 +12,7 @@ import (
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
-const unlinkUsage = "usage: gadak unlink <A> <B> --type <name|inward|outward|id> [--json]"
+const unlinkUsage = "usage: gadak unlink <A> <B> --type <name|inward|outward|id> [--json] [--dry-run]"
 
 // cmdUnlink removes the link `gadak link A B --type t` would have created —
 // the one displayed on A as "A <t> B" (GDK-1205). The mirror's links rows
@@ -23,6 +23,7 @@ func cmdUnlink(args []string) error {
 	fs := newFlagSet("unlink")
 	typ := fs.String("type", "", "link type name, inward or outward description, or id")
 	asJSON := fs.Bool("json", false, "emit JSON")
+	dryRun := fs.Bool("dry-run", false, "print the link id this delete would send and exit; nothing reaches the origin")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("unlink", fs))
 		return nil
@@ -43,7 +44,7 @@ func cmdUnlink(args []string) error {
 	}
 	token := strings.TrimSpace(*typ)
 
-	return withKeyWriteSession(a, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
+	return foldDryRun(withKeyWriteSession(a, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
 		linker, err := origin.AsIssueLinker(c)
 		if err != nil {
 			return err
@@ -88,6 +89,15 @@ func cmdUnlink(args []string) error {
 			}
 			return fmt.Errorf("no link displayed on %s as %q — `gadak issue %s` lists what is there", a, a+" "+phrase+" "+b, a)
 		}
+		if *dryRun {
+			// The split sits after the live id lookup, so the plan names the
+			// exact delete the origin would receive — and a missing link
+			// refuses here exactly as the write would (GDK-1446).
+			if err := emitDryRun("unlink", map[string]any{"link_id": id, "type": lt.Name}, a, b); err != nil {
+				return err
+			}
+			return errDryRun
+		}
 		if err := linker.DeleteIssueLink(ctx, id); err != nil {
 			return err
 		}
@@ -111,5 +121,5 @@ func cmdUnlink(args []string) error {
 			return emitWriteAppliedMirrorStaleFor(db, b, a, *asJSON, extra, err)
 		}
 		return emitAfterWrite(ctx, cfg, db, src, a, *asJSON, extra)
-	})
+	}))
 }

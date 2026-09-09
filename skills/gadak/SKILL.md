@@ -673,6 +673,8 @@ gadak edit NMB-140 --fix-version +v2.5 --fix-version -10012
 gadak edit NMB-140 --field severity=High
 gadak link NMB-140 NMB-141 --type blocks          # A blocks B; "is blocked by" means A is blocked by B
 gadak unlink NMB-140 NMB-141 --type blocks        # removes that link (live id lookup; the mirror keeps no link ids)
+gadak create Ship the uploader --project NMB --type Task --dry-run   # every write verb takes --dry-run: prints the exact request as one JSON line and sends nothing
+gadak edit NMB-140 --priority High --dry-run      # resolutions still run (ids, not typed names); a would-refuse dry-run refuses
 
 gadak create --batch -                        # one JSON object per line on stdin (stops at the first failure)
 gadak comment --batch -                       # JSON lines {"key","body"}; tries every line; one envelope row per key
@@ -686,6 +688,8 @@ gadak search NMB-140 --explain                # why each hit ranked: key-exact, 
 ```
 
 `--batch -` on comment, transition, assign, and edit reads one JSON object per stdin line (at most 50). A line that fails does not stop the rest; stdout is one envelope row per line (`key`, `ok`, `changed`, `error`; `--json` is JSON lines). `create --batch -` still stops at the first failure.
+
+`--dry-run` (create, edit, comment and comment edit/rm, transition, close, assign, claim, link, unlink) prints the request the write would send — `{"dry_run":true,"verb":…,"key":…,"request":{…}}` on stdout, "nothing was sent" on stderr — and exits 0 without touching the origin. Resolutions run first, so the plan carries ids, not typed names, and a write that would refuse refuses in dry run too. `create --json` carries the new key at the top level (`key` and `created.key`), plus `resolved` saying which default chose each field (`source`: flag, config, sole, alias, parent, catalog, mirror).
 
 Custom-field writes follow this order: `gadak fields --apply` (save aliases) →
 `gadak issue KEY --editmeta` (which of those aliases this issue can edit) →

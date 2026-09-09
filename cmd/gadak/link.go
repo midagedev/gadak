@@ -12,12 +12,13 @@ import (
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
-const linkUsage = "usage: gadak link <A> <B> --type <name|inward|outward|id> [--json]"
+const linkUsage = "usage: gadak link <A> <B> --type <name|inward|outward|id> [--json] [--dry-run]"
 
 func cmdLink(args []string) error {
 	fs := newFlagSet("link")
 	typ := fs.String("type", "", "link type name, inward or outward description, or id")
 	asJSON := fs.Bool("json", false, "emit JSON")
+	dryRun := fs.Bool("dry-run", false, "print the link type id and sides this write would send and exit; nothing reaches the origin")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("link", fs))
 		return nil
@@ -38,7 +39,7 @@ func cmdLink(args []string) error {
 	}
 	token := strings.TrimSpace(*typ)
 
-	return withKeyWriteSession(a, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
+	return foldDryRun(withKeyWriteSession(a, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
 		linker, err := origin.AsIssueLinker(c)
 		if err != nil {
 			return err
@@ -57,6 +58,20 @@ func cmdLink(args []string) error {
 		outward, inward := b, a
 		if inwardDescription {
 			outward, inward = a, b
+		}
+		if *dryRun {
+			// The split sits after type resolution so the plan carries the
+			// resolved id and the sides in their origin roles, not the typed
+			// token (GDK-1446).
+			if err := emitDryRun("link", map[string]any{
+				"type_id": lt.ID,
+				"type":    lt.Name,
+				"outward": outward,
+				"inward":  inward,
+			}, a, b); err != nil {
+				return err
+			}
+			return errDryRun
 		}
 		if err := linker.LinkIssues(ctx, lt.ID, outward, inward); err != nil {
 			return err
@@ -80,5 +95,5 @@ func cmdLink(args []string) error {
 			return emitWriteAppliedMirrorStaleFor(db, b, a, *asJSON, extra, err)
 		}
 		return emitAfterWrite(ctx, cfg, db, src, a, *asJSON, extra)
-	})
+	}))
 }
