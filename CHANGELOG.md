@@ -111,13 +111,27 @@ The sprint's goal is readable — `gadak sprint list` carries it and the
 board's scope names it beside the end date ([GDK-1695]) — and the retro can
 be cut by sprint instead of by ISO week, `gadak retro --by-sprint` or a
 fourth segment on the range control, one column per sprint with the running
-one marked, on every origin that has sprints ([GDK-1693]).
+one marked, on every origin that has sprints ([GDK-1693]). On the board,
+the active sprint has a line of its own between the toolbar and the
+columns — name, goal, dates, days left, and a progress bar counted
+server-side over the whole sprint, in points too where the workspace maps
+them — where before all of that lived in a tooltip ([GDK-1709]); and a card
+or row that has been through more than one sprint says so with a quiet
+mark, read from the `carryover_count` the mirror had been deriving for no
+one ([GDK-1711]).
 
 **Elsewhere: a retro screen, comments you can take back, attachments the
 size of real ones, and one fewer outbound call.** `gadak retro`'s document was served for a surface that never came; the
 palette's *Weekly retro* opens a calm table, one column per week, one row per metric with its
 definition underneath; a cell that holds issues is a door onto that list;
-four, eight or twelve weeks ([GDK-1660]). It says why a cell is empty (a
+four, eight or twelve weeks ([GDK-1660]). The table now reads as a report:
+the running bucket's four numbers stand above it with their step from the
+bucket before, every row carries a sparkline, every cell its delta —
+coloured only where the team agreed which way is better, never red, and
+never on the bucket still running — and the definitions fold behind one
+toggle ([GDK-1712]); a sprint cut on a workspace where several boards
+carry sprints offers a board picker instead of "could not load"
+([GDK-1713]). It says why a cell is empty (a
 mirror with no `status_catalog` cannot say what `closed` means, and the
 reason now travels with the payload and prints under the table, including on
 a cold mirror), the definitions are no longer cut off or naming a repository
@@ -1737,3 +1751,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1704]: https://gadak.dev/backlog/#/?ks=GDK-1704
 [GDK-1705]: https://gadak.dev/backlog/#/?ks=GDK-1705
 [GDK-1706]: https://gadak.dev/backlog/#/?ks=GDK-1706
+[GDK-1709]: https://gadak.dev/backlog/#/?ks=GDK-1709
+[GDK-1711]: https://gadak.dev/backlog/#/?ks=GDK-1711
+[GDK-1712]: https://gadak.dev/backlog/#/?ks=GDK-1712
+[GDK-1713]: https://gadak.dev/backlog/#/?ks=GDK-1713

@@ -1,6 +1,6 @@
 .PHONY: build test vet typecheck theme-check bench scan docker plugins-test \
 	media media-web media-search media-agent media-groupby media-scale media-sprint media-retro media-mcp media-prep media-deps \
-	media-fixture brand \
+	media-fixture media-hero-sprint-retro brand \
 	hosted-demo hosted-demo-test
 
 build:
@@ -214,6 +214,17 @@ media-retro: media-deps media-fixture
 	GADAK_MEDIA=1 GADAK_SEED_DB="$(MEDIA_FIXTURE_DB)" \
 		./node_modules/.bin/playwright test --config e2e/demo/retro.config.ts
 	bash e2e/demo/export-retro.sh
+
+# The 0.22 release tweet: both halves in one take — the sprint strip and the
+# carried card, then the retro's summary, sparklines, sprint cut and a cell
+# opened. Not in `make media`, same reason as media-sprint.
+media-hero-sprint-retro: media-deps media-fixture
+	@mkdir -p $(MEDIA_DIR)
+	@echo "media-hero-sprint-retro: recording the sprint + retro hero (locale $${GADAK_MEDIA_LOCALE:-en})…"
+	rm -rf e2e/demo/test-results-sprint-retro-hero
+	GADAK_MEDIA=1 GADAK_SEED_DB="$(MEDIA_FIXTURE_DB)" \
+		./node_modules/.bin/playwright test --config e2e/demo/sprint-retro-hero.config.ts
+	bash e2e/demo/export-sprint-retro-hero.sh
 
 media-agent: media-deps
 	@mkdir -p $(MEDIA_DIR)
