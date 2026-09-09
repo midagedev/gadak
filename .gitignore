@@ -88,3 +88,4 @@ mobile/e2e/.shots/
 # the site hostname and the operator email into these — scripts/scan-internal.sh
 # caught exactly that (GDK-1621 measurement round).
 .playwright-mcp/
+e2e/demo/test-results-sprint/
