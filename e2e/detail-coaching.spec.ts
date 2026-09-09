@@ -128,12 +128,23 @@ async function appendDetailComment(
 ): Promise<void> {
   await page.route(`**/api/v1/issues/${key}/detail/`, async (route) => {
     if (route.request().method() !== 'GET') return route.continue()
-    const response = await route.fetch()
-    const body = (await response.json()) as { comments?: unknown[] }
-    await route.fulfill({
-      response,
-      json: { ...body, comments: [...(body.comments ?? []), comment] },
-    })
+    try {
+      const response = await route.fetch()
+      const body = (await response.json()) as { comments?: unknown[] }
+      await route.fulfill({
+        response,
+        json: { ...body, comments: [...(body.comments ?? []), comment] },
+      })
+    } catch {
+      // The page outlived the test: a detail request still in flight when the
+      // last assertion resolved reaches this handler during teardown, and
+      // route.fetch then throws "Test ended" — which failed the test that had
+      // already passed. Twice on CI (2026-09-09), both times on a negative
+      // assertion that resolves the instant it is made. The afterEach below
+      // is the wider fix; this keeps the helper from turning a teardown race
+      // into a red test on its own.
+      await route.abort().catch(() => {})
+    }
   })
 }
 
@@ -156,6 +167,15 @@ async function openDetail(page: Page, key: string) {
   await expect(panel).toBeVisible()
   return panel
 }
+
+/*
+ * Routes are dropped before the page is: this file registers passthrough
+ * rewrites that run on every detail fetch, and the app keeps fetching after a
+ * test's last assertion. Playwright names this fix in the error it raises.
+ */
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+})
 
 /** The done-word mismatch comment, exactly as the spec's Part E writes it. */
 function doneWordComment(): Record<string, unknown> {
@@ -244,7 +264,12 @@ test.describe('detail coaching moments', () => {
     await appendDetailComment(page, KEY_DONE, doneWordComment())
     await forceLocale(page, 'en')
     await gotoApp(page)
-    await openDetail(page, KEY_DONE)
+    const panel = await openDetail(page, KEY_DONE)
+    // The seeded comment first: `toHaveCount(0)` resolves the instant it is
+    // asked, so on its own it also passes against a panel that has not
+    // rendered its comments yet — it would report "no button" for a screen
+    // with nothing on it.
+    await expect(panel).toContainText('Merged and deployed, closing this.')
     await expect(page.getByTestId('comment-move-to-done')).toHaveCount(0)
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
@@ -259,7 +284,8 @@ test.describe('detail coaching moments', () => {
     })
     await forceLocale(page, 'en')
     await gotoApp(page)
-    await openDetail(page, KEY_PROG)
+    const panel = await openDetail(page, KEY_PROG)
+    await expect(panel).toContainText('Looking into the cache layer now')
     await expect(page.getByTestId('comment-move-to-done')).toHaveCount(0)
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
