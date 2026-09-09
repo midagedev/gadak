@@ -115,6 +115,10 @@
           left a reader unable to tell p50 from p85). p50 is solid and p85
           dotted, and each carries its own value at its right end, so the
           line and its number are one thing rather than a footer to decode.
+          The label sits at the LEFT end on a ground-coloured chip: the right
+          end is where the newest closures cluster (the second vision pass
+          found the dots sitting on the decimal point), and a bucket's first
+          day rarely resolves anything.
         -->
         {#each [{ at: scatter.p50At, value: scatter.p50, id: 'p50', dash: false }, { at: scatter.p85At, value: scatter.p85, id: 'p85', dash: true }] as line (line.id)}
           {#if line.at != null}
@@ -126,7 +130,7 @@
             ></div>
             {#if line.value != null}
               <span
-                class="pointer-events-none absolute right-0 -translate-y-full pr-0.5 text-micro leading-none tabular-nums text-text-muted"
+                class="pointer-events-none absolute left-0 -translate-y-full rounded-sm bg-bg-base px-0.5 text-micro leading-none tabular-nums text-text-muted"
                 style:bottom="{line.at * 100}%"
                 data-testid="retro-cycle-line-label"
                 data-line={line.id}>{line.id} {formatDays(line.value)}</span
