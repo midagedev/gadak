@@ -130,8 +130,17 @@ function withMaterials(body: Doc): Doc {
 
 async function stubMaterials(page: Page): Promise<void> {
   await page.route('**/api/v1/issues/retro/**', async (route) => {
-    const res = await route.fetch()
-    await route.fulfill({ response: res, json: withMaterials((await res.json()) as Doc) })
+    // A reload mid-flight disposes the fetched response before it is read
+    // (measured once on 2026-09-09, "apiResponse.json: Response has been
+    // disposed", in the explanations test which reloads twice). The request
+    // that died with its page has no reader; let it go rather than fail
+    // the test on the handler's own error.
+    try {
+      const res = await route.fetch()
+      await route.fulfill({ response: res, json: withMaterials((await res.json()) as Doc) })
+    } catch {
+      await route.abort().catch(() => {})
+    }
   })
 }
 

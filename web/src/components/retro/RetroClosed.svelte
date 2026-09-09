@@ -110,14 +110,28 @@
         style:height="{H}px"
         data-testid="retro-cycle-scatter"
       >
-        {#each [{ at: scatter.p50At, id: 'p50' }, { at: scatter.p85At, id: 'p85' }] as line (line.id)}
+        <!--
+          Two lines, two weights (vision round 2026-09-09: identical dashes
+          left a reader unable to tell p50 from p85). p50 is solid and p85
+          dotted, and each carries its own value at its right end, so the
+          line and its number are one thing rather than a footer to decode.
+        -->
+        {#each [{ at: scatter.p50At, value: scatter.p50, id: 'p50', dash: false }, { at: scatter.p85At, value: scatter.p85, id: 'p85', dash: true }] as line (line.id)}
           {#if line.at != null}
             <div
-              class="pointer-events-none absolute inset-x-0 border-t border-dashed border-border-strong"
+              class="pointer-events-none absolute inset-x-0 border-t border-border-strong {line.dash ? 'border-dashed' : 'border-solid'}"
               style:bottom="{line.at * 100}%"
               data-testid="retro-cycle-line"
               data-line={line.id}
             ></div>
+            {#if line.value != null}
+              <span
+                class="pointer-events-none absolute right-0 -translate-y-full pr-0.5 text-micro leading-none tabular-nums text-text-muted"
+                style:bottom="{line.at * 100}%"
+                data-testid="retro-cycle-line-label"
+                data-line={line.id}>{line.id} {formatDays(line.value)}</span
+              >
+            {/if}
           {/if}
         {/each}
         {#each scatter.points as p, i (`${p.key}:${i}`)}
@@ -135,8 +149,6 @@
         {/each}
       </div>
       <div class="mt-0.5 flex gap-3 text-micro text-text-muted">
-        {#if scatter.p50 != null}<span class="tabular-nums">p50 {formatDays(scatter.p50)}</span>{/if}
-        {#if scatter.p85 != null}<span class="tabular-nums">p85 {formatDays(scatter.p85)}</span>{/if}
         {#if scatter.clipped}<span data-testid="retro-cycle-clipped">{t('retro.closed.clipped', { n: scatter.clipped })}</span>{/if}
       </div>
     </div>

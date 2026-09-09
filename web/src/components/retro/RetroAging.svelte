@@ -86,15 +86,29 @@
           />
         {/each}
         {#if chart.p85At != null}
-          <!-- The line the eye actually reads the chart against. Its stroke
-               is kept at one device pixel through the horizontal scale. -->
+          <!-- The line the eye actually reads the chart against. Two strokes:
+               a ground-coloured halo first, then the dots in the primary ink,
+               so the line survives crossing an amber bar (vision round
+               2026-09-09: on a real bucket with many bars past p85 the dotted
+               line vanished inside the fill). Both are kept at device pixels
+               through the horizontal scale. -->
           <line
             x1={chart.p85At * W}
             x2={chart.p85At * W}
             y1="0"
             y2={height}
             stroke="currentColor"
-            class="text-text-secondary"
+            class="text-bg-base"
+            stroke-width="3"
+            vector-effect="non-scaling-stroke"
+          />
+          <line
+            x1={chart.p85At * W}
+            x2={chart.p85At * W}
+            y1="0"
+            y2={height}
+            stroke="currentColor"
+            class="text-text-primary"
             stroke-width="1"
             stroke-dasharray="2 2"
             vector-effect="non-scaling-stroke"
