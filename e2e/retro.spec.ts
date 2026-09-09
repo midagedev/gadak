@@ -2,12 +2,15 @@ import { test, expect } from '@playwright/test'
 import { attachConsoleErrors, gotoApp } from './helpers'
 
 /*
- * Weekly retro as a column view (GDK-1660). The demo fixture carries no
- * visits of its own, so what a fresh e2e home yields is measured first
- * (GET /api/v1/issues/retro/ on the e2e serve: buckets with sessions 0 and
- * closed / in progress counts from the mirror) and the assertions read that:
- * the table renders, the closed cell is a door when it has keys, the URL
- * round-trips, Esc returns the column to the list.
+ * Weekly retro as a column view (GDK-1660). What a fresh e2e home yields is
+ * measured first (GET /api/v1/issues/retro/ on the e2e serve) and the
+ * assertions read that: the table renders, the closed cell is a door when it
+ * has keys, the URL round-trips, Esc returns the column to the list.
+ *
+ * The serve now seeds local.db with a month of reading (GDK-1720), so the
+ * session rows have real values instead of the zeros this file used to
+ * measure — the last case below is the gate on that, and the two cases that
+ * need an empty report stub it rather than relying on a blank fixture.
  */
 test.describe('weekly retro view', () => {
   test('opens from the palette, renders one column per week, and round-trips its URL', async ({ page }) => {
@@ -98,6 +101,22 @@ test.describe('weekly retro view', () => {
    * matters most. "No sessions in this range" there blames sessions for a
    * missing table (GDK-1679).
    */
+  /*
+   * GDK-1720: sessions, resume and seen-vs-touched all read local.visits, and
+   * nothing in the fixture pipeline ever wrote a visit — so the demo, every
+   * recording and every run of this file saw zeros on the half of the retro
+   * built on reading. e2e/serve.sh seeds that history now, and this is the
+   * gate: a run whose local.db went back to empty puts the zeros back.
+   */
+  test('the session rows read the seeded browsing history, not zeros', async ({ page }) => {
+    await gotoApp(page)
+    const res = await page.request.get('/api/v1/issues/retro/?since=4w')
+    expect(res.ok()).toBe(true)
+    const body = (await res.json()) as { buckets: { sessions?: number }[] }
+    const total = body.buckets.reduce((sum, b) => sum + (b.sessions ?? 0), 0)
+    expect(total, `buckets: ${JSON.stringify(body.buckets.map((b) => b.sessions))}`).toBeGreaterThan(0)
+  })
+
   test('an empty report with a reason shows the reason, not the empty copy', async ({ page }) => {
     await page.route('**/api/v1/issues/retro/**', async (route) => {
       const res = await route.fetch()

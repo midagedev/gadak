@@ -80,13 +80,34 @@ async function mockLastSession(
     const response = await route.fetch()
     const boot = rewrite((await response.json()) as BootBody)
     servedBoot = boot
-    await route.fulfill({ response, json: boot })
+    await route.fulfill({ response, headers: boundaryHeaders(response.headers(), boot), json: boot })
   }
   await page.route(BOOTSTRAP_ROUTE, intercept)
+  // The header is the other seat the boundary rides (C9), and the e2e serve
+  // now has a real one to put in it: local.db is seeded with a month of
+  // reading (GDK-1720), so the server answers with its own session boundary
+  // instead of nothing. Measured before this followed: (a) read "Since last
+  // session 18h" — the server's answer — while counting against the 30-day
+  // one it had mocked into the body. The mock owns both seats, or the server
+  // wins whichever one it is left holding.
+  await page.route(DELTA_ROUTE, async (route) => {
+    const response = await route.fetch()
+    await route.fulfill({ response, headers: boundaryHeaders(response.headers(), servedBoot) })
+  })
   return () => {
     if (!servedBoot) throw new Error('bootstrap route was never hit')
     return servedBoot
   }
+}
+
+/** The response headers with the session boundary made to agree with the body
+ *  this test served: set when the body carries one, absent when it does not. */
+function boundaryHeaders(headers: Record<string, string>, boot: BootBody | null): Record<string, string> {
+  const out = { ...headers }
+  delete out[SESSION_BOUNDARY_HEADER]
+  const at = boot?.last_session_ended_at
+  if (typeof at === 'string' && at !== '') out[SESSION_BOUNDARY_HEADER] = at
+  return out
 }
 
 /** 30 days before now — crosses enough of the fixture's updated_at spread
@@ -201,7 +222,12 @@ test.describe('session strip', () => {
           body.server_time = new Date().toISOString()
           inject = null
         }
-        await route.fulfill({ response, json: body })
+        // This handler is registered after mockLastSession's, so it is the one
+        // that answers — and the boundary the server would send has to come
+        // off here too, or the strip latches before the tab is ever hidden.
+        const headers = { ...response.headers() }
+        delete headers[SESSION_BOUNDARY_HEADER]
+        await route.fulfill({ response, headers, json: body })
       },
     )
     await gotoApp(page)

@@ -53,6 +53,9 @@ rm -f "${DB}-wal" "${DB}-shm"
 # previous run's `Shot triage <ts>` (view-delete.spec.ts) was still there. CI
 # never saw it: a fresh runner has no previous run. A fixture is fresh or it is
 # not, so local.db is seeded here too — by deletion, since the app creates it.
+# The reading history is written back in below, once the binary has made the
+# file; it is derived from the mirror being served rather than committed, so a
+# scaled or translated take gets a history that names its own keys.
 rm -f "$HOME_DIR/local.db" "$HOME_DIR/local.db-wal" "$HOME_DIR/local.db-shm"
 
 # Demo projects + deploy/teamGroups surfaces. The credential is fake — nothing
@@ -130,6 +133,16 @@ if [ "$have" != "$want" ]; then
   exit 1
 fi
 
+# GDK-1720: `gadak retro` reads sessions, resume and seen-vs-touched off
+# local.visits, and nothing in the pipeline ever wrote them — so the demo, every
+# recording and every e2e run showed an empty history on the one surface built
+# on it, and no spec could tell a working retro from a broken one. The seeder is
+# deterministic and reads the mirror it is given, so every key it names exists
+# and the reads sit inside that mirror's own window. Reading history only: saved
+# views, searches and recents stay empty, which is what the reseed above buys.
+echo "[e2e] seeding local.db browsing history…"
+python3 "$ROOT/tools/seed-local/seed.py" "$DB" "$HOME_DIR/local.db"
+
 echo "[e2e] injecting deploy enrichment on NMB-110…"
 sqlite3 "$DB" <<'SQL'
 INSERT INTO source_queries
@@ -194,8 +207,15 @@ esac
 # the badge / actor filter / linked-by / duration chip specs have nothing to
 # see without this. Touches land on NMB-112 and NMB-139 — keys no other spec
 # references, and both already have in-progress history so NMB-139's duration
-# chip has a deterministic wait ("6m": created 14:56:24.755Z → first
-# in-progress 15:03:12.577Z on 2026-07-20).
+# chip has a deterministic wait (created -> first in-progress, both the
+# fixture's own stamps; bots.spec.ts asserts the rendered value).
+#
+# The stamps below are derived from each issue's own columns rather than
+# written as constants. They used to be literals from a 2026-07-20 regen, and
+# a regen that re-times the fixture (GDK-1720 widened every issue's history
+# from seconds to days) left them a month in front of the issues they belong
+# to — a bot comment posted before its issue existed, on the one mirror the
+# demo shows. Derived, they follow whatever `make demo-fixture` last produced.
 echo "[e2e] injecting agent worker (acc-e2e-bot) touching NMB-112 / NMB-139…"
 sqlite3 "$DB" <<'SQL'
 INSERT INTO users (source_id, account_id, name, email, account_type)
@@ -207,9 +227,14 @@ ON CONFLICT(source_id, account_id) DO UPDATE SET
 INSERT INTO comments (id, item_id, external_id, author, author_id, body_text, created_at)
 VALUES
   ('jira:c-e2e-bot-1', 'jira:10317', 'c-e2e-bot-1', 'Claude (build 1)', 'acc-e2e-bot',
-   'claimed from the triage queue; reproducing on staging now', '2026-07-16T02:10:00.000Z'),
+   'claimed from the triage queue; reproducing on staging now',
+   (SELECT strftime('%Y-%m-%dT%H:%M:%S.000Z', julianday(replace(created_at,'Z','')) + 0.5)
+      FROM issues_raw WHERE key = 'NMB-112')),
   ('jira:c-e2e-bot-2', 'jira:10344', 'c-e2e-bot-2', 'Claude (build 1)', 'acc-e2e-bot',
-   'fix up — PR linked from the dev panel', '2026-07-20T15:05:00.000Z')
+   'fix up — PR linked from the dev panel',
+   (SELECT strftime('%Y-%m-%dT%H:%M:%S.000Z',
+                    julianday(replace(COALESCE(started_at, created_at),'Z','')) + 0.25)
+      FROM issues_raw WHERE key = 'NMB-139'))
 -- comments is keyed (item_id, id) since schemaV39 (GDK-1179).
 ON CONFLICT(item_id, id) DO UPDATE SET
   body_text = excluded.body_text;
@@ -224,7 +249,10 @@ UPDATE issues_raw SET comment_count = comment_count + 1 WHERE key IN ('NMB-112',
 INSERT INTO dev_links (item_id, kind, external_id, url, title, status, author, actor, actor_name, branch, updated_at)
 VALUES ('jira:10344', 'pullrequest', 'e2e-pr-9',
         'https://github.com/acme/api/pull/9', 'fix(NMB-139): retry budget for upload', 'open',
-        'human-dev', 'acc-e2e-bot', 'Claude (build 1)', 'fix/nmb-139-retry', '2026-07-20T15:04:00.000Z')
+        'human-dev', 'acc-e2e-bot', 'Claude (build 1)', 'fix/nmb-139-retry',
+        (SELECT strftime('%Y-%m-%dT%H:%M:%S.000Z',
+                         julianday(replace(COALESCE(started_at, created_at),'Z','')) + 0.24)
+           FROM issues_raw WHERE key = 'NMB-139'))
 ON CONFLICT(item_id, url) DO UPDATE SET
   actor = excluded.actor,
   actor_name = excluded.actor_name;
@@ -273,6 +301,12 @@ if [ "$E2E_ORIGIN" = "builtin" ]; then
   echo "[e2e] migrating the mirror into the built-in tracker (workspace nimbus)…"
   rm -rf "$HOME_DIR/profiles/nimbus"
   GADAK_HOME="$HOME_DIR" "$BIN" --workspace nimbus migrate --from default --skip-attachments >/dev/null
+  # local.db sits beside the mirror (store.LocalPath), so the workspace the
+  # take actually serves has its own — seed that one too or the recording's
+  # retro is the empty one again.
+  GADAK_HOME="$HOME_DIR" GADAK_WORKSPACE=nimbus "$BIN" status >/dev/null
+  python3 "$ROOT/tools/seed-local/seed.py" \
+    "$HOME_DIR/profiles/nimbus/gadak.db" "$HOME_DIR/profiles/nimbus/local.db"
   # The person at the keyboard is the origin's own user. A recording is
   # usually started from a Claude Code session, whose CLAUDECODE=1 the pane
   # would inherit and gadak's actor ladder would read as "this write is the

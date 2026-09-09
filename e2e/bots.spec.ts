@@ -65,7 +65,11 @@ test.describe('bot workers (GDK-590)', () => {
     const panel = await openDetail(page, 'NMB-139')
     const chip = panel.getByTestId('duration-chip')
     await expect(chip).toBeVisible()
-    await expect(chip).toContainText('Waited 6m')
+    // The fixture's own span: NMB-139 created -> first in-progress. It is a
+    // constant of examples/demo.db, so a regen that re-times the history
+    // re-pins it here (GDK-1720 moved it from 6m to 1d when issue lifetimes
+    // stopped being seconds wide).
+    await expect(chip).toContainText('Waited 1d')
     // In progress runs to now — presence only, the number would be a flake.
     await expect(chip).toContainText('In progress')
 

@@ -23,7 +23,7 @@ func planIssues(src []issueRow, scale int) ([]plannedIssue, rotationStats) {
 	// progress" — was one title repeated once per clone. Rotating both facets
 	// through the value pools the source itself carries is what makes every
 	// narrow slice mix sources. The plan is built once from src, so it stays a
-	// pure function of source order and k (Seed is still unused).
+	// pure function of source order and k (Seed keys lifetimes, not this plan).
 	plan := newFacetPlan(src)
 
 	seq := 1
@@ -262,7 +262,7 @@ func rankOrder(rank int) int {
 	return rank
 }
 
-func applySpread(planned []plannedIssue, window time.Duration, now time.Time) {
+func applySpread(planned []plannedIssue, window time.Duration, now time.Time, seed int64, ch children) {
 	if window <= 0 || len(planned) == 0 {
 		return
 	}
@@ -289,24 +289,58 @@ func applySpread(planned []plannedIssue, window time.Duration, now time.Time) {
 	for i := range planned {
 		p := &planned[i]
 		srcCreated, okC := parseTime(p.src.createdAt)
-		srcUpdated, okU := parseTime(p.src.updatedAt)
 		if !okC {
 			srcCreated = start
 		}
-		if !okU || srcUpdated.Before(srcCreated) {
-			srcUpdated = srcCreated
+		// The source high-water mark is the newest stamp the issue actually
+		// carries, not items.updated_at alone: mapTime clamps anything past
+		// srcHi onto dstHi, so an issue whose last changelog entry sits after
+		// its updated stamp would collapse its own tail onto one instant.
+		srcUpdated := srcCreated
+		if u, ok := parseTime(p.src.updatedAt); ok && u.After(srcUpdated) {
+			srcUpdated = u
 		}
+		events := 0
+		for _, row := range ch.changelogBy[p.src.itemID] {
+			events++
+			if t, ok := parseTime(asString(row["at"])); ok && t.After(srcUpdated) {
+				srcUpdated = t
+			}
+		}
+		for _, row := range ch.commentsBy[p.src.itemID] {
+			events++
+			for _, f := range []string{"created_at", "updated_at"} {
+				if t, ok := parseTime(asString(row[f])); ok && t.After(srcUpdated) {
+					srcUpdated = t
+				}
+			}
+		}
+		for _, row := range ch.attachmentsBy[p.src.itemID] {
+			events++
+			if t, ok := parseTime(asString(row["created_at"])); ok && t.After(srcUpdated) {
+				srcUpdated = t
+			}
+		}
+
 		dstCreated := createds[i]
+		// An issue with no history of its own gets no synthetic lifetime:
+		// there is nothing to spread inside the span, and inventing one only
+		// ages a row that never moved.
 		dur := srcUpdated.Sub(srcCreated)
-		dstUpdated := dstCreated.Add(dur)
-		if dstUpdated.Before(dstCreated) {
-			dstUpdated = dstCreated
+		if events > 0 {
+			dur = synthLifetime(seed, p.src.itemID, p.cloneSeq, now.Sub(dstCreated))
 		}
+		if dur < 0 {
+			dur = 0
+		}
+		dstUpdated := dstCreated.Add(dur)
 
 		p.useMap = true
 		p.srcLo, p.srcHi = srcCreated, srcUpdated
 		p.dstLo, p.dstHi = dstCreated, dstUpdated
 		p.zeroSpan = !srcUpdated.After(srcCreated)
+
+		p.events = placeEvents(p, ch, seed)
 
 		p.createdAt = formatTime(dstCreated)
 		p.updatedAt = formatTime(dstUpdated)

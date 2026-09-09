@@ -133,7 +133,7 @@ func buildInto(tmp string, opts Options) (rotationStats, error) {
 	// Expand to scale target by cycling originals. Empty source → no issues.
 	planned, rotated := planIssues(issues, opts.Scale)
 	rot = rotated
-	applySpread(planned, opts.Spread, opts.Now)
+	applySpread(planned, opts.Spread, opts.Now, opts.Seed, children)
 
 	// Key allocator for clones.
 	nextNum := maxKeyNums(issues)
@@ -694,11 +694,11 @@ func insertIssueBundle(tx *sql.Tx, p plannedIssue, itemID, key string, ch childr
 		}
 		row["item_id"] = itemID
 		if p.useMap {
-			if asString(row["created_at"]) != "" {
-				row["created_at"] = mapOrEven(asString(row["created_at"]), &p, i, len(comms))
+			if asString(row["created_at"]) != "" && i < len(p.events.commentNew) && p.events.commentNew[i] != "" {
+				row["created_at"] = p.events.commentNew[i]
 			}
-			if asString(row["updated_at"]) != "" {
-				row["updated_at"] = mapOrEven(asString(row["updated_at"]), &p, i, len(comms))
+			if asString(row["updated_at"]) != "" && i < len(p.events.commentUpd) && p.events.commentUpd[i] != "" {
+				row["updated_at"] = p.events.commentUpd[i]
 			}
 		}
 		if err := insertRow(tx, "comments", commentColumns, row); err != nil {
@@ -712,8 +712,8 @@ func insertIssueBundle(tx *sql.Tx, p plannedIssue, itemID, key string, ch childr
 			row["id"] = fmt.Sprintf("snap:clone:%d:a:%v", p.cloneSeq, row["id"])
 		}
 		row["item_id"] = itemID
-		if p.useMap && asString(row["created_at"]) != "" {
-			row["created_at"] = mapOrEven(asString(row["created_at"]), &p, i, len(atts))
+		if p.useMap && asString(row["created_at"]) != "" && i < len(p.events.attachments) && p.events.attachments[i] != "" {
+			row["created_at"] = p.events.attachments[i]
 		}
 		if err := insertRow(tx, "attachments", attachmentColumns, row); err != nil {
 			return err
@@ -726,8 +726,8 @@ func insertIssueBundle(tx *sql.Tx, p plannedIssue, itemID, key string, ch childr
 			row["id"] = fmt.Sprintf("snap:clone:%d:h:%v", p.cloneSeq, row["id"])
 		}
 		row["item_id"] = itemID
-		if p.useMap && asString(row["at"]) != "" {
-			row["at"] = mapOrEven(asString(row["at"]), &p, i, len(changes))
+		if p.useMap && asString(row["at"]) != "" && i < len(p.events.changelog) && p.events.changelog[i] != "" {
+			row["at"] = p.events.changelog[i]
 		}
 		if err := insertRow(tx, "changelog", changelogColumns, row); err != nil {
 			return err

@@ -64,7 +64,8 @@ func Build(opts Options) (Result, error) {
 	if opts.Seed == 0 {
 		opts.Seed = 1
 	}
-	_ = opts.Seed // algorithm is deterministic without RNG; seed is part of the contract
+	// Seed keys the per-issue synthetic lifetimes (internal/snapshot/lifetime.go).
+	// Everything else in the pipeline is deterministic without an RNG.
 
 	if _, err := os.Stat(opts.From); err != nil {
 		return zero, fmt.Errorf("source %q: %w", opts.From, err)
@@ -208,6 +209,10 @@ type plannedIssue struct {
 	srcLo, srcHi, dstLo, dstHi time.Time
 	useMap                     bool
 	zeroSpan                   bool
+	// events holds the re-spaced destination stamp for every dated child row
+	// (internal/snapshot/lifetime.go, placeEvents), indexed the same way
+	// children holds them. Empty when the issue has no dated history.
+	events eventPlacement
 	// Facet rotation (GDK-1558): non-nil on clones only. A clone keeps its
 	// source's title, body, comments, status and changelog, so without this a
 	// filtered slice — "my Highest issues in progress" — is one issue repeated

@@ -194,10 +194,12 @@ func (db *DB) RecomputeOpenBlockers(ctx context.Context) error {
 //
 // Categories resolve through categoriesForSource per source (status_catalog
 // first, issue-row reconstruction when a source holds no catalog rows — the
-// shipped fixture's state). ReopenedAt/reopen_reason/cloned_from/
-// priority_rank are NOT rewritten: those columns already hold their values
-// and Derive's inputs here are deliberately lean (no comment bodies, no
-// links, no priority list), so only the three new columns are written back.
+// shipped fixture's state). reopen_reason/cloned_from/priority_rank are NOT
+// rewritten: those columns already hold their values and Derive's inputs
+// here are deliberately lean (no comment bodies, no links, no priority
+// list). resolved_at and reopened_at ARE rewritten since GDK-1720 — they
+// name transitions, and Derive is their single owner on the sync path too
+// (write.go), so the backfill and a sync agree on them.
 func backfillFlow(tx *sql.Tx) error {
 	type issueRow struct {
 		itemID, source, category, updated, created, kind string
@@ -294,6 +296,27 @@ func backfillFlow(tx *sql.Tx) error {
 				`UPDATE issues_raw SET status_changed_at = ? WHERE item_id = ?`,
 				*d.StatusChangedAt, r.itemID); err != nil {
 				return fmt.Errorf("backfill status_changed_at %s: %w", r.itemID, err)
+			}
+		}
+		// resolved_at and reopened_at name transitions too, and rode the same
+		// drift for the same reason (GDK-1720): the column-bag mover carries
+		// the source's stamps while the spread re-times the changelog, so
+		// resolved_at pointed at an instant no Done entry happened and the
+		// retro's "closed" rows disagreed with the history view beside them.
+		// Guarded like status_changed_at — an issue whose changelog never
+		// reached the mirror keeps what it had rather than losing it to a nil.
+		if d.ResolvedAt != nil {
+			if _, err := tx.Exec(
+				`UPDATE issues_raw SET resolved_at = ? WHERE item_id = ?`,
+				*d.ResolvedAt, r.itemID); err != nil {
+				return fmt.Errorf("backfill resolved_at %s: %w", r.itemID, err)
+			}
+		}
+		if d.ReopenedAt != nil {
+			if _, err := tx.Exec(
+				`UPDATE issues_raw SET reopened_at = ? WHERE item_id = ?`,
+				*d.ReopenedAt, r.itemID); err != nil {
+				return fmt.Errorf("backfill reopened_at %s: %w", r.itemID, err)
 			}
 		}
 	}

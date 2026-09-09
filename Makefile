@@ -41,6 +41,16 @@ demo-fixture:
 	python3 scripts/scrub-demo-db.py examples/demo.db.new examples/demo.db
 	rm examples/demo.db.new
 	bash scripts/demo-schema.sh examples/demo.db
+	# The browsing history that accompanies the mirror (GDK-1720). local.db is
+	# personal state, so nothing in the snapshot pipeline writes it and `gadak
+	# retro` read an empty one in the demo, in every recording and in every e2e
+	# run. Seeded from the mirror that was just rebuilt, so every key it names
+	# exists and the reads sit inside that mirror's own window.
+	@if [ -f examples/local.db ]; then \
+		python3 tools/seed-local/seed.py examples/demo.db examples/local.db; \
+	else \
+		echo "seed-local: no examples/local.db here (it is not committed); e2e/serve.sh seeds its own"; \
+	fi
 	bash scripts/scan-internal.sh
 	bash tools/doc-checks.sh
 
