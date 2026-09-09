@@ -19,10 +19,10 @@
 싶었고요.
 
 gadak은 필요한 Jira 프로젝트와 Confluence 스페이스만 골라 이 컴퓨터에 캐시합니다.
-이슈와 댓글, 변경 이력, 위키 문서를 한 검색창에서 찾고, SQL로 집계합니다. 검색과
-이슈 조회는 캐시에서 끝나고, 쓰기는 Jira가 먼저 받은 뒤 캐시가 따라 바뀝니다.
-데스크톱 앱, `gadak serve`가 여는 브라우저 탭, CLI가 같은 캐시를 보고, Claude
-Code에는 스킬 하나로 넘깁니다. 바이너리 하나로 돌고, gadak 계정은 없습니다.
+이슈와 댓글, 변경 이력, 위키 문서를 한 검색창에서 찾고, SQL로 집계합니다. 쓰기는
+Jira가 먼저 받은 뒤 캐시가 따라 바뀝니다. 데스크톱 앱, `gadak serve`가 여는
+브라우저 탭, CLI가 같은 캐시를 보고, Claude Code에는 스킬 하나로 넘깁니다.
+바이너리 하나로 돌고, gadak 계정은 없습니다.
 
 ## 먼저 눌러 보기
 
@@ -35,31 +35,26 @@ Code에는 스킬 하나로 넘깁니다. 바이너리 하나로 돌고, gadak �
 
 - **연결되는 Jira는 Atlassian Cloud입니다.**
   [API 토큰](https://id.atlassian.com/manage-profile/security/api-tokens)
-  하나로 같은 사이트의 Jira와 Confluence에 붙습니다. 토큰은 스코프 없이 만든
-  사용자 토큰(`ATATT…`)이어야 합니다. 스코프가 붙은 토큰이나 admin.atlassian.com의
-  조직 키(`ATCTT…`)로는 사이트에 로그인할 수 없습니다. Jira Server와 Data
-  Center는 `gadak init --server`에 Personal Access Token 하나로 붙습니다.
-  위키는 거기서는 꺼져 있습니다(Confluence Server 클라이언트가 없습니다).
-- **가져올 범위는 직접 정합니다.** `--projects`로 Jira 프로젝트를, `--spaces`로
-  위키 스페이스를 고릅니다. 스페이스를 지정하기 전에는 위키를 가져오지 않습니다.
+  하나로 같은 사이트의 Jira와 Confluence에 붙습니다. 스코프 없는 사용자
+  토큰(`ATATT…`)이어야 하고, 조직 키(`ATCTT…`)로는 로그인이 안 됩니다. Jira
+  Server와 Data Center는 `gadak init --server`에 Personal Access Token 하나이고,
+  위키는 거기서는 꺼져 있습니다.
+- **가져올 범위는 직접 정합니다.** `--projects`와 `--spaces`로 고르고, 스페이스를
+  지정하기 전에는 위키를 가져오지 않습니다.
 - **캐시는 이 컴퓨터 안의 SQLite 파일 하나입니다.** 처음 한 번은 전체 동기화가
   필요합니다(측정한 사이트에서 3.7분). 그 뒤로는 `gadak serve`가 기본 60초
-  간격으로 증분 동기화를 돌리고, 한 시간에 한 번 대조를 해서 삭제됐거나 더 볼 수
-  없게 된 이슈를 캐시에서도 지웁니다. 캐시는 지워도 됩니다. 다시 동기화하면
-  그대로 돌아옵니다.
-- **API 토큰은 캐시에도, 로그에도, 스냅샷에도 남지 않습니다.** 토큰은
+  간격으로 증분 동기화를 돌리고, 한 시간에 한 번 대조해서 지워진 이슈를
+  캐시에서도 지웁니다. 캐시는 지워도 됩니다. 다시 동기화하면 돌아옵니다.
+- **API 토큰은 캐시에도, 로그에도, 스냅샷에도 남지 않습니다.**
   `~/.gadak/config.json`에 0600 권한으로 저장되고, 내 사이트로 보내는 요청의
   Authorization 헤더에만 쓰입니다.
 - **텔레메트리는 없습니다.** gadak이 연결하는 곳은 직접 설정한 곳뿐입니다. 전체
-  목록과 조건은 [`SECURITY.md`](SECURITY.md)에, 연결마다 끄는 방법은
+  목록은 [`SECURITY.md`](SECURITY.md)에, 연결마다 끄는 방법은
   [`docs/NETWORK.md`](docs/NETWORK.md)에 있습니다.
-- **쓰기는 Jira로 먼저 갑니다.** Jira가 받아들이면 캐시를 갱신하고, 거절하면 그
-  자리에서 실패합니다. 캐시에 쌓아 두고 나중에 보내는 일은 없습니다.
 - **몇 가지 읽기는 Jira에 직접 묻습니다.** 첨부파일 보기, `gadak issue
   --editmeta`, `gadak fields`, `gadak api`가 그렇습니다.
-- **캐시를 읽는 에이전트는 읽은 내용을 자기 모델로 보냅니다.** gadak 자신은
-  아무 데도 보내지 않습니다. 에이전트가 봐도 되는 프로젝트와 스페이스만
-  캐시하세요.
+- **캐시를 읽는 에이전트는 읽은 내용을 자기 모델로 보냅니다.** 에이전트가 봐도
+  되는 프로젝트만 캐시하세요.
 
 ## 설치와 첫 실행
 
@@ -75,33 +70,30 @@ CLI만:
 brew install midagedev/tap/gadak-cli
 ```
 
-첫 실행. 사이트 주소, 이메일, API 토큰, 캐시할 프로젝트를 차례로 묻습니다. 끝나면
-`gadak serve`가 `http://gadak.localhost:7777`을 찍고, 첫 동기화는 그 안에서
-최근 이슈부터 돕니다. 기다리지 않아도 목록이 채워지는 게 보입니다:
+첫 실행은 사이트 주소, 이메일, API 토큰, 프로젝트를 차례로 묻고, 끝나면
+`gadak serve`가 `http://gadak.localhost:7777`을 찍습니다. 첫 동기화는 최근
+이슈부터 돕니다:
 
 ```bash
 gadak init && gadak serve
 ```
 
-처음부터 범위를 좁혀 시작하려면 프로젝트와 스페이스를 함께 줍니다:
+처음부터 범위를 좁히려면 프로젝트와 스페이스를 함께 줍니다:
 
 ```bash
 gadak init --projects ENG,PROD --spaces ENG
 ```
 
-화면은 한국어로 뜹니다. 브라우저와 OS 언어를 따르고, 설정에서 바꿀 수 있습니다.
-dmg, 리눅스 tarball, Docker, 업그레이드는 [`docs/INSTALL.md`](docs/INSTALL.md)에,
-캐시 안에 무엇이 어떤 모양으로 들어 있는지는 [`docs/MIRROR.md`](docs/MIRROR.md)에
-있습니다.
+화면은 한국어로 뜹니다. dmg, 리눅스 tarball, Docker, 업그레이드는
+[`docs/INSTALL.md`](docs/INSTALL.md).
 
 **Windows.** 데스크톱 앱은 [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G)에
 있습니다. Store가 서명하니 SmartScreen도 Smart App Control도 막지 않고,
-0.20.2부터는 Store로 설치하면 `gadak`이 `PATH`에 올라갑니다. Store 없이 CLI만
-쓰려면 [최신 릴리스](https://github.com/midagedev/gadak/releases/latest)의
-`gadak_<version>_windows_amd64.zip`(또는 `arm64`)을 풉니다. 릴리스에 있는
-데스크톱 zip(`Gadak-<version>-windows-x64.zip`)은 아직 서명이 없어서 SmartScreen이
-막습니다. 바이러스가 아니라 서명이 없다는 경고입니다
-([`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md)). 막히면 Store로 가고, Smart
+0.20.2부터는 `gadak`이 `PATH`에 올라갑니다. CLI만 쓰려면
+[최신 릴리스](https://github.com/midagedev/gadak/releases/latest)의
+`gadak_<version>_windows_amd64.zip`(또는 `arm64`)을 풉니다. 릴리스의 데스크톱
+zip(`Gadak-<version>-windows-x64.zip`)은 서명이 없어서 SmartScreen이 막습니다
+([`docs/WINDOWS-SIGNING.md`](docs/WINDOWS-SIGNING.md)). 그때는 Store로 가고, Smart
 App Control은 끄지 마세요.
 
 ## Claude Code와 다른 에이전트
@@ -110,33 +102,32 @@ App Control은 끄지 마세요.
 gadak skill install
 ```
 
-Claude Code용 스킬을 설치합니다. 스키마와 쿼리 패턴이 담긴 파일 하나이고, 별도
-프로세스는 띄우지 않습니다. `gadak skill install codex`처럼 이름을 붙이면
+스키마와 쿼리 패턴이 담긴 파일 하나를 설치하고, 별도 프로세스는 띄우지
+않습니다. `gadak skill install codex`처럼 이름을 붙이면
 cursor·gemini·opencode·grok에도 같은 파일이 들어갑니다. 셸이 없는 Claude
 Desktop에는 `gadak mcp install claude-desktop`으로 MCP 서버를 등록합니다.
 
 <p align="center">
   <img src="docs/media/terminal-hero.ko.gif" alt="gadak 앱의 터미널에서 Claude Code로 이슈 목록을 바꾸고 라벨 비율 대시보드를 저장해 여는 한국어 세션" width="900">
   <br>
-  <sub>앱 창 안의 셸(⌘K → 터미널, 또는 Ctrl+`)에서 <code>gadak claim NMA-140</code>을 치면 이슈가 진행 중으로 바뀌고 셸 탭 이름이 그 키로 바뀝니다. 그 셸에서 시작한 Claude Code 세션이 옆의 보드를 움직입니다. 화면, 트래커, 프롬프트 전부 한국어 세션이고, 프롬프트 두 줄 외에는 대본이 없습니다. 에이전트가 일하는 구간은 빨리 감았습니다. 녹화: <a href="e2e/demo/terminal-claude-demo.spec.ts">e2e/demo/terminal-claude-demo.spec.ts</a>, <a href="e2e/demo/record-terminal-claude.sh">record-terminal-claude.sh</a>.</sub>
+  <sub>앱 창 안의 셸(⌘K → 터미널, 또는 Ctrl+`)에서 <code>gadak claim NMA-140</code>을 치면 이슈가 진행 중으로 바뀝니다. 그 셸에서 시작한 Claude Code 세션이 옆의 보드를 움직입니다. 프롬프트 두 줄 외에는 대본이 없고, 에이전트가 일하는 구간은 빨리 감았습니다. 녹화: <a href="e2e/demo/terminal-claude-demo.spec.ts">e2e/demo/terminal-claude-demo.spec.ts</a>, <a href="e2e/demo/record-terminal-claude.sh">record-terminal-claude.sh</a>.</sub>
 </p>
 
-한국어 계정에서 에이전트가 가장 자주 빠지는 함정이 하나 있습니다. Jira는 상태와
-우선순위 이름을 계정 언어로 번역합니다. 그래서 `priority = High`는 한국어
-계정에서 오류 없이 0행이고, 에이전트는 그걸 "그런 이슈는 없다"로 읽습니다. 필터는
-`status_category`와 `priority_rank`로 걸어야 하고, 스킬이 그렇게 가르칩니다. SQL로
-찾은 이슈는 `gadak sql --no-header "…" | gadak views open --keys -`로 앱에 띄울 수
-있고, `gadak views open --jql '…'`은 붙여 넣은 JQL을 필터 칩으로 내려놓습니다.
+한국어 계정의 함정 하나. Jira는 상태와 우선순위 이름을 계정 언어로 번역해서,
+`priority = High`는 오류 없이 0행이고 에이전트는 그걸 "그런 이슈는 없다"로
+읽습니다. 필터는 `status_category`와 `priority_rank`로 걸어야 하고, 스킬이 그렇게
+가르칩니다. SQL로 찾은 이슈는 `gadak sql --no-header "…" | gadak views open --keys -`로
+앱에 띄우고, `gadak views open --jql '…'`은 JQL을 필터 칩으로 내려놓습니다.
 
 쓰기(`create`, `edit`, `comment`, `transition`, `claim`, `link`, 위키 `page`)는
-Jira를 거친 뒤 캐시가 갱신됩니다. 에이전트가 남긴 댓글과 만든 이슈에는
-에이전트 이름이 붙습니다. SQL 레퍼런스는 [`docs/MIRROR.md`](docs/MIRROR.md),
-도구별 연결 방법은 [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md)에 있습니다.
+Jira를 거친 뒤 캐시가 갱신되고, 에이전트가 남긴 것에는 에이전트 이름이 붙습니다.
+SQL 레퍼런스는 [`docs/MIRROR.md`](docs/MIRROR.md), 도구별 연결은
+[`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md).
 
 ## SQL로 집계하기
 
-JQL에는 `GROUP BY`가 없습니다. 이번 측정에서는 에픽별 열린 이슈를 세려고 API 결과
-8페이지를 받아 프로그램에서 합산했습니다. gadak에서는 쿼리 한 번입니다:
+JQL에는 `GROUP BY`가 없습니다. 에픽별 열린 이슈를 세려면 API 결과 8페이지를 받아
+합산해야 했는데, gadak에서는 쿼리 한 번입니다:
 
 ```bash
 gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
@@ -145,8 +136,7 @@ gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
 
 같은 쿼리를 [Datasette Lite가 데모 스냅샷에서 브라우저 안에서 돌려
 줍니다](<https://lite.datasette.io/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmidagedev%2Fgadak%2Fmain%2Fexamples%2Fdemo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc>).
-SQL을 고쳐서 바로 다시 돌릴 수 있습니다. 나머지 쿼리는
-[`docs/RECIPES.md`](docs/RECIPES.md).
+나머지 쿼리는 [`docs/RECIPES.md`](docs/RECIPES.md).
 
 ## 성능 측정
 
@@ -161,21 +151,19 @@ gadak 쪽은 CLI 프로세스가 뜨는 시간까지 넣은 값입니다.
 | 에픽별 열린 이슈 (`GROUP BY`) | 4,761 ms, API 8페이지를 받아 합산 | 22 ms | 214× |
 | 변경 이력 집계 | JQL로 표현 불가, 순회하면 약 28분 | 14 ms | |
 
-첫 전체 동기화에는 시간이 걸리고(위 사이트에서 3.7분), 캐시는 동기화 주기만큼
-늦습니다. 측정 방법과 재측정 이력은 [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
+첫 전체 동기화는 위 사이트에서 3.7분이고, 캐시는 동기화 주기만큼 늦습니다.
+측정 방법은 [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 
 ## 지원 범위와 다른 사용 방식
 
 Atlassian Cloud, Jira Server/Data Center, Linear, 내장 트래커에서 같은 명령을
-씁니다. Server는 `gadak init --server`에 PAT 하나이고, Linear 동기화는
-`gadak sync --source linear`입니다. 읽기, 쓰기, 계층, 첨부, 이력, 보드 배치가
-넷 다에서 되고(위키는 Confluence Cloud와 내장 위키에서), 서비스별로 무엇을
+씁니다. Linear 동기화는 `gadak sync --source linear`입니다. 서비스별로 무엇을
 거절하는지는 셀마다 코드를 인용한
 [`docs/SUPPORT_MATRIX.md`](docs/SUPPORT_MATRIX.md)에 있습니다.
 
 어느 서비스에도 없는 것이 셋 있습니다. 화면으로서의 스프린트, Jira 대시보드, Jira
-알림함. 스프린트 계획, 관리자 작업, 화면 안에서 페이지 편집, 1분의 지연도 안 되는
-일은 Jira에서 계속 합니다([`docs/CONCEPT.md`](docs/CONCEPT.md#good-fit--bad-fit)).
+알림함. 스프린트 계획, 관리자 작업, 1분의 지연도 안 되는 일은 Jira에서 계속
+합니다([`docs/CONCEPT.md`](docs/CONCEPT.md#good-fit--bad-fit)).
 
 Atlassian 계정 없이 시작하려면 `gadak init --local`로 내장 트래커를 씁니다.
 워크스페이스를 옮기는 명령은 `gadak --workspace <new> migrate --from <old>`이고,
@@ -185,27 +173,24 @@ Linear로 옮길 때는 `--to linear`를 붙입니다. 다른 컴퓨터와 페�
 ## 만들지 않기로 한 것
 
 - **캐시에 직접 쓰기.** 기록은 Jira입니다. 로컬에 쓰기 모델을 두면 충돌을
-  풀어야 하고, 그건 다른 제품입니다. 모든 쓰기는 Jira를 먼저 통과합니다.
+  풀어야 하고, 그건 다른 제품입니다.
 - **여러 사람이 함께 쓰는 배포.** 보안 모델이 한 사람, loopback, 인증 없음이라
-  정면으로 충돌합니다. 계정도 서버도 강제하지 않는 대가로 포기한 것입니다.
-- **스프린트 계획 화면.** 스프린트를 읽는 표면은 만들었습니다. 활성 스프린트의
-  이름과 남은 날, 진행률, 이월 표시, 스프린트로 자른 회고까지. 이슈를 스프린트
-  사이로 끌어다 놓는 것, 캐파시티 다이얼, 속도 예측은 만들지 않습니다. 그건
-  Jira와 Linear의 화면에서 계속 합니다.
-- **업데이트 확인.** 이건 만들었다가 뺐습니다. 하루 한 번 GitHub에 새 버전이
-  있는지 묻고 있었는데, 나가는 요청 목록을 짧게 유지하는 쪽이 낫다고 판단해
-  0.22에서 지웠습니다. 목적지가 여섯에서 다섯이 됐습니다. 업그레이드는
-  `brew upgrade`입니다.
+  정면으로 충돌합니다. 계정도 서버도 강제하지 않는 대가입니다.
+- **스프린트 계획 화면.** 읽는 쪽은 만들었습니다. 활성 스프린트의 남은 날과
+  진행률, 이월 표시, 스프린트로 자른 회고까지. 이슈를 스프린트 사이로 끌어다
+  놓는 것과 속도 예측은 Jira와 Linear의 화면에서 계속 합니다.
+- **업데이트 확인.** 만들었다가 뺐습니다. 하루 한 번 GitHub에 새 버전을 묻고
+  있었는데, 나가는 요청 목록을 짧게 유지하는 쪽이 낫다고 판단해 0.22에서
+  지웠습니다. 목적지가 여섯에서 다섯이 됐습니다. 업그레이드는 `brew upgrade`입니다.
 - **Confluence Server.** Jira Server는 인스턴스를 직접 띄워 셀마다 명령을 돌린
   뒤에 지원한다고 적었습니다. 위키 쪽은 클라이언트가 없어서 안 된다고 적습니다.
   검증하지 않은 것을 지원한다고 적지 않는 것이 이 목록의 규칙입니다.
 
 ## 상태와 호환성
 
-**상태: 0.21, 아직 0.x입니다.** 동기화와 읽기 API, Jira를 먼저 거치는 쓰기,
-데스크톱·웹·CLI·MCP를 실제 사이트에서 확인했습니다. 지금은 한 사람이 만들고,
-라이선스는 Apache-2.0입니다. 이름은 엉킨 실에서 뽑아낸 한 줄기, '가닥'에서
-왔습니다.
+**상태: 0.21, 아직 0.x입니다.** 동기화, 읽기 API, 쓰기, 데스크톱·웹·CLI·MCP를
+실제 사이트에서 확인했습니다. 한 사람이 만들고, 라이선스는 Apache-2.0입니다.
+이름은 엉킨 실에서 뽑아낸 한 줄기, '가닥'에서 왔습니다.
 
 0.x에서 바꾸지 않기로 약속한 것은 [data-model.md](specs/000-product/data-model.md)의
 셋입니다. `issues_full`과 RECIPES 쿼리, `gadak sql`의 출력 형식, `gadak views
@@ -221,10 +206,9 @@ open --keys -`의 의미. 항목별 확인 명령은 [`docs/PROMISES.md`](docs/P
 [midagedev@gmail.com](mailto:midagedev@gmail.com), 어느 쪽이든 됩니다.
 
 공개된 곳에는 실제 이슈 내용과 토큰, 사이트 주소를 빼고 적어 주세요. 버그
-리포트에는 Jira 배포 유형(Cloud인지 Server인지), gadak 커밋, 실행한 명령이
-있으면 됩니다. GitHub 이슈는 백로그에도 옮겨 두고, 커밋의 `GDK-nnn` 키는
-[공개 백로그](https://gadak.dev/backlog/)로 이어집니다. 코드로 오시려면
-[`CONTRIBUTING.md`](.github/CONTRIBUTING.md)와
+리포트에는 Cloud인지 Server인지, gadak 커밋, 실행한 명령이 있으면 됩니다.
+커밋의 `GDK-nnn` 키는 [공개 백로그](https://gadak.dev/backlog/)로 이어집니다.
+코드로 오시려면 [`CONTRIBUTING.md`](.github/CONTRIBUTING.md)와
 [`docs/project/GOOD_FIRST_ISSUES.md`](docs/project/GOOD_FIRST_ISSUES.md).
 
 ## 문서
