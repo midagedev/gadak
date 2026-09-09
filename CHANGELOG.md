@@ -165,7 +165,7 @@ ever wrote one and the shipped fixture had zero rows, which is why the retro
 screen had a dash where every week's closed count belongs on the one mirror
 most people open. Derived from the statuses the snapshot's own issues carry,
 it gives `closed`, `in progress` and both wip-age rows a value in every week
-([GDK-1680]). One stamp behind all of that pointed at nothing:
+([GDK-1680]). The definitions read in the reader's own language now, not the CLI footer's English standing under translated row labels, and the session gap they name is the one the report actually ran with ([GDK-1692]). A day-valued cell that held less than a day used to print `0.0d`, which is what no data looks like; days, hours and minutes come from one formatter both the table and the screen call, so work closed in four hours says so ([GDK-1683]). One stamp behind all of that pointed at nothing:
 `status_changed_at` is derived from the changelog, and the backfill computed
 it and then wrote only its three neighbours, so in a snapshot — column copied,
 changelog re-timed — it drifted onto an instant no transition happened
@@ -1756,7 +1756,9 @@ priority sorting keyed on `priority_rank`.
 [GDK-1680]: https://gadak.dev/backlog/#/?ks=GDK-1680
 [GDK-1681]: https://gadak.dev/backlog/#/?ks=GDK-1681
 [GDK-1682]: https://gadak.dev/backlog/#/?ks=GDK-1682
+[GDK-1683]: https://gadak.dev/backlog/#/?ks=GDK-1683
 [GDK-1684]: https://gadak.dev/backlog/#/?ks=GDK-1684
 [GDK-1672]: https://gadak.dev/backlog/#/?ks=GDK-1672
 [GDK-1673]: https://gadak.dev/backlog/#/?ks=GDK-1673
 [GDK-1678]: https://gadak.dev/backlog/#/?ks=GDK-1678
+[GDK-1692]: https://gadak.dev/backlog/#/?ks=GDK-1692

@@ -163,7 +163,11 @@ Linear のサイクルも、スプリントになりました。Linear ワーク
 配られていた固定データの行数は 0 でした。ほとんどの人が開くただ一つの
 キャッシュで、週ごとの完了数がダッシュだった理由です。スナップショット自身の
 課題が持つ状態から導くので、`closed` と `in progress`、wip 年齢の二行がどの週にも
-値を持ちます ([GDK-1680])。その裏の時刻がひとつ、何も指していませんでした。
+値を持ちます ([GDK-1680])。指標の説明は読む人の言語で出るようになりました。訳された行名の下に CLI
+フッターの英語が立っていた場所で、そこに書かれるセッション間隔もレポートが
+実際に使った値です ([GDK-1692])。一日に満たない値の入ったセルは `0.0d` と
+表示され、それはデータがないという意味に読めます。日・時・分を表と画面が同じ
+関数から受け取るので、四時間で閉じた仕事は四時間だと言います ([GDK-1683])。その裏の時刻がひとつ、何も指していませんでした。
 `status_changed_at` は changelog から導く値ですが、バックフィルはそれを計算した
 うえで隣の三つだけを書いていました。スナップショットでは列が複製され changelog は
 別に組み直されるので、どの遷移もなかった時刻へ流れていました ([GDK-1684])。actor の署名行を有効にしても、任意の機能が消えることはなくなり
@@ -1765,7 +1769,9 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1680]: https://gadak.dev/backlog/#/?ks=GDK-1680
 [GDK-1681]: https://gadak.dev/backlog/#/?ks=GDK-1681
 [GDK-1682]: https://gadak.dev/backlog/#/?ks=GDK-1682
+[GDK-1683]: https://gadak.dev/backlog/#/?ks=GDK-1683
 [GDK-1684]: https://gadak.dev/backlog/#/?ks=GDK-1684
 [GDK-1672]: https://gadak.dev/backlog/#/?ks=GDK-1672
 [GDK-1673]: https://gadak.dev/backlog/#/?ks=GDK-1673
 [GDK-1678]: https://gadak.dev/backlog/#/?ks=GDK-1678
+[GDK-1692]: https://gadak.dev/backlog/#/?ks=GDK-1692

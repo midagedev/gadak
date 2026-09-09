@@ -147,7 +147,11 @@ Linear의 사이클도 스프린트입니다. Linear 워크스페이스도 다�
 생겼습니다. 동기화가 만드는 것이라 스냅샷은 한 번도 그것을 쓰지 않았고 배포된
 픽스처의 행 수는 0이었습니다. 대부분이 열어 보는 그 하나의 캐시에서 주별 완료
 수가 대시였던 이유입니다. 스냅샷 자신의 이슈가 든 상태에서 유도하니 `closed`와
-`in progress`, wip 나이 두 행이 모든 주에 값을 갖습니다 ([GDK-1680]). 그 뒤에
+`in progress`, wip 나이 두 행이 모든 주에 값을 갖습니다 ([GDK-1680]). 지표 설명은 이제 읽는 사람의 언어로 나옵니다. 번역된 행 이름 아래
+CLI 푸터의 영어가 서 있던 자리이고, 거기 적히는 세션 간격도 리포트가 실제로
+쓴 값입니다 ([GDK-1692]). 하루가 안 되는 값이 들어간 칸은 `0.0d`로 찍혔는데,
+그건 데이터가 없다는 뜻으로 읽힙니다. 일·시간·분을 표와 화면이 같은 함수에서
+받아 가니 네 시간 만에 닫힌 일은 네 시간이라고 말합니다 ([GDK-1683]). 그 뒤에
 있던 시각 하나는 아무것도 가리키지 않았습니다. `status_changed_at`은
 changelog에서 유도하는 값인데 백필이 그것을 계산해 놓고 이웃 셋만 썼습니다.
 스냅샷에서는 컬럼이 복사되고 changelog는 따로 재배치되니, 어떤 전이도 없는
@@ -1663,7 +1667,9 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1680]: https://gadak.dev/backlog/#/?ks=GDK-1680
 [GDK-1681]: https://gadak.dev/backlog/#/?ks=GDK-1681
 [GDK-1682]: https://gadak.dev/backlog/#/?ks=GDK-1682
+[GDK-1683]: https://gadak.dev/backlog/#/?ks=GDK-1683
 [GDK-1684]: https://gadak.dev/backlog/#/?ks=GDK-1684
 [GDK-1672]: https://gadak.dev/backlog/#/?ks=GDK-1672
 [GDK-1673]: https://gadak.dev/backlog/#/?ks=GDK-1673
 [GDK-1678]: https://gadak.dev/backlog/#/?ks=GDK-1678
+[GDK-1692]: https://gadak.dev/backlog/#/?ks=GDK-1692
