@@ -35,10 +35,71 @@ fi
 # "Claude Code-credentials") and no longer writes ~/.claude/.credentials.json.
 # Isolated HOME cannot see the operator keychain under a different HOME, so
 # export the same JSON the old file held. Never write back into ~/.claude.
+#
+# The copy must outlive the take. The oauth blob carries an access token
+# with an expiry and a refresh token that rotates: when the operator's own
+# Claude Code refreshes, the refresh token in the copy is revoked with it,
+# and the pane's Claude answers every prompt with "401 OAuth access token
+# has been revoked". Measured 2026-09-10: copy taken 05:39, the operator's
+# credentials rewritten 05:40, three ko takes lost to a list that never
+# moved — `claude auth status` still said loggedIn, so that check alone
+# cannot catch it. So: read the expiry first, and when less than
+# CLAUDE_DRIVE_MIN_TOKEN_S remains (default 90 min — three takes plus
+# margin), make the operator's client refresh now with one trivial
+# `claude -p` under the real HOME, then copy the fresh blob. Aborts rather
+# than records when the refresh does not push the expiry out.
+CLAUDE_DRIVE_MIN_TOKEN_S="${CLAUDE_DRIVE_MIN_TOKEN_S:-5400}"
+
+# Prints the seconds until the operator's access token expires (file first,
+# keychain second), or -1 when it cannot tell. Reads the expiry field only.
+operator_token_ttl() {
+  python3 - "$REAL_HOME/.claude/.credentials.json" <<'PY'
+import json, os, subprocess, sys, time
+path = sys.argv[1]
+raw = None
+if os.path.isfile(path):
+    raw = open(path).read()
+else:
+    try:
+        raw = subprocess.check_output(
+            ["security", "find-generic-password", "-s", "Claude Code-credentials", "-w"],
+            text=True,
+        )
+    except subprocess.CalledProcessError:
+        pass
+try:
+    exp = json.loads(raw or "{}").get("claudeAiOauth", {}).get("expiresAt")
+    print(int(exp / 1000 - time.time()))
+except Exception:
+    print(-1)
+PY
+}
+
+ensure_operator_token_fresh() {
+  local ttl
+  ttl="$(operator_token_ttl)"
+  if (( ttl >= CLAUDE_DRIVE_MIN_TOKEN_S )); then
+    echo "[claude-drive] operator token has ${ttl}s left (≥ ${CLAUDE_DRIVE_MIN_TOKEN_S}s) — copying as is"
+    return 0
+  fi
+  echo "[claude-drive] operator token has ${ttl}s left (< ${CLAUDE_DRIVE_MIN_TOKEN_S}s) — refreshing it before the copy"
+  # One cheap, non-interactive turn under the real HOME: the client refreshes
+  # an expiring token on its own before the request. Output discarded.
+  env -u CLAUDE_CODE_CHILD_SESSION -u CLAUDECODE claude -p "reply with the single word ok" --model haiku >/dev/null 2>&1 || true
+  ttl="$(operator_token_ttl)"
+  if (( ttl < CLAUDE_DRIVE_MIN_TOKEN_S )); then
+    echo "prepare-claude-drive: operator token still expires in ${ttl}s after a refresh attempt" >&2
+    echo "  a take would outlive the copy and die on 401 — run \`claude\` once interactively, then retry" >&2
+    exit 1
+  fi
+  echo "[claude-drive] operator token refreshed — ${ttl}s left"
+}
+
 copy_claude_credentials() {
   local dest="$1"
   local src="$REAL_HOME/.claude/.credentials.json"
   mkdir -p "$(dirname "$dest")"
+  ensure_operator_token_fresh
   if [[ -f "$src" ]]; then
     echo "[claude-drive] copying $src → isolated HOME"
     install -m 600 "$src" "$dest"
