@@ -155,6 +155,13 @@ export interface Strings {
 
 const GITHUB = 'https://github.com/midagedev/gadak'
 const DOCS = `${GITHUB}/blob/main/`
+// The repository link per locale lands on that language's README, not the
+// English front page (user call 2026-09-09).
+export const REPO_FOR: Record<'en' | 'ko' | 'ja', string> = {
+  en: GITHUB,
+  ko: `${DOCS}README.ko.md`,
+  ja: `${DOCS}README.ja.md`,
+}
 
 export const strings: Record<Locale, Strings> = {
   en: {
@@ -462,7 +469,7 @@ export const strings: Record<Locale, Strings> = {
         { href: `${DOCS}docs/SUPPORT_MATRIX.md`, label: '서비스별 지원 범위' },
         { href: `${DOCS}docs/FAQ.md`, label: '자주 묻는 질문' },
         { href: `${DOCS}CHANGELOG.ko.md`, label: '무엇이 나왔는지' },
-        { href: GITHUB, label: 'GitHub' },
+        { href: `${DOCS}README.ko.md`, label: 'GitHub' },
       ],
     },
     ask: {
@@ -618,7 +625,7 @@ export const strings: Record<Locale, Strings> = {
         { href: `${DOCS}docs/SUPPORT_MATRIX.md`, label: '接続先ごとの対応状況' },
         { href: `${DOCS}docs/FAQ.md`, label: 'よくある質問' },
         { href: `${DOCS}docs/MAINTENANCE.md`, label: '保守の方針' },
-        { href: GITHUB, label: 'GitHub' },
+        { href: `${DOCS}README.ja.md`, label: 'GitHub' },
       ],
     },
     ask: {

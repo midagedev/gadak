@@ -1,6 +1,6 @@
 ---
 import '../styles/tokens.css'
-import { LOCALES, strings, otherLocales, pathFor, enPathOf, mediaFor, type Locale } from '../i18n'
+import { LOCALES, REPO_FOR, strings, otherLocales, pathFor, enPathOf, mediaFor, type Locale } from '../i18n'
 
 interface Props {
   lang: Locale
@@ -116,7 +116,7 @@ const switchHref = (l: Locale) => (noAltLang ? pathFor(l, '/') : pathFor(l, enPa
               somewhere else. */}
           <a href={pathFor(lang, '/changelog/')}>{t.nav.changelog}</a>
           <a href={pathFor(lang, '/install/')}>{t.nav.install}</a>
-          <a href="https://github.com/midagedev/gadak">{t.nav.github}</a>
+          <a href={REPO_FOR[lang]}>{t.nav.github}</a>
           {others.map((l) => (
             <a data-lang-choice={l} href={switchHref(l)}>{strings[l].langName}</a>
           ))}
@@ -130,7 +130,7 @@ const switchHref = (l: Locale) => (noAltLang ? pathFor(l, '/') : pathFor(l, enPa
       <div class="inner">
         {t.footer.builtBy}
         <a href="https://github.com/midagedev">midagedev</a> ·
-        <a href="https://github.com/midagedev/gadak">GitHub</a> ·
+        <a href={REPO_FOR[lang]}>GitHub</a> ·
         <a href="https://github.com/midagedev/gadak/blob/main/SECURITY.md">{t.footer.whereBytes}</a>
         <p class="name-note">{t.footer.nameNote}</p>
       </div>
