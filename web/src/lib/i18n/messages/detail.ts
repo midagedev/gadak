@@ -1036,6 +1036,24 @@ export const detail = {
     ko: '닫힌 것 {closed}(계획 외 {unplanned}), 되돌아온 것 {reopened}, 가장 오래된 진행 중 {age}, 스프린트 시작 후 들어온 것 {added}.',
     ja: '完了 {closed}（計画外 {unplanned}）、戻ってきたもの {reopened}、最も古い進行中 {age}、スプリント開始後に入ったもの {added}。',
   },
+  /*
+   * The same sentence without the reopen clause (GDK-1690). An origin that
+   * supplies no changelog cannot count reopens — the number is 0 forever —
+   * and "reopened 0" reads as "this team has no regressions" when nobody can
+   * tell. Written out per locale rather than assembled from fragments,
+   * because a clause removed from the middle of a sentence has to leave
+   * grammar behind in each language, not a comma.
+   */
+  'retro.sentenceNoReopen': {
+    en: 'Closed {closed} ({unplanned} unplanned), oldest in progress {age}.',
+    ko: '닫힌 것 {closed}(계획 외 {unplanned}), 가장 오래된 진행 중 {age}.',
+    ja: '完了 {closed}（計画外 {unplanned}）、最も古い進行中 {age}。',
+  },
+  'retro.sentenceSprintNoReopen': {
+    en: 'Closed {closed} ({unplanned} unplanned), oldest in progress {age}, added after sprint start {added}.',
+    ko: '닫힌 것 {closed}(계획 외 {unplanned}), 가장 오래된 진행 중 {age}, 스프린트 시작 후 들어온 것 {added}.',
+    ja: '完了 {closed}（計画外 {unplanned}）、最も古い進行中 {age}、スプリント開始後に入ったもの {added}。',
+  },
   'retro.actions.title': { en: 'Decided last time', ko: '지난번에 정한 것', ja: '前回決めたこと' },
   'retro.actions.hint': {
     en: 'Issues labelled retro-action stand here, with the number they named then and now.',

@@ -159,6 +159,9 @@ def main() -> int:
             # disagrees with itself.
             con.execute("UPDATE sprints SET name = ? WHERE id = ?", (v, p[2]))
             con.execute("UPDATE issues_raw SET sprint_name = ? WHERE sprint_id = ?", (v, p[2]))
+        elif p[1] == "sprintgoal":
+            # One copy: the goal lives only on the sprints row (GDK-1717).
+            con.execute("UPDATE sprints SET goal = ? WHERE id = ?", (v, p[2]))
     comp = {k.split(":", 2)[2]: v for k, v in tr.items() if k.startswith("catalog:component:")}
     if comp:
         for item_id, cj in con.execute("SELECT item_id, components FROM issues_raw WHERE components IS NOT NULL AND components != '[]'").fetchall():

@@ -74,6 +74,12 @@ def extract(db: Path) -> dict:
     for sid, name in con.execute(
         "SELECT id, name FROM sprints WHERE name IS NOT NULL AND name != '' ORDER BY 1"):
         s[f"catalog:sprint:{sid}"] = name
+    # The goal is the line the sprint strip draws under the name (GDK-1717).
+    # Its own namespace, not "catalog:sprint:<id>:goal": apply.py splits an id
+    # into three parts, so a fourth segment would land inside the sprint id.
+    for sid, goal in con.execute(
+        "SELECT id, goal FROM sprints WHERE goal IS NOT NULL AND goal != '' ORDER BY 1"):
+        s[f"catalog:sprintgoal:{sid}"] = goal
     comps = set()
     for (c,) in con.execute("SELECT components FROM issues_raw WHERE components IS NOT NULL"):
         for name in json.loads(c or "[]"): comps.add(name)

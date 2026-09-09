@@ -55,6 +55,58 @@ const NEGATION_SUFFIXES = [
   'ていない',
 ]
 
+/**
+ * Suffixes that turn a done word into a clause about work that has NOT
+ * happened yet: "검토 완료 후 진행", "완료되면 알려주세요", "完了次第".
+ * GDK-1428 — on a Korean corporate Jira the mismatch row ran 44–201 hits a
+ * week against 54–244 closures while the English OSS mirror stayed at 0–23,
+ * because scheduling and requesting are ordinary office vocabulary and both
+ * carry a done word. Lockstep with Go's `pendingSuffixes`.
+ */
+const PENDING_SUFFIXES = [
+  '되면',
+  '하면',
+  '면 ',
+  '되는 대로',
+  '되는대로',
+  '되면서',
+  '해야',
+  '하여야',
+  '되어야',
+  '예정',
+  '되기 전',
+  '하기 전',
+  '할',
+  '될',
+  '하겠',
+  '드리겠',
+  '합니다',
+  '해주',
+  '해 주',
+  '하시',
+  '부탁',
+  '요청',
+  '후에',
+  '후엔',
+  '후에는',
+  '뒤에',
+  '시에',
+  '전에',
+  '후까지',
+  '전까지',
+  '次第',
+  'したら',
+  'すれば',
+  '予定',
+]
+
+/**
+ * One-character clause markers that need a further look: bare "후"/"시"/"전"
+ * is a clause only when it is not the head of a longer word. Lockstep with
+ * Go's `pendingSingles`.
+ */
+const PENDING_SINGLES = ['후', '뒤', '시', '전', '後', '前']
+
 /** English negators that cancel a done word sitting just after them. */
 const ENGLISH_NEGATORS = ['not', "n't", 'no', 'never', "isn't", "wasn't", "aren't", 'yet']
 
@@ -158,7 +210,8 @@ function matchCjkWord(text: string, w: string): boolean {
   let i = text.indexOf(w)
   while (i >= 0) {
     const prefixed = i > 0 && NEGATION_PREFIXES.includes(text[i - 1])
-    if (!prefixed && !negatedSuffix(text.slice(i + w.length))) return true
+    const after = text.slice(i + w.length)
+    if (!prefixed && !negatedSuffix(after) && !pendingSuffix(after)) return true
     i = text.indexOf(w, i + 1)
   }
   return false
@@ -172,4 +225,26 @@ function matchCjkWord(text: string, w: string): boolean {
 function negatedSuffix(after: string): boolean {
   const rest = after.replace(/^[ \t]+/, '')
   return NEGATION_SUFFIXES.some((n) => rest.startsWith(n))
+}
+
+/**
+ * Anchored the same way negatedSuffix is: the marker starts right after the
+ * word, spaces aside, so a conditional in a later sentence is never borrowed.
+ * A Hangul or Han rune right after a single-character marker means it was the
+ * head of a longer word rather than a clause marker, so the claim stands.
+ */
+function pendingSuffix(after: string): boolean {
+  const rest = after.replace(/^[ \t]+/, '')
+  if (PENDING_SUFFIXES.some((p) => rest.startsWith(p))) return true
+  for (const p of PENDING_SINGLES) {
+    if (!rest.startsWith(p)) continue
+    const next = rest.slice(p.length)
+    if (next === '' || !isCjkSyllable(next[0])) return true
+  }
+  return false
+}
+
+/** A Hangul syllable or a Han character — the runes that glue into words. */
+function isCjkSyllable(ch: string): boolean {
+  return /[\u3400-\u9fff\uac00-\ud7af\uf900-\ufaff]/.test(ch)
 }

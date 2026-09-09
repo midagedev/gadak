@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -669,6 +670,11 @@ func insertIssueBundle(tx *sql.Tx, p plannedIssue, itemID, key string, ch childr
 		issue["priority_rank"] = pr.rank
 	}
 
+	// Every issue row the snapshot writes — original or clone — passes here,
+	// so this is the one place the id-less priority can be closed (GDK-1492 /
+	// GDK-1524).
+	derivePriorityID(issue)
+
 	// Destination may have columns the source lacks (reopen_reason, cloned_from).
 	if _, ok := issue["reopen_reason"]; !ok {
 		issue["reopen_reason"] = ""
@@ -792,6 +798,34 @@ func copyOriginalLinks(src *sql.DB, tx *sql.Tx, planned []plannedIssue) error {
 		}
 	}
 	return rows.Err()
+}
+
+// derivePriorityID fills priority_id from priority_rank when the source row
+// carries a priority name and a rank but no id (GDK-1492 / GDK-1524).
+//
+// `make demo-fixture` is circular — the snapshot's source is the committed
+// fixture — so a column nothing ever wrote could not heal itself: all 534 rows
+// of examples/demo.db carried a name and a rank with priority_id ”. That made
+// the fixture the one mirror where a surface keyed by id (the phone's priority
+// sheet, the web filter's id path) had nothing to match, while CLAUDE.md
+// forbids falling back to the display name.
+//
+// The rank is the id, which is exactly the contract `gadak migrate` derives
+// for the same id-less mirror (internal/migrate/migrate.go derivePriorityIDs,
+// GDK-1491): numeric id order is rank order by construction, so the catalog
+// cannot disagree with the rows. A source that already carries ids is left
+// alone — its ids are the origin's and guessing over them would be worse than
+// the gap this closes. An unranked or unprioritised row keeps its empty id,
+// which is the honest answer rather than a fabricated rank.
+func derivePriorityID(issue map[string]any) {
+	if asString(issue["priority_id"]) != "" || asString(issue["priority"]) == "" {
+		return
+	}
+	rank := parseRank(issue["priority_rank"])
+	if rank <= 0 {
+		return
+	}
+	issue["priority_id"] = strconv.Itoa(rank)
 }
 
 // Destination column lists (current schema).

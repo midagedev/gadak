@@ -95,6 +95,40 @@ test.describe('GDK-1709 sprint strip', () => {
     expect(errors).toEqual([])
   })
 
+  /*
+   * GDK-1717: the strip's goal line, on the shipped fixture.
+   *
+   * The component has drawn the goal since GDK-1695, but every sprint in
+   * examples/demo.db carried goal '' — so the line was absent from all six
+   * en/ko/ja frames of the GDK-1709 recording and the vision round returned
+   * FIX for a component that was working. The snapshot now derives one
+   * (internal/snapshot/agile.go sprintGoal), and this is the gate that the
+   * fixture keeps it: a DB-level assertion cannot see whether the strip
+   * actually renders it.
+   *
+   * FAIL-first: against the pre-fix fixture this failed with
+   * "expected count 1, received 0" on sprint-strip-goal.
+   */
+  test('GDK-1717 the active sprint says what it is for', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await forceLocale(page, 'en')
+    await openScopedBoard(page)
+
+    const strip = page.getByTestId('sprint-strip')
+    await expect(strip).toBeVisible()
+    const goal = page.getByTestId('sprint-strip-goal')
+    await expect(goal).toHaveCount(1)
+    await expect(goal).toBeVisible()
+    // A goal is a sentence about the work, not a repeat of the sprint name.
+    const text = ((await goal.textContent()) ?? '').trim()
+    expect(text.length).toBeGreaterThan(8)
+    const name = ((await page.getByTestId('sprint-strip-name').textContent()) ?? '').trim()
+    expect(text).not.toBe(name)
+    // The hover carries the whole of it behind its own label.
+    await expect(goal).toHaveAttribute('title', new RegExp(`: ${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`))
+    expect(errors).toEqual([])
+  })
+
   test('the bar wears the status-category tokens, not a palette of its own', async ({ page }) => {
     await forceLocale(page, 'en')
     await openScopedBoard(page)

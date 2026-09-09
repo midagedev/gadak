@@ -671,6 +671,15 @@ export interface RetroDoc {
    */
   bucket_noun?: string
   /**
+   * Whether this origin supplies no changelog, so reopens cannot be counted
+   * at all (GDK-1690). `reopen_count` is derived from the changelog, so on
+   * such an origin it is 0 forever — and "0 reopens" and "reopens cannot be
+   * read here" are the same number but opposite sentences. The view drops the
+   * reopen clause instead of printing a zero that reads as "no regressions".
+   * Absent on an older server, where it reads as false.
+   */
+  reopen_unavailable?: boolean
+  /**
    * Age of everything in progress right now (GDK-1721). Not a bucket column:
    * cycle time is what finished work cost and can no longer be changed, and
    * this is the only figure on the report a person can still act on.

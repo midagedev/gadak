@@ -813,7 +813,12 @@ func seedSource(t *testing.T, o seedOpts) string {
 				Issue: store.Issue{
 					ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "10004",
 					Status: "In Progress", StatusID: "3", StatusCategory: "inprogress",
-					Priority: "High", Assignee: "Ada", AssigneeID: "acc-ada",
+					// GDK-1492: the seed carries priority ids so this gate
+					// measures the clone rotation and not the id-less-source
+					// case that derivePriorityID now fills in. The id is the
+					// rank in Batch.Priorities order (Highest 1 … Low 4), which
+					// is the contract migrate and the snapshot both use.
+					Priority: "High", PriorityID: "2", Assignee: "Ada", AssigneeID: "acc-ada",
 					AssigneeEmail: "ada@example.invalid",
 					Reporter:      "Reporter", ReporterID: "acc-r",
 					DescriptionADF: emptyADF,
@@ -843,7 +848,7 @@ func seedSource(t *testing.T, o seedOpts) string {
 				Issue: store.Issue{
 					ProjectKey: "NMB", IssueType: "Task", IssueTypeID: "10002",
 					Status: "To Do", StatusID: "1", StatusCategory: "new",
-					Priority: "Medium", Reporter: "Reporter", ReporterID: "acc-r",
+					Priority: "Medium", PriorityID: "3", Reporter: "Reporter", ReporterID: "acc-r",
 					DescriptionADF: emptyADF,
 				},
 			},
@@ -854,15 +859,16 @@ func seedSource(t *testing.T, o seedOpts) string {
 		// histogram documented on seedOpts.facetMix. NMB-3 and NMB-4 share
 		// (Ada, Medium) — two sources in one cell is the shape the shipped
 		// fixture had and the rotation has to break up.
+		// priorityID is the rank in Batch.Priorities order (Highest 1 … Low 4).
 		extra := []struct {
-			key, title, assignee, assigneeID, priority string
+			key, title, assignee, assigneeID, priority, priorityID string
 		}{
-			{"NMB-3", "Retry storm on the payout worker", "Ada", "acc-ada", "Medium"},
-			{"NMB-4", "Webhook signature check is case sensitive", "Ada", "acc-ada", "Medium"},
-			{"NMB-5", "Ledger export drops the final page", "", "", "Medium"},
-			{"NMB-6", "Stale cursor after a partial sync", "", "", "Medium"},
-			{"NMB-7", "Audit log omits the actor on bulk edits", "", "", "Low"},
-			{"NMB-8", "Settings page loses focus on save", "Bo", "acc-bo", "Low"},
+			{"NMB-3", "Retry storm on the payout worker", "Ada", "acc-ada", "Medium", "3"},
+			{"NMB-4", "Webhook signature check is case sensitive", "Ada", "acc-ada", "Medium", "3"},
+			{"NMB-5", "Ledger export drops the final page", "", "", "Medium", "3"},
+			{"NMB-6", "Stale cursor after a partial sync", "", "", "Medium", "3"},
+			{"NMB-7", "Audit log omits the actor on bulk edits", "", "", "Low", "4"},
+			{"NMB-8", "Settings page loses focus on save", "Bo", "acc-bo", "Low", "4"},
 		}
 		for i, e := range extra {
 			created := base.Add(time.Duration(48+i*6) * time.Hour)
@@ -877,7 +883,8 @@ func seedSource(t *testing.T, o seedOpts) string {
 				Issue: store.Issue{
 					ProjectKey: "NMB", IssueType: "Task", IssueTypeID: "10002",
 					Status: "To Do", StatusID: "1", StatusCategory: "new",
-					Priority: e.priority, Assignee: e.assignee, AssigneeID: e.assigneeID,
+					Priority: e.priority, PriorityID: e.priorityID,
+					Assignee: e.assignee, AssigneeID: e.assigneeID,
 					Reporter: "Reporter", ReporterID: "acc-r",
 					DescriptionADF: emptyADF,
 				},

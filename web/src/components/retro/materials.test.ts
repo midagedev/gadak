@@ -19,6 +19,7 @@ import {
   splitTemplate,
 } from './materials'
 import type { RetroBucket } from '../../lib/types'
+import { detail as messages } from '../../lib/i18n/messages/detail'
 
 describe('percentile', () => {
   it('is nearest-rank, the ladder the report itself uses', () => {
@@ -228,5 +229,47 @@ describe('splitTemplate', () => {
 
   it('leaves an unknown placeholder visible instead of deleting the clause', () => {
     expect(splitTemplate('a {nope} b', slots)).toEqual([{ text: 'a {nope} b' }])
+  })
+})
+
+/*
+ * GDK-1690: the opening sentence has a second form for an origin that
+ * supplies no changelog.
+ *
+ * `reopen_count` is derived from the changelog, so on such an origin it is 0
+ * forever — and "reopened 0" reads as "this team has no regressions" when the
+ * truth is that nobody can tell. The clause is dropped rather than zeroed, and
+ * a clause cannot be cut out of the middle of a sentence generically: each
+ * locale needs its own grammar, which is why these are four written strings
+ * and not one string with a hole.
+ *
+ * FAIL-first: against the pre-fix catalog both no-reopen keys were undefined
+ * ("retro.sentenceNoReopen is missing for en").
+ */
+describe('retro sentence without the reopen clause (GDK-1690)', () => {
+  const LOCALES = ['en', 'ko', 'ja'] as const
+  const SLOTS = ['closed', 'unplanned', 'reopened', 'age', 'added']
+
+  it.each(LOCALES)('%s has both no-reopen forms and neither counts reopens', (loc) => {
+    for (const key of ['retro.sentenceNoReopen', 'retro.sentenceSprintNoReopen']) {
+      const entry = messages[key as keyof typeof messages] as Record<string, string> | undefined
+      expect(entry, `${key} is missing for ${loc}`).toBeTruthy()
+      const text = entry![loc]
+      expect(text, `${key} is missing for ${loc}`).toBeTruthy()
+      expect(text, `${key} [${loc}] still has a reopened slot`).not.toContain('{reopened}')
+      // The rest of the sentence survives the cut.
+      expect(text).toContain('{closed}')
+      expect(text).toContain('{age}')
+    }
+    // The sprint form keeps its fourth clause.
+    const sprint = (messages['retro.sentenceSprintNoReopen'] as Record<string, string>)[loc]
+    expect(sprint).toContain('{added}')
+  })
+
+  it.each(LOCALES)('%s no-reopen form is the full form minus that clause', (loc) => {
+    const full = (messages['retro.sentence'] as Record<string, string>)[loc]
+    const cut = (messages['retro.sentenceNoReopen'] as Record<string, string>)[loc]
+    const slotsOf = (s: string) => splitTemplate(s, SLOTS).flatMap((p) => ('slot' in p ? [p.slot] : []))
+    expect(slotsOf(full).filter((s) => s !== 'reopened')).toEqual(slotsOf(cut))
   })
 })

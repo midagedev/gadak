@@ -20,16 +20,25 @@
   let {
     values,
     sprint = false,
+    noReopen = false,
   }: {
     /** Slot name → the text to print and the issues behind it. An absent
      *  slot prints its own name, which is how a catalog typo shows itself. */
     values: Record<string, { text: string; keys: string[]; onOpen: () => void }>
     /** A sprint cut has a fourth clause: what joined after it started. */
     sprint?: boolean
+    /** This origin supplies no changelog, so the reopen clause is dropped
+     *  rather than printed as 0 (GDK-1690): the count is unknown, and a zero
+     *  here reads as "this team has no regressions". */
+    noReopen?: boolean
   } = $props()
 
   const SLOTS = ['closed', 'unplanned', 'reopened', 'age', 'added'] as const
-  const pieces = $derived(splitTemplate(t(sprint ? 'retro.sentenceSprint' : 'retro.sentence'), SLOTS))
+  const template = $derived.by(() => {
+    if (sprint) return noReopen ? 'retro.sentenceSprintNoReopen' : 'retro.sentenceSprint'
+    return noReopen ? 'retro.sentenceNoReopen' : 'retro.sentence'
+  })
+  const pieces = $derived(splitTemplate(t(template), SLOTS))
 </script>
 
 <!--

@@ -61,10 +61,24 @@ rm -f "$HOME_DIR/local.db" "$HOME_DIR/local.db-wal" "$HOME_DIR/local.db-shm"
 # Demo projects + deploy/teamGroups surfaces. The credential is fake — nothing
 # in the suite talks to Jira — but its presence must unlock the write UI
 # (me/ → email → identified), which is asserted in detail.spec.ts.
-cat >"$CFG" <<'EOF'
+# GDK-1729: the config carried an email but no account id, and
+# store.IsSelfActor matches on the account id (or a display name), so nothing
+# in the served mirror was ever "mine" — the retro resume cell, one of four
+# summary numbers, was a dash in every e2e run and every recording. The id is
+# read out of the mirror being served rather than written down here, so it
+# cannot drift from a regenerated fixture; `gadak demo` derives it the same way
+# from the same email (cmd/gadak/demo.go demoUserEmail).
+E2E_EMAIL="dana@example.com"
+E2E_ACCOUNT_ID="$(sqlite3 "$DB" "SELECT assignee_id FROM issues_full WHERE assignee_email = '$E2E_EMAIL' AND assignee_id != '' LIMIT 1" 2>/dev/null || true)"
+if [ -z "$E2E_ACCOUNT_ID" ]; then
+  echo "[e2e] warning: the fixture has no account id for $E2E_EMAIL; the retro resume row will stay empty" >&2
+fi
+
+cat >"$CFG" <<EOF
 {
   "site": "https://nimbus.example.com",
-  "email": "dana@example.com",
+  "email": "$E2E_EMAIL",
+  "account_id": "$E2E_ACCOUNT_ID",
   "token": "e2e-fake-token",
   "projects": ["NMB", "NMA", "NMS"],
   "features": {

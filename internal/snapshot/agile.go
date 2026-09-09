@@ -174,10 +174,14 @@ func deriveSprints(tx *sql.Tx, now time.Time) error {
 			default:
 				activated = stamp(start)
 			}
+			goal, err := sprintGoal(tx, source, s.name)
+			if err != nil {
+				return err
+			}
 			if _, err := tx.Exec(`
 				INSERT INTO sprints (source_id, id, board_id, name, goal, state, start_at, end_at, complete_at, activated_at, external_id)
 				VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-				source, s.n, boardID, s.name, "", state, stamp(start), stamp(end), complete, activated,
+				source, s.n, boardID, s.name, goal, state, stamp(start), stamp(end), complete, activated,
 				strconv.Itoa(s.n)); err != nil {
 				return err
 			}
@@ -192,6 +196,66 @@ func deriveSprints(tx *sql.Tx, now time.Time) error {
 		}
 	}
 	return nil
+}
+
+// sprintGoal writes the one line the sprint strip draws under the sprint name
+// (GDK-1717). Every sprint in the committed fixture carried goal ”, so the
+// goal line was absent from all six en/ko/ja frames of the GDK-1709 recording
+// — the strip stands beside a Linear cycle header there, which is the moment a
+// sprint is supposed to say what it is for.
+//
+// Derived, not invented: the sentence names the two components that most of
+// the sprint's own issues carry, so it cannot describe work the fixture does
+// not contain. Deterministic — counts come from the data and ties break on the
+// component name, so a regeneration reproduces the same sentence. English,
+// like the rest of the fixture's source text; ko and ja come from
+// examples/demo-i18n/<locale>.json via tools/demo-i18n/apply.py, keyed by
+// sprint id.
+//
+// A sprint whose issues carry no component gets no goal rather than a
+// sentence about nothing: an empty goal is a fixture that has not been given
+// one, which is honest, and the strip already draws that case.
+func sprintGoal(tx *sql.Tx, source, versionName string) (string, error) {
+	rows, err := tx.Query(`
+		SELECT je.value, COUNT(*) AS n
+		  FROM issues_raw i JOIN items it ON it.id = i.item_id, json_each(i.components) je
+		 WHERE it.source_id = ?
+		   AND i.item_id IN (
+		       SELECT i2.item_id FROM issues_raw i2 JOIN items it2 ON it2.id = i2.item_id,
+		              json_each(i2.fix_versions) je2
+		        WHERE it2.source_id = ? AND je2.value = ?)
+		 GROUP BY je.value
+		 ORDER BY n DESC, je.value ASC`, source, source, versionName)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	var top []string
+	for rows.Next() {
+		var name string
+		var n int
+		if err := rows.Scan(&name, &n); err != nil {
+			return "", err
+		}
+		if name == "" {
+			continue
+		}
+		top = append(top, name)
+		if len(top) == 2 {
+			break
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	switch len(top) {
+	case 0:
+		return "", nil
+	case 1:
+		return "Work down " + top[0] + ".", nil
+	default:
+		return "Work down " + top[0] + " and keep " + top[1] + " inside SLA.", nil
+	}
 }
 
 func sortedKeys[V any](m map[string]V) []string {

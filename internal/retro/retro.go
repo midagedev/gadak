@@ -82,6 +82,40 @@ type Options struct {
 	// only sprint-bearing board; with more than one, SprintBuckets refuses
 	// and names them rather than guessing whose cadence the reader meant.
 	BoardID int64
+	// Actor is the resolved actor slug (config.ResolveActor) — the identity a
+	// write carries on the built-in tracker, where issuetap stamps the slug
+	// onto the comment/changelog author_id. Empty everywhere else; see
+	// selfMatch for why the credential alone was not enough (GDK-1427).
+	Actor string
+	// Origin is the workspace's origin type (config.OriginType). It decides
+	// whether the reopen surfaces can be shown at all — see
+	// OriginSuppliesChangelog. Empty reads as "assume it does", which is what
+	// every caller that has no config sees and is the pre-GDK-1690 behaviour.
+	Origin string
+}
+
+// OriginSuppliesChangelog says whether an origin gives the mirror a state
+// history, which is the only thing that makes a reopen count meaningful.
+//
+// `reopen_count`, `reopened_at` and `reopen_reason` are derived from the
+// changelog, so on an origin that supplies none they are not zero — they are
+// unknown, and the two mean opposite things to a reader. "Reopened 0" on a
+// Linear workspace reads as "this team has no regressions" when the honest
+// answer is that nobody can tell (GDK-1690).
+//
+// The judgement is the origin's capability, never the count: 0 and "cannot be
+// counted" are indistinguishable from the number alone. docs/SUPPORT_MATRIX.md
+// is the single owner of the column — the history row ([^14] Jira, [^120] Jira
+// Server, [^15] Linear, [^16] built-in) — and this function is that row in
+// code. A cell that moves there moves here, and TestOriginChangelogMatchesSupportMatrix
+// fails if the two disagree.
+func OriginSuppliesChangelog(origin string) bool {
+	// Only Linear is measured as history-less: internal/sync/linear.go marks
+	// every batch Batch.NoHistory, so status_changed_at, reopen_count and
+	// reopened_at stay NULL. An unknown origin keeps the surfaces, because
+	// hiding a true count is worse than the reverse and an empty string is
+	// what a caller with no config passes.
+	return origin != config.OriginLinear
 }
 
 // MaxJSONKeys caps each key array of the JSON document. It matches
@@ -117,6 +151,41 @@ var negationPrefixes = []rune{'미', '未', '불', '非', '无', '無'}
 // after the match is examined, so a later sentence cannot cancel an earlier
 // claim.
 var negationSuffixes = []string{"되지 않", "하지 않", "지 않", "안 됨", "안됨", "ではない", "されていない", "していない", "ていない"}
+
+// pendingSuffixes follow a done word and turn it into a clause about work that
+// has NOT happened yet: "검토 완료 후 진행", "완료되면 알려주세요", "完了次第".
+// This is the second narrowing of GDK-1428 — on a Korean corporate Jira the
+// mismatch row ran 44–201 hits a week against 54–244 closures while the
+// English OSS mirror stayed at 0–23, because scheduling and requesting are
+// ordinary office vocabulary there and both carry a done word.
+//
+// Anchored right after the word like negationSuffixes, so no byte window is
+// involved and the TypeScript copy (UTF-16 indices) expresses the identical
+// rule. A conditional in a later sentence is never borrowed.
+var pendingSuffixes = []string{
+	// Korean: sequence ("후", "뒤"), condition ("되면", "하면", "시"),
+	// obligation and futurity ("해야", "될", "할", "예정"), and "as soon as".
+	"되면", "하면", "면 ", "되는 대로", "되는대로", "되면서",
+	"해야", "하여야", "되어야", "예정", "되기 전", "하기 전",
+	"할", "될", "하겠", "드리겠",
+	// A done word used as a verb about to happen rather than as a state:
+	// "배포합니다", "머지 부탁드립니다", "반영해 주세요". The nouns in the
+	// vocabulary (배포·머지·반영) take these endings freely, which is most of
+	// why they fired on ordinary Korean.
+	"합니다", "해주", "해 주", "하시", "부탁", "요청",
+	// The single markers below carry a particle here, which settles them
+	// without the following-rune look pendingSingles needs.
+	"후에", "후엔", "후에는", "뒤에", "시에", "전에", "후까지", "전까지",
+	// Japanese.
+	"次第", "したら", "すれば", "予定",
+}
+
+// pendingSingles are the one-character clause markers that need a further
+// guard: bare "후"/"뒤"/"시"/"전"/"後"/"前" is a clause only when it is not the
+// head of a longer word ("완료 후반전" is not a schedule). The following rune
+// decides — a Hangul or Han syllable means the marker was a prefix of
+// something else, so the claim stands.
+var pendingSingles = []string{"후", "뒤", "시", "전", "後", "前"}
 
 // englishNegators cancel an English done word when they sit just before it:
 // "not fixed", "isn't done", "never merged".
@@ -336,7 +405,18 @@ type item struct {
 type Report struct {
 	Buckets      []Bucket
 	CLIFallback  bool // no ui/unknown visits; sessions came from cli rows
-	SelfResolved bool // a FeedIdentity was available for resume
+	SelfResolved bool // a FeedIdentity or an actor slug was available for resume
+	// SelfBasis names the identifier the resume row matched on, so the footer
+	// can say which one decided instead of leaving the reader to guess
+	// (GDK-1427). Empty when nothing resolved.
+	SelfBasis string
+	// ReopenUnavailable is set when the origin supplies no changelog, so the
+	// reopen surfaces cannot be counted at all. A surface hides them or says
+	// it cannot count; it never prints 0 (GDK-1690).
+	ReopenUnavailable bool
+	// selfActor is the resolved actor slug the report matched with; kept off
+	// the wire because it is an input, not a finding.
+	selfActor    string
 	CatalogEmpty bool // status_catalog has no rows
 
 	// SessionGap is the effective split gap Compute ran with. Definitions
@@ -414,7 +494,25 @@ func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.
 		buckets = sb
 	}
 	rep := Report{Buckets: buckets, BySprint: opts.BySprint}
-	rep.SelfResolved = me != store.FeedIdentity{}
+	// The built-in tracker attributes a write to the actor slug, not to a
+	// credential, so an actor is an identity here even when the config carries
+	// no account (GDK-1427).
+	rep.ReopenUnavailable = !OriginSuppliesChangelog(opts.Origin)
+	rep.selfActor = opts.Actor
+	rep.SelfResolved = me != store.FeedIdentity{} || opts.Actor != ""
+	// Both identifiers can be live at once — an agent reading a connected
+	// workspace has a slug of its own and the workspace still has its
+	// credential — and selfMatch accepts either, so the footer names every one
+	// in play rather than only the first. Naming one of two would be the same
+	// guess this issue is about.
+	var basis []string
+	if opts.Actor != "" {
+		basis = append(basis, "actor "+opts.Actor)
+	}
+	if me.AccountID != "" || me.Email != "" || me.DisplayName != "" {
+		basis = append(basis, "configured account")
+	}
+	rep.SelfBasis = strings.Join(basis, " or ")
 	gap := opts.SessionGap
 	if gap <= 0 {
 		gap = SessionGap
@@ -543,7 +641,7 @@ func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.
 					visited[id] = true
 				}
 			}
-			if secs, ok := sessionResume(writes, comments, visited, s.start, end, me, rep.SelfResolved); ok {
+			if secs, ok := sessionResume(writes, comments, visited, s.start, end, me, rep.selfActor, rep.SelfResolved); ok {
 				resumes = append(resumes, secs)
 				b.ResumeK++
 			}
@@ -940,7 +1038,7 @@ func loadComments(ctx context.Context, db *sql.DB, first, now time.Time) ([]comm
 // identity only the configured account counts, without one any author counts
 // on the condition the write lands on an issue the session visited.
 func sessionResume(writes []write, comments []comment, visitedItems map[string]bool,
-	start, end time.Time, me store.FeedIdentity, selfResolved bool) (float64, bool) {
+	start, end time.Time, me store.FeedIdentity, actor string, selfResolved bool) (float64, bool) {
 	i, j := 0, 0
 	for i < len(writes) || j < len(comments) {
 		var w write
@@ -967,7 +1065,7 @@ func sessionResume(writes []write, comments []comment, visitedItems map[string]b
 		}
 		var mine bool
 		if selfResolved {
-			mine = store.IsSelfActor(me, w.authorID, w.author)
+			mine = selfMatch(me, actor, w.authorID, w.author)
 		} else {
 			mine = visitedItems[w.item]
 		}
@@ -976,6 +1074,28 @@ func sessionResume(writes []write, comments []comment, visitedItems map[string]b
 		}
 	}
 	return 0, false
+}
+
+// selfMatch is retro's self rule: the actor slug first, then the credential
+// identity store already owns (GDK-1427).
+//
+// The two identifiers answer different origins. A connected Jira or Linear
+// write carries the credential's account id, which store.IsSelfActor matches.
+// A built-in-tracker write carries the actor slug instead — issuetap stamps
+// X-Issuetap-Actor onto the comment and changelog author_id — and a paired or
+// local workspace often has no credential identity at all, so the resume row
+// used to give up and count any author on a visited issue. On the gdk
+// dogfooding workspace that meant another agent's write started the reader's
+// clock.
+//
+// It lives here rather than in store.FeedIdentity so the feed keeps its
+// current behaviour exactly: nothing outside retro passes an actor, and with
+// an empty actor this is store.IsSelfActor unchanged.
+func selfMatch(me store.FeedIdentity, actor, authorID, author string) bool {
+	if actor != "" && authorID != "" && authorID == actor {
+		return true
+	}
+	return store.IsSelfActor(me, authorID, author)
 }
 
 // lastStatusAt is the newest status row at or before end.
@@ -1156,6 +1276,10 @@ func matchCJKWord(text, w string) bool {
 		if negatedSuffix(text[i+len(w):]) {
 			continue
 		}
+		// GDK-1428: the word sits in a clause about work not yet done.
+		if pendingSuffix(text[i+len(w):]) {
+			continue
+		}
 		return true
 	}
 	return false
@@ -1187,6 +1311,40 @@ func negatedSuffix(after string) bool {
 		}
 	}
 	return false
+}
+
+// pendingSuffix reports whether the text right after a done word makes it a
+// clause about work that has not happened yet (GDK-1428). Anchored the same
+// way negatedSuffix is: the marker has to start there, spaces aside.
+//
+// The single-syllable markers get one extra look. "완료 후 진행" schedules;
+// "완료 후반" would merely start a longer word, so a Hangul or Han rune right
+// after the marker means it was not a clause marker at all and the claim
+// stands. Being wrong in that direction only costs the row a hit it should
+// not have had; being wrong the other way is what this whole guard is for.
+func pendingSuffix(after string) bool {
+	rest := strings.TrimLeft(after, " \t")
+	for _, p := range pendingSuffixes {
+		if strings.HasPrefix(rest, p) {
+			return true
+		}
+	}
+	for _, p := range pendingSingles {
+		if !strings.HasPrefix(rest, p) {
+			continue
+		}
+		r, _ := utf8.DecodeRuneInString(rest[len(p):])
+		if r == utf8.RuneError || !isCJKSyllable(r) {
+			return true
+		}
+	}
+	return false
+}
+
+// isCJKSyllable reports whether r is a Hangul syllable or a Han character —
+// the two scripts whose runes glue into longer words without a space.
+func isCJKSyllable(r rune) bool {
+	return unicode.Is(unicode.Hangul, r) || unicode.Is(unicode.Han, r)
 }
 
 // median is the middle value, or the mean of the two middle values for
@@ -1276,8 +1434,14 @@ func (r Report) Definitions() [][2]string {
 	}
 	defs = append(defs, [2]string{"resume (median)",
 		"time from a session start to its first write — a changelog entry or comment by the configured account — counted only before the next session starts; sessions without a write are excluded (the cell shows k of n)"})
+	// Which identifier decided "mine" is not obvious from the outside — a
+	// built-in workspace matches on the actor slug, a connected one on the
+	// credential — so the footer says it rather than leaving the reader to
+	// infer it from a number (GDK-1427).
 	if !r.SelfResolved {
 		defs = append(defs, [2]string{"self", "unresolved — any author on visited issues"})
+	} else if r.SelfBasis != "" {
+		defs = append(defs, [2]string{"self", r.SelfBasis})
 	}
 	defs = append(defs,
 		[2]string{"wip age p85", fmt.Sprintf("nearest-rank 85th percentile of the days an issue had been in progress at %s end", b)},
@@ -1308,6 +1472,9 @@ func (r Report) Notes() [][2]string {
 	}
 	if r.CycleUnavailable {
 		out = append(out, [2]string{"cycle", "mirror predates cycle_hours — run gadak sync to migrate"})
+	}
+	if r.ReopenUnavailable {
+		out = append(out, [2]string{"reopened", "cannot be counted — this origin supplies no changelog, so reopen_count is unknown rather than zero; the reopen rows are left out instead of shown as 0"})
 	}
 	if r.VisitsEmpty {
 		out = append(out, [2]string{"visits", "no issue reads recorded in this window — seen_not_moved and moved_not_seen are empty everywhere, because without a record of what was opened neither question has an answer"})
@@ -1530,6 +1697,12 @@ type Doc struct {
 	// retro-action issues — report-level, not per bucket (materials.go).
 	Aging   Aging    `json:"aging"`
 	Actions []Action `json:"actions"`
+	// ReopenUnavailable says the origin supplies no changelog, so the reopen
+	// surfaces cannot be counted here (GDK-1690). A surface hides them or says
+	// it cannot count; showing 0 would read as "this team has no regressions"
+	// when the truth is that nobody can tell. The reason sentence is in Notes
+	// under "reopened".
+	ReopenUnavailable bool `json:"reopen_unavailable"`
 }
 
 // DocNote is one entry of Doc.Notes.
@@ -1600,6 +1773,8 @@ func (r Report) JSON() Doc {
 		BucketNoun:  r.BucketNoun(),
 		Aging:       r.Aging,
 		Actions:     r.Actions,
+
+		ReopenUnavailable: r.ReopenUnavailable,
 	}
 	if out.Actions == nil {
 		out.Actions = []Action{}

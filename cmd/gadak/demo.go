@@ -5,6 +5,8 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -156,7 +158,15 @@ func cmdDemo(args []string) error {
 	if err := os.WriteFile(filepath.Join(home, "gadak.db"), src, 0o600); err != nil {
 		return err
 	}
-	demoCfg := []byte(`{"projects":["NMB","NMA","NMS"]}`)
+	// The identity the retro resume row needs (GDK-1729); see demoUserEmail.
+	demoCfgMap := map[string]any{"projects": []string{"NMB", "NMA", "NMS"}, "email": demoUserEmail}
+	if id := demoAccountID(filepath.Join(home, "gadak.db")); id != "" {
+		demoCfgMap["account_id"] = id
+	}
+	demoCfg, err := json.Marshal(demoCfgMap)
+	if err != nil {
+		return err
+	}
 	if err := os.WriteFile(filepath.Join(home, "config.json"), demoCfg, 0o600); err != nil {
 		return err
 	}
@@ -181,4 +191,41 @@ func cmdDemo(args []string) error {
 		serveArgs = append(serveArgs, "--no-open")
 	}
 	return cmdServe(serveArgs)
+}
+
+// The demo's own identity. GDK-1729: `gadak demo` and e2e/serve.sh both wrote
+// a config with no account id, and store.IsSelfActor matches on AccountID (or
+// a display name), so nothing in the fixture was ever "mine" — the retro
+// resume cell, one of the four summary numbers, was a dash in the demo, in
+// every recording and in every e2e run.
+//
+// The email is the constant; the account id is looked up in the mirror being
+// served rather than written down a second time, so the two cannot drift and a
+// regenerated fixture keeps working. e2e/serve.sh derives it the same way from
+// the same email.
+const demoUserEmail = "dana@example.com"
+
+// demoAccountID is the account id the served mirror gives demoUserEmail, or ""
+// when the fixture does not know that person — in which case the config keeps
+// the email alone, which is what it carried before, rather than a guess.
+func demoAccountID(dbPath string) string {
+	db, err := sql.Open("sqlite", "file:"+dbPath+"?mode=ro")
+	if err != nil {
+		return ""
+	}
+	defer db.Close()
+	var id string
+	// Assignee and reporter both carry the pair; either answers, and the
+	// fixture's users table is empty so this is the only place it lives.
+	if err := db.QueryRow(`
+		SELECT assignee_id FROM issues_full
+		 WHERE assignee_email = ? AND assignee_id != '' LIMIT 1`, demoUserEmail).Scan(&id); err == nil && id != "" {
+		return id
+	}
+	if err := db.QueryRow(`
+		SELECT reporter_id FROM issues_full
+		 WHERE reporter_email = ? AND reporter_id != '' LIMIT 1`, demoUserEmail).Scan(&id); err == nil {
+		return id
+	}
+	return ""
 }

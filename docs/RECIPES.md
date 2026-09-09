@@ -604,6 +604,22 @@ On the shipped snapshot the samples are all sub-minute synthetic spans, so
 the percentile rounds to 0.0d here; the sample count moves whenever the
 fixture is regenerated, and the sample rule is the part worth checking.
 
+`mismatch` is the one row a hand query cannot reproduce, and the reason is
+worth knowing before the number is trusted. It counts comments claiming the
+work is finished on issues that are not done now, and "claiming" is a
+heuristic rather than a parser: a done word has to stand on its own, a
+negation before or after it cancels it, quoted and fenced text is somebody
+else's words, a question is not a claim, only a comment newer than the
+issue's last status change still stands, and a done word inside a clause
+about work still to come does not count at all. That last guard is why the
+row is usable on a Korean workspace: "검토 완료 후 진행하겠습니다" schedules
+the work, "완료되면 알려주세요" asks to be told, and both carry 완료 — before
+the guard the row ran 44–201 hits a week against 54–244 closures on a Korean
+corporate Jira while an English mirror stayed at 0–23. The vocabulary and
+every guard live in one place, `internal/retro/retro.go` `HasDoneWord`, with
+a lockstep copy in `web/src/lib/done-words.ts`. The row is a candidate list,
+never a fact — read the issues behind it, do not report the count.
+
 **The three material lists under the table, by hand.** `gadak retro` prints
 `aging`, `surprises` and `closed by type` below the nine rows, and
 `gadak retro --json` carries all of them plus the rest of the materials. These

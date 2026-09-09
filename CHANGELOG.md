@@ -78,7 +78,13 @@ sent; a Linear or built-in workspace refuses them by name ([GDK-1653],
 Software's own Agile surface too — boards, sprints, the sprint field, JQL's
 `openSprints()` family — so `gadak sprint` works with no Atlassian account
 and on a paired workspace, and closing a sprint sweeps its unfinished issues
-to the backlog the way Jira does ([GDK-1666]). The `sprints` table is the one
+to the backlog the way Jira does ([GDK-1666]). The sprint controls now appear for the teams that
+run sprints rather than for everyone: the axis is the board's own type, so a
+kanban team on a site that also has scrum boards no longer sees a scope
+control about someone else's cadence, and a cross-project view keeps the old
+answer because it has no one team to ask about ([GDK-1689]). The demo mirror's
+sprints carry a goal, so the strip's goal line is finally in the frame it was
+written for ([GDK-1717]). The `sprints` table is the one
 owner of a sprint's state: each issue derives `sprint_state` from it on every
 tick and the listing runs on quiet ticks too, so a closed sprint's finished
 issues — never re-read by an incremental sync, their `sprint_state` frozen —
@@ -141,7 +147,23 @@ value ([GDK-1680]), the definitions read in the reader's language and name
 the session gap the report ran with ([GDK-1692]), a cell under a day says
 hours or minutes instead of `0.0d` ([GDK-1683]), and `status_changed_at` no
 longer drifts in a snapshot onto an instant no transition happened
-([GDK-1684]). An optional capability no longer disappears when the actor
+([GDK-1684]). The report knows who "I" am on the built-in tracker, where a
+write is attributed to the actor slug and not to a credential: the resume row
+counted any agent's writes as the reader's own, and the footer now says which
+identifier decided ([GDK-1427]) — the demo and the e2e serve derive that
+identity from the mirror they serve, so the cell is no longer a dash there
+([GDK-1729]). Reopens are shown by whether the origin can answer at all
+rather than by the count: an origin that supplies no changelog leaves
+`reopen_count` at zero forever, and "reopened 0" read as "this team has no
+regressions" when nobody could tell, so the clause is dropped and the reason
+said ([GDK-1690]). The mismatch row stopped firing on ordinary Korean —
+"검토 완료 후 진행" schedules the work and does not claim it is done, and a
+done word inside a clause about work still to come is no longer counted
+([GDK-1428]); the surprises the CLI prints name the work rather than only its
+key ([GDK-1746]). The demo mirror's issues carry priority ids, so a surface
+that keys by id — the phone's priority sheet, the web filter's id path — can
+be checked against the one mirror everybody opens instead of a mock
+([GDK-1492], [GDK-1524]). An optional capability no longer disappears when the actor
 trailer is on: the wrapper that signs an agent's comments embeds the writer,
 and an embedded interface promotes only what it declares, so versions, issue
 links, create-field catalogs, media refs and sprints were invisible to the
@@ -1695,13 +1717,17 @@ priority sorting keyed on `priority_rank`.
 [GDK-1399]: https://gadak.dev/backlog/#/?ks=GDK-1399
 [GDK-1400]: https://gadak.dev/backlog/#/?ks=GDK-1400
 [GDK-1401]: https://gadak.dev/backlog/#/?ks=GDK-1401
+[GDK-1427]: https://gadak.dev/backlog/#/?ks=GDK-1427
+[GDK-1428]: https://gadak.dev/backlog/#/?ks=GDK-1428
 [GDK-1491]: https://gadak.dev/backlog/#/?ks=GDK-1491
+[GDK-1492]: https://gadak.dev/backlog/#/?ks=GDK-1492
 [GDK-1493]: https://gadak.dev/backlog/#/?ks=GDK-1493
 [GDK-1497]: https://gadak.dev/backlog/#/?ks=GDK-1497
 [GDK-1498]: https://gadak.dev/backlog/#/?ks=GDK-1498
 [GDK-1500]: https://gadak.dev/backlog/#/?ks=GDK-1500
 [GDK-1501]: https://gadak.dev/backlog/#/?ks=GDK-1501
 [GDK-1508]: https://gadak.dev/backlog/#/?ks=GDK-1508
+[GDK-1524]: https://gadak.dev/backlog/#/?ks=GDK-1524
 [GDK-1537]: https://gadak.dev/backlog/#/?ks=GDK-1537
 [GDK-1601]: https://gadak.dev/backlog/#/?ks=GDK-1601
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
@@ -1745,6 +1771,8 @@ priority sorting keyed on `priority_rank`.
 [GDK-1673]: https://gadak.dev/backlog/#/?ks=GDK-1673
 [GDK-1677]: https://gadak.dev/backlog/#/?ks=GDK-1677
 [GDK-1687]: https://gadak.dev/backlog/#/?ks=GDK-1687
+[GDK-1689]: https://gadak.dev/backlog/#/?ks=GDK-1689
+[GDK-1690]: https://gadak.dev/backlog/#/?ks=GDK-1690
 [GDK-1697]: https://gadak.dev/backlog/#/?ks=GDK-1697
 [GDK-1678]: https://gadak.dev/backlog/#/?ks=GDK-1678
 [GDK-1692]: https://gadak.dev/backlog/#/?ks=GDK-1692
@@ -1764,6 +1792,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1712]: https://gadak.dev/backlog/#/?ks=GDK-1712
 [GDK-1713]: https://gadak.dev/backlog/#/?ks=GDK-1713
 [GDK-1453]: https://gadak.dev/backlog/#/?ks=GDK-1453
+[GDK-1717]: https://gadak.dev/backlog/#/?ks=GDK-1717
 [GDK-1720]: https://gadak.dev/backlog/#/?ks=GDK-1720
 [GDK-1721]: https://gadak.dev/backlog/#/?ks=GDK-1721
 [GDK-1722]: https://gadak.dev/backlog/#/?ks=GDK-1722
@@ -1771,3 +1800,5 @@ priority sorting keyed on `priority_rank`.
 [GDK-1724]: https://gadak.dev/backlog/#/?ks=GDK-1724
 [GDK-1725]: https://gadak.dev/backlog/#/?ks=GDK-1725
 [GDK-1726]: https://gadak.dev/backlog/#/?ks=GDK-1726
+[GDK-1729]: https://gadak.dev/backlog/#/?ks=GDK-1729
+[GDK-1746]: https://gadak.dev/backlog/#/?ks=GDK-1746

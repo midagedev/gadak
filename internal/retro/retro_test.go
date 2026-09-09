@@ -1034,3 +1034,105 @@ func stripWireKinds(s string) string {
 	}
 	return s
 }
+
+// TestResumeCountsTheActorOnTheBuiltInTracker closes GDK-1427. On the built-in
+// tracker (local or paired) a write is attributed to the actor slug —
+// issuetap stamps X-Issuetap-Actor onto the comment/changelog author_id — but
+// the resume row asked store.FeedIdentityOf(cfg), which only knows the
+// credential (AccountID / Email / TokenOwner). A workspace with no
+// credential identity therefore had SelfResolved false and fell all the way
+// back to "any author on a visited issue", so the gdk dogfooding workspace
+// counted other agents' writes as the reader's own.
+//
+// The rule stays in one place: retro's selfMatch consults the actor slug
+// first and then delegates to store.IsSelfActor, so the feed's behaviour is
+// untouched (the feed never sets Options.Actor).
+//
+// FAIL-first: against the pre-fix source the first subtest failed with
+// "resume = 60, want 300s" — the other agent's write at 1m was counted as the
+// reader's because the identity was unresolved — and the footer subtest failed
+// with "unresolved-self footer is still printed with an actor configured".
+func TestResumeCountsTheActorOnTheBuiltInTracker(t *testing.T) {
+	now := time.Now().Truncate(time.Second)
+	a0 := now.Add(-4 * 24 * time.Hour)
+	const meSlug = "claude:354bff2b"
+
+	t.Run("only the configured actor's write starts the clock", func(t *testing.T) {
+		dir, db := demoFixture(t, false)
+		item, key := pickItem(t, db)
+		injectVisit(t, dir, a0, store.VisitKindIssue, key, store.VisitSourceUI)
+		injectChange(t, dir, a0.Add(time.Minute), item, "claude:otheragent") // another agent on the same issue
+		injectChange(t, dir, a0.Add(5*time.Minute), item, meSlug)
+
+		// No credential identity at all — the built-in tracker case.
+		rep := computeActor(t, db, store.FeedIdentity{}, meSlug, 21*24*time.Hour, now)
+		if !rep.SelfResolved {
+			t.Fatal("an actor slug is an identity; SelfResolved must be true")
+		}
+		b := bucketContaining(t, rep, a0)
+		if b.Resume == nil || *b.Resume != 300 {
+			t.Fatalf("resume = %v, want 300s (only the actor's own write at 5m counts)", b.Resume)
+		}
+		if b.ResumeK != 1 || b.ResumeN != 1 {
+			t.Fatalf("ResumeK/N = %d/%d, want 1/1", b.ResumeK, b.ResumeN)
+		}
+	})
+
+	t.Run("a session with only another agent's write has no resume", func(t *testing.T) {
+		dir, db := demoFixture(t, false)
+		item, key := pickItem(t, db)
+		injectVisit(t, dir, a0, store.VisitKindIssue, key, store.VisitSourceUI)
+		injectChange(t, dir, a0.Add(time.Minute), item, "claude:otheragent")
+
+		rep := computeActor(t, db, store.FeedIdentity{}, meSlug, 21*24*time.Hour, now)
+		b := bucketContaining(t, rep, a0)
+		if b.ResumeK != 0 || b.Resume != nil {
+			t.Fatalf("ResumeK/Resume = %d/%v, want 0/nil — another agent's write is not mine", b.ResumeK, b.Resume)
+		}
+	})
+
+	t.Run("the footer names the identifier the match used", func(t *testing.T) {
+		dir, db := demoFixture(t, false)
+		item, key := pickItem(t, db)
+		injectVisit(t, dir, a0, store.VisitKindIssue, key, store.VisitSourceUI)
+		injectChange(t, dir, a0.Add(5*time.Minute), item, meSlug)
+
+		joined := func(rep Report) string {
+			out := ""
+			for _, d := range rep.Definitions() {
+				out += d[0] + ": " + d[1] + "\n"
+			}
+			return out
+		}
+
+		withActor := joined(computeActor(t, db, store.FeedIdentity{}, meSlug, 21*24*time.Hour, now))
+		if strings.Contains(withActor, "self: unresolved") {
+			t.Fatalf("unresolved-self footer is still printed with an actor configured:\n%s", withActor)
+		}
+		if !strings.Contains(withActor, "self: actor "+meSlug) {
+			t.Fatalf("footer does not name the actor it matched on:\n%s", withActor)
+		}
+
+		// The credential branch still names itself, and the unresolved branch
+		// is unchanged.
+		withAccount := joined(computePinned(t, db, store.FeedIdentity{AccountID: "acct-1"}, 21*24*time.Hour, now))
+		if !strings.Contains(withAccount, "self: configured account") {
+			t.Fatalf("footer does not name the credential branch:\n%s", withAccount)
+		}
+		none := joined(computePinned(t, db, store.FeedIdentity{}, 21*24*time.Hour, now))
+		if !strings.Contains(none, "self: unresolved — any author on visited issues") {
+			t.Fatalf("unresolved footer changed:\n%s", none)
+		}
+	})
+}
+
+// computeActor is computePinned with an actor slug — the built-in tracker's
+// identity — instead of only a credential.
+func computeActor(t *testing.T, db *sql.DB, me store.FeedIdentity, actor string, since time.Duration, now time.Time) Report {
+	t.Helper()
+	rep, err := Compute(context.Background(), db, me, since, now, Options{Actor: actor})
+	if err != nil {
+		t.Fatalf("Compute: %v", err)
+	}
+	return rep
+}

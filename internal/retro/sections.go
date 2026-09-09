@@ -75,11 +75,19 @@ func (r Report) Sections(explain bool) string {
 		any = true
 		fmt.Fprintf(&b, "  %s\n", bk.Label())
 		for _, s := range bk.Surprises {
-			line := "    " + s.Kind + " " + s.Key
+			// Key first because it is what a reader pastes, then the title so
+			// the line names the work instead of an identifier (GDK-1746) —
+			// the aging section above prints the same pair. The detail the
+			// mirror recorded stays last: a surprise without its reason is an
+			// accusation.
+			line := fmt.Sprintf("    %-18s %-10s", s.Kind, s.Key)
+			if s.Summary != "" {
+				line += " " + s.Summary
+			}
 			if s.Detail != "" {
 				line += " — " + s.Detail
 			}
-			b.WriteString(line + "\n")
+			b.WriteString(strings.TrimRight(line, " ") + "\n")
 		}
 	}
 	if !any {
@@ -133,7 +141,10 @@ func (r Report) Summary() string {
 	for _, s := range last.Surprises {
 		byKind[s.Kind]++
 	}
-	if n := byKind[SurpriseReopened]; n > 0 {
+	// GDK-1690: on an origin with no changelog this is unknown, not zero, and
+	// the sentence leaves out what it cannot say rather than printing a number
+	// that reads as "no regressions".
+	if n := byKind[SurpriseReopened]; n > 0 && !r.ReopenUnavailable {
 		parts = append(parts, "reopened "+strconv.Itoa(n))
 	}
 	if n := byKind[SurpriseReversal]; n > 0 {

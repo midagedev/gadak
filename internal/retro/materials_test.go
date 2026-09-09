@@ -910,3 +910,66 @@ func derefInt(p *int) string {
 	}
 	return fmt.Sprint(*p)
 }
+
+// TestSectionsSurpriseLinesCarryTheTitle pins GDK-1746: the wire has carried
+// Surprise.Summary since GDK-1737, but the CLI's own surprises section printed
+// only "kind key — detail", so a reader (agent included) saw an identifier and
+// had to go look the work up. The aging section beside it has always printed
+// the title; these two are the same reader.
+//
+// FAIL-first: against the pre-fix sections.go this failed on every kind with
+// "surprise line for T-3 does not name the work".
+func TestSectionsSurpriseLinesCarryTheTitle(t *testing.T) {
+	title := map[string]string{"T-1": "one", "T-2": "two", "T-3": "three", "T-4": "four"}
+
+	rep := matReport(t, baseFixture())
+	out := rep.Sections(false)
+
+	// Isolate the surprises section: it runs from its heading to the next one.
+	start := strings.Index(out, "\nsurprises:\n")
+	if start < 0 {
+		t.Fatalf("no surprises section:\n%s", out)
+	}
+	rest := out[start+len("\nsurprises:\n"):]
+	if end := strings.Index(rest, "\nclosed by type:\n"); end >= 0 {
+		rest = rest[:end]
+	}
+
+	seen := 0
+	for _, s := range rep.Buckets[0].Surprises {
+		if s.Summary == "" {
+			continue
+		}
+		seen++
+		var line string
+		for _, l := range strings.Split(rest, "\n") {
+			if strings.Contains(l, s.Key) {
+				line = l
+				break
+			}
+		}
+		if line == "" {
+			t.Errorf("no surprises line for %s in:\n%s", s.Key, rest)
+			continue
+		}
+		if !strings.Contains(line, s.Summary) {
+			t.Errorf("surprise line for %s does not name the work: %q (want the title %q)", s.Key, line, s.Summary)
+		}
+		if want := title[s.Key]; want != "" && s.Summary != want {
+			t.Errorf("surprise %s summary = %q, want %q", s.Key, s.Summary, want)
+		}
+		// The key stays on the line — the title is added beside it, not
+		// swapped for it, because the key is what a reader pastes.
+		if !strings.Contains(line, s.Key) {
+			t.Errorf("surprise line for %s lost the key: %q", s.Key, line)
+		}
+		// The detail the mirror recorded stays too: a surprise without its
+		// reason is an accusation (materials.go).
+		if s.Detail != "" && !strings.Contains(line, s.Detail) {
+			t.Errorf("surprise line for %s dropped the detail %q: %q", s.Key, s.Detail, line)
+		}
+	}
+	if seen == 0 {
+		t.Fatal("fixture produced no titled surprises; the assertion measured nothing")
+	}
+}

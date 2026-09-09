@@ -3390,7 +3390,10 @@
   "catalog:component:Webhooks": "Webhook",
   "catalog:component:Workers": "ワーカー",
   "catalog:sprint:41": "スプリント 41",
+  "catalog:sprintgoal:41": "トリアージの滞留を減らし、請求に関する問い合わせは SLA 内で対応する。",
   "catalog:sprint:42": "スプリント 42",
-  "catalog:sprint:43": "スプリント 43"
+  "catalog:sprintgoal:42": "トリアージの滞留を減らし、エスカレーションは SLA 内で対応する。",
+  "catalog:sprint:43": "スプリント 43",
+  "catalog:sprintgoal:43": "請求に関する問い合わせを減らし、トリアージは SLA 内で対応する。"
  }
 }

@@ -66,7 +66,12 @@ Linear・Built-in の 4 つを並べ、新しい列のすべてのセルを実�
 （ボード、スプリント、課題のスプリント欄、JQL の `openSprints()` 系）を提供するので、
 `gadak sprint` は Atlassian アカウントなしでも、ペアリングしたワークスペースでも動き、
 スプリントを閉じると Jira と同じく未完了の課題をバックログへ掃き出します ([GDK-1666])。
-`sprints` テーブルがスプリント状態の唯一の所有者です。課題行は tick ごとにそこから
+スプリントのコントロールは、スプリントを使うチームにだけ出ます。判定の軸がボード自身の
+種別なので、スクラムのボードも同居するサイトでカンバンのチームが他所のサイクルの
+スコープ操作を見ることはありません。プロジェクトを絞らない横断ビューは尋ねる相手が
+いないので、これまでの答えをそのまま使います ([GDK-1689])。デモのキャッシュのスプリントは
+ゴールを持ちます。ストリップのゴール行が、ようやくそれのために書かれた画面に写ります
+([GDK-1717])。`sprints` テーブルがスプリント状態の唯一の所有者です。課題行は tick ごとにそこから
 `sprint_state` を導き、一覧は静かな tick でも回るので、増分同期が読み直さず `sprint_state` が
 固まったままだった閉じたスプリントの完了課題が永遠に "active" と読まれ、アクティブスプリントの
 クエリを膨らませることはありません ([GDK-1661])。スプリント状態ごとに自分の JQL 関数を出し
@@ -115,7 +120,20 @@ changelog のない origin は 0 ではなく NULL と読まれ、既存のキ�
 カタログを持ち、`closed`・`in progress`・wip-age の二行に値が入り ([GDK-1680])、定義は読む人の
 言語で読め、レポートが実際に使ったセッション間隔を名乗り ([GDK-1692])、一日に満たないセルは
 `0.0d` ではなく時間・分で言い ([GDK-1683])、`status_changed_at` はスナップショットで遷移の
-なかった瞬間へずれません ([GDK-1684])。任意の機能が actor trailer を有効にしただけで消える
+なかった瞬間へずれません ([GDK-1684])。内蔵トラッカーでレポートが「私」を知ります。そこでは書き込みが資格情報ではなく
+actor スラッグに帰属するのに、resume の行は他のエージェントの書き込みまで自分のものとして
+数えていました。いまはフッターがどの識別子で判定したかを言います ([GDK-1427])。デモと
+e2e の serve は、その身元を自分が配っているキャッシュから読むので、あのセルはもうダッシュでは
+ありません ([GDK-1729])。再オープンは件数ではなく、origin が答えられるかどうかで見せます。
+changelog を出さない origin では `reopen_count` は永遠に 0 で、「再オープン 0 件」は数えられない
+という意味なのに「このチームには回帰がない」と読まれていました。いまはその句を落とし、
+理由を言います ([GDK-1690])。mismatch の行は、ふつうの韓国語に反応しなくなりました。
+「검토 완료 후 진행」は予定を述べているのであって終わったと主張してはいないので、まだ先の
+仕事を指す節の中の完了語は数えません ([GDK-1428])。CLI が出す「意外だったこと」の行は、
+キーだけでなく仕事の題名を名乗ります ([GDK-1746])。デモのキャッシュの課題は priority id を
+持ちます。id で引く表面（スマートフォンの優先度シート、ウェブのフィルターの id 経路）を、
+モックではなく誰もが開くそのキャッシュの上で確かめられます ([GDK-1492], [GDK-1524])。
+任意の機能が actor trailer を有効にしただけで消える
 こともありません。エージェントの署名を付けるラッパーは writer を埋め込みますが、埋め込まれた
 インターフェースは宣言したメソッドしか昇格しないので、バージョン・課題リンク・作成欄カタログ・
 メディア参照・スプリントが capability 確認に見えていませんでした。いまはラッパーを透かして見ます
@@ -1661,13 +1679,17 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1399]: https://gadak.dev/backlog/#/?ks=GDK-1399
 [GDK-1400]: https://gadak.dev/backlog/#/?ks=GDK-1400
 [GDK-1401]: https://gadak.dev/backlog/#/?ks=GDK-1401
+[GDK-1427]: https://gadak.dev/backlog/#/?ks=GDK-1427
+[GDK-1428]: https://gadak.dev/backlog/#/?ks=GDK-1428
 [GDK-1491]: https://gadak.dev/backlog/#/?ks=GDK-1491
+[GDK-1492]: https://gadak.dev/backlog/#/?ks=GDK-1492
 [GDK-1493]: https://gadak.dev/backlog/#/?ks=GDK-1493
 [GDK-1497]: https://gadak.dev/backlog/#/?ks=GDK-1497
 [GDK-1498]: https://gadak.dev/backlog/#/?ks=GDK-1498
 [GDK-1500]: https://gadak.dev/backlog/#/?ks=GDK-1500
 [GDK-1501]: https://gadak.dev/backlog/#/?ks=GDK-1501
 [GDK-1508]: https://gadak.dev/backlog/#/?ks=GDK-1508
+[GDK-1524]: https://gadak.dev/backlog/#/?ks=GDK-1524
 [GDK-1537]: https://gadak.dev/backlog/#/?ks=GDK-1537
 [GDK-1601]: https://gadak.dev/backlog/#/?ks=GDK-1601
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
@@ -1711,6 +1733,8 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1673]: https://gadak.dev/backlog/#/?ks=GDK-1673
 [GDK-1677]: https://gadak.dev/backlog/#/?ks=GDK-1677
 [GDK-1687]: https://gadak.dev/backlog/#/?ks=GDK-1687
+[GDK-1689]: https://gadak.dev/backlog/#/?ks=GDK-1689
+[GDK-1690]: https://gadak.dev/backlog/#/?ks=GDK-1690
 [GDK-1697]: https://gadak.dev/backlog/#/?ks=GDK-1697
 [GDK-1678]: https://gadak.dev/backlog/#/?ks=GDK-1678
 [GDK-1692]: https://gadak.dev/backlog/#/?ks=GDK-1692
@@ -1730,6 +1754,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1712]: https://gadak.dev/backlog/#/?ks=GDK-1712
 [GDK-1713]: https://gadak.dev/backlog/#/?ks=GDK-1713
 [GDK-1453]: https://gadak.dev/backlog/#/?ks=GDK-1453
+[GDK-1717]: https://gadak.dev/backlog/#/?ks=GDK-1717
 [GDK-1720]: https://gadak.dev/backlog/#/?ks=GDK-1720
 [GDK-1721]: https://gadak.dev/backlog/#/?ks=GDK-1721
 [GDK-1722]: https://gadak.dev/backlog/#/?ks=GDK-1722
@@ -1737,3 +1762,5 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1724]: https://gadak.dev/backlog/#/?ks=GDK-1724
 [GDK-1725]: https://gadak.dev/backlog/#/?ks=GDK-1725
 [GDK-1726]: https://gadak.dev/backlog/#/?ks=GDK-1726
+[GDK-1729]: https://gadak.dev/backlog/#/?ks=GDK-1729
+[GDK-1746]: https://gadak.dev/backlog/#/?ks=GDK-1746

@@ -13,9 +13,11 @@
    * The active segment names the sprint when there is exactly one active,
    * with its end date on hover — the one fact a scrum team looks for.
    */
+  import { onMount } from 'svelte'
   import { t, absTime } from '../../lib/i18n'
   import { filters } from '../../stores/filters.svelte'
   import { sprints } from '../../stores/sprints.svelte'
+  import { boards } from '../../stores/boards.svelte'
 
   type Scope = 'active' | 'backlog' | 'all'
 
@@ -44,6 +46,25 @@
     return parts.join(' · ')
   })
 
+  /*
+   * Whether this team uses sprints at all (GDK-1689). The gate used to be
+   * `sprints.any` — one sprint row anywhere turned the control on for
+   * everybody — which is not "this team runs sprints" but "somewhere in this
+   * workspace a sprint once existed". Measured on a company Jira: kanban 10 ·
+   * scrum 18 · simple 4 in one site, so a kanban team saw a scope control
+   * about another team's cadence. Mixing is the default, not the exception.
+   *
+   * The origin already knows, so this is not a setting: a Jira board carries
+   * its type, a Linear team only gets a board row once cycles are on, and the
+   * built-in tracker only makes one for a project with sprints. A view that
+   * names no project spans teams and has nobody to ask about, so it keeps the
+   * old answer — that fallback is the previous behaviour, kept deliberately.
+   */
+  onMount(() => {
+    void boards.load()
+  })
+  const show = $derived(boards.showsSprintAxis(filters.filters.jira_project, sprints.any))
+
   function set(scope: Scope) {
     const want = scope === 'active' ? ['active'] : scope === 'backlog' ? ['none'] : []
     // One axis, replaced wholesale: the segments are exclusive by design.
@@ -58,7 +79,7 @@
   ]
 </script>
 
-{#if sprints.any}
+{#if show}
   <div
     class="inline-flex h-control-sm items-center gap-0.5 rounded-md border border-border-subtle p-0.5 pl-2"
     role="group"

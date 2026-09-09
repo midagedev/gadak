@@ -84,6 +84,10 @@ func (s *server) handleRetro(w http.ResponseWriter, r *http.Request) {
 		}
 		opts.BoardID = id
 	}
+	// The reopen surfaces are shown by the origin's capability, never by the
+	// count: "0 reopens" and "reopens cannot be read here" are the same number
+	// and opposite sentences (GDK-1690).
+	opts.Origin = s.config().OriginType()
 	db, err := s.db.ReadOnly()
 	if err != nil {
 		serverError(w, r, err)

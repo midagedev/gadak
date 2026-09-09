@@ -3390,7 +3390,10 @@
   "catalog:component:Webhooks": "웹훅",
   "catalog:component:Workers": "워커",
   "catalog:sprint:41": "스프린트 41",
+  "catalog:sprintgoal:41": "분류 대기를 줄이고 결제 문의는 SLA 안에서 처리한다.",
   "catalog:sprint:42": "스프린트 42",
-  "catalog:sprint:43": "스프린트 43"
+  "catalog:sprintgoal:42": "분류 대기를 줄이고 에스컬레이션은 SLA 안에서 처리한다.",
+  "catalog:sprint:43": "스프린트 43",
+  "catalog:sprintgoal:43": "결제 문의를 줄이고 분류는 SLA 안에서 처리한다."
  }
 }

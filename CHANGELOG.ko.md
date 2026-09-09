@@ -56,7 +56,12 @@ Data Center 랩에서 돌립니다. 두 행은 정직한 거절이고(위키: Co
 [GDK-1657]). gadak이 들고 다니는 트래커도 Jira Software의 Agile 표면(보드,
 스프린트, 이슈의 스프린트 필드, JQL의 `openSprints()` 계열)을 서빙하므로 `gadak sprint`가 Atlassian 계정 없이도, 페어링한 워크스페이스에서도 되고,
 스프린트를 닫으면 Jira처럼 미완료 이슈를 백로그로 쓸어냅니다 ([GDK-1666]).
-`sprints` 테이블이 스프린트 상태의 단일 소유자입니다. 이슈 행은 틱마다 거기서 `sprint_state`를 유도하고 목록은 조용한 틱에도 돌기 때문에, 증분 동기화가 다시 읽지 않아 `sprint_state`가 굳은 채였던 닫힌 스프린트의 완료
+스프린트 컨트롤은 이제 스프린트를 쓰는 팀에만 보입니다. 판정 축이 보드의
+유형이라, 스크럼 보드도 함께 있는 사이트에서 칸반 팀이 남의 주기를 다루는 범위
+컨트롤을 보는 일이 없습니다. 프로젝트를 특정하지 않는 교차 뷰는 물어볼 팀이
+없으니 예전 답을 그대로 씁니다 ([GDK-1689]). 데모 미러의 스프린트에는 목표가
+있습니다. 스트립의 목표 줄이 마침내 그 줄을 위해 쓰인 화면에 찍힙니다
+([GDK-1717]). `sprints` 테이블이 스프린트 상태의 단일 소유자입니다. 이슈 행은 틱마다 거기서 `sprint_state`를 유도하고 목록은 조용한 틱에도 돌기 때문에, 증분 동기화가 다시 읽지 않아 `sprint_state`가 굳은 채였던 닫힌 스프린트의 완료
 이슈가 영원히 "active"로 읽히며 활성 스프린트 질의를 부풀리는 일이 없습니다
 ([GDK-1661]). 스프린트 상태마다 자기 JQL 함수를 내보내고(셋 다
 `openSprints()`가 되던 것을 활성 하나·미래 하나가 있는 Jira 11.3.11에서 실측),
@@ -105,7 +110,21 @@ Jira는 스프린트 이동을 전부 changelog에 기록하고(실측한 한 �
 유도한 카탈로그를 가져 `closed`· `in progress`·wip-age 두 행이 값을 갖고 ([GDK-1680]), 정의는 읽는 사람의
 언어로 읽히며 보고서가 실제로 쓴 세션 간격을 말하고 ([GDK-1692]), 하루가 안
 되는 셀은 `0.0d` 대신 시간·분으로 말하며 ([GDK-1683]), `status_changed_at`은
-스냅샷에서 전환이 없던 순간으로 밀리지 않습니다 ([GDK-1684]). 선택 기능이
+스냅샷에서 전환이 없던 순간으로 밀리지 않습니다 ([GDK-1684]). 빌트인 트래커에서 보고서가
+"나"를 압니다. 거기서는 쓰기가 자격증명이 아니라 actor 슬러그로 귀속되는데,
+resume 행이 다른 에이전트의 쓰기까지 내 것으로 세고 있었습니다. 이제 푸터가
+어느 식별자로 판정했는지 말합니다 ([GDK-1427]). 데모와 e2e serve는 그 신원을
+자기가 서빙하는 미러에서 읽어 오므로 그 칸이 더 이상 대시가 아닙니다
+([GDK-1729]). 리오픈은 개수가 아니라 origin이 답할 수 있는지로 보여 줍니다.
+changelog를 주지 않는 origin에서는 `reopen_count`가 영원히 0이고, "리오픈 0건"은
+셀 수 없다는 뜻인데 "이 팀은 회귀가 없다"로 읽혔습니다. 이제 그 구절을 빼고
+이유를 말합니다 ([GDK-1690]). mismatch 행은 평범한 한국어에 반응하지 않습니다.
+"검토 완료 후 진행"은 일정을 말하는 것이지 끝났다고 주장하는 것이 아니라서,
+아직 안 한 일을 가리키는 절 안의 완료 단어는 세지 않습니다 ([GDK-1428]). CLI가
+찍는 놀란 일 줄은 키만이 아니라 일의 제목을 댑니다 ([GDK-1746]). 데모 미러의
+이슈는 priority id를 답니다. id로 키하는 표면(폰 우선순위 시트, 웹 필터의 id
+경로)을 목이 아니라 모두가 여는 그 미러 위에서 확인할 수 있습니다 ([GDK-1492],
+[GDK-1524]). 선택 기능이
 actor trailer를 켰다고 사라지지 않습니다. 에이전트 서명을 붙이는 래퍼는
 writer를 임베드하는데, 임베드된 인터페이스는 선언한 메서드만 승격하므로
 버전·이슈 링크·생성 필드 카탈로그·미디어 참조·스프린트가 capability 확인에
@@ -1559,13 +1578,17 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1399]: https://gadak.dev/backlog/#/?ks=GDK-1399
 [GDK-1400]: https://gadak.dev/backlog/#/?ks=GDK-1400
 [GDK-1401]: https://gadak.dev/backlog/#/?ks=GDK-1401
+[GDK-1427]: https://gadak.dev/backlog/#/?ks=GDK-1427
+[GDK-1428]: https://gadak.dev/backlog/#/?ks=GDK-1428
 [GDK-1491]: https://gadak.dev/backlog/#/?ks=GDK-1491
+[GDK-1492]: https://gadak.dev/backlog/#/?ks=GDK-1492
 [GDK-1493]: https://gadak.dev/backlog/#/?ks=GDK-1493
 [GDK-1497]: https://gadak.dev/backlog/#/?ks=GDK-1497
 [GDK-1498]: https://gadak.dev/backlog/#/?ks=GDK-1498
 [GDK-1500]: https://gadak.dev/backlog/#/?ks=GDK-1500
 [GDK-1501]: https://gadak.dev/backlog/#/?ks=GDK-1501
 [GDK-1508]: https://gadak.dev/backlog/#/?ks=GDK-1508
+[GDK-1524]: https://gadak.dev/backlog/#/?ks=GDK-1524
 [GDK-1537]: https://gadak.dev/backlog/#/?ks=GDK-1537
 [GDK-1601]: https://gadak.dev/backlog/#/?ks=GDK-1601
 [GDK-1617]: https://gadak.dev/backlog/#/?ks=GDK-1617
@@ -1609,6 +1632,8 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1673]: https://gadak.dev/backlog/#/?ks=GDK-1673
 [GDK-1677]: https://gadak.dev/backlog/#/?ks=GDK-1677
 [GDK-1687]: https://gadak.dev/backlog/#/?ks=GDK-1687
+[GDK-1689]: https://gadak.dev/backlog/#/?ks=GDK-1689
+[GDK-1690]: https://gadak.dev/backlog/#/?ks=GDK-1690
 [GDK-1697]: https://gadak.dev/backlog/#/?ks=GDK-1697
 [GDK-1678]: https://gadak.dev/backlog/#/?ks=GDK-1678
 [GDK-1692]: https://gadak.dev/backlog/#/?ks=GDK-1692
@@ -1628,6 +1653,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1712]: https://gadak.dev/backlog/#/?ks=GDK-1712
 [GDK-1713]: https://gadak.dev/backlog/#/?ks=GDK-1713
 [GDK-1453]: https://gadak.dev/backlog/#/?ks=GDK-1453
+[GDK-1717]: https://gadak.dev/backlog/#/?ks=GDK-1717
 [GDK-1720]: https://gadak.dev/backlog/#/?ks=GDK-1720
 [GDK-1721]: https://gadak.dev/backlog/#/?ks=GDK-1721
 [GDK-1722]: https://gadak.dev/backlog/#/?ks=GDK-1722
@@ -1635,3 +1661,5 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1724]: https://gadak.dev/backlog/#/?ks=GDK-1724
 [GDK-1725]: https://gadak.dev/backlog/#/?ks=GDK-1725
 [GDK-1726]: https://gadak.dev/backlog/#/?ks=GDK-1726
+[GDK-1729]: https://gadak.dev/backlog/#/?ks=GDK-1729
+[GDK-1746]: https://gadak.dev/backlog/#/?ks=GDK-1746

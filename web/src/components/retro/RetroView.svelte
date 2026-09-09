@@ -252,6 +252,18 @@
   const aging = $derived(doc?.aging)
   const actions = $derived(doc?.actions ?? [])
   const sprintCut = $derived(doc?.bucket_noun === 'sprint')
+  /*
+   * Whether reopens can be counted here at all (GDK-1690). `reopen_count` is
+   * derived from the changelog, so an origin that supplies none leaves it 0
+   * forever — and the screen said "reopened 0", which on a Linear workspace
+   * reads as "this team has no regressions" when the honest answer is that
+   * nobody can tell. The two sentences are opposite and the number is the
+   * same, so the count cannot be the judgement: the server sends the origin's
+   * capability and the clause is dropped rather than zeroed. The reason is in
+   * `notes` under "reopened", where the rest of the empty-cell reasons live.
+   * Absent on an older server, which reads as false — the previous behaviour.
+   */
+  const reopenUnavailable = $derived(doc?.reopen_unavailable === true)
 
   function surpriseKeys(kind: string): string[] {
     return (cur?.surprises ?? []).filter((x) => x.kind === kind).map((x) => x.key)
@@ -481,7 +493,7 @@
       {/if}
 
       {#if cur && materials}
-        <RetroSentence values={sentenceValues} sprint={sprintCut} />
+        <RetroSentence values={sentenceValues} sprint={sprintCut} noReopen={reopenUnavailable} />
       {/if}
 
       <!--

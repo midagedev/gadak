@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -467,5 +468,107 @@ func TestDemoFixtureWeeklyClosedRateHolds(t *testing.T) {
 	}
 	if hi > 3*mid {
 		t.Errorf("busiest week %d is more than 3× the median %d", hi, mid)
+	}
+}
+
+// TestDemoFixturePriorityIDsArePopulated closes GDK-1524 / GDK-1492 on the
+// shipped file. `make demo-fixture` is circular, so a column the snapshot
+// never wrote stayed empty through every regeneration: all 534 rows carried a
+// priority display name and a priority_rank with priority_id ”. CLAUDE.md
+// forbids keying a surface by the display name, so the phone's priority sheet
+// and the web filter's id path had nothing to match on in the one mirror
+// everybody opens — mobile/e2e/a2-captures.spec.ts had to mock a bootstrap
+// row to shoot it.
+//
+// The contract is migrate's (GDK-1491, internal/migrate/migrate.go
+// derivePriorityIDs): with no ids anywhere, priority_rank is the id, so
+// numeric id order is rank order by construction.
+//
+// FAIL-first: against the pre-fix fixture this read
+// "534 of 534 ranked rows carry priority_id ”".
+func TestDemoFixturePriorityIDsArePopulated(t *testing.T) {
+	db := fixtureDB(t)
+
+	var ranked, empty int
+	if err := db.QueryRow(
+		`SELECT COUNT(*), SUM(CASE WHEN priority_id = '' THEN 1 ELSE 0 END)
+		   FROM issues_full WHERE priority != '' AND priority_rank > 0`,
+	).Scan(&ranked, &empty); err != nil {
+		t.Fatal(err)
+	}
+	if ranked == 0 {
+		t.Fatal("fixture has no ranked priorities; the assertion measured nothing")
+	}
+	if empty != 0 {
+		t.Errorf("%d of %d ranked rows carry priority_id ''", empty, ranked)
+	}
+
+	// The id agrees with the rank it was derived from, and one rank means one
+	// id: a mirror where two ranks share an id would sort wrong on the fixture
+	// path even though no cell is empty.
+	rows, err := db.Query(
+		`SELECT DISTINCT priority_rank, priority_id FROM issues_full
+		  WHERE priority != '' AND priority_rank > 0 ORDER BY priority_rank`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	seen := map[string]int{}
+	for rows.Next() {
+		var rank int
+		var id string
+		if err := rows.Scan(&rank, &id); err != nil {
+			t.Fatal(err)
+		}
+		if id != strconv.Itoa(rank) {
+			t.Errorf("priority_rank %d carries id %q, want %q (migrate's rank-as-id contract)", rank, id, strconv.Itoa(rank))
+		}
+		if prev, ok := seen[id]; ok && prev != rank {
+			t.Errorf("priority_id %q is shared by ranks %d and %d", id, prev, rank)
+		}
+		seen[id] = rank
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestDemoFixtureSprintsCarryGoals closes GDK-1717. The sprint strip draws a
+// goal line, but every sprint in the shipped fixture had goal ” — so the line
+// was absent from all six en/ko/ja frames of the GDK-1709 recording, and the
+// vision round returned FIX for a component that was working. The strip stands
+// beside a Linear cycle header in that shot, which is the moment the goal is
+// the point.
+//
+// FAIL-first: against the pre-fix fixture this read
+// "3 of 3 sprints carry an empty goal (41, 42, 43)".
+func TestDemoFixtureSprintsCarryGoals(t *testing.T) {
+	db := fixtureDB(t)
+
+	rows, err := db.Query(`SELECT id, name, COALESCE(goal, '') FROM sprints ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var total int
+	var blank []string
+	for rows.Next() {
+		var id, name, goal string
+		if err := rows.Scan(&id, &name, &goal); err != nil {
+			t.Fatal(err)
+		}
+		total++
+		if strings.TrimSpace(goal) == "" {
+			blank = append(blank, id)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if total == 0 {
+		t.Fatal("fixture has no sprints; the assertion measured nothing")
+	}
+	if len(blank) > 0 {
+		t.Errorf("%d of %d sprints carry an empty goal (%s)", len(blank), total, strings.Join(blank, ", "))
 	}
 }

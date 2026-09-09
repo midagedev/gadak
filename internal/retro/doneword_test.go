@@ -82,3 +82,65 @@ func TestHasDoneWordSuffixIsAnchored(t *testing.T) {
 		t.Error("a later negation must not reach back over a finished claim")
 	}
 }
+
+/*
+ * TestDoneWordPendingClauses closes the second half of GDK-1428: on a Korean
+ * corporate Jira the mismatch row measured 44 / 134 / 153 / 201 / 71 hits a
+ * week against closures of 54 / 101 / 182 / 244 / 99, while the English OSS
+ * mirror stayed at 0–23. A row that noisy takes the whole table's credibility
+ * with it.
+ *
+ * The first narrowing (recency — only a comment newer than the issue's last
+ * status change counts) had already landed. What was left is the shape the
+ * issue names: a done word inside a subordinate clause is about work that has
+ * NOT happened yet. "검토 완료 후 진행하겠습니다" schedules the work; "완료되면
+ * 알려주세요" asks to be told. Neither claims anything is finished, and both
+ * are ordinary Korean office vocabulary, so they fired every week.
+ *
+ * The guard is the mirror image of negatedSuffix — anchored right after the
+ * word, no byte window — so it stays expressible identically in the
+ * TypeScript copy where indices are UTF-16.
+ *
+ * FAIL-first: every `false` row below returned true against the pre-fix rule.
+ */
+func TestDoneWordPendingClauses(t *testing.T) {
+	cases := []struct {
+		body string
+		want bool
+	}{
+		// The clause is about work that has not happened yet.
+		{"검토 완료 후 진행하겠습니다", false},
+		{"QA 완료 후에 배포합니다", false},
+		{"완료되면 알려주세요", false},
+		{"완료하면 코멘트 남겨주세요", false},
+		{"리뷰 완료 시 머지하겠습니다", false},
+		{"완료 예정입니다", false},
+		{"이번 주에 완료할 예정", false},
+		{"내일까지 완료해야 합니다", false},
+		{"완료되는 대로 공유드리겠습니다", false},
+		{"배포 전에 다시 확인하겠습니다", false},
+		{"完了後にリリースします", false},
+		{"完了次第ご連絡します", false},
+		{"完了予定です", false},
+
+		// Still claims: the assertion is not a clause about the future.
+		{"완료했습니다", true},
+		{"작업 완료됐습니다", true},
+		{"완료되었습니다, 확인 부탁드립니다", true},
+		{"머지 완료", true},
+		{"배포 완료했습니다", true},
+		{"対応済みです", true},
+		{"完了しました", true},
+
+		// The recency guard and the negation guards are untouched by this one.
+		{"미완료 상태입니다", false},
+		{"완료되지 않았습니다", false},
+		{"not fixed yet", false},
+		{"Merged and deployed, closing this.", true},
+	}
+	for _, c := range cases {
+		if got := HasDoneWord(c.body); got != c.want {
+			t.Errorf("HasDoneWord(%q) = %v, want %v", c.body, got, c.want)
+		}
+	}
+}

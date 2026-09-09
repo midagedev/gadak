@@ -202,6 +202,14 @@ func cmdRetro(args []string) error {
 	// resume degrades to any-author writes on visited issues and the footer
 	// names the branch.
 	me := store.FeedIdentityOf(cfg)
+	// The built-in tracker attributes a write to the actor slug rather than to
+	// a credential, and such a workspace often has no credential identity at
+	// all — without this the resume row fell back to any author on a visited
+	// issue and counted other agents' writes as the reader's (GDK-1427).
+	actor := ""
+	if a, ok := config.ResolveActor(cfg); ok {
+		actor = a.Slug
+	}
 	if cfgErr != nil {
 		fmt.Fprintf(os.Stderr, "warning: could not read the workspace config; resume counts any author on visited issues: %v\n", cfgErr)
 		me = store.FeedIdentity{}
@@ -210,6 +218,8 @@ func cmdRetro(args []string) error {
 		SessionGap: sessionGap,
 		BySprint:   *bySprintFlag,
 		BoardID:    *boardFlag,
+		Actor:      actor,
+		Origin:     cfg.OriginType(),
 	})
 	if err != nil {
 		// The two --by-sprint refusals are the reader's problem to fix, not a

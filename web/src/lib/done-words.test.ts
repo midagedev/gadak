@@ -136,3 +136,41 @@ describe('claimStands — the recency guard (2026-09-07), lockstep with retro.Cl
     expect(claimStands(comment, status)).toBe(want)
   })
 })
+
+/*
+ * GDK-1428, the pending-clause guard. Same table as Go's
+ * TestDoneWordPendingClauses, row for row — a done word inside a clause about
+ * work that has not happened yet is not a claim.
+ *
+ * FAIL-first: every `false` row below was `true` against the pre-guard rule.
+ */
+describe('hasDoneWord pending clauses (GDK-1428 parity)', () => {
+  test.each([
+    ['검토 완료 후 진행하겠습니다', false],
+    ['QA 완료 후에 배포합니다', false],
+    ['완료되면 알려주세요', false],
+    ['완료하면 코멘트 남겨주세요', false],
+    ['리뷰 완료 시 머지하겠습니다', false],
+    ['완료 예정입니다', false],
+    ['이번 주에 완료할 예정', false],
+    ['내일까지 완료해야 합니다', false],
+    ['완료되는 대로 공유드리겠습니다', false],
+    ['배포 전에 다시 확인하겠습니다', false],
+    ['完了後にリリースします', false],
+    ['完了次第ご連絡します', false],
+    ['完了予定です', false],
+    ['완료했습니다', true],
+    ['작업 완료됐습니다', true],
+    ['완료되었습니다, 확인 부탁드립니다', true],
+    ['머지 완료', true],
+    ['배포 완료했습니다', true],
+    ['対応済みです', true],
+    ['完了しました', true],
+    ['미완료 상태입니다', false],
+    ['완료되지 않았습니다', false],
+    ['not fixed yet', false],
+    ['Merged and deployed, closing this.', true],
+  ])('hasDoneWord(%j) === %s', (body, want) => {
+    expect(hasDoneWord(body as string)).toBe(want)
+  })
+})
