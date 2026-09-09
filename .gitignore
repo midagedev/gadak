@@ -90,3 +90,4 @@ mobile/e2e/.shots/
 .playwright-mcp/
 e2e/demo/test-results-sprint/
 e2e/demo/test-results-retro/
+e2e/demo/test-results-sprint-retro-hero/
