@@ -194,7 +194,14 @@ CI도 싸졌습니다. 정적 분석 게이트는 Go를 건드리지 않은 푸�
 serve 플래그를 유닛에 그대로 싣고, 설치 시점에 serve 파서로 검증합니다 — 잘못된 주소는
 예전엔 설치가 되고 나서 KeepAlive 아래에서 재시작을 반복했습니다 ([GDK-1267]). 공개
 백로그 내보내기는 자격증명 모양의 문자열이 든 설명을 게시 대신 거부합니다 — 셸 스캔과
-같은 패턴입니다 ([GDK-1260]).
+같은 패턴입니다 ([GDK-1260]). 리스트는 어떤 폭에서도 읽힙니다 — 여섯 자를 못 담는
+라벨 칩은 `+N` 배지로 접히고 그 배지가 전체 라벨을 답니다. 어떤 라벨도 들어가지 않는 배포
+열은 글자를 중간에서 자르는 대신 점만 남깁니다 ([GDK-1744]). 숫자는 어디서 찍히든 로케일
+방식으로 자릿수를 끊습니다 — 호출부 열여덟 곳이 각자 기억하는 대신 `t()` 가 숫자 인자를
+직접 포맷합니다 ([GDK-1560]). 대시보드 프레임은 흰색 대신 앱 배경을 깔아 탭을 열 때
+번쩍이지 않습니다 ([GDK-1598]). 팔레트에 정확한 이슈 키를 넣으면 빈 검색 줄 대신 그 행이
+나오고 ([GDK-1255]), 온보딩은 한 다이얼로그 안에서 로컬 사본을 한 단어로 부릅니다
+([GDK-1323]).
 
 ## v0.21.0 — 2026-09-08
 
@@ -1660,6 +1667,11 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1698]: https://gadak.dev/backlog/#/?ks=GDK-1698
 [GDK-1700]: https://gadak.dev/backlog/#/?ks=GDK-1700
 [GDK-1702]: https://gadak.dev/backlog/#/?ks=GDK-1702
+[GDK-1323]: https://gadak.dev/backlog/#/?ks=GDK-1323
+[GDK-1255]: https://gadak.dev/backlog/#/?ks=GDK-1255
+[GDK-1598]: https://gadak.dev/backlog/#/?ks=GDK-1598
+[GDK-1560]: https://gadak.dev/backlog/#/?ks=GDK-1560
+[GDK-1744]: https://gadak.dev/backlog/#/?ks=GDK-1744
 [GDK-1260]: https://gadak.dev/backlog/#/?ks=GDK-1260
 [GDK-1267]: https://gadak.dev/backlog/#/?ks=GDK-1267
 [GDK-1704]: https://gadak.dev/backlog/#/?ks=GDK-1704

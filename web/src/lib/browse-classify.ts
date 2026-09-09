@@ -19,6 +19,15 @@ const ISSUE_KEY_RE = /^[A-Z][A-Z0-9]*-\d+$/
 const BROWSE_PATH_RE = /\/browse\/([A-Za-z][A-Za-z0-9]*-\d+)(?:\/|$)/
 const WIKI_PAGE_PATH_RE = /\/wiki\/spaces\/([^/]+)\/pages\/(\d+)/
 
+/** The text, uppercased, when it is nothing but an issue key ("std-9" →
+ *  "STD-9"). Null otherwise. Lives here because this module already owns the
+ *  shape of a key; the palette uses it to tell "a destination was named" from
+ *  "some words were typed" (GDK-1255). */
+export function bareIssueKey(text: string): string | null {
+  const key = text.trim().toUpperCase()
+  return ISSUE_KEY_RE.test(key) ? key : null
+}
+
 /** Issue key in a /browse/KEY path, uppercased. Null when the path is not one. */
 export function extractBrowseKey(href: string): string | null {
   const m = href.match(BROWSE_PATH_RE)

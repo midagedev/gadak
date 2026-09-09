@@ -145,7 +145,10 @@ test.describe('settings dialog', () => {
     // The seed covers today AND tomorrow (e2e/serve.sh, GDK-1592): this figure
     // is the UTC day at request time, the seed ran at serve start, and a shard
     // that crosses midnight would otherwise assert against an empty day.
-    await expect(dialog.getByText(/\d{4,} today/)).toBeVisible()
+    // Grouped or not (GDK-1560 made every count go through formatNumber, so
+    // en renders the seed as "1,204"): what must not pass is a figure under
+    // four digits, which is what a dropped runtime.apiUsage would leave.
+    await expect(dialog.getByText(/(?:\d{1,3}(?:,\d{3})+|\d{4,}) today/)).toBeVisible()
     await expect(dialog.getByText('2 throttled')).toBeVisible()
   })
 })

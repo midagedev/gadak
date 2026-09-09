@@ -796,7 +796,8 @@ test.describe('docs empty states', () => {
 
     const cta = page.getByTestId('docs-empty-cta')
     await expect(cta).toHaveAttribute('data-state', 'off')
-    await expect(cta).toContainText('No documents mirrored')
+    // GDK-1323: one word for the local copy inside one flow.
+    await expect(cta).toContainText('No documents cached')
     await expect(cta).toContainText('Turn on Confluence')
 
     // It is a way in, not a label: the errand it names is one click away.

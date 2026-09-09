@@ -249,7 +249,8 @@ test.describe('first-run onboarding', () => {
 
     // Step 4 — the sync result carries over, and the step says it is optional.
     await expect(wizard.getByText('Optional · Connect an agent')).toBeVisible()
-    await expect(page.getByTestId('onboarding-sync-done')).toContainText('Mirrored 519 issues')
+    // GDK-1323: one word for the local copy inside one flow.
+    await expect(page.getByTestId('onboarding-sync-done')).toContainText('Cached 519 issues')
     await expect(wizard).toHaveAttribute('data-onboarding-reason', 'hold')
     // F7: sidebar must not paint a zero-count / Syncing… line next to 519.
     await expect(page.getByTestId('sidebar-sync-now')).toHaveCount(0)
@@ -272,7 +273,7 @@ test.describe('first-run onboarding', () => {
     // resync (the store's own visibilitychange path) lands rows in the pool
     // while the wizard keeps the pane. The sidebar count is hidden during
     // hold (GDK-299 F7) so we wait on the resync itself, not on a
-    // contradictory "1 issues" next to "Mirrored 519".
+    // contradictory "1 issues" next to "Cached 519".
     const resync = page.waitForResponse(
       (res) => /\/api\/v1\/issues\/(bootstrap|delta)\//.test(res.url()) && res.ok(),
     )

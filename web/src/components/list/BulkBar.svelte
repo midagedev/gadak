@@ -21,7 +21,7 @@
    * same menus from the keyboard, and a component-local flag would leave them
    * with nothing to set.
    */
-  import { t, collator } from '../../lib/i18n'
+  import { t, collator, formatNumber } from '../../lib/i18n'
   import type { IssueLite, JiraUser, PriorityOption, Transition } from '../../lib/types'
   import * as api from '../../lib/api'
   import { ApiError } from '../../lib/api'
@@ -521,7 +521,7 @@
               >
                 <span class="h-1.5 w-1.5 flex-none rounded-full {catDot(opt.to_category)}"></span>
                 <span class="min-w-0 flex-1 truncate">{opt.to_status}</span>
-                <span class="flex-none text-micro text-text-muted">{opt.count}</span>
+                <span class="flex-none text-micro text-text-muted">{formatNumber(opt.count)}</span>
               </button>
             {/each}
           {/if}
@@ -718,7 +718,7 @@
                     >–</span
                   >
                   <span class="min-w-0 flex-1 truncate">{item.label}</span>
-                  <span class="flex-none text-micro text-text-muted">{item.count}</span>
+                  <span class="flex-none text-micro text-text-muted">{formatNumber(item.count)}</span>
                 </button>
               {/each}
               <div class="my-1 border-t border-border-subtle"></div>

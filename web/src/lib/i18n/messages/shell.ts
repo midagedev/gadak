@@ -32,9 +32,9 @@ export const shell = {
     ja: 'このフィルターを Jira で開く',
   },
   'sidebar.docsNoneTitle': {
-    en: 'No documents mirrored',
-    ko: '미러링된 문서 없음',
-    ja: 'ミラーされたドキュメントはありません',
+    en: 'No documents cached',
+    ko: '보관된 문서 없음',
+    ja: 'キャッシュされたドキュメントはありません',
   },
   'sidebar.docsNoneHint': {
     en: 'Turn on Confluence in Settings → Sources.',
@@ -59,9 +59,9 @@ export const shell = {
     ja: 'まだドキュメントを取得していません',
   },
   'sidebar.docsNotFetchedHint': {
-    en: 'Sync now to mirror the spaces you chose.',
-    ko: '선택한 스페이스를 지금 동기화하세요.',
-    ja: '選んだスペースを今すぐ同期してください。',
+    en: 'Sync now to cache the spaces you chose.',
+    ko: '선택한 스페이스를 지금 동기화해 받아 두세요.',
+    ja: '選んだスペースを今すぐ同期して取り込んでください。',
   },
   'sidebar.docsFetchFailed': {
     en: 'Could not fetch documents',

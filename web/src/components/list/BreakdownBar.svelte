@@ -1,6 +1,6 @@
 <script lang="ts">
   /* Section the list by a chosen field and summarize top distribution in one line. */
-  import { fieldLabel, t } from '../../lib/i18n'
+  import { fieldLabel, formatNumber, t } from '../../lib/i18n'
   import { filters } from '../../stores/filters.svelte'
   import { categoryMetaOf } from '../../lib/format'
   import { ESC_TIER, isEscapeKey, onEscape, onOutsideClick } from '../../lib/dom-actions'
@@ -143,15 +143,16 @@
 
     {#if open}
       <div
-        class="anim-enter absolute left-0 top-full z-30 mt-1 grid w-64 grid-cols-2 gap-1 rounded-lg border border-border-strong bg-bg-elevated p-1.5 shadow-overlay"
+        class="anim-enter absolute left-0 top-full z-30 mt-1 grid w-80 grid-cols-2 gap-1 rounded-lg border border-border-strong bg-bg-elevated p-1.5 shadow-overlay"
       >
         {#each OPTIONS as option (option.key)}
           <button
             type="button"
-            class="flex min-h-control-sm items-center rounded px-2.5 py-1 text-left text-body transition-colors {filters.display
+            class="flex min-h-control-sm items-center whitespace-nowrap truncate rounded px-2.5 py-1 text-left text-body transition-colors {filters.display
               .group_by === option.key
               ? 'bg-accent text-white'
               : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
+            title={option.label}
             onclick={() => select(option.key)}
           >
             {option.label}
@@ -189,7 +190,7 @@
               <Icon name={glyph} size={12} />
             {/if}
             <span class="min-w-0 max-w-36 truncate">{group.label || t('common.all')}</span>
-            <span class="flex-none font-mono text-micro text-text-muted">{group.counts.total}</span>
+            <span class="flex-none font-mono text-micro text-text-muted">{formatNumber(group.counts.total)}</span>
           </button>
         {/each}
         {#if hiddenGroupCount > 0}

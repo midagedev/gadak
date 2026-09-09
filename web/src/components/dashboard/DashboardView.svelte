@@ -209,6 +209,14 @@
       full-document swap: a new key destroys and recreates the element (a src
       change alone would navigate the same frame). data-render-gen is how e2e
       (and a human with devtools) sees a swap actually happened.
+
+      bg-bg-base, not bg-white (GDK-1598): the element paints its own
+      background for the span between being attached and the document's first
+      paint, and every {#key} swap re-opens that window. On the ja hero take
+      that was ~70ms of 232-luminance white between a cream list and a dark
+      dashboard — measured, not inferred. Matching the column behind it means
+      the race has no visible outcome rather than a faster one; `color-scheme:
+      normal` still keeps the authored document out of the host's dark mode.
     -->
     {#key frameKey}
       <iframe
@@ -216,7 +224,7 @@
         {src}
         title={row.name}
         sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
-        class="min-h-0 w-full flex-1 border-0 bg-white"
+        class="min-h-0 w-full flex-1 border-0 bg-bg-base"
         style="color-scheme: normal"
         data-testid="dashboard-frame"
         data-render-gen={renderGen}

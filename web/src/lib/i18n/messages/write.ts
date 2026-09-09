@@ -119,9 +119,12 @@ export const write = {
   // (write.go: project_not_mirrored) — the recovery is another project, or
   // widening the mirror in the Sources tab.
   'write.projectNotMirrored': {
-    en: 'That project is not in this mirror. Pick a mirrored project, or add it in Settings → Sources.',
-    ko: '이 미러에 없는 프로젝트입니다. 미러된 프로젝트를 고르거나 설정 → 소스에서 추가하세요.',
-    ja: 'そのプロジェクトはこのミラーにありません。ミラー済みのプロジェクトを選ぶか、設定 → ソースで追加してください。',
+    // GDK-1323: one word for the local copy inside one flow. ko and ja say it
+    // without the loanword at all (2026-09-08: the reader-facing Korean and
+    // Japanese call it a cache, never a mirror).
+    en: 'That project is not in this cache. Pick a cached project, or add it in Settings → Sources.',
+    ko: '이 사본에 없는 프로젝트입니다. 받아 둔 프로젝트를 고르거나 설정 → 소스에서 추가하세요.',
+    ja: 'そのプロジェクトはこの手元のコピーにありません。取り込み済みのプロジェクトを選ぶか、設定 → ソースで追加してください。',
   },
   // GDK-828: editmeta decides per issue (write.go: field_not_editable fires
   // when the field is absent from this issue's editmeta), so the sentence
@@ -652,9 +655,9 @@ export const write = {
   // keeps working as the site grows, so it must not read like an unfinished
   // form (GDK-99).
   'onboarding.projectsIntro': {
-    en: 'Pick the projects to mirror, or pick none to mirror every project you can see — including ones created later. You can change this in settings.',
-    ko: '미러할 프로젝트를 고르세요. 하나도 고르지 않으면 볼 수 있는 모든 프로젝트를 미러합니다 — 나중에 만들어지는 것까지. 설정에서 바꿀 수 있습니다.',
-    ja: 'ミラーするプロジェクトを選ぶか、何も選ばずに見られるすべてのプロジェクトをミラーします — あとから作られるものも含みます。設定で変更できます。',
+    en: 'Pick the projects to cache, or pick none to cache every project you can see — including ones created later. You can change this in settings.',
+    ko: '받아 둘 프로젝트를 고르세요. 하나도 고르지 않으면 볼 수 있는 모든 프로젝트를 받습니다 — 나중에 만들어지는 것까지. 설정에서 바꿀 수 있습니다.',
+    ja: '取り込むプロジェクトを選ぶか、何も選ばずに見られるすべてのプロジェクトを取り込みます — あとから作られるものも含みます。設定で変更できます。',
   },
   'onboarding.loadingProjects': {
     en: 'Loading projects…',
@@ -717,9 +720,9 @@ export const write = {
     ja: '開始中…',
   },
   'onboarding.syncDone': {
-    en: 'Mirrored {n} issues.',
-    ko: '{n}건 미러 완료.',
-    ja: '{n}件をミラーしました。',
+    en: 'Cached {n} issues.',
+    ko: '{n}건 받았습니다.',
+    ja: '{n}件を取り込みました。',
   },
   'onboarding.syncServeHint': {
     en: 'For automatic updates later, run gadak serve (or use Sync now from the sidebar).',

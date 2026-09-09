@@ -1111,6 +1111,38 @@
   }
 
   /*
+    GDK-1744 (2026-09-10): below this slot width a counted chip stops being a
+    label. GDK-1050 chose the opposite trade — "the chip truncates harder so
+    the count survives" — and at the 76px slot (row 1101-1299, i.e. a 1440
+    window, panel open or not) that leaves the chip 76 - 29 reserve = 47px of
+    box and 35px of text. Measured in the shipped 11px face, 6ch is 48.7px, so
+    35px renders "pa…", "da…", "cu…": two characters and an ellipsis, which
+    name no label and route nowhere. The +N badge that replaces them carries
+    the whole list in its title, so folding strictly adds information.
+
+    Threshold: a chip earns its place at 6ch (48.7) + px-1.5 padding (12) =
+    61px of chip, and the counter reserve is 29, so the slot must offer 90px.
+    The rungs in play are 140 (issuerow >=1300 — keeps its chip), 76 and 64
+    (both fold). 89px is the largest width that folds both without touching
+    140.
+
+    Counted rows only. A row with one label draws no counter, spends the whole
+    slot on its chip (64 - 12 = 52px > 48.7) and still reads.
+  */
+  @container labelfold (max-width: 89px) {
+    .chipfold-counted .chipfold-first,
+    .chipfold-counted .chipfold-rest,
+    .chipfold-counted .chipfold-n-extra,
+    .chipfold-counted .chipfold-n-rest {
+      display: none;
+    }
+    /* The state the ladder always had a class for and never turned on. */
+    .chipfold-counted .chipfold-n-all {
+      display: block;
+    }
+  }
+
+  /*
     A wide row can afford more than one label chip. The row container caps at
     1360px, and at 1300+ the title still has slack it was spending on empty
     space (measured: no title truncates at those widths), so the slot doubles.
@@ -1498,6 +1530,54 @@
       min-width: 2rem;
       max-width: calc(100% - var(--chipfold-counter-reserve));
     }
+  }
+
+  /*
+    GDK-1744 follow-up (2026-09-10): the deploy chip is readable or absent.
+
+    The deploy column shipped its every label as a mid-glyph cut — "QA r" was
+    the vision verdict, next to labels chips that truncated normally. Two
+    independent findings, both measured (probe round, e2e port 7883, fixture
+    row NMB-110):
+
+    1. MECHANISM — the chip was `flex … truncate`, and text-overflow never
+       applies to flex content: the label was an anonymous flex item with
+       min-width:auto, could not shrink, and the chip's own overflow:hidden
+       cut it mid-glyph (scrollWidth 71 > clientWidth 40, computed
+       text-overflow: ellipsis — configured, never painted). The markup now
+       carries the label in a `min-w-0 truncate` span, which as a block flex
+       item ellipsizes for real wherever it is allowed to render.
+    2. STARVATION — the column is w-10 (40px, flex-none at every row width;
+       trail-fold-3 hides the whole slot only below 400), and no label of the
+       set is both fittable and readable: measured in the chip's 11px face
+       (e2e/label-chip-floor.spec.ts prints the full table), the 6ch floor is
+       42.9px of text + 12px padding; the shortest chip of the catalog
+       ("미배포") is 40.5px carrying only 28.5px of text — under the floor even
+       where it fits — and the shortest floor-meeting chip ("prod 배포") is
+       59px, the longest ("prod デプロイ済み") 98.1px. The floor is unreachable,
+       so per that contract the text does not render: the 'qa' chip keeps its
+       designed teal dot (its title and the detail panel carry the words),
+       the dotless states hide — absence is the column's existing rendering
+       for state 'none'.
+
+    The column cannot simply widen instead: the full-catalog rows the ladder
+    pins (list-row-overflow.spec.ts) hold 1.6 / 87.6 / 19.6px of title slack
+    above the 13ch floor at row widths 1008 / 1168 / 1360 (measured, same
+    round) — the ~60px a label-sized column needs does not exist at the
+    1360 cap, and the set-aware generator that could re-price the rungs
+    (row-column-thresholds.ts) does not model deploy. Re-pricing it there is
+    the reported follow-up; until then this rule holds the line the gate
+    (e2e/label-chip-floor.spec.ts, "deploy chip" axes) re-derives live: if
+    the column ever widens to afford a label, that axis goes red until the
+    label un-hides.
+
+    @layer utilities for the GDK-766 reason: the chip's `flex` utility must
+    lose to this display:none.
+  */
+  .deploy-slot .deploy-chip-label,
+  .deploy-slot .deploy-chip:not(.deploy-chip-dot),
+  .deploy-slot .deploy-stale {
+    display: none;
   }
 
   .anim-enter {

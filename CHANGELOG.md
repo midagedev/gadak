@@ -274,7 +274,18 @@ pointed. `gadak doctor` shows the site host (the token stays masked) and
 calls the documented placeholders a configuration error rather than a
 healthy workspace. And a read that names an issue this workspace never
 mirrors gets one stderr line naming the workspace that answered and what it
-holds, where an empty answer used to be indistinguishable from no data.
+holds, where an empty answer used to be indistinguishable from no data. The list reads at every width it is given: a
+label chip that cannot show six characters folds into the `+N` badge whose
+tooltip names every label, and the deploy column, where no label of the set
+fits at all, keeps its dot and drops the word rather than cutting it
+mid-glyph ([GDK-1744]). A count is grouped for the locale wherever it
+appears, because `t()` formats a numeric parameter rather than each of
+eighteen call sites remembering to ([GDK-1560]). The dashboard frame carries
+the app's background rather than white, so opening the tab no longer flashes
+([GDK-1598]). An exact issue key in the palette resolves to that row instead
+of an empty search line ([GDK-1255]), and onboarding calls the local copy a
+cache throughout rather than switching between two words for it inside one
+dialog ([GDK-1323]).
 
 ## v0.21.0 — 2026-09-08
 
@@ -1806,6 +1817,11 @@ priority sorting keyed on `priority_rank`.
 [GDK-1698]: https://gadak.dev/backlog/#/?ks=GDK-1698
 [GDK-1700]: https://gadak.dev/backlog/#/?ks=GDK-1700
 [GDK-1702]: https://gadak.dev/backlog/#/?ks=GDK-1702
+[GDK-1323]: https://gadak.dev/backlog/#/?ks=GDK-1323
+[GDK-1255]: https://gadak.dev/backlog/#/?ks=GDK-1255
+[GDK-1598]: https://gadak.dev/backlog/#/?ks=GDK-1598
+[GDK-1560]: https://gadak.dev/backlog/#/?ks=GDK-1560
+[GDK-1744]: https://gadak.dev/backlog/#/?ks=GDK-1744
 [GDK-1260]: https://gadak.dev/backlog/#/?ks=GDK-1260
 [GDK-1267]: https://gadak.dev/backlog/#/?ks=GDK-1267
 [GDK-1704]: https://gadak.dev/backlog/#/?ks=GDK-1704

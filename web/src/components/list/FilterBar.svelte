@@ -6,7 +6,7 @@
    */
   import { filters, type FacetValue } from '../../stores/filters.svelte'
   import { filterFields, negationOf, type MultiField, type NegationField, type RangeField } from '../../lib/view-config'
-  import { t, fieldLabel } from '../../lib/i18n'
+  import { t, fieldLabel, formatNumber } from '../../lib/i18n'
   import { ESC_TIER, isEscapeKey, onEscape, onOutsideClick } from '../../lib/dom-actions'
   import Icon from '../ui/Icon.svelte'
 
@@ -307,7 +307,7 @@
                   <span class="min-w-0 flex-1 truncate {excluded ? 'text-text-muted line-through' : ''}"
                     >{v.label}</span
                   >
-                  <span class="flex-none text-micro text-text-muted">{v.count}</span>
+                  <span class="flex-none text-micro text-text-muted">{formatNumber(v.count)}</span>
                 </button>
                 {#if negatable}
                   <button

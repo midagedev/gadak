@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t, fieldLabel, formatTimeOfDay, locale } from '../../lib/i18n'
+  import { t, fieldLabel, formatNumber, formatTimeOfDay, locale } from '../../lib/i18n'
   import Icon, { type IconName } from '../ui/Icon.svelte'
   import ColumnHeader from '../ui/ColumnHeader.svelte'
   import type { FeedFocus, FeedItem } from '../../lib/types'
@@ -361,7 +361,7 @@
                          not just how much. -->
                     {#each kinds as kind (kind.type)}
                       <span class="flex-none text-text-secondary">
-                        {EVENT_LABELS[kind.type]}{kind.count > 1 ? ` ×${kind.count}` : ''}
+                        {EVENT_LABELS[kind.type]}{kind.count > 1 ? ` ×${formatNumber(kind.count)}` : ''}
                       </span>
                     {/each}
                   {/if}

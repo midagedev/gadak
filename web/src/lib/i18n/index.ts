@@ -77,13 +77,20 @@ export function collator(): Intl.Collator {
 
 export type MessageParams = Record<string, string | number>
 
-/** Translate a catalog key; `{name}` placeholders replaced from params. */
+/** Translate a catalog key; `{name}` placeholders replaced from params.
+ *
+ *  A number param is grouped for the locale (GDK-1560). Doing it here rather
+ *  than at the eighteen `t(key, { n: someCount })` call sites is the point:
+ *  the bug was one surface out of many forgetting the formatter, and a rule
+ *  that has to be remembered per call site fails the same way again. Pass a
+ *  string to opt out — that is how an identity number (an exit code, a page
+ *  revision) keeps its plain digits. */
 export function t(key: MessageKey, params?: MessageParams): string {
   const table = catalogs[current] ?? en
   let s: string = table[key] ?? en[key] ?? String(key)
   if (params) {
     for (const [k, v] of Object.entries(params)) {
-      s = s.replaceAll(`{${k}}`, String(v))
+      s = s.replaceAll(`{${k}}`, typeof v === 'number' ? formatNumber(v) : String(v))
     }
   }
   return s

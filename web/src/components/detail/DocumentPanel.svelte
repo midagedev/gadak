@@ -207,7 +207,7 @@
             <span aria-hidden="true">·</span>
           {/if}
           {#if head}
-            <span class="font-mono tabular-nums">{t('doc.version', { n: head.version })}</span>
+            <span class="font-mono tabular-nums">{t('doc.version', { n: String(head.version) })}</span>
           {/if}
           {#if head?.url}
             <a

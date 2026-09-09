@@ -82,7 +82,7 @@
    *  highlighted summary already says why the row is here — see matchEvidence.
    */
   import { onMount } from 'svelte'
-  import { t, columnLabel, type ColumnLabelKey } from '../../lib/i18n'
+  import { t, columnLabel, formatNumber, type ColumnLabelKey } from '../../lib/i18n'
   import { subscribeWallClock } from '../../lib/clock.svelte'
   import type { SearchMatch } from '../../lib/types'
   import { filters } from '../../stores/filters.svelte'
@@ -456,7 +456,7 @@
         : t('board.carriedOver', { n: issue.carryover_count })}
     >
       <Icon name="layers" size={11} />
-      {issue.carryover_count}
+      {formatNumber(issue.carryover_count)}
     </span>
   {/if}
   </div>
@@ -486,7 +486,7 @@
           <!-- currentColor keeps the glyph inside the badge's red: reopen count is a
                semantic signal, and the icon must not read cooler than the number. -->
           <Icon name="rotate-ccw" size={11} />
-          {issue.reopen_count}
+          {formatNumber(issue.reopen_count)}
         </button>
       {/if}
     </div>
@@ -535,13 +535,24 @@
     </div>
   {/if}
 
-  <!-- Deploy-stage badge (qa=teal emphasis / others muted) -->
+  <!-- Deploy-stage badge (qa=teal emphasis / others muted). GDK-1744 follow-up:
+       at the column's fixed w-10 no label of the set reaches the 6ch floor
+       (shortest chip "미배포" 40.5px holds only 28.5px of text; floor 42.9px),
+       so the label does not render — see the .deploy-slot rules in app.css
+       for the arithmetic and the measured reason the column cannot simply
+       widen. The 'qa' chip keeps its teal dot (the words live in its title
+       and the detail panel); the label span keeps a working `truncate` —
+       blockified as a flex item it ellipsizes for real, where the old
+       flex+truncate button never painted one (the "QA r" hard cut). -->
   {#if cols.has('deploy')}
-    <div class="trail-fold-3 flex w-10 flex-none items-center overflow-hidden" data-col="deploy">
+    <div
+      class="deploy-slot trail-fold-3 flex w-10 flex-none items-center overflow-hidden"
+      data-col="deploy"
+    >
       {#if header}{@render head('deploy')}{:else if deployMeta}
         <button
           type="button"
-          class="flex min-w-0 items-center gap-1 truncate rounded px-1.5 py-0.5 text-micro font-medium transition-opacity hover:opacity-80 {deployMeta.cls}"
+          class="deploy-chip {deployMeta.dot ? 'deploy-chip-dot' : ''} flex min-w-0 items-center gap-1 rounded px-1.5 py-0.5 text-micro font-medium transition-opacity hover:opacity-80 {deployMeta.cls}"
           title={deployState === 'qa'
             ? t('deploy.qaSwapDone')
             : t('deploy.stageTitle', { label: deployMeta.label })}
@@ -550,11 +561,11 @@
           {#if deployMeta.dot}
             <span class="h-1.5 w-1.5 flex-none rounded-full bg-[#2dd4bf]"></span>
           {/if}
-          {deployMeta.label}
+          <span class="deploy-chip-label min-w-0 truncate">{deployMeta.label}</span>
         </button>
       {:else if deployStale}
         <span
-          class="max-w-full truncate rounded bg-status-stale/12 px-1.5 py-0.5 text-micro font-medium text-status-stale/80"
+          class="deploy-stale max-w-full truncate rounded bg-status-stale/12 px-1.5 py-0.5 text-micro font-medium text-status-stale/80"
           title={t('deploy.resolvedNoRelease')}
         >
           {t('deploy.notDeployed')}
@@ -671,7 +682,7 @@
       {#if header}{@render head('comment_count')}{:else if issue.comment_count > 0}
         <span class="flex items-center gap-1 text-micro text-text-muted" title={t('list.commentCount', { n: issue.comment_count })}>
           <Icon name="message-square" size={11} />
-          {issue.comment_count}
+          {formatNumber(issue.comment_count)}
         </span>
       {/if}
     </div>

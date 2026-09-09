@@ -3,7 +3,7 @@
    * Group header ([explore]). Fixed 42px. Label + total + status-category mini tallies.
    *  The list is the summary dashboard (plan §5.1) — aggregates live in the header.
    */
-  import { t } from '../../lib/i18n'
+  import { t, formatNumber } from '../../lib/i18n'
   import type { IssueGroup } from '../../stores/filters.svelte'
   import { selection } from '../../stores/selection.svelte'
   import { categoryMetaOf } from '../../lib/format'
@@ -46,7 +46,7 @@
     {group.label || t('common.all')}
   </span>
   <span class="flex-none text-micro tabular-nums text-text-muted">
-    {group.counts.total}
+    {formatNumber(group.counts.total)}
   </span>
   <span class="h-px flex-1 self-center bg-border-subtle"></span>
 

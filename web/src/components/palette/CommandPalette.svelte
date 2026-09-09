@@ -17,6 +17,7 @@
     formatTimeOfDay,
     t,
   } from '../../lib/i18n'
+  import { bareIssueKey } from '../../lib/browse-classify'
   import { rankPages } from '../../lib/doc-search'
   import { highlightSegments } from '../../lib/format'
   import { search, workspaceHost, workspaceHref } from '../../lib/api'
@@ -287,12 +288,35 @@ import type { SettingsTab } from '../../lib/settings-tabs'
       myAccountId: me.accountId,
       recentKeys: new Set(me.recentIssues.map((v) => v.key)),
     }
-    return withShellRows(
-      sortIssues(filterIssues(issues.allIssues, f), 'relevance', 'desc', ctx)
-        .slice(0, 8)
-        .map((issue) => issueItem(issue)),
-    )
+    const rows = sortIssues(filterIssues(issues.allIssues, f), 'relevance', 'desc', ctx)
+      .slice(0, 8)
+      .map((issue) => issueItem(issue))
+    // GDK-1255: a bare key is a destination, not a search term. Relevance
+    // ranking already tends to float the exact row, but "tends to" is not the
+    // promise the input makes — typing STD-9 means STD-9, so it leads outright.
+    if (typedKey) {
+      const at = rows.findIndex((row) => row.id === `i:${typedKey}`)
+      if (at > 0) rows.unshift(...rows.splice(at, 1))
+    }
+    return withShellRows(rows)
   })
+
+  /*
+   * GDK-1255: the palette used to answer an existing key with two denials —
+   * ALL SEARCH said "No matches" one row under the issue it had just found
+   * (the key is not in the FTS body, so the server search legitimately
+   * returns nothing), and ACTIONS offered to *create* an issue with that key
+   * as its title. Both are read as "this key does not exist", by people and
+   * by agents, directly below the row proving it does.
+   *
+   * So an exact key that resolved suppresses those two rows. It suppresses
+   * nothing else: the sections and every real result stay, because the key
+   * having a home says nothing about what else matches.
+   */
+  const typedKey = $derived(bareIssueKey(raw))
+  const exactKeyHit = $derived(
+    Boolean(typedKey) && issueItems.some((item) => item.id === `i:${typedKey}`),
+  )
 
   /**
    * Empty-query home: issues that moved recently. Reads the already-loaded
@@ -676,7 +700,10 @@ import type { SettingsTab } from '../../lib/settings-tabs'
     // the row still appears, unselected, and Enter does nothing until the
     // user arrows or points at it. New issue is not force-appended beside it
     // — that was a second write entry on a zero-match list.
-    if (createNow) out.push({ ...createNow, section: 'action' })
+    // GDK-1255: ...and it is not offered at all when the query is a key that
+    // already resolved. "Create STD-9" under a row that opens STD-9 is an
+    // offer to duplicate the thing the palette just found.
+    if (createNow && !exactKeyHit) out.push({ ...createNow, section: 'action' })
     return out
   })
 
@@ -785,6 +812,7 @@ import type { SettingsTab } from '../../lib/settings-tabs'
   )
   const showUnifiedStatus = $derived(
     Boolean(needle) &&
+      !exactKeyHit &&
       unifiedItems.length === 0 &&
       (unifiedBusy || serverView.status === 'error' || serverView.status === 'ready'),
   )
@@ -975,11 +1003,15 @@ import type { SettingsTab } from '../../lib/settings-tabs'
             {/if}
           </div>
         {/if}
+        <!-- data-item-id is the row's identity, not just its position: which
+             item won the top slot is the thing worth asserting (GDK-1255) and
+             the thing worth seeing in devtools when the ranking surprises you. -->
         <button
           type="button"
           role="option"
           id="palette-opt-{i}"
           data-idx={i}
+          data-item-id={item.id}
           data-testid={item.testid}
           aria-selected={i === idx}
           class="flex w-full flex-col gap-0.5 rounded px-2 py-1.5 text-left text-body {i === idx

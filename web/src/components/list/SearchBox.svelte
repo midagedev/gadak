@@ -10,7 +10,7 @@
    *  `/` focuses from anywhere; Esc clears.
    */
   import { onMount } from 'svelte'
-  import { t } from '../../lib/i18n'
+  import { t, formatNumber } from '../../lib/i18n'
   import { parseJql } from '../../lib/api'
   import { isHostedDemo } from '../../lib/config'
   import { applyOmniboxAction, classifyOmnibox } from '../../lib/omnibox'
@@ -154,20 +154,20 @@
       const q = w.slice(1).toLowerCase()
       for (const v of filters.facets.assignee_email) {
         if (!q || v.label.toLowerCase().includes(q)) {
-          out.push({ kind: 'value', field: 'assignee_email', value: v.value, label: v.label, hint: `${v.count}` })
+          out.push({ kind: 'value', field: 'assignee_email', value: v.value, label: v.label, hint: formatNumber(v.count) })
         }
         if (out.length >= 8) break
       }
     } else if (w.startsWith('#') && fieldEnabled('team_group')) {
       const q = w.slice(1).toLowerCase()
       for (const v of filters.facets.team_group) {
-        if (!q || v.label.toLowerCase().includes(q)) out.push({ kind: 'value', field: 'team_group', value: v.value, label: v.label, hint: `${v.count}` })
+        if (!q || v.label.toLowerCase().includes(q)) out.push({ kind: 'value', field: 'team_group', value: v.value, label: v.label, hint: formatNumber(v.count) })
         if (out.length >= 8) break
       }
     } else if (w.startsWith('!')) {
       const q = w.slice(1).toLowerCase()
       for (const v of filters.facets.priority) {
-        if (!q || v.label.toLowerCase().includes(q)) out.push({ kind: 'value', field: 'priority', value: v.value, label: v.label, hint: `${v.count}` })
+        if (!q || v.label.toLowerCase().includes(q)) out.push({ kind: 'value', field: 'priority', value: v.value, label: v.label, hint: formatNumber(v.count) })
         if (out.length >= 8) break
       }
     } else if (w.startsWith('is:')) {
