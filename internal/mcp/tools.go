@@ -14,6 +14,7 @@ import (
 	"github.com/midagedev/gadak/internal/jql"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/store"
+	syncer "github.com/midagedev/gadak/internal/sync"
 	"github.com/midagedev/gadak/internal/uifocus"
 	"github.com/midagedev/gadak/internal/views"
 )
@@ -145,6 +146,9 @@ a pairing object (endpoint, label).
 custom_fields.mapped is the number of configured field aliases; 0 means
 issues.custom is unmapped (empty json_extract results may mean gadak fields
 --apply has not run).
+During a first full sync the payload carries first_sync {phase, fetched,
+total, wiki_pending} — results are partial; work with what has landed;
+do not start a second sync.
 Check this before acting on answers that matter — a stalled watermark can
 mean a quiet project or a broken sync.`
 
@@ -470,8 +474,11 @@ func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
 	st := map[string]any{"profile": s.Profile}
 	// A shell-less host must be able to tell one origin from another
 	// (GDK-420); origin.Describe is the single owner of the kind verdict,
-	// and the two axes ride beside it (GDK-1280).
-	if cfg, err := config.LoadFor(s.Profile); err == nil {
+	// and the two axes ride beside it (GDK-1280). cfg outlives the block:
+	// FirstSync below reads the wiki configuration from it.
+	var cfg *config.Config
+	if c, err := config.LoadFor(s.Profile); err == nil {
+		cfg = c
 		kind, originDesc := origin.Describe(cfg)
 		st["kind"] = kind
 		st["origin_type"] = cfg.OriginType()
@@ -513,6 +520,13 @@ func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
 	}
 	if ss.SyncedAt != nil {
 		st["synced_at"] = *ss.SyncedAt
+	}
+	// GDK-1700: the mirror-owned first-sync fact (GDK-1677) — the same
+	// sync.FirstSync doc `gadak status --json` prints, read from the live
+	// sync_progress row so a sync another process started shows here too.
+	// nil (no live first pass) emits no key, exactly like the CLI.
+	if doc := syncer.FirstSync(ctx, s.db, cfg); doc != nil {
+		st["first_sync"] = doc
 	}
 	// Counts match `gadak status --json`.
 	for name, q := range map[string]string{

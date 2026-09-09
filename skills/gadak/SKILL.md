@@ -64,6 +64,12 @@ returns immediately when every source is fresh, and runs one incremental
 pass when a source is older than 15m or its last sync failed. A running
 `gadak serve` keeps the mirror fresh on its own.
 
+`gadak sync --concurrency N` (1–8, default 4) widens the Confluence fetch
+pool; 1 is the old one-at-a-time pass. Every Jira or Confluence sync pass
+ends with one stderr line spending its requests by kind and the wall time
+each waited, and `gadak api --headers` prints the status line and every
+response header — a slow first sync's cost is visible per endpoint family.
+
 While a first full sync is still filling the mirror, read commands print one
 stderr line (`first sync in progress: … — results are partial`) and
 `gadak status --json` carries a `first_sync` object (`phase`, `fetched`,
@@ -122,6 +128,11 @@ Two questions, not one. Same CLI verbs either way.
 **Which tracker is the origin** (`origin_type`):
 
 - `jira` — an Atlassian Cloud site. Needs a stored credential.
+- `jira-server` — a self-hosted Jira Server / Data Center site
+  (`gadak init --site <base-url> --server`; Personal Access Token, no
+  email). Bodies are wiki markup carried verbatim — what you type is what
+  the origin stores — and the ADF marker rules taught later in this file
+  do not apply there.
 - `linear` — a Linear workspace, when a `linear.apiKey` is configured.
 - `gadak` — the tracker that ships with gadak (`issuetap`). No Atlassian
   account. The durable file is `origin/issuetap.db` under the workspace
@@ -614,6 +625,8 @@ gadak comment NMB-140 -m "thanks @Dana"       # @Name resolves to a site user; a
 gadak comment NMB-140 -m -                    # body from stdin, for anything multi-line
 gadak comment NMB-140 -m "done" --visibility role=Administrators
 gadak comment NMB-140 -m "done" --internal    # JSM internal
+gadak comment edit NMB-140 91653 -m "corrected repro"   # replaces that comment's body — the id is whatever a read handed you
+gadak comment rm NMB-140 jira:91653 --yes                # removes it; gadak sql prints jira:91653, gadak issue prints 91653, both accepted
 gadak transition NMB-140                      # list tokens this credential can fire
 gadak transition NMB-140 "In Review"
 gadak transition NMB-140 done                 # status category: new | inprogress | done
@@ -638,7 +651,7 @@ gadak edit NMB-140 --summary "…" --label +regression --label -needs-triage --p
 gadak edit NMB-140 --type Task                # name, localized name, or id — same resolver as create --type
 gadak edit NMB-140 -m "## Repro\n\n- step one"  # markdown replaces the body; a text with no placeholders over a body that has panels/media/mentions refuses without --force-plain
 gadak issue NMB-140                            # a formatted body prints with placeholders: <!-- adf:1:… panel info --> … <!-- /adf:1 -->, <!-- adf:3:… mention @Dana -->
-gadak edit NMB-140 -m -  < edited.md           # keep the markers: each node goes back where its marker stands; delete a marker to remove that node (stderr says which); a stale marker is refused
+gadak edit NMB-140 -m -  < edited.md           # keep the markers: each node goes back where its marker stands; delete a marker to remove that node (stderr says which); a stale marker is refused — Cloud only: on jira-server the body is wiki markup carried verbatim and markers are literal text
 gadak issue NMB-140 --json | jq .description_adf > body.json && gadak edit NMB-140 --adf-file body.json   # the raw path: the ADF back as it is, no guard (comment --adf-file too)
 gadak edit NMB-140 --component +SDK --component -Docs
 gadak edit NMB-140 --fix-version +v2.5 --fix-version -10012
