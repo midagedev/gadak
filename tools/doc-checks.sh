@@ -2361,7 +2361,7 @@ llms=site/public/llms.txt
 for want in \
   'brew install --cask midagedev/tap/gadak' \
   'brew install midagedev/tap/gadak-cli' \
-  'gadak init && gadak sync && gadak serve' \
+  'gadak init && gadak serve' \
   'http://gadak.localhost:7777' \
   'gadak mcp install claude-desktop' \
   'https://apps.microsoft.com/detail/9NZW91TXH36G' \

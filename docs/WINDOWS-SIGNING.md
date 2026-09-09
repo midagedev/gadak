@@ -157,7 +157,7 @@ must match. If you cannot reach the API, you do not have a digest to compare
 Install the app from the [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G) instead — the Store's
 signature is the one neither dialog objects to. Or use the CLI zip from the
 same release (the row that *is* in `checksums.txt`),
-put `gadak.exe` on `PATH`, then `gadak init && gadak sync && gadak serve`.
+put `gadak.exe` on `PATH`, then `gadak init && gadak serve`.
 That is the documented CLI fallback on every release since 0.16
 ([INSTALL.md](INSTALL.md#desktop-app-windows)). Do not disable Smart App
 Control.

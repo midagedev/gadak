@@ -10,7 +10,8 @@
 
 ## For an agent working on someone's tracker
 
-Install gadak, run `gadak sync`, then read the cache with `gadak sql` or the
+Install gadak, run `gadak sync` (a first sync takes minutes on a large site;
+read what has landed — newest issues first — rather than waiting), then read the cache with `gadak sql` or the
 MCP tools. Two rules carry most of the value:
 
 1. **Never filter on a display name.** Jira translates status, priority and
@@ -53,7 +54,7 @@ model it talks to — gadak itself sends nothing.
 - macOS app, CLI included: `brew install --cask midagedev/tap/gadak`
 - CLI only (macOS, Linux): `brew install midagedev/tap/gadak-cli`
 - Windows app: the [Microsoft Store](https://apps.microsoft.com/detail/9NZW91TXH36G) listing, which signs it and puts `gadak` on `PATH`
-- First run: `gadak init && gadak sync && gadak serve`, which prints `http://gadak.localhost:7777`
+- First run: `gadak init && gadak serve`, which prints `http://gadak.localhost:7777`
 - Pick the scope up front: `gadak init --projects ENG,PROD --spaces ENG`. The wiki stays off until spaces are named.
 - No Atlassian account: `gadak init --local` starts a workspace on the built-in tracker.
 

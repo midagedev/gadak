@@ -87,10 +87,11 @@ brew install midagedev/tap/gadak-cli
 ```
 
 Connect to Jira Cloud, then open the address `gadak serve` prints
-(`http://gadak.localhost:7777`):
+(`http://gadak.localhost:7777`). The first sync runs inside `serve`, newest
+issues first, and the list fills while it runs:
 
 ```bash
-gadak init && gadak sync && gadak serve
+gadak init && gadak serve
 ```
 
 A site needs one [API token](https://id.atlassian.com/manage-profile/security/api-tokens),

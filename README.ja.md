@@ -178,10 +178,10 @@ SmartScreen に止められた場合、それは署名がないという意味�
 ### Jira Cloud に接続する
 
 Cloud は [API トークン](https://id.atlassian.com/manage-profile/security/api-tokens)
-を用意し、接続して同期し、`gadak serve` が表示するアドレス (`http://gadak.localhost:7777`) を開きます:
+を用意し、接続して `gadak serve` が表示するアドレス (`http://gadak.localhost:7777`) を開きます。初回の同期は `serve` の中で新しい課題から進み、待たずに一覧が埋まっていきます:
 
 ```bash
-gadak init && gadak sync && gadak serve
+gadak init && gadak serve
 ```
 
 `gadak init` は、サイト、メールアドレス、API トークン、写すプロジェクトを順に聞きます。dmg、Linux、

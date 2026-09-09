@@ -656,8 +656,8 @@ next:
 	}
 	fmt.Printf(`
 next:
-  gadak sync                    fill the mirror (a few minutes on a first run)
-  gadak serve                   read it in the browser
+  gadak serve                   open the browser — the first sync runs inside it, newest issues first
+  gadak sync                    no browser? fill the mirror from the terminal instead (minutes on a first run)
   gadak mcp install claude      let your coding agent query it (also: claude-desktop, cursor, codex)
 
 docs/AGENT_SETUP.md has one paste per agent; docs/RECIPES.md has the questions

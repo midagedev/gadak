@@ -81,8 +81,13 @@ brew install midagedev/tap/gadak-cli
 First run:
 
 ```bash
-gadak init && gadak sync && gadak serve
+gadak init && gadak serve
 ```
+
+- `gadak serve` runs the first full sync itself (newest issues first, wiki after
+  Jira) and the list fills while it runs; `gadak sync` is the terminal-only
+  route (an agent host with no browser). Measured 2026-09-09: a fresh workspace's
+  `serve` logged `full sync: D1 — about 3,515 issues` on start.
 
 - The address `gadak serve` prints: `http://gadak.localhost:7777`
 - A Jira site needs **one API token**

@@ -18,7 +18,7 @@ gadak serve
 
 `gadak serve` prints the address — open `http://gadak.localhost:7777` and you should see your issues.
 
-**Already have Jira?** Then `gadak init && gadak sync`,
+**Already have Jira?** Then `gadak init && gadak serve`,
 or the walkthrough in [First run](#first-run).
 
 **Glossary.** A *workspace* is one credential and mirror (`--workspace <name>`,
@@ -104,11 +104,10 @@ on every release since 0.16.
 
 ```powershell
 gadak init
-gadak sync
 gadak serve
 ```
 
-`gadak serve` prints the address — open `http://gadak.localhost:7777` and you should see your issues.
+`gadak serve` prints the address — open `http://gadak.localhost:7777`; the first sync runs inside it and the list fills as it goes.
 
 The measured unsigned CLI (`gadak.exe`) has run without the Smart App Control
 block that hits the desktop exe. How to check the sha256:
@@ -117,7 +116,7 @@ block that hits the desktop exe. How to check the sha256:
 Smart App Control warning is a missing signature, not a virus finding; details
 under [Desktop app (Windows)](#desktop-app-windows). For a workspace with no
 Atlassian account, use [First run](#first-run) (`gadak init --local`)
-instead of `gadak init` / `gadak sync` above.
+instead of `gadak init` / `gadak serve` above.
 
 ### Desktop app (Windows)
 
@@ -348,7 +347,8 @@ token, pick projects from your site's own list, and watch the first sync fill
 the mirror. (The desktop app — macOS dmg or the Windows portable zip — runs
 the same setup in its own window — no terminal at any point.) If you would
 rather stay in the terminal,
-`gadak init && gadak sync` does the same thing. `gadak serve` keeps the mirror
+`gadak init && gadak serve` does the same thing (`gadak sync` is the
+no-browser route). `gadak serve` keeps the mirror
 fresh in the background whenever a credential is configured (`--no-sync` opts
 out). To survive reboot:
 

@@ -76,10 +76,11 @@ brew install midagedev/tap/gadak-cli
 ```
 
 첫 실행. 사이트 주소, 이메일, API 토큰, 캐시할 프로젝트를 차례로 묻습니다. 끝나면
-`gadak serve`가 `http://gadak.localhost:7777`을 찍습니다:
+`gadak serve`가 `http://gadak.localhost:7777`을 찍고, 첫 동기화는 그 안에서
+최근 이슈부터 돕니다. 기다리지 않아도 목록이 채워지는 게 보입니다:
 
 ```bash
-gadak init && gadak sync && gadak serve
+gadak init && gadak serve
 ```
 
 처음부터 범위를 좁혀 시작하려면 프로젝트와 스페이스를 함께 줍니다:
