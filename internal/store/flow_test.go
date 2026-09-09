@@ -639,3 +639,70 @@ func TestCacheLinkTypeCatalog(t *testing.T) {
 		t.Fatalf("catalog scoping broke: jira=%d linear=%d, want 1/1", jira, linear)
 	}
 }
+
+// GDK-1684: Derive computes status_changed_at from the changelog and
+// backfillFlow dropped it, so a database whose rows were re-timed after the
+// column was copied ended up with a stamp pointing at an instant no
+// transition happened. The snapshot builder is exactly that case, and a
+// regenerated examples/demo.db failed retro's dual-method agreement on it.
+// The backfill now writes the column from the same history it just read.
+func TestBackfillFlowRederivesStatusChangedAt(t *testing.T) {
+	path := seedFlowV42(t)
+	raw, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A stamp that matches no transition, the shape a re-timed copy leaves.
+	if _, err := raw.Exec(`UPDATE issues_raw SET status_changed_at = '2000-01-01T00:00:00.000Z'`); err != nil {
+		t.Fatal(err)
+	}
+	raw.Close()
+
+	// Open runs the v43 hook, which is backfillFlow.
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	rows, err := db.Query(`SELECT item_id, COALESCE(status_changed_at,'') FROM issues_raw`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type row struct{ item, got string }
+	var got []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.item, &r.got); err != nil {
+			rows.Close()
+			t.Fatal(err)
+		}
+		got = append(got, r)
+	}
+	rows.Close()
+
+	checked := 0
+	for _, r := range got {
+		var last string
+		err := db.QueryRow(
+			`SELECT COALESCE(at,'') FROM changelog WHERE item_id = ? AND field = 'status'
+			 ORDER BY at DESC LIMIT 1`, r.item).Scan(&last)
+		if err == sql.ErrNoRows || last == "" {
+			// No status history: the backfill must not blank what was there.
+			if r.got == "" {
+				t.Errorf("%s has no status changelog and lost its stamp", r.item)
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		checked++
+		if r.got != last {
+			t.Errorf("%s: status_changed_at = %q, want the last status row %q", r.item, r.got, last)
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no issue in the fixture has a status changelog — the test would pass vacuously")
+	}
+}

@@ -279,6 +279,23 @@ func backfillFlow(tx *sql.Tx) error {
 			d.StartedAt, d.CycleHours, d.LastActivityAt, r.itemID); err != nil {
 			return fmt.Errorf("backfill flow %s: %w", r.itemID, err)
 		}
+		// status_changed_at is derived from the same changelog this loop just
+		// read, and Derive already computed it — it was simply dropped here
+		// (GDK-1684). In a snapshot that is not cosmetic: the column-bag mover
+		// carries the source's stamp while the spread re-times the changelog
+		// rows independently, so the two drift and the column points at an
+		// instant no transition happened. Measured on a regenerated
+		// examples/demo.db: jira:10094 read 21:38:18 between changelog rows at
+		// 21:36:35 and 21:39:01. Only written when the history produced one —
+		// an issue whose changelog never reached the mirror keeps whatever it
+		// had rather than losing it to a nil.
+		if d.StatusChangedAt != nil {
+			if _, err := tx.Exec(
+				`UPDATE issues_raw SET status_changed_at = ? WHERE item_id = ?`,
+				*d.StatusChangedAt, r.itemID); err != nil {
+				return fmt.Errorf("backfill status_changed_at %s: %w", r.itemID, err)
+			}
+		}
 	}
 	return recomputeOpenBlockersAllSources(tx)
 }
