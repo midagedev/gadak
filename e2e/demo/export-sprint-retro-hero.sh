@@ -34,7 +34,7 @@ if [[ "$TOOK" != "$LOCALE" ]]; then
   echo "  re-record: GADAK_MEDIA_LOCALE=$LOCALE make media-hero-sprint-retro" >&2
   exit 3
 fi
-echo "export-sprint-retro-hero: locale $LOCALE -> sprint$TAG.mp4, sprint$TAG.gif"
+echo "export-sprint-retro-hero: locale $LOCALE -> sprint-retro-hero$TAG.mp4, sprint-retro-hero$TAG.gif"
 
 WEBM="$(find "$RESULTS" -type f -name 'video.webm' | head -n 1 || true)"
 if [[ -z "${WEBM}" ]]; then
@@ -96,7 +96,7 @@ fi
 # list, so frame one is a poster that says nothing about sprints. POSTER_AT
 # is the board beat, after the scope has narrowed to the active sprint —
 # the one frame that carries the claim. Re-time it if the beats move.
-POSTER_AT=6.0
+POSTER_AT=4.0
 ffmpeg -y -v error -ss "$POSTER_AT" -i "$OUT_DIR/sprint-retro-hero${TAG}.mp4" -frames:v 1 "$OUT_DIR/sprint-retro-hero-poster${TAG}.png"
 
 echo "export-sprint-retro-hero: wrote $OUT_DIR/sprint-retro-hero${TAG}.gif ($(size_bytes) bytes)"
