@@ -76,8 +76,8 @@ hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
   U1000 죽은 코드로 오탐한다(`parseProcStartTime`·`protocolDefaultIcon`
   실측). 세 GOOS가 모두 동의한 것만 실패이고 나머지는 informational로
   인쇄된다. ST1005는 제외(한국어 에러 문장·의도된 다중행 프로토콜 에코).
-  CI 잡 `Staticcheck (warning-only)`은 `--warn-only`라 아직 게이트가 아니다
-  — 남은 cross-platform 12건을 정리한 뒤 플래그를 떼는 것이 게이트화다.
+  CI 잡 `Staticcheck`은 게이트다(2026-09-09, 잔여 14건을 0으로 만든 뒤
+  `--warn-only`를 뗐다) — cross-platform 발견 하나가 CI를 빨갛게 만든다.
 - **OS별 경로·카탈로그를 만드는 Go 코드는 `goos`를 인자로 받고 세 GOOS를
   테스트로 잰다** (2026-09-08, 런 34233540027). `integrations.listFor(goos)`
   가 goos 카탈로그를 약속하는데 Claude Desktop 행만 런타임 바인딩 helper를
