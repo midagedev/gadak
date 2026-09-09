@@ -541,6 +541,9 @@ export interface HistoryPage {
 /** One ISO week of the retro, keys verbatim from internal/retro/retro.go
  *  BucketJSON — the row names the CLI table prints, spaces included. */
 export interface RetroBucket {
+  /** The column's own title when the buckets are not weeks — the sprint's
+   *  name. Absent for weeks, where the dates are the title. */
+  name?: string
   from: string
   to: string
   partial: boolean
@@ -580,6 +583,12 @@ export interface RetroDoc {
    * value inside them that is not a constant. Absent on an older server.
    */
   session_gap?: string
+  /**
+   * What one column is — "week", or "sprint" when the report was cut by
+   * sprint window (GDK-1693). Substituted into the definitions the view
+   * writes. Absent on an older server, where it is always a week.
+   */
+  bucket_noun?: string
 }
 
 /* ── Mirrored wiki pages (docs) ── */

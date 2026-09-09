@@ -532,7 +532,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak next", "gadak sql", "gadak search"},
 	},
 	"retro": {
-		summary: "weekly retrospective from the mirror and local.db — sessions, resume time, wip age (p85 and max), closures and their cycle time (p50/p85), done-word mismatch by ISO week, definitions printed under the numbers",
+		summary: "retrospective from the mirror and local.db — sessions, resume time, wip age (p85 and max), closures and their cycle time (p50/p85), done-word mismatch, one column per ISO week or per sprint (--by-sprint), definitions printed under the numbers",
 		usage:   "gadak [--workspace <name>] retro [--since 14d|<N>d|<N>w] [--session-gap 30m] [--json] [--open closed|in-progress|mismatch|cycle [--week N]] [--no-open]",
 		options: []helpOption{
 			{name: "since", desc: "how far back the table reaches: 14d, 30d, 4w (1 to 365 days; default 14d)"},
@@ -545,6 +545,7 @@ var helps = map[string]cmdHelp{
 		examples: []string{
 			"gadak retro",
 			"gadak retro --since 8w",
+			"gadak retro --by-sprint",
 			"gadak retro --json",
 			"gadak retro --open closed --week 1",
 		},

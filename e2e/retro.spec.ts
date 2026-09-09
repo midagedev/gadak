@@ -67,7 +67,7 @@ test.describe('weekly retro view', () => {
    */
   test('a report that names a missing table prints that reason under the table', async ({ page }) => {
     const NOTE =
-      'empty — weeks before the current one show no value for wip age p85, wip age max and in progress, and closed shows none everywhere; a sync fills the table'
+      'empty — the buckets before the current one show no value for wip age p85, wip age max and in progress, and closed shows none everywhere; a sync fills the table'
     await page.route('**/api/v1/issues/retro/**', async (route) => {
       const res = await route.fetch()
       const body = await res.json()
@@ -108,5 +108,47 @@ test.describe('weekly retro view', () => {
 
     await expect(page.getByTestId('retro-notes')).toContainText('a sync fills the table')
     await expect(page.getByTestId('retro-table')).toBeVisible()
+  })
+})
+
+/*
+ * GDK-1693: the columns can be sprints instead of ISO weeks — the unit a
+ * scrum team actually retrospects on. The fixture's board has three derived
+ * sprints (41 closed, 42 active, 43 future), so the cut yields two columns:
+ * the future one has no window to measure. Every definition names the unit,
+ * which is why the sentence under a row must say sprint here and week in the
+ * default view.
+ */
+test.describe('retro by sprint', () => {
+  test('the range control cuts the report by sprint and the definitions follow', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    await page.goto('/#/?retro=1')
+    await expect(page.getByTestId('retro-view')).toBeVisible()
+    await expect(page.getByTestId('retro-week')).toHaveCount(5)
+    // The default cut is weeks, and the definitions say so.
+    await expect(page.getByTestId('retro-table')).toContainText('at week end')
+
+    await page.getByTestId('retro-range').filter({ hasText: 'By sprint' }).click()
+    // Sprint 41 and the running Sprint 42; Sprint 43 starts in the future.
+    await expect(page.getByTestId('retro-week')).toHaveCount(2)
+    await expect(page.getByTestId('retro-week').first()).toContainText('Sprint 41')
+    await expect(page.getByTestId('retro-week').last()).toContainText('Sprint 42')
+    // The partial column says which unit is still filling.
+    await expect(page.getByTestId('retro-week').last()).toContainText('running')
+    // …and the sentence under every row names a sprint, not a week.
+    await expect(page.getByTestId('retro-table')).toContainText('at sprint end')
+    await expect(page.getByTestId('retro-table')).not.toContainText('at week end')
+
+    // A cell is still a door.
+    const cell = page.locator('[data-testid="retro-cell"][data-metric="closed"]').last()
+    await expect(cell).toBeVisible()
+    await cell.click()
+    await expect(page.getByTestId('retro-view')).toBeHidden()
+    await expect.poll(() => page.url()).toContain('ks=')
+
+    expect(errors.filter((e) => !e.includes('409') && !e.includes('502'))).toEqual([])
   })
 })

@@ -107,6 +107,14 @@ scripting, `--session-gap 45m` moves the read-gap that splits sessions (5m to
 in the running app (with `--json`, prints the keys only; `--open cycle`
 follows a week's cycle samples).
 
+`gadak retro --by-sprint` cuts the same report by sprint window instead of
+by ISO week — one column per sprint, named, with the running one marked — on
+any origin that has sprints (Jira Software, Linear cycles, the built-in
+tracker). It replaces `--since` rather than joining it, and every definition
+under the table names the sprint instead of the week, so the footer still
+describes the table on screen. With more than one board carrying sprints it
+refuses and names them; pass `--board <id>`.
+
 ## Which origin you are talking to
 
 Two questions, not one. Same CLI verbs either way.

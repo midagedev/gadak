@@ -25,6 +25,7 @@ package retro
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -70,6 +71,17 @@ const cycleHoursVersion = 43
 // SessionGap zero or negative means the SessionGap constant (30m).
 type Options struct {
 	SessionGap time.Duration
+	// BySprint cuts the report by sprint window instead of by ISO week
+	// (GDK-1693). A scrum team retrospects on its sprint, and 0.22 put the
+	// sprint boundaries in the mirror, so the columns can be the thing the
+	// team actually meets about. Every metric below is computed from a
+	// [From, To) span and none of them assumes seven days, so this changes
+	// the bucket source and nothing else.
+	BySprint bool
+	// BoardID picks the board whose sprints are the buckets. Zero means the
+	// only sprint-bearing board; with more than one, SprintBuckets refuses
+	// and names them rather than guessing whose cadence the reader meant.
+	BoardID int64
 }
 
 // MaxJSONKeys caps each key array of the JSON document. It matches
@@ -180,6 +192,10 @@ type Bucket struct {
 	From    time.Time
 	To      time.Time
 	Partial bool
+	// Name is what the column is called when the buckets are not weeks —
+	// the sprint's name under --by sprint (GDK-1693). Empty for weeks, and
+	// Label() falls back to the date range then.
+	Name string
 
 	Sessions int
 	Resume   *float64 // median seconds to the first own write
@@ -205,8 +221,19 @@ type Bucket struct {
 }
 
 // Label is the bucket's column title and the name --open reports:
-// 08-24..08-31, or 08-31..now for the current partial week.
+// 08-24..08-31, or 08-31..now for the current partial week. A named bucket
+// (a sprint) says its name instead — a column headed "Sprint 42" is the
+// whole point of cutting by sprint.
 func (b Bucket) Label() string {
+	if b.Name != "" {
+		// A named bucket loses the "..now" that tells a week column it is
+		// still filling, so say it: without this the running sprint reads
+		// as a finished one whose numbers are final.
+		if b.Partial {
+			return b.Name + " (running)"
+		}
+		return b.Name
+	}
 	to := b.To.Format("01-02")
 	if b.Partial {
 		to = "now"
@@ -294,6 +321,19 @@ type Report struct {
 	// (user_version < 43): every cycle cell is a dash and the footer says
 	// how to fix it, in the same shape as CatalogEmpty.
 	CycleUnavailable bool
+	// BySprint says the columns are sprints, not ISO weeks (GDK-1693). It
+	// reaches the definitions, which name the bucket in nearly every
+	// sentence — "at week end", "during the week" — and would otherwise
+	// describe a unit the table is not using.
+	BySprint bool
+}
+
+// BucketNoun is what one column is, in the definitions' own words.
+func (r Report) BucketNoun() string {
+	if r.BySprint {
+		return "sprint"
+	}
+	return "week"
 }
 
 /* ── loading and computing ── */
@@ -330,7 +370,15 @@ func parseTime(s string) (time.Time, bool) {
 // defer rows.Close() and one rows.Err() per walk, not three close sites on
 // every error branch (GDK-1575).
 func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.Duration, now time.Time, opts Options) (Report, error) {
-	rep := Report{Buckets: Buckets(now, since)}
+	buckets := Buckets(now, since)
+	if opts.BySprint {
+		sb, err := SprintBuckets(ctx, db, now, opts.BoardID)
+		if err != nil {
+			return Report{}, err
+		}
+		buckets = sb
+	}
+	rep := Report{Buckets: buckets, BySprint: opts.BySprint}
 	rep.SelfResolved = me != store.FeedIdentity{}
 	gap := opts.SessionGap
 	if gap <= 0 {
@@ -1162,8 +1210,12 @@ func (r Report) Definitions() [][2]string {
 	if gap <= 0 {
 		gap = SessionGap
 	}
+	// Every sentence below names the bucket, and under --by-sprint the
+	// bucket is a sprint: a footer that says "at week end" beside columns
+	// headed "Sprint 42" describes a table that is not there (GDK-1693).
+	b := r.BucketNoun()
 	defs := [][2]string{
-		{"sessions", fmt.Sprintf("person reads — visits with source ui or unknown — split where the gap to the previous read exceeds %s; a session counts in the week it started", formatGap(gap))},
+		{"sessions", fmt.Sprintf("person reads — visits with source ui or unknown — split where the gap to the previous read exceeds %s; a session counts in the %s it started", formatGap(gap), b)},
 	}
 	if r.CLIFallback {
 		defs = append(defs, [2]string{"sessions source", "sessions from cli visits (no ui reads recorded)"})
@@ -1176,14 +1228,14 @@ func (r Report) Definitions() [][2]string {
 		defs = append(defs, [2]string{"self", "unresolved — any author on visited issues"})
 	}
 	defs = append(defs,
-		[2]string{"wip age p85", "nearest-rank 85th percentile of the days an issue had been in progress at week end"},
-		[2]string{"wip age max", "the oldest in-progress issue at week end, in days"},
-		[2]string{"in progress", "issues in progress at week end"},
-		[2]string{"closed", "issues that entered a done status during the week (status ids resolved through status_catalog)"},
-		[2]string{"cycle p50", "median of cycle_hours — first entry into progress to the latest done entry — in days, over issues resolved during the week that are done now and were never reopened (reopen_count = 0)"},
-		[2]string{"cycle p85", "nearest-rank 85th percentile of cycle_hours — first entry into progress to the latest done entry — in days, over issues resolved during the week that are done now and were never reopened (reopen_count = 0)"},
+		[2]string{"wip age p85", fmt.Sprintf("nearest-rank 85th percentile of the days an issue had been in progress at %s end", b)},
+		[2]string{"wip age max", fmt.Sprintf("the oldest in-progress issue at %s end, in days", b)},
+		[2]string{"in progress", fmt.Sprintf("issues in progress at %s end", b)},
+		[2]string{"closed", fmt.Sprintf("issues that entered a done status during the %s (status ids resolved through status_catalog)", b)},
+		[2]string{"cycle p50", fmt.Sprintf("median of cycle_hours — first entry into progress to the latest done entry — in days, over issues resolved during the %s that are done now and were never reopened (reopen_count = 0)", b)},
+		[2]string{"cycle p85", fmt.Sprintf("nearest-rank 85th percentile of cycle_hours — first entry into progress to the latest done entry — in days, over issues resolved during the %s that are done now and were never reopened (reopen_count = 0)", b)},
 		[2]string{"mismatch", "comments claiming the work is finished on issues not done now (heuristic: a done-word standing on its own, negations and quoted text excluded; only comments newer than the issue's last status change count)"},
-		[2]string{"change", "percentage for resume, wip age and cycle rows, signed count for the rest; n/a when the previous week has no value"},
+		[2]string{"change", fmt.Sprintf("percentage for resume, wip age and cycle rows, signed count for the rest; n/a when the previous %s has no value", b)},
 	)
 	for _, n := range r.Notes() {
 		defs = append(defs, n)
@@ -1201,7 +1253,7 @@ func (r Report) Definitions() [][2]string {
 func (r Report) Notes() [][2]string {
 	var out [][2]string
 	if r.CatalogEmpty {
-		out = append(out, [2]string{"status_catalog", "empty — weeks before the current one show no value for wip age p85, wip age max and in progress, and closed shows none everywhere; a sync fills the table"})
+		out = append(out, [2]string{"status_catalog", "empty — the buckets before the current one show no value for wip age p85, wip age max and in progress, and closed shows none everywhere; a sync fills the table"})
 	}
 	if r.CycleUnavailable {
 		out = append(out, [2]string{"cycle", "mirror predates cycle_hours — run gadak sync to migrate"})
@@ -1366,8 +1418,12 @@ type BucketKeys struct {
 // BucketJSON is one element of buckets. The keys are the table row
 // names verbatim, so a consumer reads the same words the footer defines.
 type BucketJSON struct {
-	From       string     `json:"from"`
-	To         string     `json:"to"`
+	From string `json:"from"`
+	To   string `json:"to"`
+	// Name is the column's own title when the buckets are not weeks — the
+	// sprint's name (GDK-1693). Absent for weeks, where the dates are the
+	// title and the renderer formats them in the reader's locale.
+	Name       string     `json:"name,omitempty"`
 	Partial    bool       `json:"partial"`
 	Sessions   int        `json:"sessions"`
 	Resume     *float64   `json:"resume (median)"`
@@ -1392,6 +1448,10 @@ type Doc struct {
 	// entry is the name and the sentence, the same pair the CLI footer
 	// prints. Empty when nothing is missing.
 	Notes []DocNote `json:"notes"`
+	// BucketNoun is what one column is — "week", or "sprint" under
+	// --by-sprint. A surface that writes its own definitions needs it for
+	// the same reason SessionGap is here (GDK-1693).
+	BucketNoun string `json:"bucket_noun"`
 	// SessionGap is the split gap the report ran with, trimmed the way the
 	// footer prints it ("30m", "1h30m"). The definitions strings are English
 	// and stay that way — they are the CLI's footer — but a surface that
@@ -1466,6 +1526,7 @@ func (r Report) JSON() Doc {
 		Buckets:     make([]BucketJSON, 0, len(r.Buckets)),
 		Definitions: map[string]string{},
 		SessionGap:  formatGap(gap),
+		BucketNoun:  r.BucketNoun(),
 	}
 	for _, d := range r.Definitions() {
 		out.Definitions[d[0]] = d[1]
@@ -1477,6 +1538,7 @@ func (r Report) JSON() Doc {
 		j := BucketJSON{
 			From:       b.From.Format(time.RFC3339),
 			To:         b.To.Format(time.RFC3339),
+			Name:       b.Name,
 			Partial:    b.Partial,
 			Sessions:   b.Sessions,
 			InProgress: ptrOrNil(b.InProg),
@@ -1524,4 +1586,114 @@ func ptrOrNil(p *int) *int {
 	}
 	v := *p
 	return &v
+}
+
+// ErrNoSprints says this mirror has no sprint to cut by. The caller turns it
+// into its own surface's refusal — a CLI line, an HTTP 409 — rather than an
+// empty table, which would read as "your team did nothing".
+var ErrNoSprints = errors.New("retro: this workspace has no sprints — --by sprint needs a board with sprints (Jira Software, Linear cycles, or the built-in tracker)")
+
+// ErrAmbiguousBoard says several boards carry sprints and none was named.
+// Sprint windows from two boards overlap, so a merged column set would be
+// neither team's cadence; the caller must pick one.
+type ErrAmbiguousBoard struct {
+	Boards []BoardRef
+}
+
+// BoardRef is one board that could answer --by sprint.
+type BoardRef struct {
+	ID   int64
+	Name string
+}
+
+func (e *ErrAmbiguousBoard) Error() string {
+	var b strings.Builder
+	b.WriteString("retro: several boards have sprints — name one with --board:")
+	for _, r := range e.Boards {
+		fmt.Fprintf(&b, "\n  %d  %s", r.ID, r.Name)
+	}
+	return b.String()
+}
+
+// SprintBuckets lays one bucket per sprint of one board, oldest first.
+//
+// A sprint's window is its own start_at..end_at, which is what makes the
+// column mean "that sprint" rather than "the fortnight around it". The one
+// sprint that is still running is the partial bucket: its end is in the
+// future, and every metric here is measured at the bucket's end, so reading
+// it to end_at would report a week that has not happened. Sprints with no
+// start are skipped — a future sprint nobody has scheduled has no window —
+// and so is anything starting after now.
+func SprintBuckets(ctx context.Context, db *sql.DB, now time.Time, boardID int64) ([]Bucket, error) {
+	if boardID == 0 {
+		var boards []BoardRef
+		rows, err := db.QueryContext(ctx, `
+			SELECT DISTINCT b.id, COALESCE(b.name,'')
+			FROM boards b JOIN sprints s ON s.source_id = b.source_id AND s.board_id = b.id
+			WHERE s.start_at IS NOT NULL AND s.start_at != ''
+			ORDER BY b.id`)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			var r BoardRef
+			if err := rows.Scan(&r.ID, &r.Name); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			boards = append(boards, r)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		switch len(boards) {
+		case 0:
+			return nil, ErrNoSprints
+		case 1:
+			boardID = boards[0].ID
+		default:
+			return nil, &ErrAmbiguousBoard{Boards: boards}
+		}
+	}
+
+	rows, err := db.QueryContext(ctx, `
+		SELECT COALESCE(name,''), start_at, COALESCE(end_at,'')
+		FROM sprints
+		WHERE board_id = ? AND start_at IS NOT NULL AND start_at != ''
+		ORDER BY start_at, id`, boardID)
+	if err != nil {
+		return nil, err
+	}
+	var out []Bucket
+	for rows.Next() {
+		var name, startAt, endAt string
+		if err := rows.Scan(&name, &startAt, &endAt); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		start, ok := parseTime(startAt)
+		if !ok || !start.Before(now) {
+			continue
+		}
+		end, ok := parseTime(endAt)
+		if !ok {
+			end = now
+		}
+		out = append(out, Bucket{From: start, To: end, Name: name})
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(out) == 0 {
+		return nil, ErrNoSprints
+	}
+	// The running sprint ends in the future; measure it at now and say so.
+	last := &out[len(out)-1]
+	if last.To.After(now) {
+		last.To = now
+		last.Partial = true
+	}
+	return out, nil
 }

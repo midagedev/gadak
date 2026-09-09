@@ -10,8 +10,10 @@ package server
 // now), so a conditional GET would be a lie half the time.
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -54,14 +56,43 @@ func (s *server) handleRetro(w http.ResponseWriter, r *http.Request) {
 	// ReadOnly() is the store's own read-only accessor: mode=ro handle with
 	// local.db attached, the same view `gadak retro` computes against, so
 	// this endpoint cannot take the mirror's write lock either.
+	// by=sprint cuts the report by sprint window instead of ISO week
+	// (GDK-1693). Anything else is a typo, not a third mode: answering a
+	// misspelled `by` with weekly columns would look like the parameter
+	// worked.
+	opts := retro.Options{SessionGap: sessionGap}
+	switch by := strings.TrimSpace(r.URL.Query().Get("by")); by {
+	case "", "week":
+	case "sprint":
+		opts.BySprint = true
+	default:
+		fail(w, http.StatusBadRequest, fmt.Sprintf("by wants week or sprint (got %q)", by))
+		return
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("board")); raw != "" {
+		id, perr := strconv.ParseInt(raw, 10, 64)
+		if perr != nil {
+			fail(w, http.StatusBadRequest, "board wants a board id")
+			return
+		}
+		opts.BoardID = id
+	}
 	db, err := s.db.ReadOnly()
 	if err != nil {
 		serverError(w, r, err)
 		return
 	}
 	defer db.Close()
-	rep, err := retro.Compute(r.Context(), db, store.FeedIdentityOf(s.config()), since, time.Now(), retro.Options{SessionGap: sessionGap})
+	rep, err := retro.Compute(r.Context(), db, store.FeedIdentityOf(s.config()), since, time.Now(), opts)
 	if err != nil {
+		// A workspace with no sprints, or several boards and no choice, is
+		// the caller asking for a report that cannot be built — 409, with
+		// the sentence the error already carries, not a 500.
+		var amb *retro.ErrAmbiguousBoard
+		if errors.Is(err, retro.ErrNoSprints) || errors.As(err, &amb) {
+			fail(w, http.StatusConflict, err.Error())
+			return
+		}
 		serverError(w, r, err)
 		return
 	}

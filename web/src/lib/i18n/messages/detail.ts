@@ -910,6 +910,9 @@ export const detail = {
   // Weekly retro view (GDK-1660): the CLI table's rows, as labels.
   'retro.title': { en: 'Weekly retro', ko: '주간 회고', ja: '週次ふりかえり' },
   'retro.thisWeek': { en: 'this week', ko: '이번 주', ja: '今週' },
+  // The partial column's badge under sprint columns — "this week" on a
+  // column headed "Sprint 42" names the wrong unit (GDK-1693).
+  'retro.thisSprint': { en: 'running', ko: '진행 중', ja: '進行中' },
   'retro.range4w': { en: '4 weeks', ko: '4주', ja: '4 週' },
   'retro.range8w': { en: '8 weeks', ko: '8주', ja: '8 週' },
   'retro.range12w': { en: '12 weeks', ko: '12주', ja: '12 週' },
@@ -929,10 +932,17 @@ export const detail = {
   // English here is the footer's own sentence, so the two surfaces still
   // say the same thing. `{gap}` comes from the report (`session_gap`) and
   // is never written into a translation: --session-gap moves it.
+  // What one column is, substituted into every definition below as {bucket}
+  // (GDK-1693): the same sentences describe a week or a sprint, and a footer
+  // that says "week" beside columns headed "Sprint 42" is describing a table
+  // that is not on the screen.
+  'retro.bucket.week': { en: 'week', ko: '주', ja: '週' },
+  'retro.bucket.sprint': { en: 'sprint', ko: '스프린트', ja: 'スプリント' },
+  'retro.bySprint': { en: 'By sprint', ko: '스프린트별', ja: 'スプリント別' },
   'retro.def.sessions': {
-    en: 'person reads — visits with source ui or unknown — split where the gap to the previous read exceeds {gap}; a session counts in the week it started',
-    ko: '사람이 읽은 기록 — source 가 ui 이거나 미상인 방문 — 을 직전 읽기와의 간격이 {gap} 을 넘는 곳에서 끊은 것. 세션은 시작한 주에 센다',
-    ja: '人が読んだ記録 — source が ui または不明の閲覧 — を、直前の閲覧との間隔が {gap} を超えた地点で区切ったもの。セッションは開始した週に数える',
+    en: 'person reads — visits with source ui or unknown — split where the gap to the previous read exceeds {gap}; a session counts in the {bucket} it started',
+    ko: '사람이 읽은 기록 — source 가 ui 이거나 미상인 방문 — 을 직전 읽기와의 간격이 {gap} 을 넘는 곳에서 끊은 것. 세션은 시작한 {bucket}에 센다',
+    ja: '人が読んだ記録 — source が ui または不明の閲覧 — を、直前の閲覧との間隔が {gap} を超えた地点で区切ったもの。セッションは開始した{bucket}に数える',
   },
   'retro.def.resume': {
     en: 'time from a session start to its first write — a changelog entry or comment by the configured account — counted only before the next session starts; sessions without a write are excluded (the cell shows k of n)',
@@ -940,29 +950,29 @@ export const detail = {
     ja: 'セッション開始から最初の書き込み — 設定したアカウントによる変更履歴かコメント — までの時間。次のセッションが始まるまでのみ数え、書き込みのないセッションは除く (セルは n 件中 k 件を示す)',
   },
   'retro.def.closed': {
-    en: 'issues that entered a done status during the week (status ids resolved through status_catalog)',
-    ko: '그 주에 완료 상태로 들어간 이슈(상태 id 는 status_catalog 로 판정)',
-    ja: 'その週に完了ステータスへ入った課題 (ステータス id は status_catalog で解決)',
+    en: 'issues that entered a done status during the {bucket} (status ids resolved through status_catalog)',
+    ko: '그 {bucket}에 완료 상태로 들어간 이슈(상태 id 는 status_catalog 로 판정)',
+    ja: 'その{bucket}に完了ステータスへ入った課題 (ステータス id は status_catalog で解決)',
   },
   'retro.def.cycleP50': {
-    en: 'median of cycle_hours — first entry into progress to the latest done entry — in days, over issues resolved during the week that are done now and were never reopened (reopen_count = 0)',
-    ko: 'cycle_hours — 진행 중에 처음 들어간 때부터 마지막 완료까지 — 의 중간값, 일 단위. 그 주에 해결됐고 지금도 완료이며 리오픈된 적 없는(reopen_count = 0) 이슈만',
-    ja: 'cycle_hours — 最初に進行中へ入った時点から最後の完了まで — の中央値 (日)。その週に解決され、現在も完了で、再オープンされたことがない (reopen_count = 0) 課題のみ',
+    en: 'median of cycle_hours — first entry into progress to the latest done entry — in days, over issues resolved during the {bucket} that are done now and were never reopened (reopen_count = 0)',
+    ko: 'cycle_hours — 진행 중에 처음 들어간 때부터 마지막 완료까지 — 의 중간값, 일 단위. 그 {bucket}에 해결됐고 지금도 완료이며 리오픈된 적 없는(reopen_count = 0) 이슈만',
+    ja: 'cycle_hours — 最初に進行中へ入った時点から最後の完了まで — の中央値 (日)。その{bucket}に解決され、現在も完了で、再オープンされたことがない (reopen_count = 0) 課題のみ',
   },
   'retro.def.cycleP85': {
-    en: 'nearest-rank 85th percentile of cycle_hours — first entry into progress to the latest done entry — in days, over issues resolved during the week that are done now and were never reopened (reopen_count = 0)',
-    ko: 'cycle_hours — 진행 중에 처음 들어간 때부터 마지막 완료까지 — 의 85 백분위(최근접 순위), 일 단위. 그 주에 해결됐고 지금도 완료이며 리오픈된 적 없는(reopen_count = 0) 이슈만',
-    ja: 'cycle_hours — 最初に進行中へ入った時点から最後の完了まで — の 85 パーセンタイル (最近接順位、日)。その週に解決され、現在も完了で、再オープンされたことがない (reopen_count = 0) 課題のみ',
+    en: 'nearest-rank 85th percentile of cycle_hours — first entry into progress to the latest done entry — in days, over issues resolved during the {bucket} that are done now and were never reopened (reopen_count = 0)',
+    ko: 'cycle_hours — 진행 중에 처음 들어간 때부터 마지막 완료까지 — 의 85 백분위(최근접 순위), 일 단위. 그 {bucket}에 해결됐고 지금도 완료이며 리오픈된 적 없는(reopen_count = 0) 이슈만',
+    ja: 'cycle_hours — 最初に進行中へ入った時点から最後の完了まで — の 85 パーセンタイル (最近接順位、日)。その{bucket}に解決され、現在も完了で、再オープンされたことがない (reopen_count = 0) 課題のみ',
   },
   'retro.def.inProgress': {
-    en: 'issues in progress at week end',
-    ko: '그 주가 끝나는 시점에 진행 중이던 이슈',
-    ja: '週末時点で進行中だった課題',
+    en: 'issues in progress at {bucket} end',
+    ko: '그 {bucket}이 끝나는 시점에 진행 중이던 이슈',
+    ja: '{bucket}終了時点で進行中だった課題',
   },
   'retro.def.wipAge': {
-    en: 'the oldest in-progress issue at week end, in days',
-    ko: '그 주가 끝나는 시점에 가장 오래 진행 중이던 이슈의 경과일',
-    ja: '週末時点で最も長く進行中だった課題の経過日数',
+    en: 'the oldest in-progress issue at {bucket} end, in days',
+    ko: '그 {bucket}이 끝나는 시점에 가장 오래 진행 중이던 이슈의 경과일',
+    ja: '{bucket}終了時点で最も長く進行中だった課題の経過日数',
   },
   'retro.def.mismatch': {
     en: "comments claiming the work is finished on issues not done now (heuristic: a done-word standing on its own, negations and quoted text excluded; only comments newer than the issue's last status change count)",

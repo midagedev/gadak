@@ -287,11 +287,14 @@ export function getHistory(opts?: {
   return json<HistoryPage>(qs ? `history/?${qs}` : 'history/')
 }
 
-/** The weekly retro document — the same compute as `gadak retro`, served
- *  under the issues base (GDK-1660). `since` is the CLI's window
- *  grammar ("4w", "14d"); the endpoint's own default is four weeks. */
-export function getRetro(since = '4w'): Promise<RetroDoc> {
-  return json<RetroDoc>(`retro/?since=${encodeURIComponent(since)}`)
+/** The retro document — the same compute as `gadak retro`, served under the
+ *  issues base (GDK-1660). `since` is the CLI's window grammar ("4w",
+ *  "14d"); the endpoint's own default is four weeks. Pass `'sprint'` for the
+ *  sprint-window columns instead (GDK-1693) — a different bucket source, not
+ *  a window, so it replaces `since` rather than joining it. */
+export function getRetro(range: string = '4w'): Promise<RetroDoc> {
+  if (range === 'sprint') return json<RetroDoc>('retro/?by=sprint')
+  return json<RetroDoc>(`retro/?since=${encodeURIComponent(range)}`)
 }
 
 /** JQL / Jira-URL → ViewFilters. Unsupported clauses are listed, never dropped. */

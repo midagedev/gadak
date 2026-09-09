@@ -10,6 +10,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -20,7 +21,7 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-const retroUsageLine = "usage: gadak retro [--since 14d|<N>d|<N>w] [--session-gap " + config.DefaultRetroSessionGap + "] [--json] [--open closed|in-progress|mismatch|cycle [--week N]] [--no-open]"
+const retroUsageLine = "usage: gadak retro [--since 14d|<N>d|<N>w | --by-sprint [--board <id>]] [--session-gap " + config.DefaultRetroSessionGap + "] [--json] [--open closed|in-progress|mismatch|cycle [--week N]] [--no-open]"
 
 // retroDefaultSince is two ISO weeks, enough for a "this week against last
 // week" read without paging.
@@ -55,6 +56,8 @@ func cmdRetro(args []string) error {
 	fs := newFlagSet("retro")
 	sinceFlag := fs.String("since", retroDefaultSince, "how far back the table reaches: 14d, 30d, 4w (1 to 365 days)")
 	sessionGapFlag := fs.String("session-gap", config.DefaultRetroSessionGap, "split sessions where the gap to the previous read exceeds this: a Go duration, 5m to 24h ("+config.DefaultRetroSessionGap+", 1h30m; default: retro.sessionGap or "+config.DefaultRetroSessionGap+")")
+	bySprintFlag := fs.Bool("by-sprint", false, "one column per sprint instead of per ISO week — the unit a scrum team actually retrospects on")
+	boardFlag := fs.Int64("board", 0, "with --by-sprint: which board's sprints are the columns (only needed when more than one board has sprints)")
 	asJSON := fs.Bool("json", false, "emit the same numbers as one JSON document")
 	openFlag := fs.String("open", "", "open the issues behind one cell in the running app: closed|in-progress|mismatch|cycle")
 	weekFlag := fs.Int("week", 0, "which week --open reads: 0 = the current partial week, 1 = the last full week")
@@ -73,6 +76,20 @@ func cmdRetro(args []string) error {
 	since, err := retro.ParseSince(*sinceFlag)
 	if err != nil {
 		return usageError("retro", err.Error())
+	}
+	sinceSet := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "since" {
+			sinceSet = true
+		}
+	})
+	// The two are different bucket sources, and honouring both would silently
+	// drop one: --since would name a window the sprints do not fill.
+	if *bySprintFlag && sinceSet {
+		return usageError("retro", "--since and --by-sprint choose the columns two different ways; pass one")
+	}
+	if *boardFlag != 0 && !*bySprintFlag {
+		return usageError("retro", "--board only applies to --by-sprint")
 	}
 	// Config is loaded here (once — identity below reuses it) because the
 	// session gap's default is config-owned now: an unset flag falls back to
@@ -136,8 +153,18 @@ func cmdRetro(args []string) error {
 		fmt.Fprintf(os.Stderr, "warning: could not read the workspace config; resume counts any author on visited issues: %v\n", cfgErr)
 		me = store.FeedIdentity{}
 	}
-	rep, err := retro.Compute(context.Background(), db, me, since, retroNow(), retro.Options{SessionGap: sessionGap})
+	rep, err := retro.Compute(context.Background(), db, me, since, retroNow(), retro.Options{
+		SessionGap: sessionGap,
+		BySprint:   *bySprintFlag,
+		BoardID:    *boardFlag,
+	})
 	if err != nil {
+		// The two --by-sprint refusals are the reader's problem to fix, not a
+		// stack trace: say the sentence the error already carries.
+		var amb *retro.ErrAmbiguousBoard
+		if errors.Is(err, retro.ErrNoSprints) || errors.As(err, &amb) {
+			return usageError("retro", err.Error())
+		}
 		return err
 	}
 	if *openFlag == "" {

@@ -19,14 +19,21 @@
   import { pages } from '../../stores/pages.svelte'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import { createResource } from '../../lib/resource.svelte'
+  import { sprints } from '../../stores/sprints.svelte'
 
+  // Three windows, plus the sprint cut when this workspace has sprints
+  // (GDK-1693). Sprint is not a fourth window — it is a different bucket
+  // source — but it sits on the same control because it answers the same
+  // question the reader is asking of it: how wide is a column.
   const RANGES = ['4w', '8w', '12w'] as const
-  type Range = (typeof RANGES)[number]
+  type Range = (typeof RANGES)[number] | 'sprint'
   const RANGE_LABEL: Record<Range, string> = {
     '4w': t('retro.range4w'),
     '8w': t('retro.range8w'),
     '12w': t('retro.range12w'),
+    sprint: t('retro.bySprint'),
   }
+  const ranges = $derived<Range[]>(sprints.any ? [...RANGES, 'sprint'] : [...RANGES])
 
   let since = $state<Range>('4w')
   // The shared resource rune: range change → reload, stale answers dropped.
@@ -58,15 +65,20 @@
   // The split gap the report ran with, as the report states it — never a
   // literal in the translation, because --session-gap moves it.
   const gap = $derived(doc?.session_gap ?? '30m')
+  // The bucket the definitions name. The server says which it computed, so a
+  // stale answer cannot make the sentences describe the other one.
+  const bucket = $derived(
+    doc?.bucket_noun === 'sprint' ? t('retro.bucket.sprint') : t('retro.bucket.week'),
+  )
   const METRICS: Metric[] = $derived([
-    { key: 'sessions', label: t('retro.sessions'), def: t('retro.def.sessions', { gap }), unit: 'count' },
-    { key: 'resume (median)', label: t('retro.resume'), def: t('retro.def.resume'), unit: 'seconds' },
-    { key: 'closed', label: t('retro.closed'), def: t('retro.def.closed'), unit: 'count', keys: 'closed' },
-    { key: 'cycle p50', label: t('retro.cycleP50'), def: t('retro.def.cycleP50'), unit: 'days', keys: 'cycle' },
-    { key: 'cycle p85', label: t('retro.cycleP85'), def: t('retro.def.cycleP85'), unit: 'days', keys: 'cycle' },
-    { key: 'in progress', label: t('retro.inProgress'), def: t('retro.def.inProgress'), unit: 'count', keys: 'in progress' },
-    { key: 'wip age max', label: t('retro.wipAge'), def: t('retro.def.wipAge'), unit: 'days' },
-    { key: 'mismatch', label: t('retro.mismatch'), def: t('retro.def.mismatch'), unit: 'count', keys: 'mismatch' },
+    { key: 'sessions', label: t('retro.sessions'), def: t('retro.def.sessions', { gap, bucket }), unit: 'count' },
+    { key: 'resume (median)', label: t('retro.resume'), def: t('retro.def.resume', { bucket }), unit: 'seconds' },
+    { key: 'closed', label: t('retro.closed'), def: t('retro.def.closed', { bucket }), unit: 'count', keys: 'closed' },
+    { key: 'cycle p50', label: t('retro.cycleP50'), def: t('retro.def.cycleP50', { bucket }), unit: 'days', keys: 'cycle' },
+    { key: 'cycle p85', label: t('retro.cycleP85'), def: t('retro.def.cycleP85', { bucket }), unit: 'days', keys: 'cycle' },
+    { key: 'in progress', label: t('retro.inProgress'), def: t('retro.def.inProgress', { bucket }), unit: 'count', keys: 'in progress' },
+    { key: 'wip age max', label: t('retro.wipAge'), def: t('retro.def.wipAge', { bucket }), unit: 'days' },
+    { key: 'mismatch', label: t('retro.mismatch'), def: t('retro.def.mismatch', { bucket }), unit: 'count', keys: 'mismatch' },
   ])
 
   const buckets = $derived(doc?.buckets ?? [])
@@ -127,7 +139,7 @@
 <section class="flex h-full min-h-0 flex-col bg-bg-base" data-testid="retro-view" data-skeleton={skeleton.attr}>
   <ColumnHeader title={t('retro.title')} closeTestid="retro-close" onClose={() => pages.closeRetro()}>
     <div class="ml-1 flex flex-none items-center gap-0.5 rounded-md bg-bg-elevated p-1">
-      {#each RANGES as r (r)}
+      {#each ranges as r (r)}
         <button
           type="button"
           class="flex h-control-sm items-center rounded px-2 text-micro font-medium {since === r
@@ -160,8 +172,10 @@
             <th class="sticky left-0 z-10 bg-bg-base pb-2 pr-6 text-left text-micro font-medium text-text-muted"></th>
             {#each buckets as b (b.from)}
               <th class="whitespace-nowrap pb-2 pl-6 text-right text-micro font-medium {b.partial ? 'text-text-secondary' : 'text-text-muted'}" data-testid="retro-week">
-                {weekLabel(b)}
-                {#if b.partial}<span class="ml-1 font-normal text-text-muted">· {t('retro.thisWeek')}</span>{/if}
+                {b.name || weekLabel(b)}
+                {#if b.partial}<span class="ml-1 font-normal text-text-muted"
+                  >· {b.name ? t('retro.thisSprint') : t('retro.thisWeek')}</span
+                >{/if}
               </th>
             {/each}
           </tr>

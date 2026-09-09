@@ -56,6 +56,7 @@ Markers:
 | **Read** · sprints (columns `sprint_id`/`sprint_name`/`sprint_state`) | ✅[^32] | ✅[^32] | ✅[^33] | ✅[^139] |
 | **Read** · boards + sprints as rows (`boards`, `sprints`, `gadak sprint list`) | ✅[^135] | ◐[^122] | ✅[^141] | ✅[^139] |
 | **Read** · sprint carry-over (`carryover_count`, `first_sprint_id` / `first_sprint_at`) | ✅[^143] | ✅[^143] | —[^144] | ✅[^145] |
+| **Read** · retro by sprint (`gadak retro --by-sprint`, `?by=sprint`) | ✅[^146] | ✅[^146] | ✅[^146] | ✅[^146] |
 | **Write** · sprint — add / remove / create / start / close | ✅[^136] | ✅[^123] | ◐[^142] | ✅[^140] |
 | **Read** · custom fields (`fields --apply`) | ✅[^35] | ✅[^124] | —[^36] | ◐[^37] |
 | **Read** · issue type | ✅[^38] | ✅[^38] | —[^39] | ✅[^40] |
@@ -779,3 +780,10 @@ this table from the code instead of maintaining it by hand is GDK-1301.
     moved into rather than the whole membership; the one counting rule reads
     both.
 
+[^146]: The bucket source is the only thing that changes: every metric is
+    computed from a `[From, To)` span and none assumes seven days, so
+    `SprintBuckets` (`internal/retro/retro.go`) reads each sprint's own
+    `start_at`/`end_at` from the `sprints` table and the rest of `Compute` is
+    untouched. That table is filled on every origin that has sprints, so this
+    works wherever the row above it does — Linear included, where the buckets
+    are cycles.

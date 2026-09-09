@@ -24,6 +24,7 @@ package retro
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -862,4 +863,142 @@ func TestFormatDaysKeepsSubDayValues(t *testing.T) {
 			t.Errorf("FormatDays(%v) = %q, want %q", c.days, got, c.want)
 		}
 	}
+}
+
+// TestSprintBuckets — the columns are the sprint's own window, and the one
+// still running is the partial bucket measured at now, not at its end
+// (GDK-1693). FAIL-first: red before SprintBuckets existed.
+func TestSprintBuckets(t *testing.T) {
+	now := time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)
+	db := sprintFixture(t, []sprintFix{
+		{id: 41, board: 1, name: "Sprint 41", start: "2026-08-12T00:00:00Z", end: "2026-08-26T00:00:00Z"},
+		{id: 42, board: 1, name: "Sprint 42", start: "2026-08-26T00:00:00Z", end: "2026-09-16T00:00:00Z"},
+		// Future: starts after now, so it is not a column — there is nothing
+		// to measure in it and an empty column reads as a bad sprint.
+		{id: 43, board: 1, name: "Sprint 43", start: "2026-09-16T00:00:00Z", end: "2026-09-30T00:00:00Z"},
+		// No start: a sprint nobody scheduled has no window.
+		{id: 44, board: 1, name: "Sprint 44", start: "", end: ""},
+	})
+	got, err := SprintBuckets(context.Background(), db, now, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("buckets = %d, want 2 (41 and the running 42)", len(got))
+	}
+	if got[0].Name != "Sprint 41" || got[0].Partial {
+		t.Errorf("bucket 0 = %q partial=%v, want Sprint 41 complete", got[0].Name, got[0].Partial)
+	}
+	if !got[0].To.Equal(time.Date(2026, 8, 26, 0, 0, 0, 0, time.UTC)) {
+		t.Errorf("bucket 0 ends %v, want the sprint's own end", got[0].To)
+	}
+	if got[1].Name != "Sprint 42" || !got[1].Partial {
+		t.Errorf("bucket 1 = %q partial=%v, want the running Sprint 42", got[1].Name, got[1].Partial)
+	}
+	if !got[1].To.Equal(now) {
+		t.Errorf("running bucket ends %v, want now — measuring to its end reports a future", got[1].To)
+	}
+	if got[1].Label() != "Sprint 42 (running)" {
+		t.Errorf("running label = %q; a name with no marker reads as a finished sprint", got[1].Label())
+	}
+}
+
+// TestSprintBucketsRefusals — no sprints and several boards are the reader's
+// questions to answer, not an empty table (GDK-1693).
+func TestSprintBucketsRefusals(t *testing.T) {
+	now := time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)
+
+	empty := sprintFixture(t, nil)
+	if _, err := SprintBuckets(context.Background(), empty, now, 0); !errors.Is(err, ErrNoSprints) {
+		t.Errorf("no sprints: err = %v, want ErrNoSprints", err)
+	}
+
+	two := sprintFixture(t, []sprintFix{
+		{id: 1, board: 1, name: "A1", start: "2026-08-12T00:00:00Z", end: "2026-08-26T00:00:00Z"},
+		{id: 2, board: 2, name: "B1", start: "2026-08-19T00:00:00Z", end: "2026-09-02T00:00:00Z"},
+	})
+	var amb *ErrAmbiguousBoard
+	if _, err := SprintBuckets(context.Background(), two, now, 0); !errors.As(err, &amb) {
+		t.Fatalf("two boards: err = %v, want ErrAmbiguousBoard", err)
+	}
+	if len(amb.Boards) != 2 {
+		t.Errorf("refusal names %d boards, want both", len(amb.Boards))
+	}
+	// Naming one resolves it.
+	got, err := SprintBuckets(context.Background(), two, now, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Name != "B1" {
+		t.Errorf("board 2 buckets = %v, want just B1", got)
+	}
+}
+
+// TestDefinitionsNameTheBucket — every definition names the unit, so a
+// sprint-cut report must not say "week" (GDK-1693).
+func TestDefinitionsNameTheBucket(t *testing.T) {
+	for _, c := range []struct {
+		bySprint bool
+		want     string
+		absent   string
+	}{
+		{false, "week", "sprint"},
+		{true, "sprint", "week"},
+	} {
+		r := Report{BySprint: c.bySprint}
+		for _, d := range r.Definitions() {
+			if strings.Contains(d[1], c.absent) {
+				t.Errorf("bySprint=%v: definition %q says %q: %s", c.bySprint, d[0], c.absent, d[1])
+			}
+		}
+		joined := ""
+		for _, d := range r.Definitions() {
+			joined += d[1]
+		}
+		if !strings.Contains(joined, c.want) {
+			t.Errorf("bySprint=%v: no definition names the %s", c.bySprint, c.want)
+		}
+	}
+}
+
+type sprintFix struct {
+	id, board  int64
+	name       string
+	start, end string
+}
+
+// sprintFixture is a bare mirror carrying only what SprintBuckets reads.
+func sprintFixture(t *testing.T, rows []sprintFix) *sql.DB {
+	t.Helper()
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "m.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	if _, err := db.Exec(`
+		CREATE TABLE boards (source_id TEXT, id INTEGER, name TEXT, type TEXT, project_key TEXT);
+		CREATE TABLE sprints (source_id TEXT, id INTEGER, board_id INTEGER, name TEXT, state TEXT, start_at TEXT, end_at TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+	seen := map[int64]bool{}
+	for _, r := range rows {
+		if !seen[r.board] {
+			seen[r.board] = true
+			if _, err := db.Exec(`INSERT INTO boards VALUES ('jira',?,?,'scrum','')`, r.board, fmt.Sprintf("Board %d", r.board)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var start, end any
+		if r.start != "" {
+			start = r.start
+		}
+		if r.end != "" {
+			end = r.end
+		}
+		if _, err := db.Exec(`INSERT INTO sprints VALUES ('jira',?,?,?,'active',?,?)`,
+			r.id, r.board, r.name, start, end); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return db
 }
