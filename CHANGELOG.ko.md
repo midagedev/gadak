@@ -191,7 +191,7 @@ README, 사이트가 전부 맞는 명령을 가리킵니다 ([GDK-1633]). 그�
 법칙이 아니라 이번 측정의 숫자로 표기되고, 귀속 주장은 코드가 하는 만큼으로
 줄었습니다. 댓글과 만든 이슈에 에이전트 이름이 붙고, PR은 없습니다. README 셋도
 같은 순서를 따르고, 규칙은 `docs/project/FACT_LEDGER.md` §16에 있습니다
-([GDK-1601], [GDK-1622]).
+([GDK-1601], [GDK-1622]). 동기화 패스는 이제 무엇에 시간을 썼는지 말하고 끝납니다. stderr 한 줄에 요청을 종류별로(검색 페이지, 이슈별 추가 조회, 페이지 본문, 댓글·버전 목록) 세고 각각 기다린 시간을 적으며, `gadak api --headers`는 응답 헤더를 전부 보여 줍니다. 첫 전체 동기화의 비용이 엔드포인트 종류별로 보입니다 ([GDK-1672]).
 
 ## v0.21.0 — 2026-09-08
 
@@ -1631,3 +1631,4 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662
 [GDK-1666]: https://gadak.dev/backlog/#/?ks=GDK-1666
+[GDK-1672]: https://gadak.dev/backlog/#/?ks=GDK-1672
