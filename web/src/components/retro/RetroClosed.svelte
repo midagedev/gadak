@@ -44,6 +44,12 @@
     if (g.epic_key !== undefined) return g.title || g.epic_key || t('retro.closed.noEpic')
     return g.issue_type || g.issue_type_id || ''
   }
+  /** The whole label, for the tooltip: the title the row truncates, and the
+   *  epic key it belongs to when the two are different things. */
+  function groupTitle(g: RetroClosedGroup): string {
+    const label = groupLabel(g)
+    return g.epic_key && g.title ? `${label} · ${g.epic_key}` : label
+  }
   function maxOf(rows: RetroClosedGroup[]): number {
     return rows.length ? Math.max(...rows.map((r) => r.count)) : 0
   }
@@ -66,10 +72,24 @@
                 data-testid="retro-closed-row"
                 onclick={() => onOpen(g.keys)}
               >
-                <span class="w-[8rem] truncate text-text-secondary">{groupLabel(g)}</span>
+                <!-- The label takes the row rather than a fixed 8rem
+                     (GDK-1738): an epic title is as long as someone wrote it,
+                     and in Korean the same width holds half the characters.
+                     The key rides behind the title so a truncated row is
+                     still identifiable, and the whole title is the tooltip. -->
+                <span
+                  class="flex min-w-[8rem] max-w-[50%] flex-1 items-baseline gap-1 truncate text-text-secondary"
+                  data-testid="retro-closed-label"
+                  title={groupTitle(g)}
+                >
+                  <span class="truncate">{groupLabel(g)}</span>
+                  {#if g.epic_key && g.title}
+                    <span class="flex-none tabular-nums text-text-muted" data-testid="retro-closed-epic-key">{g.epic_key}</span>
+                  {/if}
+                </span>
                 <!-- The bar is the comparison; the number is the value. Both,
                      because a five-row chart is read either way. -->
-                <span class="h-[6px] min-w-0 flex-1">
+                <span class="h-[6px] min-w-[6rem] flex-1">
                   <span
                     class="block h-[6px] rounded-sm bg-text-muted opacity-40"
                     style:width="{max > 0 ? (g.count / max) * 100 : 0}%"
@@ -147,7 +167,7 @@
             data-testid="retro-cycle-point"
             data-key={p.key}
             aria-label={p.key}
-            title="{p.key} · {formatDays(p.days)}"
+            title={p.summary ? `${p.key} · ${p.summary} · ${formatDays(p.days)}` : `${p.key} · ${formatDays(p.days)}`}
             onclick={() => onOpen([p.key])}
           ></button>
         {/each}

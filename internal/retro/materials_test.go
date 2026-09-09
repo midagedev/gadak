@@ -540,6 +540,62 @@ func TestSprintOnlySurprisesAreWeekSilent(t *testing.T) {
 	}
 }
 
+// TestSurprisesAndCyclePointsCarryTheTitle pins GDK-1737: a key without its
+// title is an identifier the reader has to go look up, and the surface can
+// only draw what the wire carries. Every surprise kind goes through the same
+// constructor, so all four are checked here rather than one of them.
+func TestSurprisesAndCyclePointsCarryTheTitle(t *testing.T) {
+	title := map[string]string{"T-1": "one", "T-2": "two", "T-3": "three", "T-4": "four"}
+
+	rep := matReport(t, baseFixture())
+	got := map[string]string{}
+	for _, s := range rep.Buckets[0].Surprises {
+		got[s.Kind] = s.Summary
+		if want := title[s.Key]; s.Summary != want {
+			t.Errorf("%s surprise %s summary = %q, want %q", s.Kind, s.Key, s.Summary, want)
+		}
+	}
+	if got[SurpriseReopened] == "" || got[SurpriseReversal] == "" {
+		t.Errorf("week surprises reached the reader without a title: %+v", rep.Buckets[0].Surprises)
+	}
+
+	// The cycle scatter's dots carry it too — a dot is the smallest thing on
+	// the report and the tooltip is all it has.
+	pts := rep.Buckets[0].CyclePoints
+	if len(pts) != 1 || pts[0].Summary != title[pts[0].Key] {
+		t.Errorf("cycle_points = %+v, want T-1 carrying its title", pts)
+	}
+
+	// The two sprint-only kinds, on a sprint column.
+	f := baseFixture()
+	f.sprints = []matSprint{{id: 7, board: 1, name: "Sprint 7", start: day(2, 0), end: day(16, 0)}}
+	f.sprintLog = []matSprintLog{{key: "T-2", at: day(4, 11), toID: 7, toNa: "Sprint 7"}}
+	for i := range f.issues {
+		if f.issues[i].key == "T-2" {
+			f.issues[i].sprintID = 7
+			f.issues[i].carryover = 2
+		}
+	}
+	db := buildMirror(t, f)
+	sprintRep, err := Compute(context.Background(), db, store.FeedIdentity{}, 7*24*time.Hour, matNow, Options{BySprint: true})
+	if err != nil {
+		t.Fatalf("Compute --by-sprint: %v", err)
+	}
+	seen := map[string]bool{}
+	for _, s := range sprintRep.Buckets[0].Surprises {
+		if s.Kind != SurpriseAddedAfterStart && s.Kind != SurpriseCarried {
+			continue
+		}
+		seen[s.Kind] = true
+		if want := title[s.Key]; s.Summary != want {
+			t.Errorf("%s surprise %s summary = %q, want %q", s.Kind, s.Key, s.Summary, want)
+		}
+	}
+	if !seen[SurpriseAddedAfterStart] || !seen[SurpriseCarried] {
+		t.Fatalf("the sprint column did not produce both sprint-only kinds: %+v", sprintRep.Buckets[0].Surprises)
+	}
+}
+
 /* ── M4 closed decompositions ── */
 
 func TestClosedDecompositionsPartitionClosed(t *testing.T) {

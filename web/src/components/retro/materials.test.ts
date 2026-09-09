@@ -124,6 +124,21 @@ describe('cycleScatter', () => {
   const from = '2026-03-02T00:00:00Z'
   const to = '2026-03-09T00:00:00Z'
 
+  it('carries each point its title, so the dot can name itself (GDK-1737)', () => {
+    const s = cycleScatter(
+      [
+        { key: 'A-1', summary: 'Search relevance regressed on empty queries', resolved_at: from, days: 1 },
+        { key: 'A-2', resolved_at: to, days: 2 },
+      ],
+      from,
+      to,
+    )
+    expect(s.points[0].summary).toBe('Search relevance regressed on empty queries')
+    // An older server sends no title, and an empty string is the honest
+    // stand-in rather than the word "undefined" inside a tooltip.
+    expect(s.points[1].summary).toBe('')
+  })
+
   it('places a point by when it resolved and how long it took', () => {
     const s = cycleScatter(
       [

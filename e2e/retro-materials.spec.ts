@@ -29,6 +29,16 @@ const SHOT_DIR = process.env.RETRO_SHOT_DIR ?? join(here, '../scratch')
 
 type Doc = Record<string, unknown>
 
+/*
+ * Three titles the layout has to survive (GDK-1737, GDK-1738). The epic one
+ * is past sixty characters because the demo mirror's longest is thirty-four:
+ * a fixed 8rem column truncated nothing there and everything on a real site.
+ */
+const LONG_EPIC_TITLE =
+  'Search relevance rebuild for the multilingual catalogue and its long tail'
+const SURPRISE_TITLE = 'The importer dropped every issue whose sprint field was empty'
+const POINT_TITLE = 'Resolved inside the window'
+
 /** The report the real server is sending right now. */
 async function fetchDoc(page: Page): Promise<Doc> {
   const res = await page.request.get(apiURL('/api/v1/issues/retro/?since=4w'))
@@ -65,11 +75,13 @@ function withMaterials(body: Doc): Doc {
       }
     })
     b.events = events
+    // Titles ride with the keys (GDK-1737). One of them is long on purpose:
+    // the row has to truncate rather than push the kind label off the line.
     b.surprises = [
-      { kind: 'reopened', key: 'NMS-12', detail: 'the fix did not hold on staging' },
-      { kind: 'reversal', key: 'NMS-31', detail: '5' },
-      { kind: 'added_after_start', key: 'NMS-44', detail: new Date(from + 2 * day).toISOString() },
-      { kind: 'carried', key: 'NMS-58', detail: '2' },
+      { kind: 'reopened', key: 'NMS-12', summary: SURPRISE_TITLE, detail: 'the fix did not hold on staging' },
+      { kind: 'reversal', key: 'NMS-31', summary: 'Retry the webhook once', detail: '5' },
+      { kind: 'added_after_start', key: 'NMS-44', summary: 'Add a status filter to the board', detail: new Date(from + 2 * day).toISOString() },
+      { kind: 'carried', key: 'NMS-58', summary: 'Carry the sprint field through import', detail: '2' },
     ]
     b.closed_by_type = [
       { issue_type_id: '10004', issue_type: 'Bug', count: 6, keys: ['NMS-1', 'NMS-2'] },
@@ -77,7 +89,7 @@ function withMaterials(body: Doc): Doc {
       { issue_type_id: '10002', issue_type: 'Task', count: 1, keys: ['NMS-4'] },
     ]
     b.closed_by_epic = [
-      { epic_key: 'NMS-9', title: 'Search relevance', count: 5, keys: ['NMS-1'] },
+      { epic_key: 'NMS-9', title: LONG_EPIC_TITLE, count: 5, keys: ['NMS-1'] },
       { epic_key: '', title: '', count: 4, keys: ['NMS-4'] },
       { epic_key: 'NMS-17', title: 'Billing migration', count: 1, keys: ['NMS-2'] },
     ]
@@ -89,6 +101,7 @@ function withMaterials(body: Doc): Doc {
     b.keys = { ...(b.keys as Record<string, unknown>), closed: ['NMS-1', 'NMS-2', 'NMS-3'] }
     b.cycle_points = [0.4, 0.9, 1.2, 1.4, 2.1, 2.3, 3.0, 4.6, 5.2, 11.8].map((days, i) => ({
       key: `NMS-${20 + i}`,
+      summary: `${POINT_TITLE} ${i}`,
       resolved_at: new Date(from + (i % 7) * day + 5 * 3_600_000).toISOString(),
       days,
     }))
@@ -229,9 +242,37 @@ test.describe('retro materials', () => {
     expect(dayCount).toBeLessThanOrEqual(7)
     await expect(page.getByTestId('retro-surprise')).toHaveCount(4)
 
+    // GDK-1737: a surprise names the work, not just the key, and the whole
+    // title is on the element even when the row truncates it.
+    const surpriseTitle = page.getByTestId('retro-surprise-title').first()
+    await expect(surpriseTitle).toHaveText(SURPRISE_TITLE)
+    await expect(surpriseTitle).toHaveAttribute('title', SURPRISE_TITLE)
+
+    // …and so does an aging row: the title is beside the key now rather than
+    // only inside the row's tooltip.
+    const agingTitle = page.getByTestId('retro-aging-title').first()
+    await expect(agingTitle).toHaveText(/^Something that has been open for /)
+
+    // A scatter dot carries key, title and days in its tooltip.
+    await expect(page.getByTestId('retro-cycle-point').first()).toHaveAttribute(
+      'title',
+      /^NMS-20 · Resolved inside the window 0 · /,
+    )
+
     // Closed: two cuts and a scatter with both percentile lines.
     await expect(page.locator('[data-testid="retro-closed-group"][data-group="type"]')).toBeVisible()
     await expect(page.locator('[data-testid="retro-closed-group"][data-group="epic"]')).toBeVisible()
+
+    // GDK-1738: the epic label is no longer a fixed 8rem box. The full title
+    // is the tooltip, the epic key rides behind it so a truncated row is
+    // still identifiable, and the rendered box is wider than the old 128px.
+    const epicRow = page
+      .locator('[data-testid="retro-closed-group"][data-group="epic"] [data-testid="retro-closed-label"]')
+      .first()
+    await expect(epicRow).toHaveAttribute('title', `${LONG_EPIC_TITLE} · NMS-9`)
+    await expect(epicRow.getByTestId('retro-closed-epic-key')).toHaveText('NMS-9')
+    const labelBox = await epicRow.boundingBox()
+    expect(labelBox!.width).toBeGreaterThan(128)
     await expect(page.getByTestId('retro-cycle-point')).toHaveCount(10)
     await expect(page.getByTestId('retro-cycle-line')).toHaveCount(2)
 
@@ -341,6 +382,43 @@ test.describe('retro materials captures', () => {
             .locator('[data-testid="retro-section"][data-section="aging"]')
             .screenshot({ path: join(SHOT_DIR, 'retro-aging-closeup.png'), animations: 'disabled' })
         }
+        await ctx.close()
+      }
+    }
+  })
+})
+
+/*
+ * Capture-only, for the titles round (GDK-1737, GDK-1738). Four frames at the
+ * width the verdict is about — 1440 — because the three title columns added
+ * here are all "does it fit", and that question has a different answer at
+ * 1280. Korean is one of the two locales for the same reason: the same rem
+ * holds roughly half the characters.
+ */
+test.describe('retro titles captures', () => {
+  test('capture', async ({ page }) => {
+    test.skip(!process.env.RETRO_TITLES_SHOT_DIR, 'capture-only; set RETRO_TITLES_SHOT_DIR to run')
+    const dir = process.env.RETRO_TITLES_SHOT_DIR as string
+    mkdirSync(dir, { recursive: true })
+    const VIEW = { width: 1440, height: 900 }
+    for (const theme of ['light', 'dark']) {
+      for (const locale of ['en', 'ko']) {
+        const ctx = await page.context().browser()!.newContext({ viewport: VIEW })
+        const p = await ctx.newPage()
+        await prepare(p, locale, theme)
+        await stubMaterials(p)
+        await p.goto('/#/?retro=1')
+        await expect(p.getByTestId('retro-sentence')).toBeVisible()
+        await expect(p.getByTestId('retro-aging-chart')).toBeVisible()
+        await p.evaluate((th) => {
+          if (th === 'light') document.documentElement.removeAttribute('data-theme')
+          else document.documentElement.setAttribute('data-theme', th)
+        }, theme)
+        await p.screenshot({
+          path: join(dir, `retro-titles-${locale}-${theme}.png`),
+          fullPage: true,
+          animations: 'disabled',
+        })
         await ctx.close()
       }
     }

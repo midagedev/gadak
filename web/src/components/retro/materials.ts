@@ -145,6 +145,8 @@ export function densityStrip(
 /** One dot on the cycle-time scatter. `x` and `y` are 0..1 of the box. */
 export interface ScatterPoint {
   key: string
+  /** The issue's title, so the dot can name itself (GDK-1737). */
+  summary: string
   days: number
   x: number
   y: number
@@ -190,7 +192,7 @@ export function cycleScatter(
     if (p.days > yMax) clipped++
     const t = Date.parse(p.resolved_at)
     const x = Number.isFinite(t) ? Math.min(Math.max((t - t0) / span, 0), 1) : 0
-    return { key: p.key, days: p.days, x, y: Math.min(p.days / yMax, 1) }
+    return { key: p.key, summary: p.summary ?? '', days: p.days, x, y: Math.min(p.days / yMax, 1) }
   })
   return {
     points: out,

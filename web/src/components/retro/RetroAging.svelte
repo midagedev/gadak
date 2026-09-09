@@ -46,8 +46,14 @@
   <p class="text-micro text-text-muted" data-testid="retro-aging-empty">{t('retro.aging.empty')}</p>
 {:else}
   <div class="flex max-w-[720px] items-start gap-3" data-testid="retro-aging">
-    <!-- The gutter: key and age, one line per bar, on the chart's own rhythm. -->
-    <div class="flex-none">
+    <!-- The gutter: key, title and age, one line per bar, on the chart's own
+         rhythm. The gutter is 27rem — 22rem left the title about 165px, which cut
+         every title before its distinguishing word (vision FIX, 2026-09-10);
+         at 27rem the title keeps about 245px and the bars keep 240px. It takes
+         whatever the key and the age leave and the bars still keep a shape
+         (GDK-1737: the key alone left the reader with a column of
+         identifiers and the title only in a tooltip). -->
+    <div class="w-[27rem] flex-none">
       {#each chart.bars as b (b.key)}
         <button
           type="button"
@@ -58,14 +64,15 @@
           title={b.summary}
           onclick={() => onOpen([b.key])}
         >
-          <span class="w-[7.5rem] truncate {b.over ? 'text-text-primary' : 'text-text-secondary'}">{b.key}</span>
-          <span class="w-[3.25rem] text-right tabular-nums {b.over ? 'text-status-stale' : 'text-text-muted'}"
+          <span class="w-[7.5rem] flex-none truncate {b.over ? 'text-text-primary' : 'text-text-secondary'}">{b.key}</span>
+          <span class="min-w-0 flex-1 truncate text-text-secondary" data-testid="retro-aging-title">{b.summary}</span>
+          <span class="w-[3.25rem] flex-none text-right tabular-nums {b.over ? 'text-status-stale' : 'text-text-muted'}"
             >{formatDays(b.days)}</span
           >
         </button>
       {/each}
     </div>
-    <div class="min-w-0 flex-1">
+    <div class="min-w-[240px] flex-1">
       <svg
         width="100%"
         {height}

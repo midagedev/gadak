@@ -131,10 +131,18 @@
           <Icon name={ICON[s.kind] ?? 'info'} size={12} class="flex-none translate-y-px text-text-muted" />
           <button
             type="button"
-            class="rounded px-0.5 tabular-nums text-text-secondary underline decoration-border-strong decoration-dotted underline-offset-4 hover:bg-bg-hover hover:decoration-accent"
+            class="flex-none rounded px-0.5 tabular-nums text-text-secondary underline decoration-border-strong decoration-dotted underline-offset-4 hover:bg-bg-hover hover:decoration-accent"
             onclick={() => onOpen([s.key])}>{s.key}</button
           >
-          <span class="text-text-muted"
+          <!-- The title beside the key (GDK-1737): a list of identifiers is a
+               list nobody can read out loud. It takes the room the row has
+               left, and the whole title stays in the tooltip. -->
+          {#if s.summary}
+            <span class="min-w-0 flex-1 truncate text-text-secondary" data-testid="retro-surprise-title" title={s.summary}
+              >{s.summary}</span
+            >
+          {/if}
+          <span class="flex-none text-text-muted"
             >{KIND_LABEL[s.kind] ?? s.kind}{#if s.detail}&nbsp;· {detailOf(s)}{/if}</span
           >
         </li>

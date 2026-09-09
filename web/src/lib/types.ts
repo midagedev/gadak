@@ -616,6 +616,8 @@ export type RetroSurpriseKind = 'reopened' | 'reversal' | 'added_after_start' | 
 export interface RetroSurprise {
   kind: RetroSurpriseKind
   key: string
+  /** The issue's title, beside the key (GDK-1737). Absent on an older server. */
+  summary?: string
   detail?: string
 }
 
@@ -638,6 +640,8 @@ export interface RetroKeySet {
 /** One resolved issue on the cycle-time scatter. */
 export interface RetroCyclePoint {
   key: string
+  /** The issue's title, for the dot's tooltip (GDK-1737). Absent on an older server. */
+  summary?: string
   resolved_at: string
   days: number
 }

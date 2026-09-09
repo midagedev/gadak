@@ -107,9 +107,13 @@ const (
 // reason, a carry count, an arrival time — because a surprise without its
 // reason is an accusation.
 type Surprise struct {
-	Kind   string `json:"kind"`
-	Key    string `json:"key"`
-	Detail string `json:"detail"`
+	Kind string `json:"kind"`
+	Key  string `json:"key"`
+	// Summary is the issue's title, carried beside the key so the surface can
+	// name the work instead of listing identifiers (GDK-1737). Empty when the
+	// mirror has no title for that item, which is the honest answer.
+	Summary string `json:"summary"`
+	Detail  string `json:"detail"`
 }
 
 // Surprise kinds, the closed vocabulary Surprise.Kind uses.
@@ -154,6 +158,7 @@ type KeySet struct {
 // a reader see the distribution instead of two percentiles of it.
 type CyclePoint struct {
 	Key        string  `json:"key"`
+	Summary    string  `json:"summary"`
 	ResolvedAt string  `json:"resolved_at"`
 	Days       float64 `json:"days"`
 }
@@ -494,6 +499,12 @@ func bucketEvents(b *Bucket, meta map[string]issueMeta, in materialsInput, sprin
 // no meaning when the column is a Monday.
 func bucketSurprises(b *Bucket, meta map[string]issueMeta, in materialsInput, sprintLog []sprintRow, bySprint bool) []Surprise {
 	var out []Surprise
+	// The one place a Surprise is built. Every kind goes through it, so the
+	// title travels with the key by construction rather than by four
+	// remembered assignments (GDK-1737).
+	add := func(kind, itemID, key, detail string) {
+		out = append(out, Surprise{Kind: kind, Key: key, Summary: meta[itemID].summary, Detail: detail})
+	}
 	for itemID, rows := range in.statusByItem {
 		it, ok := in.itemByID[itemID]
 		if !ok {
@@ -512,10 +523,10 @@ func bucketSurprises(b *Bucket, meta map[string]issueMeta, in materialsInput, sp
 			}
 		}
 		if reopened {
-			out = append(out, Surprise{Kind: SurpriseReopened, Key: it.key, Detail: meta[itemID].reopenReasonOr()})
+			add(SurpriseReopened, itemID, it.key, meta[itemID].reopenReasonOr())
 		}
 		if moves >= reversalTransitions {
-			out = append(out, Surprise{Kind: SurpriseReversal, Key: it.key, Detail: strconv.Itoa(moves)})
+			add(SurpriseReversal, itemID, it.key, strconv.Itoa(moves))
 		}
 	}
 	if bySprint && b.SprintID != 0 {
@@ -524,12 +535,12 @@ func bucketSurprises(b *Bucket, meta map[string]issueMeta, in materialsInput, sp
 				continue
 			}
 			if it, ok := in.itemByID[s.item]; ok {
-				out = append(out, Surprise{Kind: SurpriseAddedAfterStart, Key: it.key, Detail: s.at.Format(time.RFC3339)})
+				add(SurpriseAddedAfterStart, s.item, it.key, s.at.Format(time.RFC3339))
 			}
 		}
 		for _, m := range meta {
 			if m.sprintID == b.SprintID && m.carryover >= 1 {
-				out = append(out, Surprise{Kind: SurpriseCarried, Key: m.key, Detail: strconv.Itoa(m.carryover)})
+				out = append(out, Surprise{Kind: SurpriseCarried, Key: m.key, Summary: m.summary, Detail: strconv.Itoa(m.carryover)})
 			}
 		}
 	}
@@ -636,7 +647,7 @@ func bucketCyclePoints(b *Bucket, meta map[string]issueMeta, issCycle map[string
 		if t, ok := parseTime(ci.resolved); ok {
 			at = t.Format(time.RFC3339)
 		}
-		out = append(out, CyclePoint{Key: m.key, ResolvedAt: at, Days: roundDays(ci.hours / 24)})
+		out = append(out, CyclePoint{Key: m.key, Summary: m.summary, ResolvedAt: at, Days: roundDays(ci.hours / 24)})
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Key < out[j].Key })
 	return out
