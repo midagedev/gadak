@@ -229,9 +229,9 @@
     {#if offlineBanner}
       <p class="offline">{t('app.offlineBanner')}</p>
     {:else if view.fellBack && hasIdentity(app.me) && scope.id === SCOPE_MY_WORK}
-      <p class="note">Nothing open is assigned to you.</p>
+      <p class="note">{t('list.nothingOpenAssigned')}</p>
     {:else if view.fellBack}
-      <p class="note">This serve has no identity to filter by.</p>
+      <p class="note">{t('list.noIdentityFilter')}</p>
     {/if}
   {/snippet}
 
@@ -270,7 +270,7 @@
       title={app.issues.length === 0 ? t('list.emptyTitle') : t('list.noMatchTitle')}
       body={app.issues.length === 0 ? t('list.emptyHint') : t('list.noMatchHint')}
     >
-      <button class="link" onclick={() => switchTab('search')}>Search everything</button>
+      <button class="link" onclick={() => switchTab('search')}>{t('palette.entryLabel')}</button>
     </EmptyState>
   {:else}
     {#each view.sections as section (section.rank)}

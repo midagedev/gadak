@@ -1166,4 +1166,106 @@ export const shell = {
     ko: '카메라를 열 수 없습니다. 대신 오퍼 줄을 붙여넣으세요.',
     ja: 'カメラを開けません。代わりにオファー行を貼り付けてください。',
   },
+  // GDK-1704: the gate itself (mobile/src/screens/PairGate.svelte) — the
+  // phone's first screen was hardcoded English. The offer label,
+  // placeholder and QR button reuse app.hosts.* (the roster flow was
+  // cataloged first); only the sentences unique to the gate live here.
+  // desktopLead/desktopTail split around the mono <span> so the command
+  // keeps its font — one {cmd} key would flatten it into the sentence.
+  'app.gate.tagline': {
+    en: 'Your issue mirror, in your pocket.',
+    ko: '주머니 속 이슈 캐시.',
+    ja: 'ポケットの中の課題キャッシュ。',
+  },
+  'app.gate.rejected': {
+    en: "This phone's pairing was refused by the server. Mint a new offer on the desktop and pair again.",
+    ko: '서버가 이 폰의 페어링을 거절했습니다. 데스크톱에서 새 오퍼를 만들어 다시 페어링하세요.',
+    ja: 'サーバーがこのスマートフォンのペアリングを拒否しました。デスクトップで新しいオファーを発行して、もう一度ペアリングしてください。',
+  },
+  'app.gate.desktopLead': {
+    en: 'On the desktop:',
+    ko: '데스크톱에서',
+    ja: 'デスクトップで',
+  },
+  'app.gate.desktopTail': {
+    en: 'prints one line.',
+    ko: '를 실행하면 한 줄이 나옵니다.',
+    ja: 'を実行すると 1 行が表示されます。',
+  },
+  'app.gate.offerSecret': {
+    en: 'It carries the key to your mirror — share it with no one.',
+    ko: '이 줄에는 캐시의 키가 들어 있습니다. 누구와도 공유하지 마세요.',
+    ja: 'この行にはキャッシュの鍵が含まれています。誰にも共有しないでください。',
+  },
+  // GDK-1704: the pairing tab's own sentences (PairingTab.svelte). The
+  // mirror-freshness lines are the phone's own — the web freshness.* family
+  // is tooltip-length ("Click to sync now") and does not fit this line.
+  'app.pairedServer': {
+    en: 'Paired server',
+    ko: '페어링된 서버',
+    ja: 'ペアリング済みサーバー',
+  },
+  'app.offerExpires': {
+    en: 'Offer expires {when}',
+    ko: '오퍼 만료 {when}',
+    ja: 'オファーの期限 {when}',
+  },
+  'app.offlineLastSync': {
+    en: 'offline — last sync {when}',
+    ko: '오프라인 — 마지막 동기화 {when}',
+    ja: 'オフライン — 最終同期 {when}',
+  },
+  'app.syncNever': {
+    en: 'never',
+    ko: '없음',
+    ja: 'なし',
+  },
+  'app.notSyncedYet': {
+    en: 'not synced yet',
+    ko: '아직 동기화 전',
+    ja: 'まだ同期していません',
+  },
+  // {view} is the localized view name (view.myWork.name) — the subject was
+  // always localized, the tail was not.
+  'app.identityFilterNote': {
+    en: '{view} filters to this identity.',
+    ko: '{view}는 이 계정으로 거릅니다.',
+    ja: '{view} はこのアカウントで絞り込みます。',
+  },
+  'app.terminalOffer': {
+    en: 'Terminal offer',
+    ko: '터미널 오퍼',
+    ja: 'ターミナルオファー',
+  },
+  'app.terminalOfferPlaceholder': {
+    en: 'Paste the terminal-scope offer line',
+    ko: '터미널 범위 오퍼 줄을 붙여넣으세요',
+    ja: 'ターミナルスコープのオファー行を貼り付け',
+  },
+  'app.unpairWarn': {
+    en: "Unpairing forgets the server and deletes both its pairing token and the shell's from the Keychain.",
+    ko: '페어링을 해제하면 서버를 잊고, 서버와 셸의 페어링 토큰을 둘 다 키체인에서 삭제합니다.',
+    ja: 'ペアリングを解除するとサーバーを忘れ、サーバーとシェルのペアリングトークンを両方キーチェーンから削除します。',
+  },
+  // GDK-1704: the scope picker sheet's two footer lines. The sheet's
+  // vocabulary owner is the sidebar family (its own header comment).
+  'sidebar.scopeOpenDesktop': {
+    en: 'Open on the desktop',
+    ko: '데스크톱에서 열기',
+    ja: 'デスクトップで開く',
+  },
+  'sidebar.scopeShowAll': {
+    en: 'Show all {n}',
+    ko: '{n}개 모두 보기',
+    ja: '{n} 件をすべて表示',
+  },
+  // GDK-1704: the hosted demo's About dialog name. The popover's marketing
+  // copy (CLAIM, links) stays English on purpose — its file header says so —
+  // but the dialog's accessible name follows the UI locale like every other
+  // shell string; 'gadak' is the brand token either way.
+  'hosted.about': {
+    en: 'About gadak',
+    ko: 'gadak 소개',
+    ja: 'gadak について',
+  },
 } as const satisfies Record<string, Message>

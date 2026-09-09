@@ -565,7 +565,7 @@
         {/if}
         <h3>{t('detail.comments')} <span class="h-n">{thread.length}</span></h3>
         {#if thread.length === 0}
-          <p class="none">No comments yet — yours starts the thread.</p>
+          <p class="none">{t('detail.noComments')}</p>
         {/if}
         {#each thread as c (c.comment_id)}
           <div class="comment">
@@ -666,10 +666,10 @@
   {/snippet}
 
   {#if sheetOpen}
-    <Sheet title="Move status" onclose={() => (sheetOpen = false)}>
+    <Sheet title={t('write.moveStatus')} onclose={() => (sheetOpen = false)}>
       <div class="t-list">
         {#if !transitions && !transitionError}
-          <p class="none">Asking the server…</p>
+          <p class="none">{t('write.askingServer')}</p>
         {:else if transitions}
           {#each transitions as tr (tr.id)}
             {@const blocked = (tr.fields?.length ?? 0) > 0}
@@ -685,7 +685,7 @@
             </button>
           {/each}
           {#if transitions.length === 0}
-            <p class="none">No transitions available from this status.</p>
+            <p class="none">{t('write.noTransitionsFrom')}</p>
           {/if}
         {:else if transitionError}
           <p class="error">{transitionError}</p>
@@ -758,7 +758,7 @@
     <Sheet title={t('write.changePriority')} onclose={() => (priorityOpen = false)}>
       <div class="pick-list">
         {#if prioritiesLoading}
-          <p class="none">Asking the server…</p>
+          <p class="none">{t('write.askingServer')}</p>
         {:else if prioritiesError}
           <p class="error">{prioritiesError}</p>
         {:else if priorities && lite}

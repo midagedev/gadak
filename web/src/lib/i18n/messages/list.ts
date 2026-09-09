@@ -302,6 +302,20 @@ export const list = {
     ko: '동기화가 완료되면 여기 표시됩니다.',
     ja: '同期が終わるとここに表示されます。',
   },
+  // GDK-1704: the phone's my-work fallback notes (mobile Issues.svelte) —
+  // shown when the serve has no identity or none of the open issues is
+  // assigned to this one. The desktop fellBack notes live elsewhere; these
+  // are the phone's shorter lines.
+  'list.nothingOpenAssigned': {
+    en: 'Nothing open is assigned to you.',
+    ko: '나에게 할당된 열린 이슈가 없습니다.',
+    ja: '自分に割り当てられた未完了の課題はありません。',
+  },
+  'list.noIdentityFilter': {
+    en: 'This serve has no identity to filter by.',
+    ko: '이 serve에는 거를 계정 정보가 없습니다.',
+    ja: 'この serve には絞り込みに使うアカウント情報がありません。',
+  },
   'list.emptyLocalTitle': {
     en: 'No issues yet',
     ko: '아직 이슈가 없습니다',
@@ -557,6 +571,13 @@ export const list = {
     en: 'Could not search body text. Check the connection and try again.',
     ko: '본문 검색에 실패했습니다. 연결을 확인한 뒤 다시 시도하세요.',
     ja: '本文検索に失敗しました。接続を確認して再試行してください。',
+  },
+  // GDK-1704: the phone's search idle hint (mobile Search.svelte) — the
+  // first thing the tab explains, previously hardcoded English.
+  'list.searchIdleHint': {
+    en: 'Keys and summaries answer instantly from the {n}-issue snapshot; the server adds comment matches.',
+    ko: '키와 요약은 {n}개 이슈 스냅샷에서 즉시 답하고, 코멘트 일치는 서버가 더합니다.',
+    ja: 'キーと要約は {n} 件の課題スナップショットから即座に答え、コメントの一致はサーバーが加えます。',
   },
   // A deployment with no server FTS (static snapshot). Not a failure: the
   // network is fine, and title/key search still ran.

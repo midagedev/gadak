@@ -3,8 +3,11 @@
    * Hosted-demo-only GitHub / About surface (GDK-335). App mounts this when
    * isHostedDemo() — the banner that already wraps it. In-flow, not stacked:
    * an absolutely positioned root painted over the banner CTA at 800px (GDK-766).
-   * Copy stays English — the public demo has no i18n.
+   * Marketing copy (CLAIM, the link list) stays English; the dialog's
+   * accessible name follows the UI locale like every other shell string
+   * (GDK-1704).
    */
+  import { t } from '../../lib/i18n'
   import { ESC_TIER, isEscapeKey, onEscape, onOutsideClick } from '../../lib/dom-actions'
 
   const REPO = 'https://github.com/midagedev/gadak'
@@ -67,7 +70,7 @@
       class="anim-enter absolute right-0 top-full z-30 mt-1 w-80 rounded-lg border border-border-strong bg-bg-elevated p-2 shadow-overlay"
       data-testid="hosted-links-popover"
       role="dialog"
-      aria-label="About gadak"
+      aria-label={t('hosted.about')}
     >
       <p class="px-2 py-1 text-body text-text-primary">{CLAIM}</p>
       <pre

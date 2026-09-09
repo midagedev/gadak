@@ -439,7 +439,10 @@ describe('search', () => {
 describe('relTime', () => {
   const now = new Date('2026-08-25T12:00:00Z')
   it('steps now → m → h → d → date', () => {
-    expect(relTime('2026-08-25T11:59:30Z', now)).toBe('now')
+    // GDK-1704: the <60s step is the catalog's time.justNow (en 'just
+    // now'), the same key the web's compact relative time reads — not a
+    // hardcoded English 'now'.
+    expect(relTime('2026-08-25T11:59:30Z', now)).toBe('just now')
     expect(relTime('2026-08-25T11:10:00Z', now)).toBe('50m')
     expect(relTime('2026-08-25T03:00:00Z', now)).toBe('9h')
     expect(relTime('2026-08-22T12:00:00Z', now)).toBe('3d')

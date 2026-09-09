@@ -132,7 +132,7 @@
           </button>
         {/each}
       {:else}
-        <p class="idle-hint">Keys and summaries answer instantly from the {app.issues.length}-issue snapshot; the server adds comment matches.</p>
+        <p class="idle-hint">{t('list.searchIdleHint', { n: app.issues.length })}</p>
       {/if}
     </div>
   {:else if plate === 'results'}

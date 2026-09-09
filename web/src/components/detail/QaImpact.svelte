@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from '../../lib/i18n'
+  import { t, locale } from '../../lib/i18n'
   import Icon from '../ui/Icon.svelte'
   import { config } from '../../lib/config'
   import type { QaIssueContext, QaRunContext, QaSuiteRef } from '../../lib/types'
@@ -46,7 +46,10 @@
 
   function formatTime(value: string | null): string {
     if (!value) return ''
-    return new Intl.DateTimeFormat('ko-KR', {
+    // GDK-1704: follow the active locale — this branch used to hardcode a
+    // Korean region tag, so EN/JA readers got Korean-formatted QA
+    // timestamps.
+    return new Intl.DateTimeFormat(locale(), {
       month: 'numeric',
       day: 'numeric',
       hour: '2-digit',

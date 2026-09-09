@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { en } from '../../../../web/src/lib/i18n/catalog'
 
 /*
  * Recurrence layer for GDK-908 (track F4): the shell must admit it is
@@ -150,13 +151,21 @@ describe('GDK-908 unpair copy matches store.unpair()', () => {
   // drops both slots — so this contract is the same claim with the arrow
   // reversed. The behavioural half lives in store.test.ts; this half is only
   // here to keep the sentence from drifting away from it again.
+  // GDK-1704 moved the sentence out of the template into the catalog
+  // (app.unpairWarn) so ko/ja readers get it translated; the claims below
+  // follow the sentence — the en value carries them, and the template still
+  // renders exactly that key.
+  const unpairWarn = en['app.unpairWarn']
+
   it('does not claim the Keychain token as a singular of ambiguous scope', () => {
     expect(pairing).not.toMatch(/deletes the token from the Keychain/)
+    expect(unpairWarn).not.toMatch(/deletes the token from the Keychain/)
   })
 
   it('says both tokens go', () => {
-    expect(pairing).toMatch(/both/i)
-    expect(pairing).not.toMatch(/shell pairing stays/i)
+    expect(pairing).toMatch(/app\.unpairWarn/)
+    expect(unpairWarn).toMatch(/both/i)
+    expect(unpairWarn).not.toMatch(/shell pairing stays/i)
   })
 })
 

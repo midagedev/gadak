@@ -91,7 +91,7 @@
         >
           <span class="name">{scope.name}</span>
           {#if blocked}
-            <span class="why">Open on the desktop</span>
+            <span class="why">{t('sidebar.scopeOpenDesktop')}</span>
           {:else if n !== null}
             <span class="n">{n}</span>
           {/if}
@@ -99,7 +99,7 @@
       {/each}
       {#if group.rows.length > CAP && !expanded.has(group.section)}
         <button class="more" onclick={() => expand(group.section)}>
-          Show all {group.rows.length}
+          {t('sidebar.scopeShowAll', { n: group.rows.length })}
         </button>
       {/if}
     {/each}

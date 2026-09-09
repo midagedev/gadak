@@ -474,6 +474,91 @@ describe('GDK-652 onboarding first-sync copy matches the running-sync verb', () 
   })
 })
 
+describe('GDK-1704 ko/ja values are not the en value in disguise', () => {
+  // Byte-equality between a ko/ja value and en is untranslated copy —
+  // English leaking onto a ko/ja screen — unless the whole value is
+  // locale-neutral. The 2026-09-09 census (scratchpad audit/i18n-gaps.mjs,
+  // 1303 keys) measured the baseline: ko identical-to-en = 2, ja = 4; the
+  // two real ja gaps (`onboarding.token`, `jiraSettings.intro4`) were fixed
+  // in this round and everything else lands in the allowlist below with the
+  // census's reason. Any NEW byte-equality fails until an entry with a
+  // reason is added here — that is the point of the gate.
+  //
+  // id form is `${locale} ${key}` (keys contain no spaces).
+  const ALLOWED_BYTE_EQUAL = new Map<string, string>([
+    // ── census exclusions (30): locale-neutral on purpose ──
+    ['ko doc.version', 'version glyph v{n}'],
+    ['ja doc.version', 'version glyph v{n}'],
+    ['ko feed.notifyTitleNoActor', 'placeholders-only ({key} {kind})'],
+    ['ja feed.notifyTitleNoActor', 'placeholders-only ({key} {kind})'],
+    ['ko field.cs', 'brand/acronym/keycap-only (CS)'],
+    ['ja field.cs', 'brand/acronym/keycap-only (CS)'],
+    ['ko filter.chipFieldValue', 'placeholders-only ({field}: {value})'],
+    ['ja filter.chipFieldValue', 'placeholders-only ({field}: {value})'],
+    ['ko list.fieldValue', 'placeholders-only ({field}: {value})'],
+    ['ja list.fieldValue', 'placeholders-only ({field}: {value})'],
+    ['ko onboarding.sitePlaceholder', 'URL placeholder'],
+    ['ja onboarding.sitePlaceholder', 'URL placeholder'],
+    ['ko onboarding.sourceJira', 'brand/acronym/keycap-only (Jira)'],
+    ['ja onboarding.sourceJira', 'brand/acronym/keycap-only (Jira)'],
+    ['ko settings.confluenceTitle', 'brand/acronym/keycap-only (Confluence)'],
+    ['ja settings.confluenceTitle', 'brand/acronym/keycap-only (Confluence)'],
+    ['ko settings.localeEn', 'endonym — English names itself in English'],
+    ['ja settings.localeEn', 'endonym — English names itself in English'],
+    ['ko settings.localeJa', 'endonym (日本語)'],
+    ['ja settings.localeJa', 'endonym (日本語)'],
+    ['ko settings.localeKo', 'endonym (한국어)'],
+    ['ja settings.localeKo', 'endonym (한국어)'],
+    ['ko settings.none', 'placeholders-only (—)'],
+    ['ja settings.none', 'placeholders-only (—)'],
+    ['ko settings.runtimeCli', 'CLI command'],
+    ['ja settings.runtimeCli', 'CLI command'],
+    ['ko terminal.shortcut', 'brand/acronym/keycap-only (Ctrl+`)'],
+    ['ja terminal.shortcut', 'brand/acronym/keycap-only (Ctrl+`)'],
+    ['ko write.commentShortcut', 'placeholders-only ({mod} ↵)'],
+    ['ja write.commentShortcut', 'placeholders-only ({mod} ↵)'],
+    // ── lead's calls, 2026-09-09 ──
+    ['ko settings.aboutX', 'lead: borderline — handle + product name'],
+    ['ja settings.aboutX', 'lead: borderline — handle + product name'],
+    ['ko settings.memberAccountId', 'lead: borderline — Jira REST field name'],
+    ['ja settings.memberAccountId', 'lead: borderline — Jira REST field name'],
+  ])
+
+  test('a ko or ja value byte-equal to en fails unless allowlisted', () => {
+    const failures: string[] = []
+    for (const key of Object.keys(en) as MessageKey[]) {
+      for (const [locale, table] of [
+        ['ko', ko],
+        ['ja', ja],
+      ] as const) {
+        if (table[key] !== en[key]) continue
+        if (ALLOWED_BYTE_EQUAL.has(`${locale} ${key}`)) continue
+        failures.push(`${locale} ${key} = ${JSON.stringify(en[key])}`)
+      }
+    }
+    expect(failures, failures.join('\n')).toEqual([])
+  })
+
+  test('every allowlist entry still names a byte-equal value — no dead entries', () => {
+    // The list is a contract, not a junk drawer: once a value is translated
+    // (or its key deleted), the entry must go. Otherwise "allowlisted"
+    // quietly grows to cover whatever drift lands next.
+    const stale: string[] = []
+    for (const id of ALLOWED_BYTE_EQUAL.keys()) {
+      const space = id.indexOf(' ')
+      const locale = id.slice(0, space)
+      const key = id.slice(space + 1) as MessageKey
+      const table = locale === 'ko' ? ko : ja
+      if (!(key in en)) {
+        stale.push(`${id}: key no longer exists`)
+        continue
+      }
+      if (table[key] !== en[key]) stale.push(`${id}: values differ — remove the entry`)
+    }
+    expect(stale, stale.join('\n')).toEqual([])
+  })
+})
+
 describe('GDK-1588 toast copy ends the same way in every locale', () => {
   // Toasts are one surface; the 2026-09-08 release audit measured 16 keys
   // ending in a terminator and 11 not, identically in all three locales. The

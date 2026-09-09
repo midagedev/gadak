@@ -88,6 +88,12 @@ export const detail = {
     ko: '코멘트',
     ja: 'コメント',
   },
+  // GDK-1704: the phone's empty-thread line (mobile Detail.svelte).
+  'detail.noComments': {
+    en: 'No comments yet — yours starts the thread.',
+    ko: '아직 코멘트가 없습니다. 첫 코멘트가 스레드를 엽니다.',
+    ja: 'まだコメントはありません。最初のコメントがスレッドを始めます。',
+  },
   'detail.history': {
     en: 'History',
     ko: '변경 이력',

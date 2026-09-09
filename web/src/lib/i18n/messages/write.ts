@@ -371,6 +371,25 @@ export const write = {
     ko: '가능한 전환이 없습니다.',
     ja: '利用できるトランジションはありません。',
   },
+  // GDK-1704: the phone's status sheet (mobile Detail.svelte). The web's
+  // picker title is write.changeStatus; the phone's sheet says what the
+  // finger does, and its empty line names the current status where the
+  // web's does not.
+  'write.moveStatus': {
+    en: 'Move status',
+    ko: '상태 이동',
+    ja: 'ステータスを移動',
+  },
+  'write.askingServer': {
+    en: 'Asking the server…',
+    ko: '서버에 묻는 중…',
+    ja: 'サーバーに問い合わせ中…',
+  },
+  'write.noTransitionsFrom': {
+    en: 'No transitions available from this status.',
+    ko: '이 상태에서 갈 수 있는 전환이 없습니다.',
+    ja: 'このステータスから遷移できる先がありません。',
+  },
   'write.transitionsFailed': {
     en: 'Could not load transitions.',
     ko: '전환 목록을 불러오지 못했습니다.',
@@ -445,7 +464,7 @@ export const write = {
   'jiraSettings.intro4': {
     en: 'API token',
     ko: 'API 토큰',
-    ja: 'API token',
+    ja: 'API トークン',
   },
   // Leading space on purpose: this follows the link element directly. Korean
   // attaches a particle instead and must not have one.
@@ -549,7 +568,7 @@ export const write = {
   'onboarding.token': {
     en: 'API token',
     ko: 'API 토큰',
-    ja: 'API token',
+    ja: 'API トークン',
   },
   // Atlassian's token page offers three things that look like one, and two of
   // them 401 here: a *scoped* token (which its page recommends first) and an

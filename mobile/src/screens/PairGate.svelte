@@ -16,12 +16,13 @@
   let error = $state<string | null>(null)
 
   // Friendly copy per decoder refusal — the decoder's own messages are for
-  // tests and logs-with-no-token, not for the screen.
+  // tests and logs-with-no-token, not for the screen. Same app.hosts.*
+  // keys the PairingTab roster flow reads (GDK-1704).
   function offerCopy(e: OfferError): string {
     const m = e.message
-    if (m.includes('empty')) return 'Paste the offer line first.'
-    if (m.includes('version')) return 'This offer is from a newer gadak. Update the app, then pair.'
-    return 'That does not look like a pairing offer. Copy the whole line from `gadak pairing mint`.'
+    if (m.includes('empty')) return t('app.hosts.errEmpty')
+    if (m.includes('version')) return t('app.hosts.errVersion')
+    return t('app.hosts.errBad')
   }
 
   async function submit() {
@@ -53,12 +54,12 @@
     try {
       const text = (await navigator.clipboard.readText()).trim()
       if (text === '') {
-        error = 'Clipboard is empty. Copy the offer line first.'
+        error = t('app.hosts.errClipboardEmpty')
         return
       }
       offerLine = text
     } catch {
-      error = 'Could not read the clipboard. Paste into the field instead.'
+      error = t('app.hosts.errClipboardFail')
       return
     }
     await submit()
@@ -95,7 +96,7 @@
         await submit()
       }
     } catch {
-      error = 'Could not open the camera. Paste the offer line instead.'
+      error = t('app.hosts.errCamera')
     }
   }
 </script>
@@ -105,28 +106,25 @@
     <div class="gate">
     <div class="brand">
       <h1 class="type-subject">gadak</h1>
-      <p class="tag">Your issue mirror, in your pocket.</p>
+      <p class="tag">{t('app.gate.tagline')}</p>
     </div>
 
     {#if app.rejected}
-      <p class="rejected">
-        This phone's pairing was refused by the server. Mint a new offer on the
-        desktop and pair again.
-      </p>
+      <p class="rejected">{t('app.gate.rejected')}</p>
     {/if}
 
-    <label class="lbl" for="offer">Pairing offer</label>
+    <label class="lbl" for="offer">{t('app.hosts.offerLabel')}</label>
     <textarea
       id="offer"
       bind:value={offerLine}
       rows="4"
-      placeholder="Paste the offer line here"
+      placeholder={t('app.hosts.offerPlaceholder')}
       autocapitalize="off"
       spellcheck="false"
     ></textarea>
     <p class="hint">
-      On the desktop: <span class="cmd">gadak pairing mint</span> prints one line.
-      It carries the key to your mirror — share it with no one.
+      {t('app.gate.desktopLead')} <span class="cmd">gadak pairing mint</span>
+      {t('app.gate.desktopTail')} {t('app.gate.offerSecret')}
     </p>
 
     {#if error}
@@ -135,15 +133,15 @@
 
     {#if offerLine.trim() === ''}
       <button class="pair" disabled={busy} onclick={() => void pasteAndPair()}>
-        {busy ? 'Checking…' : 'Paste & pair'}
+        {busy ? t('app.hosts.checking') : t('app.hosts.pastePair')}
       </button>
     {:else}
       <button class="pair" disabled={busy} onclick={() => void submit()}>
-        {busy ? 'Checking…' : 'Pair'}
+        {busy ? t('app.hosts.checking') : t('app.hosts.pair')}
       </button>
     {/if}
     {#if !IS_DEV}
-      <button class="qr" onclick={() => void scan()}>Scan QR instead</button>
+      <button class="qr" onclick={() => void scan()}>{t('app.hosts.scan')}</button>
     {/if}
     <!-- Third door (GDK-1051): the bundled read-only sample workspace, no
          pairing at all. -->

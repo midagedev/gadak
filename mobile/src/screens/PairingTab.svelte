@@ -12,7 +12,7 @@
     switchHost,
     removeRosterHost,
   } from '../lib/store.svelte'
-  import { relTime, hasIdentity } from '../lib/domain'
+  import { relTime, hasIdentity, offerExpiry } from '../lib/domain'
   import { decodeOffer, OfferError, OfferScopeError } from '../lib/offer'
   import { ApiError, errorMessage } from '../lib/api'
   import { getActiveHostId, listHosts, type KnownHost } from '../lib/hosts'
@@ -182,12 +182,13 @@
     }
   }
 
-  // Friendly copy per decoder refusal — same mapping as PairGate.svelte.
+  // Friendly copy per decoder refusal — same mapping (and same keys) as
+  // the roster flow's addOfferCopy above and PairGate.svelte (GDK-1704).
   function offerCopy(e: OfferError): string {
     const m = e.message
-    if (m.includes('empty')) return 'Paste the offer line first.'
-    if (m.includes('version')) return 'This offer is from a newer gadak. Update the app, then pair.'
-    return 'That does not look like a pairing offer. Copy the whole line from `gadak pairing mint`.'
+    if (m.includes('empty')) return t('app.hosts.errEmpty')
+    if (m.includes('version')) return t('app.hosts.errVersion')
+    return t('app.hosts.errBad')
   }
 
   function terminalProbeCopy(err: unknown): string {
@@ -222,12 +223,12 @@
     try {
       const text = (await navigator.clipboard.readText()).trim()
       if (text === '') {
-        termError = 'Clipboard is empty. Copy the offer line first.'
+        termError = t('app.hosts.errClipboardEmpty')
         return
       }
       termOffer = text
     } catch {
-      termError = 'Could not read the clipboard. Paste into the field instead.'
+      termError = t('app.hosts.errClipboardFail')
       return
     }
     await submitTerminal()
@@ -245,7 +246,7 @@
         await submitTerminal()
       }
     } catch {
-      termError = 'Could not open the camera. Paste the offer line instead.'
+      termError = t('app.hosts.errCamera')
     }
   }
 
@@ -258,13 +259,6 @@
     }
     if (termArmTimer) clearTimeout(termArmTimer)
     void unpairTerminal()
-  }
-
-  function expiry(iso: string): string {
-    if (!iso) return ''
-    const t = new Date(iso)
-    if (isNaN(t.getTime())) return ''
-    return t.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   }
 </script>
 
@@ -290,11 +284,11 @@
       </section>
     {:else if app.meta}
       <section>
-        <h3>Paired server</h3>
+        <h3>{t('app.pairedServer')}</h3>
         <p class="big">{app.meta.label || host(app.meta.endpoint)}</p>
         <p class="sub mono">{host(app.meta.endpoint)}</p>
-        {#if expiry(app.meta.expires_at)}
-          <p class="sub">Offer expires {expiry(app.meta.expires_at)}</p>
+        {#if offerExpiry(app.meta.expires_at)}
+          <p class="sub">{t('app.offerExpires', { when: offerExpiry(app.meta.expires_at) })}</p>
         {/if}
       </section>
 
@@ -367,13 +361,17 @@
           <span>{app.issues.length} issues</span>
           <span class="quiet">
             {#if app.offline}
-              offline — last sync {app.lastSyncAt ? relTime(app.lastSyncAt.toISOString(), app.now) : 'never'}
+              {t('app.offlineLastSync', {
+                when: app.lastSyncAt
+                  ? relTime(app.lastSyncAt.toISOString(), app.now)
+                  : t('app.syncNever'),
+              })}
             {:else if app.syncing}
               syncing…
             {:else if app.lastSyncAt}
               synced {relTime(app.lastSyncAt.toISOString(), app.now)}
             {:else}
-              not synced yet
+              {t('app.notSyncedYet')}
             {/if}
           </span>
         </p>
@@ -387,7 +385,7 @@
           {#if app.me?.email && app.me?.name}
             <p class="sub">{app.me.email}</p>
           {/if}
-          <p class="sub">{t('view.myWork.name')} filters to this identity.</p>
+          <p class="sub">{t('app.identityFilterNote', { view: t('view.myWork.name') })}</p>
         {:else}
           <p class="line">
             <span class="quiet"
@@ -410,28 +408,30 @@
             {termArmed ? 'Tap again to unpair' : 'Unpair the shell'}
           </button>
         {:else}
-          <label class="lbl" for="term-offer">Terminal offer</label>
+          <label class="lbl" for="term-offer">{t('app.terminalOffer')}</label>
           <textarea
             id="term-offer"
             bind:value={termOffer}
             rows="3"
-            placeholder="Paste the terminal-scope offer line"
+            placeholder={t('app.terminalOfferPlaceholder')}
             autocapitalize="off"
             spellcheck="false"
           ></textarea>
           <p class="sub">
-            On the desktop: <span class="mono">gadak pairing mint --scope terminal</span> prints one line.
+            {t('app.gate.desktopLead')}
+            <span class="mono">gadak pairing mint --scope terminal</span>
+            {t('app.gate.desktopTail')}
           </p>
           {#if termError}
             <p class="error" role="alert">{termError}</p>
           {/if}
           {#if termOffer.trim() === ''}
             <button class="act" disabled={termBusy} onclick={() => void pasteAndPairTerminal()}>
-              {termBusy ? 'Checking…' : 'Paste & pair'}
+              {termBusy ? t('app.hosts.checking') : t('app.hosts.pastePair')}
             </button>
           {:else}
             <button class="act" disabled={termBusy} onclick={() => void submitTerminal()}>
-              {termBusy ? 'Checking…' : 'Pair'}
+              {termBusy ? t('app.hosts.checking') : t('app.hosts.pair')}
             </button>
           {/if}
           {#if !DEV}
@@ -444,7 +444,7 @@
         <button class="unpair" class:armed onclick={onUnpair}>
           {armed ? 'Tap again to unpair' : 'Unpair this phone'}
         </button>
-        <p class="sub center">Unpairing forgets the server and deletes both its pairing token and the shell's from the Keychain.</p>
+        <p class="sub center">{t('app.unpairWarn')}</p>
       </section>
     {/if}
 

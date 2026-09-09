@@ -2,7 +2,7 @@
 // unit-tested. Repo contract: logic keys on status_category and
 // priority_rank, never on display names (display names are labels only).
 
-import { collator, t, type MessageKey } from './i18n'
+import { collator, locale, t, type MessageKey } from './i18n'
 import type {
   DetailComment,
   DetailResponse,
@@ -732,10 +732,26 @@ export function mergeSearch(local: IssueLite[], serverKeys: string[], all: Issue
   return merged
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+/*
+ * Month-day labels follow the active locale: `Aug 12` / `8월 12일` /
+ * `8月12日` (GDK-1704 — this was a hardcoded English MONTHS array, so ko/ja
+ * phones read English months in every row folio). Formatters are cached per
+ * locale because folioDate runs once per list row and constructing
+ * Intl.DateTimeFormat is the expensive half of that call.
+ */
+const monthDayFormatters = new Map<string, Intl.DateTimeFormat>()
 
-function calendarLabel(d: Date): string {
-  return `${MONTHS[d.getMonth()]} ${d.getDate()}`
+function monthDay(localeTag: string): Intl.DateTimeFormat {
+  let fmt = monthDayFormatters.get(localeTag)
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat(localeTag, { month: 'short', day: 'numeric' })
+    monthDayFormatters.set(localeTag, fmt)
+  }
+  return fmt
+}
+
+function calendarLabel(d: Date, localeTag: string): string {
+  return monthDay(localeTag).format(d)
 }
 
 /**
@@ -743,24 +759,46 @@ function calendarLabel(d: Date): string {
  * `relTime` stays the recency chip (sync age, comments); a list of mixed
  * ages must not switch grammar at the 7-day step.
  */
-export function folioDate(iso: string | null | undefined): string {
+export function folioDate(
+  iso: string | null | undefined,
+  localeTag: string = locale(),
+): string {
   if (!iso) return ''
-  const t = new Date(iso)
-  if (isNaN(t.getTime())) return ''
-  return calendarLabel(t)
+  const ts = new Date(iso)
+  if (isNaN(ts.getTime())) return ''
+  return calendarLabel(ts, localeTag)
 }
 
-/** Compact relative time: now / 5m / 3h / 2d / Aug 12. Bad input → ''. */
-export function relTime(iso: string | null | undefined, now: Date = new Date()): string {
+/** Compact relative time: just now / 5m / 3h / 2d / Aug 12. Bad input → ''. */
+export function relTime(
+  iso: string | null | undefined,
+  now: Date = new Date(),
+  localeTag: string = locale(),
+): string {
   if (!iso) return ''
-  const t = new Date(iso)
-  if (isNaN(t.getTime())) return ''
-  const sec = Math.floor((now.getTime() - t.getTime()) / 1000)
-  if (sec < 60) return 'now'
+  const ts = new Date(iso)
+  if (isNaN(ts.getTime())) return ''
+  const sec = Math.floor((now.getTime() - ts.getTime()) / 1000)
+  // Same catalog key the web's compact relative time reads (GDK-1704 —
+  // this branch used to hardcode the English word 'now').
+  if (sec < 60) return t('time.justNow')
   if (sec < 3600) return `${Math.floor(sec / 60)}m`
   if (sec < 86400) return `${Math.floor(sec / 3600)}h`
   if (sec < 7 * 86400) return `${Math.floor(sec / 86400)}d`
-  return calendarLabel(t)
+  return calendarLabel(ts, localeTag)
+}
+
+/**
+ * Offer-expiry line on the pairing tab: `Sep 9, 2026` in `localeTag`
+ * (GDK-1704 — PairingTab used to hardcode 'en-US', so ko/ja phones read
+ * an English date). '' for missing or malformed input; the caller renders
+ * nothing then.
+ */
+export function offerExpiry(iso: string, localeTag: string = locale()): string {
+  if (!iso) return ''
+  const ts = new Date(iso)
+  if (isNaN(ts.getTime())) return ''
+  return ts.toLocaleDateString(localeTag, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 /** Status token for the ink spine: reopened rows override their category. */
