@@ -340,6 +340,37 @@ The report is that table with a verdict column and a `path:line` for each
 class of hit. "No findings" without the table is not a pass — it is the
 by-product this axis exists to replace.
 
+### 14. Schema migration safety (GDK-1742)
+
+Every `schemaVNN` added since the last tag is a change to a file the user
+already has, made by a program they did not run on purpose — the first open
+after an upgrade. Three incidents shaped this axis, none caught by the
+axes above: a dev build migrated the author's real mirrors forward and
+locked the installed release out (GDK-1687); a fixture regeneration
+dropped derived tables because a head-schema file skips the backfill that
+the migration path runs (`incident-fixture-regen-derived-tables`); and
+schemaV40 turned CI red on e2e alone, because `e2e/serve.sh` refuses a
+fixture whose `user_version` does not match the build (2026-08-31).
+
+Start from the list: every migration between the last tag and head, one
+row each, from `git diff <tag>..HEAD -- internal/store/schema.go` (the
+`migrations` slice) — and the rows below are asked of **each** of them, not
+of the set.
+
+| question | where to look | a pass reads like |
+|---|---|---|
+| Upgrade from the last release's stamp | `internal/store/forward_migration_test.go` `mirrorAt` idiom — build a file at the previous tag's `user_version`, open it at head | the file reaches head's stamp, `SchemaAudit` reports nothing `Missing`, and the row count of every table the migration touches is the same before and after (a migration that drops rows is a finding even when the DDL is right) |
+| Backfill, not just DDL | the migration body — does a new column or table get its existing rows in the **same transaction** (`backfillPageExcerpts`, `backfillItemRefs` are the pattern), or does it lean on "the next full sync"? | either the backfill is in the migration, or the comment names the sync path that fills it **and** the fixture was regenerated through `make demo-fixture` (the head-schema path does not run backfills) |
+| The older binary against the newer file | `SchemaTooNewError` and its message; `internal/store/schema.go` user_version gate | an installed release opening a head-written mirror refuses with the message that names both stamps and the way out, and leaves the file untouched (byte-identical `user_version`) — never a partial open, never a silent downgrade |
+| The dev-build policy still holds | `RefuseForward` at the open boundary, and the callers of `store.Open` added this cycle | every new `Open` caller inherits the process default; only a command opening a temp file it created opts out — GDK-1687's tests pin it, and this row confirms nobody added a bypass |
+| Crash mid-migration | the migration runner — one transaction per migration, `user_version` written inside it | a kill between two migrations leaves the file at the previous stamp with nothing half-applied; a migration that does two file commits (the v29 shape, `schema.go` around line 483) is named in the report |
+| Time on a real mirror | a copy of the largest local mirror (the `work` workspace, ~3,300 issues) opened at head, timed | the first open finishes in seconds, and the number is in the report — a migration that rewrites `items_fts` or every changelog row is the kind that turns a first launch into a hang |
+| The fixtures moved with it | `PRAGMA user_version` of `examples/demo.db` and any other committed `.db` (`git ls-files '*.db'`) | every committed fixture is at head's stamp, regenerated through its `make` target, and the e2e that reads it is green — a fixture at head-1 is exactly the CI-only red of 2026-08-31 |
+
+The report is the per-migration table. A cycle with no new migration
+reports that in one line, with the tag-to-head diff that shows it — the
+same measured zero as axis 13.
+
 ## Procedure
 
 1. **Census** — the read-only rounds of Step 0, in parallel, one worktree
@@ -387,7 +418,7 @@ version audited?" from the tree alone. Three things have to be true, and
 the third is the one past cycles skipped:
 
 1. **Every axis has a verdict** — reported, or deliberately not run with the
-   reason written down. Thirteen rows, no blanks. An axis nobody ran is a
+   reason written down. Fourteen rows, no blanks. An axis nobody ran is a
    legitimate outcome; an axis nobody can tell apart from one that ran clean
    is not.
 2. **Every finding has an address** — opened as a defect (Highest), opened
