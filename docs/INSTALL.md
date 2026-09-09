@@ -3,7 +3,7 @@
 A Jira workspace connects to **Atlassian Cloud** and needs one
 [API token](https://id.atlassian.com/manage-profile/security/api-tokens) — a user
 token created with no scopes; it covers Jira and Confluence on the same site.
-Jira Server and Data Center are untested and not claimed. A workspace on the built-in tracker
+Jira Server and Data Center connect with `gadak init --server` and a Personal Access Token (measured on 11.x). A workspace on the built-in tracker
 needs no Atlassian account at all. Pick an install under [The ways in](#the-ways-in),
 then [First run](#first-run).
 
@@ -451,5 +451,5 @@ pages in two spaces, some in Korean because search should survive CJK. It is
 also what the test suite and the README's clips run against, so what you see is
 what CI checks.
 
-[GDK-211]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-211
+[GDK-211]: https://gadak.dev/backlog/#/?ks=GDK-211
 [GDK-1380]: https://gadak.dev/backlog/#/?ks=GDK-1380

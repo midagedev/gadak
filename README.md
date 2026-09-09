@@ -185,8 +185,8 @@ the issues a query returns in the gadak window:
 on your screen, and `gadak views open --jql '…'` lands pasted JQL as chips.
 
 Writes (`create`, `edit`, `comment`, `transition`, `claim`, `link`, and the
-wiki's `page` verbs) go through the origin before the mirror refreshes. On Jira,
-an agent's comments and the issues it creates carry its name (off switch:
+wiki's `page` verbs) go through the origin before the mirror refreshes. On Jira and
+Linear, an agent's comments and the issues it creates carry its name (off switch:
 `gadak config set actor.trailer false`).
 
 **An agent that reads the mirror sends what it reads to whatever model it talks

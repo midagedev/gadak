@@ -10,7 +10,7 @@
 
 ## For an agent working on someone's tracker
 
-Install gadak, run `gadak sync` (a first sync takes minutes on a large site;
+Install gadak, run `gadak sync` (a first sync of 3,514 issues and 462 pages took 3.7 minutes;
 read what has landed — newest issues first — rather than waiting), then read the cache with `gadak sql` or the
 MCP tools. Two rules carry most of the value:
 
@@ -24,7 +24,7 @@ MCP tools. Two rules carry most of the value:
    `gadak views open --jql '…'` lands pasted JQL as filter chips.
 
 The promised query surface is the `issues_full` view plus the recipes in
-AGENTS.md. `gadak skill install` writes a SKILL.md for Claude Code and starts
+docs/RECIPES.md. `gadak skill install` writes a SKILL.md for Claude Code and starts
 no process; `codex`, `agents`, `cursor`, `gemini`, `opencode` and `grok` take
 the same file. An agent that reads the cache sends what it reads to whatever
 model it talks to — gadak itself sends nothing.

@@ -522,7 +522,7 @@ export const strings: Record<Locale, Strings> = {
       eyebrow: 'gadak',
       heading: TAGLINE.ja.heading,
       lede:
-        'gadak は、指定した範囲の Jira と Confluence をキャッシュするツールです。課題・コメント・変更履歴・wiki ページをまとめて検索でき、SQL で集計できます。デスクトップアプリ、ブラウザー、CLI から使えて、画面は日本語表示に対応しています。接続できるのは Jira Cloud です。',
+        'gadak は、指定した範囲の Jira と Confluence をキャッシュするツールです。課題・コメント・変更履歴・wiki ページをまとめて検索でき、SQL で集計できます。デスクトップアプリ、ブラウザー、CLI から使えて、画面は日本語表示に対応しています。接続できるのは Jira Cloud と Server / Data Center です。',
       videoCaption: '検索の録画です。デモのスナップショットを課題 2 万件に増やしたキャッシュを検索していて、文字を打つ速さに結果が追いつきます。',
       doors: {
         installTitle: 'インストール',

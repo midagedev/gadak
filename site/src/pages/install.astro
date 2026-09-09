@@ -61,8 +61,8 @@ const store = 'https://apps.microsoft.com/detail/9NZW91TXH36G'
 
   <h2 id="first-run">First run</h2>
   <p>
-    Connect to your team's Jira Cloud site. It asks for the site, your email, an API token and the
-    projects to mirror. Server and Data Center are untested and not claimed:
+    Connect to your team's Jira site. It asks for the site, your email, an API token and the
+    projects to mirror. Server and Data Center connect with <code>gadak init --server</code> (measured on 11.x):
   </p>
   <Snippet code={`gadak init && gadak serve`} copyLabel="Copy" copiedLabel="Copied" />
   <p>Or start on the built-in tracker, with no account at all:</p>
