@@ -351,10 +351,20 @@ deliberately not now (see the arrival stance in **Next**).
   (GDK-1664).
 - **Multi-user or hosted deployment.** Contradicts the security model, which is
   "one user, loopback only, no auth".
-- **Boards, sprint planning UI, reports.** Jira's own UI does these. We contain
-  that page (in-app tab on desktop, system browser under `serve`); we do not
-  reimplement it. Sprint *fields* (`sprint_id` / `sprint_name` / `sprint_state`)
-  are in the mirror.
+- **Sprint planning UI and reports — amended as of 0.22** (GDK-1708). The
+  original clause said Jira's own UI does boards and sprints and we would
+  only contain that page. It fell in two steps: boards and sprints became
+  first-class mirror rows with write verbs (GDK-1653), and the retro learned
+  to cut by sprint (GDK-1693). The line now runs through *planning*, not
+  *sprints*. **In**: every read surface a sprint window makes possible — the
+  active sprint's name, goal, days left and progress on the board (GDK-1709),
+  a burn-up rebuilt from the mirror's own changelog (GDK-1710), carry-over
+  on the row (GDK-1711), and the sprint-cut retro. Linear's cycle page is
+  the benchmark for what a sprint should say at a glance. **Still out**:
+  planning — dragging issues between sprints, capacity dials, velocity
+  forecasts, and anything that needs a write model the origin does not
+  already expose. Jira's and Linear's planning screens remain the place for
+  that, contained as before.
 - **Writing to the mirror.** Jira is the record. Any local write model would need
   conflict resolution, which is a different product.
 

@@ -184,3 +184,5 @@ windows
 workspace
 write-gap
 xplat
+release-0.22
+retro
