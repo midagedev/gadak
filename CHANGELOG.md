@@ -223,7 +223,7 @@ this measurement's number rather than a law of JQL; and the attribution
 claim shrank to what the code does, which is that comments and created
 issues carry the agent's name, and nothing about pull requests. The READMEs
 follow the same order, and `docs/project/FACT_LEDGER.md` §16 carries the
-rules ([GDK-1601], [GDK-1622]). And a sync pass now ends by saying what it spent: one stderr line with requests by kind (search pages, per-issue overflow fetches, page bodies, comment and version listings) and the wall time waiting on each, and `gadak api --headers` prints every response header, so the first full sync's cost is visible per endpoint family ([GDK-1672]).
+rules ([GDK-1601], [GDK-1622]). And a sync pass now ends by saying what it spent: one stderr line with requests by kind (search pages, per-issue overflow fetches, page bodies, comment and version listings) and the wall time waiting on each, and `gadak api --headers` prints every response header, so the first full sync's cost is visible per endpoint family ([GDK-1672]). The Confluence pass then spends less of it: page bodies, comment listings and version history are fetched through a bounded worker pool (`gadak sync --concurrency`, default 4, at most 8; 1 is the old one-at-a-time pass) while the mirror still commits through one serial writer in listing order, a 429 halves the width for the rest of the pass, and the pass summary names `concurrency=<width>/<min>` with any throttle count ([GDK-1673]).
 
 ## v0.21.0 — 2026-09-08
 
@@ -1731,4 +1731,5 @@ priority sorting keyed on `priority_rank`.
 [GDK-1666]: https://gadak.dev/backlog/#/?ks=GDK-1666
 [GDK-1667]: https://gadak.dev/backlog/#/?ks=GDK-1667
 [GDK-1672]: https://gadak.dev/backlog/#/?ks=GDK-1672
+[GDK-1673]: https://gadak.dev/backlog/#/?ks=GDK-1673
 [GDK-1678]: https://gadak.dev/backlog/#/?ks=GDK-1678
