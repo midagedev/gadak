@@ -146,6 +146,28 @@ Linear's cycles are sprints as well. A Linear workspace now fills the same
   cycles from the team's cadence and says so.
   ([GDK-1667], [GDK-1678])
 
+The history behind all of that was already in the mirror and unreachable.
+Jira records every sprint move in the changelog, and on one measured site
+those rows were the second most common thing in the table, behind status and
+ahead of links — but the sprint field is a custom field, so they arrived
+under whatever number that site assigned it and `where field = 'sprint'`
+answered nothing anywhere. Sync normalises the field using the id it already
+discovers, and three columns follow: `carryover_count` says how many times an
+issue was carried past a sprint boundary, `first_sprint_id` and
+`first_sprint_at` say which sprint it first entered and when, so "what was
+added after this sprint began" is a join against `sprints.start_at`. Jira's
+growing membership list and the built-in tracker's single-id move read the
+same way; an origin with no changelog reads NULL rather than 0, because never
+carried and cannot be read are different answers. An existing mirror is
+recognised without a re-sync ([GDK-1694]). The sprint's goal is readable too
+— `gadak sprint list` carries it, and the board's scope names it beside the
+end date — after being stored and shown nowhere since sprints became rows
+([GDK-1695]). And the retro can be cut by sprint instead of by ISO week,
+which is the unit a team actually retrospects on: `gadak retro --by-sprint`,
+or a fourth segment on the screen's range control, one named column per
+sprint with the running one marked, on every origin that has sprints
+([GDK-1693]).
+
 **Elsewhere: a retro screen, comments you can take back, attachments the
 size of real ones, and one fewer outbound call.** `gadak retro`'s document
 was served for a surface that never came. It is here now: the palette's
@@ -1764,3 +1786,6 @@ priority sorting keyed on `priority_rank`.
 [GDK-1687]: https://gadak.dev/backlog/#/?ks=GDK-1687
 [GDK-1678]: https://gadak.dev/backlog/#/?ks=GDK-1678
 [GDK-1692]: https://gadak.dev/backlog/#/?ks=GDK-1692
+[GDK-1693]: https://gadak.dev/backlog/#/?ks=GDK-1693
+[GDK-1694]: https://gadak.dev/backlog/#/?ks=GDK-1694
+[GDK-1695]: https://gadak.dev/backlog/#/?ks=GDK-1695
