@@ -229,3 +229,126 @@ func deriveStatusCatalog(tx *sql.Tx) error {
 		WHERE i.status_id != '' AND i.status_category != ''`)
 	return err
 }
+
+// deriveSprintHistory writes the changelog rows that put each issue into its
+// sprint, so the carry-over columns have something to derive from (GDK-1694).
+//
+// Sprints in a snapshot are derived (deriveSprints, above), and nothing
+// derived their history — so the fixture had a sprint on every issue and no
+// record of it ever arriving, and `carryover_count` was NULL on the one
+// mirror most people open. The rule is the real mechanism, read off data the
+// rows already carry: an issue older than the sprint it now sits in did not
+// start there. It entered at the first sprint that began after it was
+// created and was carried forward through each one since. An issue created
+// inside its own sprint entered it once and was never carried.
+//
+// Rows are written with a `sprint:` id namespace so a re-run replaces exactly
+// its own and never collides with a mirrored history entry.
+func deriveSprintHistory(tx *sql.Tx) error {
+	if _, err := tx.Exec(`DELETE FROM changelog WHERE id LIKE 'sprint:%'`); err != nil {
+		return err
+	}
+	type sprintRow struct {
+		id      int64
+		name    string
+		startAt string
+	}
+	bySource := map[string][]sprintRow{}
+	sprintRows, err := tx.Query(`SELECT source_id, id, name, COALESCE(start_at,'') FROM sprints ORDER BY source_id, id`)
+	if err != nil {
+		return err
+	}
+	if err := scanAll(sprintRows, func(rows *sql.Rows) error {
+		var src string
+		var r sprintRow
+		if err := rows.Scan(&src, &r.id, &r.name, &r.startAt); err != nil {
+			return err
+		}
+		bySource[src] = append(bySource[src], r)
+		return nil
+	}); err != nil {
+		return err
+	}
+	if len(bySource) == 0 {
+		return nil
+	}
+
+	type issueRow struct {
+		itemID, source, created string
+		sprintID                int64
+	}
+	var issues []issueRow
+	issueRows, err := tx.Query(`
+		SELECT i.item_id, it.source_id, COALESCE(it.created_at,''), i.sprint_id
+		FROM issues_raw i JOIN items it ON it.id = i.item_id
+		WHERE i.sprint_id IS NOT NULL AND i.sprint_id != 0
+		ORDER BY i.item_id`)
+	if err != nil {
+		return err
+	}
+	if err := scanAll(issueRows, func(rows *sql.Rows) error {
+		var r issueRow
+		if err := rows.Scan(&r.itemID, &r.source, &r.created, &r.sprintID); err != nil {
+			return err
+		}
+		issues = append(issues, r)
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	for _, iss := range issues {
+		list := bySource[iss.source]
+		// Every sprint up to and including the issue's own that began after
+		// the issue was created; at minimum the issue's own sprint.
+		var path []sprintRow
+		for _, s := range list {
+			if s.id > iss.sprintID {
+				break
+			}
+			if iss.created != "" && s.startAt != "" && s.startAt < iss.created {
+				continue
+			}
+			path = append(path, s)
+		}
+		if len(path) == 0 {
+			for _, s := range list {
+				if s.id == iss.sprintID {
+					path = []sprintRow{s}
+					break
+				}
+			}
+		}
+		for i, s := range path {
+			at := s.startAt
+			if at == "" || at < iss.created {
+				at = iss.created
+			}
+			var fromID, fromValue string
+			if i > 0 {
+				fromID = strconv.FormatInt(path[i-1].id, 10)
+				fromValue = path[i-1].name
+			}
+			if _, err := tx.Exec(`
+				INSERT INTO changelog (id, item_id, at, author, field, from_value, from_id, to_value, to_id, author_id)
+				VALUES (?,?,?,?,'sprint',?,?,?,?,'')`,
+				fmt.Sprintf("sprint:%d", s.id), iss.itemID, at, "",
+				fromValue, fromID, s.name, strconv.FormatInt(s.id, 10)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// scanAll walks rows to exhaustion, closing them, and is the shape the
+// derive helpers here need (the snapshot package has no txEach of its own).
+func scanAll(rows *sql.Rows, fn func(*sql.Rows) error) error {
+	defer rows.Close()
+	for rows.Next() {
+		if err := fn(rows); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}

@@ -167,6 +167,19 @@ func buildInto(tmp string, opts Options) (rotationStats, error) {
 			return rot, fmt.Errorf("derive sprints: %w", err)
 		}
 	}
+	// The sprint on an issue is a fact; how it got there is the history the
+	// carry-over columns read, and a derived sprint set has none until this
+	// runs (GDK-1694). Unconditional so a snapshot that carried real sprints
+	// gets the same treatment: it is a no-op when there are no sprints, and
+	// it replaces only rows in its own `sprint:` id namespace.
+	if err := deriveSprintHistory(tx); err != nil {
+		return rot, fmt.Errorf("derive sprint history: %w", err)
+	}
+	// …and the columns that read it, through store's own rule so the fixture
+	// and a synced mirror cannot disagree about what a carry-over is.
+	if err := store.BackfillCarryoverTx(tx); err != nil {
+		return rot, fmt.Errorf("derive carry-over: %w", err)
+	}
 
 	// status_catalog is a sync artifact no snapshot ever carried, and retro
 	// resolves the changelog through it — see deriveStatusCatalog (GDK-1680).

@@ -55,6 +55,7 @@ Markers:
 | **Read** · fix versions + `versions` catalog | ✅[^29] | ✅[^29] | —[^30] | ✅[^31] |
 | **Read** · sprints (columns `sprint_id`/`sprint_name`/`sprint_state`) | ✅[^32] | ✅[^32] | ✅[^33] | ✅[^139] |
 | **Read** · boards + sprints as rows (`boards`, `sprints`, `gadak sprint list`) | ✅[^135] | ◐[^122] | ✅[^141] | ✅[^139] |
+| **Read** · sprint carry-over (`carryover_count`, `first_sprint_id` / `first_sprint_at`) | ✅[^143] | ✅[^143] | —[^144] | ✅[^145] |
 | **Write** · sprint — add / remove / create / start / close | ✅[^136] | ✅[^123] | ◐[^142] | ✅[^140] |
 | **Read** · custom fields (`fields --apply`) | ✅[^35] | ✅[^124] | —[^36] | ◐[^37] |
 | **Read** · issue type | ✅[^38] | ✅[^38] | —[^39] | ✅[^40] |
@@ -757,3 +758,24 @@ this table from the code instead of maintaining it by hand is GDK-1301.
     `gadak init --local` workspace: `gadak comment edit STD-2
     standalone-jira:90001 -m …` replaced the body and `gadak comment rm … --yes`
     removed it, both with the mirror's own namespaced id.
+
+[^143]: The sprint field's id is per-site, so its changelog rows arrived under
+    that site's own custom field id and nothing could ask for them; sync
+    normalises the field to `sprint` using the id it already discovers for the
+    issue field (`internal/sync/sync.go:1387`, `internal/sync/sprint.go`).
+    `Derive` then counts the distinct sprints an issue has entered
+    (`internal/store/derive.go`), reading both origin shapes — Jira's growing
+    membership list and the built-in tracker's single-id move — with one rule.
+    Existing mirrors are recognised and backfilled at the v48 migration
+    (`internal/store/flow.go`).
+
+[^144]: Linear supplies no changelog at all (`Batch.NoHistory`), so
+    `carryover_count` is NULL rather than 0 — a cycle an issue was never
+    carried out of and a history that cannot be read are different answers
+    (`internal/store/derive.go`).
+
+[^145]: The built-in tracker records each sprint move in the changelog under
+    the same `customfield_10020` id Cloud uses, stating the single sprint
+    moved into rather than the whole membership; the one counting rule reads
+    both.
+

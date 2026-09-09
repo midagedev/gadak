@@ -256,17 +256,42 @@ func TestDerivedColumnsDocumented(t *testing.T) {
 }
 
 // camelToSnake maps a Go field name to its column name (ReopenCount →
-// reopen_count). Derived has no consecutive capitals, so the simple split is
-// exact for every field it will see; one that breaks the assumption fails the
-// coverage test loudly instead of passing silently. (No equivalent helper
-// exists in package store — internal/fields/slug.go serves a different shape.)
+// reopen_count, FirstSprintID → first_sprint_id). A run of capitals is one
+// word: Derived had none until FirstSprintID, and a per-rune split turned
+// that into `first_sprint_i_d`, which made the coverage test demand a column
+// name no schema has. A boundary opens before a capital that follows a
+// lower-case rune, and before the last capital of a run that is followed by
+// a lower-case one (HTTPServer → http_server). (No equivalent helper exists
+// in package store — internal/fields/slug.go serves a different shape.)
 func camelToSnake(name string) string {
+	rs := []rune(name)
 	var b strings.Builder
-	for i, r := range name {
+	for i, r := range rs {
 		if i > 0 && unicode.IsUpper(r) {
-			b.WriteByte('_')
+			prevLower := !unicode.IsUpper(rs[i-1])
+			nextLower := i+1 < len(rs) && !unicode.IsUpper(rs[i+1])
+			if prevLower || nextLower {
+				b.WriteByte('_')
+			}
 		}
 		b.WriteRune(unicode.ToLower(r))
 	}
 	return b.String()
+}
+
+// TestCamelToSnakeCapitalRuns pins the boundary rule the coverage test above
+// depends on: a run of capitals is one word, so an ID suffix does not become
+// its own column name (GDK-1694).
+func TestCamelToSnakeCapitalRuns(t *testing.T) {
+	for _, c := range [][2]string{
+		{"ReopenCount", "reopen_count"},
+		{"FirstSprintID", "first_sprint_id"},
+		{"CarryoverCount", "carryover_count"},
+		{"HTTPServer", "http_server"},
+		{"ID", "id"},
+	} {
+		if got := camelToSnake(c[0]); got != c[1] {
+			t.Errorf("camelToSnake(%q) = %q, want %q", c[0], got, c[1])
+		}
+	}
 }

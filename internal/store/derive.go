@@ -2,6 +2,7 @@ package store
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -67,6 +68,20 @@ type Derived struct {
 	// issue is done now and the span is positive — the CycleTimeP85Hours
 	// rule, stored instead of walked. Nil otherwise.
 	CycleHours *float64
+	// CarryoverCount is how many times the issue was carried into a sprint
+	// after the first — the number of distinct sprints it has ever entered,
+	// minus one. Nil, never 0, when the origin supplies no changelog: an
+	// issue that was never carried and an issue whose history cannot be read
+	// are different answers, and the reopen columns' plain int does not
+	// distinguish them (GDK-1694, and GDK-1690's rule).
+	CarryoverCount *int
+	// FirstSprintID / FirstSprintAt are the first sprint the issue entered
+	// and when. The scope-creep question — was this added after the sprint
+	// began? — is FirstSprintAt against that sprint's start_at, so the stamp
+	// is the column with leverage, not the count. The id lives in the
+	// sprints(source_id, id) space.
+	FirstSprintID *int64
+	FirstSprintAt *string
 	// LastActivityAt is the newest of the item's updated stamp, the newest
 	// changelog entry and the newest comment. Nil when all three are absent.
 	// ISO-8601 UTC strings compare lexicographically, so "newest" is a string
@@ -91,6 +106,10 @@ func Derive(in DeriveInput) Derived {
 	// the last write of each field below is the newest one.
 	sort.SliceStable(entries, func(i, j int) bool { return entries[i].At < entries[j].At })
 
+	// Sprint membership, accumulated across the pass — see the "sprint" case.
+	var seenSprints map[int64]bool
+	sprintEntries := 0
+
 	for _, e := range entries {
 		if e.At == "" {
 			continue
@@ -113,11 +132,44 @@ func Derive(in DeriveInput) Derived {
 			}
 		case "assignee":
 			d.AssigneeChangedAt = &at
+		case "sprint":
+			// Two origin shapes, one rule. Jira Cloud keeps the whole
+			// membership as a growing list ("12" -> "12, 13"); the built-in
+			// tracker states the single sprint moved into ("12" -> "13").
+			// Counting ids that are new to this issue answers both the same
+			// way, and it also refuses to count a removal ("12, 13" -> "12")
+			// or a re-add of a sprint the issue already visited.
+			for _, id := range sprintIDs(e.ToID) {
+				if seenSprints == nil {
+					seenSprints = map[int64]bool{}
+				}
+				if seenSprints[id] {
+					continue
+				}
+				seenSprints[id] = true
+				sprintEntries++
+				if sprintEntries == 1 {
+					first := id
+					firstAt := at
+					d.FirstSprintID = &first
+					d.FirstSprintAt = &firstAt
+				}
+			}
 		}
 		// LastActivityAt seeds from the newest changelog entry — any field,
 		// because a priority edit is activity too: entries are sorted, so the
 		// last non-empty At wins.
 		d.LastActivityAt = &at
+	}
+
+	// Carry-over is a changelog answer, so an origin that supplies none
+	// leaves it NULL rather than 0 (see the field comment).
+	if !in.NoHistory {
+		n := sprintEntries - 1
+		if n < 0 {
+			n = 0
+		}
+		d.CarryoverCount = &n
 	}
 
 	// Born in progress (2026-09-07, flow canon: work item age counts from the
@@ -257,4 +309,28 @@ func priorityRank(priority string, list []string) int {
 		}
 	}
 	return 0
+}
+
+// sprintIDs splits a changelog sprint value into ids. Jira sends the whole
+// membership as a comma-separated list with a space ("12, 13"); the built-in
+// tracker sends one id. Neither shape is promised, so both separators are
+// accepted and every element is trimmed. A non-numeric element is dropped
+// rather than guessed at: the sprints table keys on an integer id.
+func sprintIDs(v string) []int64 {
+	if v == "" {
+		return nil
+	}
+	var out []int64
+	for _, part := range strings.Split(v, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(part, 10, 64)
+		if err != nil {
+			continue
+		}
+		out = append(out, id)
+	}
+	return out
 }

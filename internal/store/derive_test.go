@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -484,4 +485,136 @@ func derefFloat(f *float64) string {
 		return "<nil>"
 	}
 	return strconv.FormatFloat(*f, 'g', -1, 64)
+}
+
+// TestDeriveCarryover — the sprint history reaches the mirror in two shapes
+// and one rule has to read both (GDK-1694). Jira Cloud keeps the whole
+// membership as a growing comma list; the built-in tracker states the single
+// sprint moved into. Counting ids that are new to the issue answers both the
+// same way, refuses to count a removal, and refuses to count a re-add of a
+// sprint the issue already visited.
+//
+// FAIL-first: red before the "sprint" case existed (every want was nil).
+func TestDeriveCarryover(t *testing.T) {
+	cl := func(pairs ...[2]string) []ChangeEntry {
+		out := make([]ChangeEntry, 0, len(pairs))
+		for i, p := range pairs {
+			out = append(out, ChangeEntry{
+				Field: "sprint",
+				At:    fmt.Sprintf("2026-09-0%dT00:00:00Z", i+1),
+				ToID:  p[0], FromID: p[1],
+			})
+		}
+		return out
+	}
+	ptr := func(n int) *int { return &n }
+	id := func(n int64) *int64 { return &n }
+	at := func(s string) *string { return &s }
+
+	for _, c := range []struct {
+		name       string
+		in         DeriveInput
+		wantCount  *int
+		wantFirst  *int64
+		wantFirstA *string
+	}{
+		{
+			name:      "never in a sprint",
+			in:        DeriveInput{},
+			wantCount: ptr(0),
+		},
+		{
+			name:       "one sprint, never carried",
+			in:         DeriveInput{Changelog: cl([2]string{"12", ""})},
+			wantCount:  ptr(0),
+			wantFirst:  id(12),
+			wantFirstA: at("2026-09-01T00:00:00Z"),
+		},
+		{
+			name: "Jira Cloud: the membership list grows",
+			in: DeriveInput{Changelog: cl(
+				[2]string{"12", ""},
+				[2]string{"12, 13", "12"},
+				[2]string{"12, 13, 14", "12, 13"},
+			)},
+			wantCount:  ptr(2),
+			wantFirst:  id(12),
+			wantFirstA: at("2026-09-01T00:00:00Z"),
+		},
+		{
+			name: "built-in tracker: one id at a time",
+			in: DeriveInput{Changelog: cl(
+				[2]string{"12", ""},
+				[2]string{"13", "12"},
+				[2]string{"14", "13"},
+			)},
+			wantCount:  ptr(2),
+			wantFirst:  id(12),
+			wantFirstA: at("2026-09-01T00:00:00Z"),
+		},
+		{
+			name: "a removal is not a carry-over",
+			in: DeriveInput{Changelog: cl(
+				[2]string{"12, 13", ""},
+				[2]string{"12", "12, 13"},
+			)},
+			wantCount:  ptr(1),
+			wantFirst:  id(12),
+			wantFirstA: at("2026-09-01T00:00:00Z"),
+		},
+		{
+			name: "re-added to a sprint it already visited counts once",
+			in: DeriveInput{Changelog: cl(
+				[2]string{"12", ""},
+				[2]string{"13", "12"},
+				[2]string{"12", "13"},
+			)},
+			wantCount:  ptr(1),
+			wantFirst:  id(12),
+			wantFirstA: at("2026-09-01T00:00:00Z"),
+		},
+		{
+			name: "cleared to the backlog: an empty to is no sprint",
+			in: DeriveInput{Changelog: cl(
+				[2]string{"12", ""},
+				[2]string{"", "12"},
+			)},
+			wantCount:  ptr(0),
+			wantFirst:  id(12),
+			wantFirstA: at("2026-09-01T00:00:00Z"),
+		},
+		{
+			name: "an origin with no changelog reads NULL, not zero",
+			in:   DeriveInput{NoHistory: true},
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			d := Derive(c.in)
+			if !eqIntPtr(d.CarryoverCount, c.wantCount) {
+				t.Errorf("carryover_count = %v, want %v", fmtIntPtr(d.CarryoverCount), fmtIntPtr(c.wantCount))
+			}
+			if !eqInt64Ptr(d.FirstSprintID, c.wantFirst) {
+				t.Errorf("first_sprint_id = %v, want %v", d.FirstSprintID, c.wantFirst)
+			}
+			if !eqStrPtr(d.FirstSprintAt, c.wantFirstA) {
+				t.Errorf("first_sprint_at = %v, want %v", d.FirstSprintAt, c.wantFirstA)
+			}
+		})
+	}
+}
+
+func eqIntPtr(a, b *int) bool {
+	return (a == nil) == (b == nil) && (a == nil || *a == *b)
+}
+func eqInt64Ptr(a, b *int64) bool {
+	return (a == nil) == (b == nil) && (a == nil || *a == *b)
+}
+func eqStrPtr(a, b *string) bool {
+	return (a == nil) == (b == nil) && (a == nil || *a == *b)
+}
+func fmtIntPtr(p *int) string {
+	if p == nil {
+		return "nil"
+	}
+	return strconv.Itoa(*p)
 }

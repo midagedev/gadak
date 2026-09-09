@@ -1673,19 +1673,19 @@ func TestPairedUnreachableLastErrorIsFolded(t *testing.T) {
 }
 
 func TestChangelogFieldIDPrefersStableID(t *testing.T) {
-	got := changelogField(jira.HistoryItem{Field: "상태", FieldID: "status"})
+	got := changelogField(jira.HistoryItem{Field: "상태", FieldID: "status"}, agileFields{})
 	if got != "status" {
 		t.Errorf("fieldId present: got %q", got)
 	}
-	got = changelogField(jira.HistoryItem{Field: "상태"})
+	got = changelogField(jira.HistoryItem{Field: "상태"}, agileFields{})
 	if got != "status" {
 		t.Errorf("korean fallback: got %q, want status", got)
 	}
-	got = changelogField(jira.HistoryItem{Field: "Status"})
+	got = changelogField(jira.HistoryItem{Field: "Status"}, agileFields{})
 	if got != "status" {
 		t.Errorf("english fallback: got %q, want status", got)
 	}
-	got = changelogField(jira.HistoryItem{Field: "커스텀", FieldID: "customfield_9"})
+	got = changelogField(jira.HistoryItem{Field: "커스텀", FieldID: "customfield_9"}, agileFields{})
 	if got != "customfield_9" {
 		t.Errorf("custom fieldId: got %q", got)
 	}
@@ -1913,5 +1913,35 @@ func TestNamespacePurgeForcesAFullPass(t *testing.T) {
 	}
 	if !res.Full {
 		t.Fatal("a pass that purged rows outside the id namespace ran incremental — every purged issue the watermark hides is gone from the mirror with no error")
+	}
+}
+
+// TestChangelogFieldNormalisesSprint — the sprint field id is per-site, so
+// the same history reached one mirror as customfield_10020 and another as a
+// different number, and `where field = 'sprint'` answered nothing anywhere
+// (GDK-1694). Three origin shapes, one stable name.
+func TestChangelogFieldNormalisesSprint(t *testing.T) {
+	site := agileFields{sprint: "customfield_10020"}
+	for _, c := range []struct {
+		name  string
+		it    jira.HistoryItem
+		agile agileFields
+		want  string
+	}{
+		// Jira Cloud and the built-in tracker both send the site's own id.
+		{"cloud id", jira.HistoryItem{Field: "Sprint", FieldID: "customfield_10020"}, site, "sprint"},
+		// Another site numbers it differently; the discovered id decides.
+		{"other site id", jira.HistoryItem{Field: "Sprint", FieldID: "customfield_10104"}, agileFields{sprint: "customfield_10104"}, "sprint"},
+		// A history item with no fieldId (Server) falls to the name map.
+		{"name only", jira.HistoryItem{Field: "Sprint"}, agileFields{}, "sprint"},
+		{"localized name", jira.HistoryItem{Field: "스프린트"}, agileFields{}, "sprint"},
+		// A custom field that is not this site's sprint field is untouched.
+		{"other custom field", jira.HistoryItem{Field: "심각도", FieldID: "customfield_10104"}, site, "customfield_10104"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if got := changelogField(c.it, c.agile); got != c.want {
+				t.Errorf("changelogField = %q, want %q", got, c.want)
+			}
+		})
 	}
 }

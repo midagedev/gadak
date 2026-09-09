@@ -1220,7 +1220,7 @@ func build(ctx context.Context, c *jira.Client, cfg *config.Config, iss jira.Iss
 	}
 	for _, h := range histories {
 		for i, it := range h.Items {
-			field := changelogField(it)
+			field := changelogField(it, agile)
 			rec.Changelog = append(rec.Changelog, store.ChangeEntry{
 				ID:        fmt.Sprintf("%s:%s:%d", itemNS(cfg), h.ID, i),
 				At:        jira.ISOTime(h.Created),
@@ -1359,6 +1359,9 @@ var changelogFieldNames = map[string]string{
 	"affects version":  "versions",
 	"affects versions": "versions",
 	"due date":         "duedate",
+	"sprint":           "sprint",
+	"스프린트":             "sprint",
+	"スプリント":            "sprint",
 	"environment":      "environment",
 	"상태":               "status",
 	"담당자":              "assignee",
@@ -1381,7 +1384,19 @@ var changelogFieldNames = map[string]string{
 // changelogField is the locale-stable changelog field key Derive and the feed
 // switch on. fieldId wins; without it a stable name map is used; last resort
 // is lowercase (English system fields).
-func changelogField(it jira.HistoryItem) string {
+//
+// Sprint is the one field whose id is not stable across sites: it is a custom
+// field, so the same history reached the mirror as `customfield_10020` here
+// and some other number there, and `where field = 'sprint'` answered nothing
+// anywhere (GDK-1694 — measured: 23,076 rows on one site, unreachable). The
+// site's own id is already discovered for the issue field (agileFields), so
+// it is normalised to the stable name here too. This is the mirror image of
+// the display-name hazard: for sprint there is no stable id, only a stable
+// name, and gadak owns it.
+func changelogField(it jira.HistoryItem, agile agileFields) string {
+	if agile.sprint != "" && it.FieldID == agile.sprint {
+		return "sprint"
+	}
 	if it.FieldID != "" {
 		return it.FieldID
 	}

@@ -336,3 +336,85 @@ func (db *DB) BackfillFlow(ctx context.Context) error {
 		return backfillFlow(tx)
 	})
 }
+
+// normalizeSprintChangelog rewrites the pre-v48 changelog rows that carry the
+// sprint history under the site's own custom field id.
+//
+// The field id is per-site (customfield_10020 here, another number there), so
+// a migration cannot know it from a constant and has no network to ask. The
+// mirror answers instead: a changelog row whose value names a sprint this
+// mirror already has — by id or by name — is a sprint row, and the field it
+// sits on is that site's sprint field. That is a join, not a guess. A mirror
+// with no sprints yet changes nothing and is filled by the next sync.
+func normalizeSprintChangelog(tx *sql.Tx) error {
+	_, err := tx.Exec(`
+		UPDATE changelog SET field = 'sprint'
+		WHERE field LIKE 'customfield_%'
+		  AND field IN (
+			SELECT DISTINCT c.field
+			FROM changelog c
+			JOIN items it ON it.id = c.item_id
+			JOIN sprints s ON s.source_id = it.source_id
+			                AND (CAST(s.id AS TEXT) = c.to_id OR s.name = c.to_value)
+			WHERE c.field LIKE 'customfield_%' AND c.to_id != ''
+		  )`)
+	return err
+}
+
+// backfillCarryover is the v48 migration hook: after the sprint changelog
+// rows can be recognised (normalizeSprintChangelog), run every mirrored issue
+// back through Derive so the stored carry-over columns and the sync path
+// cannot disagree. Only the three new columns are written back — the rest of
+// Derive's output already holds its values and the inputs here are lean.
+func backfillCarryover(tx *sql.Tx) error {
+	if err := normalizeSprintChangelog(tx); err != nil {
+		return fmt.Errorf("normalize sprint changelog: %w", err)
+	}
+	type row struct{ itemID, kind string }
+	var issues []row
+	if err := txEach(tx, `
+		SELECT ir.item_id, COALESCE(s.kind,'')
+		FROM issues_raw ir JOIN items it ON it.id = ir.item_id
+		LEFT JOIN sources s ON s.id = it.source_id`,
+		func(rows *sql.Rows) error {
+			var r row
+			if err := rows.Scan(&r.itemID, &r.kind); err != nil {
+				return err
+			}
+			issues = append(issues, r)
+			return nil
+		}); err != nil {
+		return err
+	}
+	for _, r := range issues {
+		entries := []ChangeEntry{}
+		if err := txEach(tx, `
+			SELECT COALESCE(field,''), COALESCE(at,''), COALESCE(to_id,'')
+			FROM changelog WHERE item_id = ? AND field = 'sprint'`,
+			func(rows *sql.Rows) error {
+				var e ChangeEntry
+				if err := rows.Scan(&e.Field, &e.At, &e.ToID); err != nil {
+					return err
+				}
+				entries = append(entries, e)
+				return nil
+			}, r.itemID); err != nil {
+			return err
+		}
+		d := Derive(DeriveInput{Changelog: entries, NoHistory: r.kind == "linear"})
+		if _, err := tx.Exec(`
+			UPDATE issues_raw SET carryover_count = ?, first_sprint_id = ?, first_sprint_at = ?
+			WHERE item_id = ?`,
+			d.CarryoverCount, d.FirstSprintID, d.FirstSprintAt, r.itemID); err != nil {
+			return fmt.Errorf("backfill carryover %s: %w", r.itemID, err)
+		}
+	}
+	return nil
+}
+
+// BackfillCarryoverTx is backfillCarryover on a caller's transaction. The
+// snapshot pipeline builds its own fixture and never goes through the sync
+// write path, so it derives the sprint history itself and then asks this
+// package — the single owner of the rule — for the columns. Exported for
+// that one caller, the same reason BackfillFlow is.
+func BackfillCarryoverTx(tx *sql.Tx) error { return backfillCarryover(tx) }

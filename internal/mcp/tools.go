@@ -45,7 +45,11 @@ Schema essentials:
   parent_key (direct parent), epic_key (nearest epic
   ancestor — group/aggregate on this), hierarchy_level (1=epic, 0=standard,
   -1=sub-task), reopen_count (times an issue left done and came back; 0 is normal,
-  >0 is the signal), reopened_at, status_changed_at, resolved_at, comment_count.
+  >0 is the signal), reopened_at, status_changed_at, resolved_at, comment_count,
+  carryover_count (times an issue was carried into another sprint after the
+  first; NULL — not 0 — when the origin supplies no changelog), first_sprint_id
+  and first_sprint_at (which sprint it first entered and when: compare that
+  stamp to sprints.start_at to see what was added mid-sprint).
 - sprints / boards: rows of their own — sprints has id, board_id, name, goal,
   state (lowercase active|future|closed), start_at, end_at, complete_at,
   activated_at, external_id (the origin's own id). A sprint with no issues is

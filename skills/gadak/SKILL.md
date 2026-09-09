@@ -251,6 +251,9 @@ you do not type ATTACH): `local.saved_views` (`gadak views save`),
 It survives deleting `gadak.db`.
 
 Some columns exist only here, derived from the changelog while syncing:
+`carryover_count` (how many times an issue was carried into another sprint
+after the first — NULL, not 0, on an origin with no changelog),
+`first_sprint_id` / `first_sprint_at`,
 `reopen_count`, `reopened_at`, `reopen_reason`, and `epic_key` (the nearest
 level-1 ancestor). Jira cannot answer questions about these at all.
 
@@ -271,6 +274,11 @@ ORDER BY priority_rank, updated_at DESC;
 -- What regressed (reopens are the highest-signal quality metric here)
 SELECT key, summary, reopen_count, reopen_reason FROM issues_full
 WHERE reopen_count > 0 ORDER BY reopen_count DESC, reopened_at DESC LIMIT 20;
+
+-- What keeps getting pushed to the next sprint (carryover_count is NULL, not
+-- 0, on an origin that supplies no changelog — Linear)
+SELECT key, summary, carryover_count, sprint_name FROM issues_full
+WHERE carryover_count > 0 ORDER BY carryover_count DESC LIMIT 20;
 
 -- What is stuck, and for how long
 -- Same GDK-369 clock caveat on the built-in tracker for julianday('now').

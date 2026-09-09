@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -1006,4 +1006,21 @@ CREATE TABLE sync_progress (
   fetched    INTEGER NOT NULL,
   total      INTEGER
 );
+`
+
+// schemaV48 (GDK-1694) adds the sprint carry-over columns. The history was
+// always in the mirror — Jira sends every sprint move in the changelog, and
+// on one measured site it was the second most common field there — but under
+// the site's own custom field id, so nothing could ask for it. With the field
+// normalised to `sprint`, Derive counts the distinct sprints an issue has
+// entered: carryover_count is that count minus one, and first_sprint_id /
+// first_sprint_at say which sprint it first entered and when, which is what
+// turns "was this added mid-sprint?" into a join against sprints.start_at.
+// carryover_count is nullable on purpose: an origin with no changelog
+// (Linear) must read NULL, not 0.
+const schemaV48 = `
+ALTER TABLE issues_raw ADD COLUMN carryover_count INTEGER;
+ALTER TABLE issues_raw ADD COLUMN first_sprint_id INTEGER;
+ALTER TABLE issues_raw ADD COLUMN first_sprint_at TEXT;
+CREATE INDEX issues_carryover ON issues_raw(carryover_count);
 `

@@ -208,6 +208,14 @@ func (db *DB) migrate() error {
 					return fmt.Errorf("migration 43 backfill: %w", err)
 				}
 			}
+			// v48: recognise the sprint changelog rows an existing mirror
+			// stored under the site's custom field id, then derive the
+			// carry-over columns from them (flow.go).
+			if i+1 == 48 {
+				if err := backfillCarryover(tx); err != nil {
+					return fmt.Errorf("migration 48 backfill: %w", err)
+				}
+			}
 		}
 		// user_version is the migration level; sync_state.schema_version is the
 		// documented mirror of it and has to move with it.

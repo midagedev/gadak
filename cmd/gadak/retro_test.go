@@ -413,7 +413,17 @@ limit 1 offset ((85 * (select count(*) from cycles) + 99) / 100 - 1)`
 	// 34225385207 on 0e9519b2, which changed only Jira REST paths.
 	// Tolerance is the contract the doc actually states; string equality
 	// was a proxy for it that fails only at rounding boundaries (GDK-1642).
-	if math.Abs(gotWip-handWip.Float64) >= 0.05 {
+	//
+	// The bound is inclusive, and that is the whole of it: the hand query is
+	// RECIPES.md's text, which ends in `round(days, 1)`, so its answer is a
+	// tenth and the largest honest gap to an unrounded value is exactly 0.05
+	// — reached whenever the p85 age lands on an x.x5. An exclusive `>= 0.05`
+	// therefore called the doc's own rounding a disagreement: measured
+	// 2026-09-09 on a regenerated fixture, retro 78.3500 against the hand
+	// query's round-to-78.4000, the same number twice. The epsilon is for the
+	// float path (Go arithmetic vs SQLite julianday), which is nine decimals
+	// wide, not five.
+	if math.Abs(gotWip-handWip.Float64) > 0.05+1e-9 {
 		t.Fatalf("wip age p85: retro %.4f, RECIPES hand SQL %.4f", gotWip, handWip.Float64)
 	}
 }
