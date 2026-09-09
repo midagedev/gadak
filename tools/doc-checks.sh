@@ -2374,5 +2374,37 @@ for want in \
 done
 ok "site/public/llms.txt carries the install commands, both MCP hosts, the Store URL and the ko/ja pages"
 
+# ── 46. a release is told in at most three themes, never as a list (user decision 2026-09-09) ──
+# "이전 버전 대비 달라진 핵심이 잡혀야 하는데 자꾸 사건들의 나열이 된다": a
+# release section is two or three bold-led theme paragraphs that say what
+# changed since the previous version, with every GDK key cited inside one of
+# them. Top-level bullets are the shape of an incident log and are refused
+# outright. Continuation paragraphs (no bold lead) belong to the theme above
+# them. FAIL-first 2026-09-09: Unreleased carried 26 bullets, v0.17.0 twelve
+# themes, and the three files disagreed on the count. Runs on all three
+# editions so the structure stays one history.
+python3 - <<'PY46' || fail "changelog theme contract broken (see above)"
+import re, sys
+bad = []
+for f in ("CHANGELOG.md", "CHANGELOG.ko.md", "CHANGELOG.ja.md"):
+    s = open(f, encoding="utf-8").read()
+    for sec in re.split(r"^(?=## )", s, flags=re.M)[1:]:
+        head = sec.split("\n", 1)[0].strip()
+        body = re.sub(r"^\[GDK-\d+\]:.*$", "", sec[len(head):], flags=re.M)
+        paras = [p for p in re.split(r"\n\s*\n", body) if p.strip()]
+        themes = sum(1 for p in paras if re.match(r"\s*\*\*", p))
+        bullets = [l for l in body.splitlines() if l.startswith("- ")]
+        if bullets:
+            bad.append(f"{f} {head!r}: {len(bullets)} top-level bullet(s) — tell it as a theme paragraph")
+        if themes > 3:
+            bad.append(f"{f} {head!r}: {themes} themes (max 3)")
+        if themes == 0 and paras and head != "## Unreleased":
+            bad.append(f"{f} {head!r}: no bold-led theme paragraph")
+for b in bad:
+    print("  " + b)
+sys.exit(1 if bad else 0)
+PY46
+ok "every changelog release is at most three theme paragraphs, no bullets, in all three editions"
+
 
 echo "doc-checks: all passed"
