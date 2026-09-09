@@ -266,7 +266,7 @@ jobs:
           echo "snapshot portable: fts_hits=$hits epic_rows=$rows"
 
   staticcheck:
-    name: Staticcheck (warning-only)
+    name: Staticcheck
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -292,8 +292,8 @@ jobs:
           go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      # --warn-only while the existing findings are triaged (GDK-1463): this
-      # job reports and never fails. Dropping the flag is what makes it a gate.
+      # A gate since the cross-platform list reached zero (GDK-1463 triage,
+      # closed 2026-09-09): a finding every GOOS agrees on fails the job.
       #
       # GTK4/WebKitGTK is deliberately not installed. Without it the desktop
       # module cannot be analysed under GOOS=linux or darwin, and the script
@@ -301,7 +301,7 @@ jobs:
       # second copy of the mirror-flaky apt step in this file for a job that
       # cannot fail. The root module gets all three either way.
       - name: staticcheck over the GOOS matrix
-        run: bash tools/staticcheck.sh --warn-only
+        run: bash tools/staticcheck.sh
 
   e2e:
     name: Playwright E2E
