@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/store"
+	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
 func TestSyncStale(t *testing.T) {
@@ -70,6 +72,45 @@ func TestSyncIfStaleWatchIsUsageError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), `run "gadak sync --help"`) {
 		t.Fatalf("want usageError help pointer, got %v", err)
+	}
+}
+
+func TestSyncHelpDocumentsConcurrency(t *testing.T) {
+	out := formatHelp("sync", nil)
+	if !strings.Contains(out, "[--concurrency N]") {
+		t.Fatalf("sync usage missing [--concurrency N]:\n%s", out)
+	}
+}
+
+func TestSyncConcurrencyRangeIsUsageError(t *testing.T) {
+	for _, bad := range []string{"0", "9"} {
+		_, err := capture(t, func() error {
+			return cmdSync([]string{"--concurrency", bad})
+		})
+		if err == nil {
+			t.Fatalf("--concurrency %s must be a usage error", bad)
+		}
+		if !strings.Contains(err.Error(), "--concurrency") || !strings.Contains(err.Error(), bad) {
+			t.Fatalf("usage must echo the bad value, got %v", err)
+		}
+		if !strings.Contains(err.Error(), `run "gadak sync --help"`) {
+			t.Fatalf("want usageError help pointer, got %v", err)
+		}
+	}
+}
+
+func TestSyncConcurrencyWithinRangeIsAccepted(t *testing.T) {
+	// 1 and the ceiling parse and pass flag validation; the empty workspace
+	// then refuses on credentials, which is the next gate — proving the flag
+	// itself was not the refusal.
+	emptyHome(t)
+	for _, ok := range []string{"1", fmt.Sprint(syncer.MaxFetchConcurrency)} {
+		_, err := capture(t, func() error {
+			return cmdSync([]string{"--concurrency", ok})
+		})
+		if err == nil || strings.Contains(err.Error(), "--concurrency") {
+			t.Fatalf("--concurrency %s: want the flag accepted (next gate is credentials), got %v", ok, err)
+		}
 	}
 }
 

@@ -101,6 +101,12 @@ type Client struct {
 	Backoff time.Duration
 	// PauseBetween is slept after each Page fetch (rate politeness). Zero in tests.
 	PauseBetween time.Duration
+	// PauseDecide, when set, is consulted before each PauseBetween sleep in
+	// Page: returning false skips the pause. The sync pass's fetch pool sets
+	// it (GDK-1673) so the politeness gap runs only while the pool's
+	// effective width is 1 — with several requests already overlapping the
+	// pause would only add latency on top. Nil keeps the pause always on.
+	PauseDecide func() bool
 
 	// usage is process-local call volume; see Usage / TakeUsage. Never blocks
 	// a request on instrumentation failure (counters are atomic).
@@ -324,7 +330,7 @@ func (c *Client) Page(ctx context.Context, id string) (Page, error) {
 	if err := c.do(ctx, http.MethodGet, p, nil, &out); err != nil {
 		return Page{}, err
 	}
-	if c.PauseBetween > 0 {
+	if c.PauseBetween > 0 && c.pauseOn() {
 		timer := time.NewTimer(c.PauseBetween)
 		select {
 		case <-ctx.Done():
@@ -338,6 +344,15 @@ func (c *Client) Page(ctx context.Context, id string) (Page, error) {
 		}
 	}
 	return out, nil
+}
+
+// pauseOn is the PauseBetween gate: true unless PauseDecide opts this fetch
+// out (the pool runs the pause only at effective width 1, GDK-1673).
+func (c *Client) pauseOn() bool {
+	if c.PauseDecide != nil {
+		return c.PauseDecide()
+	}
+	return true
 }
 
 // PageVersions lists every history stamp for a content id

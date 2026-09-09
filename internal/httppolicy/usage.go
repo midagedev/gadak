@@ -27,7 +27,8 @@ type Usage struct {
 }
 
 // Meter holds atomic counters shared by concurrent request goroutines.
-// A Client is used from up to 4 concurrent sync workers (contracts/sync.md).
+// A Client is read from a sync pass's bounded fetch pool (GDK-1673, width
+// capped at 8 by --concurrency) and from one-off CLI verbs.
 type Meter struct {
 	requests            atomic.Int64
 	throttled           atomic.Int64

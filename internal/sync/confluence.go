@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/midagedev/gadak/internal/adf"
@@ -90,9 +91,80 @@ func RunConfluence(ctx context.Context, cfg *config.Config, db *store.DB, opts O
 	)
 }
 
+// pageFetch is one pooled fetch's whole product: the mapped page record, the
+// space name it carries, its freshest stamp, and the version-history rows the
+// worker read alongside the body (nil when none were needed — the same rule
+// collectPageVersions applies). gone marks an ErrNotFound body — the page
+// left between listing and fetch — and carries that error for the skip log;
+// it is not a failure. Any other fetch error comes back as the fetch's error
+// proper and fails the pass (fetchOrdered's errgroup rule). commitBatch
+// consumes these in listing order.
+type pageFetch struct {
+	rec       store.PageRecord
+	spaceName string
+	when      string
+	versions  []store.PageVersion
+	gone      bool
+	goneErr   error
+}
+
 // runConfluencePass is the Confluence-specific body inside the shared runSource
 // skeleton. Usage flush is registered by runSource on the client from setup.
 func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Config, db *store.DB, opts Options, state store.SyncState, res *Result) error {
+	// The fetch pool (GDK-1673): the per-item GETs — body, comments, version
+	// stamps — fan out over a bounded worker set while the store writes stay
+	// serial and in listing order through the single commitBatch below. One
+	// Throttle for the whole pass, across backfills and chunks, so AIMD state
+	// earned in one chunk holds in the next. Width is the --concurrency knob
+	// clamped to [1, MaxFetchConcurrency]; 1 is exactly the pre-1673 serial
+	// pass, PauseBetween included.
+	thr := newThrottle(clampFetchWidth(FetchConcurrency))
+	// The throttle tally covers the whole pass, space listing included — the
+	// meter snapshot is taken before any request this pass makes.
+	throttleBefore := c.Usage().Throttled
+	// PauseBetween is the serial pass's politeness gap; at a wider effective
+	// width the requests already overlap and the pause would only stack
+	// latency on top. Restored on exit: test clients are shared across passes.
+	prevPauseDecide := c.PauseDecide
+	c.PauseDecide = func() bool { return thr.Effective() <= 1 }
+	defer func() { c.PauseDecide = prevPauseDecide }()
+	// Workers log degrade lines from their own goroutines (fetchPageVersions);
+	// test Log sinks are plain appends, so worker-side logging goes through
+	// this serialized wrapper. Coordinator-side logging stays opts.logf.
+	var logMu sync.Mutex
+	poolLogf := func(format string, args ...any) {
+		logMu.Lock()
+		defer logMu.Unlock()
+		opts.logf(format, args...)
+	}
+	// fetchOne is one pool worker's whole item: the serial per-hit fetch set —
+	// body, comments, then the version-stamp read (GDK-1673 moved that read
+	// from commitBatch-time into the worker; its write stays behind the
+	// upsert) — plus this fetch window's AIMD note. A 429 was already waited
+	// out inside the transport (Retry-After); the meter delta is how the
+	// worker sees it happened at all.
+	fetchOne := func(ctx context.Context, hit confluence.Page) (pageFetch, error) {
+		before := c.Usage().Throttled
+		var pf pageFetch
+		rec, spaceName, when, err := fetchPageRecord(ctx, c, cfg, hit)
+		if err == nil {
+			pf.versions, err = fetchPageVersions(ctx, c, db, poolLogf, rec.Item.ID, rec.Item.ExternalID, rec.Page.Version)
+		}
+		if errors.Is(err, confluence.ErrNotFound) {
+			// Deleted or view-restricted between listing and fetch — not a
+			// failure: emit logs the skip.
+			pf.gone, pf.goneErr = true, err
+			err = nil
+		}
+		pf.rec, pf.spaceName, pf.when = rec, spaceName, when
+		if c.Usage().Throttled > before {
+			thr.NoteThrottle()
+		} else {
+			thr.NoteClean()
+		}
+		return pf, err
+	}
+
 	// Upgrade path for GDK-344: built-in wiki mirrors written before the
 	// page id namespace existed hold `confluence:N` rows whose keys the pass
 	// is about to re-insert as `standalone-confluence:N` — same (source_id,
@@ -239,7 +311,7 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 	// from a mid-chunk page batch (a later chunk's failure must not inherit
 	// this chunk's floor, and this chunk's floors must not move until its
 	// fetch completed).
-	commitBatch := func(batch []store.PageRecord, batchSpaces []store.SpaceRow) error {
+	commitBatch := func(batch []pageFetch, batchSpaces []store.SpaceRow) error {
 		if len(batch) == 0 {
 			return nil
 		}
@@ -248,12 +320,22 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 				return err
 			}
 		}
-		changed, err := db.UpsertPages(ctx, batch)
+		recs := make([]store.PageRecord, len(batch))
+		for i, pf := range batch {
+			recs[i] = pf.rec
+		}
+		changed, err := db.UpsertPages(ctx, recs)
 		if err != nil {
 			return err
 		}
-		for _, rec := range batch {
-			if err := collectPageVersions(ctx, c, db, opts, rec.Item.ID, rec.Item.ExternalID, rec.Page.Version); err != nil {
+		// Version stamps write after the items rows exist (page_versions→items
+		// FK) — the same spot the serial pass collected them. The pooled worker
+		// already did the read; this is only the write, in batch order.
+		for _, pf := range batch {
+			if len(pf.versions) == 0 {
+				continue
+			}
+			if err := writePageVersions(ctx, db, opts.logf, pf.rec.Item.ID, pf.rec.Item.ExternalID, pf.versions); err != nil {
 				return err
 			}
 		}
@@ -268,8 +350,12 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 
 	processHits := func(cp *chunkPass) func([]confluence.Page) error {
 		return func(hits []confluence.Page) error {
-			batch := make([]store.PageRecord, 0, pageBatchSize)
+			batch := make([]pageFetch, 0, pageBatchSize)
 			spaceByKey := map[string]store.SpaceRow{}
+			// The gate pass stays serial: it reads the mirror and decides, per
+			// hit, whether a fetch is warranted at all. Only the network half
+			// fans out.
+			kept := make([]confluence.Page, 0, len(hits))
 			for _, hit := range hits {
 				sk := hit.Space.Key
 				gate, ok := cp.gates[sk]
@@ -309,23 +395,26 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 				gate.markFetched(hit.ID)
 				res.PageBodies++
 				cp.bodies[sk]++
-				rec, spaceName, when, err := fetchPageRecord(ctx, c, cfg, hit)
-				if errors.Is(err, confluence.ErrNotFound) {
+				kept = append(kept, hit)
+			}
+			// The pooled half: workers run fetchOne (body + comments + version
+			// read) concurrently, bounded by thr; emit lands back here in
+			// listing order on this goroutine, so the batch, the spaces map,
+			// the tallies and every commit still see one writer.
+			emit := func(i int, pf pageFetch) error {
+				if pf.gone {
 					// Deleted or view-restricted between the listing and the fetch —
 					// routine on a busy site; the next successful prune removes any
 					// stale mirror row that has left scope.
-					opts.logf("confluence: skip %s (gone: %v)", hit.ID, err)
-					continue
+					opts.logf("confluence: skip %s (gone: %v)", kept[i].ID, pf.goneErr)
+					return nil
 				}
-				if err != nil {
-					return err
+				if sk := pf.rec.Page.SpaceKey; sk != "" {
+					spaceByKey[sk] = store.SpaceRow{Key: sk, Name: pf.spaceName}
 				}
-				if sk := rec.Page.SpaceKey; sk != "" {
-					spaceByKey[sk] = store.SpaceRow{Key: sk, Name: spaceName}
-				}
-				batch = append(batch, rec)
-				noteStamp(when, &cp.maxUTC, &cp.maxRaw)
-				noteStamp(when, &maxUTC, &maxRaw)
+				noteStamp(pf.when, &cp.maxUTC, &cp.maxRaw)
+				noteStamp(pf.when, &maxUTC, &maxRaw)
+				batch = append(batch, pf)
 				if len(batch) >= pageBatchSize {
 					if err := commitBatch(batch, spaceRowsFromMap(spaceByKey)); err != nil {
 						return err
@@ -333,7 +422,13 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 					batch = batch[:0]
 					spaceByKey = map[string]store.SpaceRow{}
 				}
+				return nil
 			}
+			if err := fetchOrdered(ctx, thr, kept, fetchOne, emit); err != nil {
+				return err
+			}
+			// The trailing sub-batch commit, exactly where the serial pass
+			// had it: emit only flushes at pageBatchSize.
 			return commitBatch(batch, spaceRowsFromMap(spaceByKey))
 		}
 	}
@@ -460,6 +555,16 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 		// tick folds it to one short line (GDK-1074 waste ②).
 		opts.logf("confluence: pruned 0 out-of-scope pages (%d spaces in scope)", len(spaces))
 	}
+
+	// The fetch pool's one-line summary (GDK-1673): configured width, the
+	// lowest effective width AIMD sank to this pass, and — only when the
+	// origin throttled — the 429 count. This pass's own line; runSource's
+	// done line belongs to the shared skeleton.
+	sum := fmt.Sprintf("confluence: concurrency=%d/%d", thr.Configured(), thr.MinEffective())
+	if n := c.Usage().Throttled - throttleBefore; n > 0 {
+		sum += fmt.Sprintf(" throttled=%d", n)
+	}
+	opts.logf("%s", sum)
 
 	res.Watermark = maxRaw
 	if err := db.RecordSync(ctx, ConfluenceSourceID, store.SyncResult{Watermark: maxRaw, FullSync: res.Full}); err != nil {
@@ -858,6 +963,9 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, cfg *config.Conf
 }
 
 // collectPageVersions fetches history stamps for one page and writes them.
+// Since GDK-1673 it is the composition of the two pool halves — read in a
+// worker (fetchPageVersions), write in the committer (writePageVersions) —
+// and remains the definition of the whole operation for one-off callers.
 //
 // Incremental rule: refetch only when page_versions has no row for the
 // incoming version number. An unchanged version cannot have grown new
@@ -871,30 +979,46 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, cfg *config.Conf
 // state as one whose stamps could not be fetched. Only a cancelled context
 // propagates: that is the caller stopping, not a mirror hiccup.
 func collectPageVersions(ctx context.Context, c *confluence.Client, db *store.DB, opts Options, itemID, pageID string, incomingVer int) error {
-	if itemID == "" || pageID == "" {
+	rows, err := fetchPageVersions(ctx, c, db, opts.logf, itemID, pageID, incomingVer)
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
 		return nil
+	}
+	return writePageVersions(ctx, db, opts.logf, itemID, pageID, rows)
+}
+
+// fetchPageVersions is collectPageVersions's read half, run inside a fetch
+// pool worker (GDK-1673): the stored-stamp check is a WAL read and the
+// history GET is one pooled request. logf is the serialized pool logger.
+// The degrade contract is collectPageVersions's — nothing fails the pass
+// except a cancelled context.
+func fetchPageVersions(ctx context.Context, c *confluence.Client, db *store.DB, logf func(string, ...any), itemID, pageID string, incomingVer int) ([]store.PageVersion, error) {
+	if itemID == "" || pageID == "" {
+		return nil, nil
 	}
 	has, err := db.HasPageVersion(ctx, itemID, incomingVer)
 	if err != nil {
 		if ctx.Err() != nil {
-			return err
+			return nil, err
 		}
-		opts.logf("confluence: page versions %s: read stored stamps: %v", pageID, err)
-		return nil
+		logf("confluence: page versions %s: read stored stamps: %v", pageID, err)
+		return nil, nil
 	}
 	if has {
-		return nil
+		return nil, nil
 	}
 	vers, err := c.PageVersions(ctx, pageID)
 	if err != nil {
 		if ctx.Err() != nil {
-			return err
+			return nil, err
 		}
-		opts.logf("confluence: page versions %s: %v", pageID, err)
-		return nil
+		logf("confluence: page versions %s: %v", pageID, err)
+		return nil, nil
 	}
 	if len(vers) == 0 {
-		return nil
+		return nil, nil
 	}
 	rows := make([]store.PageVersion, 0, len(vers))
 	for _, v := range vers {
@@ -910,6 +1034,15 @@ func collectPageVersions(ctx context.Context, c *confluence.Client, db *store.DB
 			MinorEdit:  v.MinorEdit,
 		})
 	}
+	return rows, nil
+}
+
+// writePageVersions is collectPageVersions's write half, run in the
+// committer after the batch's items rows exist (page_versions→items FK).
+// Same degrade rule as the read half: a store failure logs and never fails
+// the pass — the GDK-1307 race (the item pruned between upsert and stamp
+// write by a second sync process) lands here.
+func writePageVersions(ctx context.Context, db *store.DB, logf func(string, ...any), itemID, pageID string, rows []store.PageVersion) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -917,12 +1050,7 @@ func collectPageVersions(ctx context.Context, c *confluence.Client, db *store.DB
 		if ctx.Err() != nil {
 			return err
 		}
-		// GDK-1307: the item can be gone by now — a second sync process on
-		// the same mirror (an older app beside a newer CLI, with a different
-		// space scope) prunes it between UpsertPages and this write, and the
-		// page_versions→items FOREIGN KEY refuses. That is a missing stamp,
-		// not a broken pass; the next pass over the page re-fetches it.
-		opts.logf("confluence: page versions %s: write stamps: %v", pageID, err)
+		logf("confluence: page versions %s: write stamps: %v", pageID, err)
 		return nil
 	}
 	return nil

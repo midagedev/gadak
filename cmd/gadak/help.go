@@ -147,7 +147,7 @@ var helps = map[string]cmdHelp{
 	},
 	"sync": {
 		summary: "mirror the workspace origin into the local SQLite database",
-		usage:   "gadak [--workspace <name>] sync [--full] [--watch] [--source jira|linear|confluence|all] [--if-stale DUR]",
+		usage:   "gadak [--workspace <name>] sync [--full] [--watch] [--source jira|linear|confluence|all] [--if-stale DUR] [--concurrency N]",
 		examples: []string{
 			"gadak sync                 # incremental, what a serve loop does",
 			"gadak sync --full          # after changing projects or a mapping",

@@ -25,6 +25,8 @@ func cmdSync(args []string) error {
 	watch := fs.Bool("watch", false, "keep syncing on an interval")
 	source := fs.String("source", "all", "which source to sync: jira, linear, confluence, or all")
 	ifStale := fs.String("if-stale", "", "sync a source only when its last successful run is older than DUR (e.g. 15m, 1h) or its last run failed")
+	concurrency := fs.Int("concurrency", syncer.DefaultFetchConcurrency,
+		fmt.Sprintf("parallel width for per-item origin fetches, 1 to %d (1 is the old serial behaviour)", syncer.MaxFetchConcurrency))
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -45,6 +47,12 @@ func cmdSync(args []string) error {
 		}
 		staleEvery = d
 	}
+	if *concurrency < 1 || *concurrency > syncer.MaxFetchConcurrency {
+		return usageError("sync", fmt.Sprintf("invalid --concurrency %d (want 1 to %d)", *concurrency, syncer.MaxFetchConcurrency))
+	}
+	// The fetch-pool width (GDK-1673), read once per pass. Set before any
+	// pass so the watch loop inherits it too.
+	syncer.FetchConcurrency = *concurrency
 	cfg, err := config.Load()
 	if err != nil {
 		return err
