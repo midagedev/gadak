@@ -65,6 +65,10 @@ type Client struct {
 	// a request on instrumentation failure (counters are atomic).
 	usage atlhttp.Meter
 
+	// breakdown is the per-kind request tally behind the sync pass's
+	// "sync: requests …" line; see TakeRequestBreakdown.
+	breakdown atlhttp.Breakdown
+
 	// budget spaces requests proactively from Jira Data Center's
 	// X-RateLimit-* budget headers (GDK-1646). Only NewServer allocates
 	// one — the headers are a DC feature; Cloud publishes none and the
@@ -184,6 +188,7 @@ func (c *Client) transport() atlhttp.Config {
 		Backoff:   c.Backoff,
 		ErrPrefix: "jira",
 		Usage:     &c.usage,
+		Breakdown: &c.breakdown,
 		Budget:    c.budget,
 	}
 }
@@ -209,6 +214,13 @@ func (c *Client) write(ctx context.Context, method, path string, body, out any) 
 // (including non-2xx). err is reserved for transport failures and bad paths.
 func (c *Client) Raw(ctx context.Context, method, path string, body []byte, mutating bool) (status int, out []byte, err error) {
 	return atlhttp.DoRaw(ctx, c.transport(), method, path, body, len(body) > 0, mutating)
+}
+
+// RawWithHeaders is Raw that also returns the response headers — the surface
+// `gadak api --headers` reads to show what the origin stated alongside the
+// body. Same retry and error contract as Raw.
+func (c *Client) RawWithHeaders(ctx context.Context, method, path string, body []byte, mutating bool) (status int, hdr http.Header, out []byte, err error) {
+	return atlhttp.DoRawWithHeaders(ctx, c.transport(), method, path, body, len(body) > 0, mutating)
 }
 
 // call is the JSON envelope over atlhttp.Call; the only Jira-specific half

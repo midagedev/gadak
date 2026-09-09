@@ -1333,10 +1333,17 @@ func TestCountFailureStillSyncs(t *testing.T) {
 	if !strings.HasPrefix(logs[0], "full sync: NMB") {
 		t.Errorf("first log = %q", logs[0])
 	}
-	// done line still present with duration.
-	last := logs[len(logs)-1]
-	if !strings.HasPrefix(last, "done: ") || !strings.Contains(last, " in ") {
-		t.Errorf("done line = %q", last)
+	// done line still present with duration. It is no longer the last line
+	// of a pass: the request breakdown (GDK-1672) prints after it, on every
+	// exit path, so find it by prefix rather than position.
+	var done string
+	for _, l := range logs {
+		if strings.HasPrefix(l, "done: ") {
+			done = l
+		}
+	}
+	if done == "" || !strings.Contains(done, " in ") {
+		t.Errorf("done line = %q", done)
 	}
 }
 

@@ -600,3 +600,52 @@ func TestParseAPIMethodPath(t *testing.T) {
 		})
 	}
 }
+
+// TestAPI_HeadersFlag pins --headers (GDK-1672): the status line and every
+// response header go to stderr sorted by name, Set-Cookie values are
+// redacted, and stdout keeps carrying only the body.
+func TestAPI_HeadersFlag(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-RateLimit-Limit", "600")
+		w.Header().Set("X-RateLimit-Remaining", "599")
+		w.Header().Add("Set-Cookie", "session=deadbeef; Path=/; HttpOnly")
+		w.Header().Add("Set-Cookie", "atlassian.xsrf.token=cafe; Path=/")
+		w.Write([]byte(`{"ok":1}`))
+	}))
+
+	t.Cleanup(srv.Close)
+	apiMirror(t, srv.URL, false)
+
+	out, errOut, err := captureErr(t, func() error {
+		return cmdAPI([]string{"/rest/api/3/myself", "--headers"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != `{"ok":1}` {
+		t.Errorf("stdout = %q, want the body only", out)
+	}
+	// Go canonicalizes header names on both the write and the read side
+	// (X-RateLimit-Limit arrives as X-Ratelimit-Limit), so the printed names
+	// are the canonical spellings.
+	for _, want := range []string{
+		"HTTP 200\n",
+		"Set-Cookie: <redacted>\n",
+		"X-Ratelimit-Limit: 600\n",
+		"X-Ratelimit-Remaining: 599\n",
+	} {
+		if !strings.Contains(errOut, want) {
+			t.Errorf("stderr missing %q:\n%s", want, errOut)
+		}
+	}
+	if strings.Contains(errOut, "deadbeef") || strings.Contains(errOut, "cafe") {
+		t.Errorf("stderr leaked a cookie value:\n%s", errOut)
+	}
+	if n := strings.Count(errOut, "Set-Cookie: <redacted>"); n != 2 {
+		t.Errorf("Set-Cookie lines = %d, want one per value:\n%s", n, errOut)
+	}
+	// Sorted by name: Set-Cookie sorts before the X- headers.
+	if strings.Index(errOut, "Set-Cookie:") > strings.Index(errOut, "X-Ratelimit-Limit:") {
+		t.Errorf("headers not sorted by name:\n%s", errOut)
+	}
+}

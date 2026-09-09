@@ -362,3 +362,34 @@ func TestErrAuthUnwrapsForErrorsIs(t *testing.T) {
 		t.Fatalf("errors.Is(%v, atlhttp.ErrAuth) = false", wrapped)
 	}
 }
+
+// TestPagePauseNotedInBreakdown pins the two halves of the request
+// breakdown (GDK-1672) on the Confluence client: the page fetch lands in
+// the page-body kind, and the PauseBetween politeness sleep — invisible to
+// every request meter — is carried by the same tally.
+func TestPagePauseNotedInBreakdown(t *testing.T) {
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/wiki/rest/api/content/77" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": "77", "type": "page"})
+	}))
+	c.PauseBetween = 5 * time.Millisecond
+	if _, err := c.Page(context.Background(), "77"); err != nil {
+		t.Fatal(err)
+	}
+	snap := c.TakeRequestBreakdown()
+	if snap.Total != 1 || len(snap.Kinds) != 1 {
+		t.Fatalf("snapshot = %+v, want one page-body request", snap)
+	}
+	if snap.Kinds[0].Kind != atlhttp.KindPageBody || snap.Kinds[0].Count != 1 {
+		t.Errorf("row = %+v, want one page-body", snap.Kinds[0])
+	}
+	if snap.SleepMS < 5 {
+		t.Errorf("sleep = %dms, want the politeness pause carried", snap.SleepMS)
+	}
+	// Taken, not peeked: the next pass starts from zero.
+	if again := c.TakeRequestBreakdown(); again.Total != 0 || again.SleepMS != 0 {
+		t.Errorf("second take = %+v, want empty", again)
+	}
+}

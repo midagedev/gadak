@@ -30,3 +30,13 @@ func (c *Client) TakeUsage() Usage {
 	}
 	return c.usage.Take()
 }
+
+// TakeRequestBreakdown returns the per-kind request tally since the last
+// take, zeroing it — the accumulate-once shape of TakeUsage, feeding the
+// sync pass's "sync: requests …" line.
+func (c *Client) TakeRequestBreakdown() atlhttp.BreakdownSnapshot {
+	if c == nil {
+		return atlhttp.BreakdownSnapshot{}
+	}
+	return c.breakdown.Take()
+}

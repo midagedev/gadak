@@ -362,7 +362,7 @@ var helps = map[string]cmdHelp{
 	"api": {
 		summary: "call Atlassian REST with the stored credential (escape hatch for endpoints the mirror does not cover)",
 		usage: "gadak [--workspace <name>] api [METHOD] <PATH>\n" +
-			"[--query k=v]... [--data <val|@file|->] [--write] [--status]",
+			"[--query k=v]... [--data <val|@file|->] [--write] [--status] [--headers]",
 		examples: []string{
 			"gadak api /rest/api/3/myself",
 			"gadak api GET /rest/api/3/issue/ABC-1/watchers",

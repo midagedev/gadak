@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -35,7 +36,7 @@ func (q *queryFlags) Set(v string) error {
 	return nil
 }
 
-const apiUsage = "usage: gadak api [METHOD] <PATH> [--query k=v]... [--data <val|@file|->] [--write] [--status]"
+const apiUsage = "usage: gadak api [METHOD] <PATH> [--query k=v]... [--data <val|@file|->] [--write] [--status] [--headers]"
 
 // apiBackoffOverride, when non-nil, replaces the Jira client's first retry
 // wait after origin.Client. Tests pin a tiny value so a 429 retry is
@@ -49,6 +50,7 @@ func cmdAPI(args []string) error {
 	dataFlag := fs.String("data", "", "request body: literal, @file, or - for stdin")
 	writeFlag := fs.Bool("write", false, "allow non-GET/HEAD methods (uses write retry policy)")
 	statusFlag := fs.Bool("status", false, "print HTTP <code> to stderr in addition to the body")
+	headersFlag := fs.Bool("headers", false, "print the status line and every response header to stderr (Set-Cookie values redacted)")
 	// Every other subcommand takes --json, so hands type it here by reflex
 	// (GDK-1072). The body is the origin's response printed unchanged —
 	// already JSON — so the flag is accepted and changes nothing.
@@ -111,6 +113,7 @@ func cmdAPI(args []string) error {
 	ctx := context.Background()
 	var (
 		status int
+		hdr    http.Header
 		out    []byte
 	)
 
@@ -129,7 +132,7 @@ func cmdAPI(args []string) error {
 		if werr != nil {
 			return werr
 		}
-		status, out, err = cc.Raw(ctx, method, stripWikiPrefix(path), body, mutating)
+		status, hdr, out, err = cc.RawWithHeaders(ctx, method, stripWikiPrefix(path), body, mutating)
 		if db, oerr := openStore(); oerr != nil {
 			log.Printf("api usage flush: %v", oerr)
 		} else {
@@ -144,7 +147,7 @@ func cmdAPI(args []string) error {
 		if apiBackoffOverride != nil {
 			client.Backoff = *apiBackoffOverride
 		}
-		status, out, err = client.Raw(ctx, method, path, body, mutating)
+		status, hdr, out, err = client.RawWithHeaders(ctx, method, path, body, mutating)
 		if db, oerr := openStore(); oerr != nil {
 			log.Printf("api usage flush: %v", oerr)
 		} else {
@@ -156,8 +159,14 @@ func cmdAPI(args []string) error {
 		return err
 	}
 
-	if *statusFlag {
+	// --headers implies the status line: the headers are the origin's answer
+	// to the request the status names, and reading them apart is worse than
+	// the extra line.
+	if *statusFlag || *headersFlag {
 		fmt.Fprintf(os.Stderr, "HTTP %d\n", status)
+	}
+	if *headersFlag {
+		printResponseHeaders(os.Stderr, hdr)
 	}
 
 	if len(out) > 0 {
@@ -309,6 +318,30 @@ func appendQuery(path string, pairs []string) (string, error) {
 		return path + "&" + enc, nil
 	}
 	return path + "?" + enc, nil
+}
+
+// printResponseHeaders writes every response header as "name: value" lines,
+// sorted by name so the same origin answers the same way twice. Set-Cookie
+// values are redacted: a cookie is a credential, and terminal scrollback
+// keeps what it sees. A repeated header (multiple Set-Cookie, Via) gets one
+// line per value, in the origin's order.
+func printResponseHeaders(w io.Writer, h http.Header) {
+	if len(h) == 0 {
+		return
+	}
+	names := make([]string, 0, len(h))
+	for k := range h {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	for _, k := range names {
+		for _, v := range h.Values(k) {
+			if strings.EqualFold(k, "Set-Cookie") {
+				v = "<redacted>"
+			}
+			fmt.Fprintf(w, "%s: %s\n", k, v)
+		}
+	}
 }
 
 func httpStatusDetail(status int, body []byte) string {

@@ -42,6 +42,10 @@ type Config struct {
 	ErrPrefix string
 	// Usage, when non-nil, records every attempt that left the process.
 	Usage *Meter
+	// Breakdown, when non-nil, tallies per-kind request count and wall time
+	// for the sync pass line. Nil keeps the request path
+	// unchanged.
+	Breakdown *Breakdown
 	// Budget, when non-nil, spaces requests proactively from the origin's
 	// stated rate limit (Jira Data Center's X-RateLimit-* headers, GDK-1646):
 	// one Wait before every attempt, one Observe after every response. Nil
@@ -60,9 +64,19 @@ type Config struct {
 // (including non-2xx). err is reserved for transport failures and bad paths.
 // JSON call helpers use Do, which classifies 401/403 as ErrAuth; Raw stays here.
 func DoRaw(ctx context.Context, cfg Config, method, path string, payload []byte, hasBody, mutating bool) (int, []byte, error) {
+	status, _, data, err := DoRawWithHeaders(ctx, cfg, method, path, payload, hasBody, mutating)
+	return status, data, err
+}
+
+// DoRawWithHeaders is DoRaw that also returns the final response's headers —
+// the surface `gadak api --headers` needs to show what the origin stated
+// alongside the body (rate-limit headers on ordinary responses).
+// Same retry and error contract as DoRaw; the header is nil on every error
+// path.
+func DoRawWithHeaders(ctx context.Context, cfg Config, method, path string, payload []byte, hasBody, mutating bool) (int, http.Header, []byte, error) {
 	fullURL, err := resolveURL(cfg.Base, cfg.ErrPrefix, path)
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, nil, err
 	}
 	retries := httppolicy.IsRetryable
 	if mutating {
@@ -75,12 +89,12 @@ func DoRaw(ctx context.Context, cfg Config, method, path string, payload []byte,
 		// below, and sleeping it twice is not caution, it is a doubled wait.
 		if cfg.Budget != nil && attempt == 0 {
 			if err := cfg.Budget.Wait(ctx); err != nil {
-				return 0, nil, err
+				return 0, nil, nil, err
 			}
 		}
 		req, err := http.NewRequestWithContext(ctx, method, fullURL, bytes.NewReader(payload))
 		if err != nil {
-			return 0, nil, err
+			return 0, nil, nil, err
 		}
 		if cfg.Auth != "" {
 			req.Header.Set("Authorization", cfg.Auth)
@@ -89,22 +103,29 @@ func DoRaw(ctx context.Context, cfg Config, method, path string, payload []byte,
 		if hasBody {
 			req.Header.Set("Content-Type", "application/json")
 		}
+		attemptStart := time.Now()
 		res, err := cfg.HTTP.Do(req)
 		// Count every attempt that left the process; retries each draw rate budget.
 		cfg.Usage.NoteRequest()
 		if err != nil {
+			// The breakdown's wall is what the caller waited per attempt —
+			// transport failures wait too.
+			cfg.Breakdown.Note(method, path, time.Since(attemptStart))
 			if attempt < cfg.Retries-1 && !mutating {
 				if werr := httppolicy.Wait(ctx, cfg.Backoff, attempt, "", cfg.Usage); werr != nil {
-					return 0, nil, werr
+					return 0, nil, nil, werr
 				}
 				cfg.Usage.NoteRetry()
 				continue
 			}
-			return 0, nil, fmt.Errorf("%s %s: %w", method, path, err)
+			return 0, nil, nil, fmt.Errorf("%s %s: %w", method, path, err)
 		}
 		data, readErr := io.ReadAll(io.LimitReader(res.Body, httppolicy.MaxBody))
 		res.Body.Close()
 		cfg.Usage.NoteStatus(res.StatusCode)
+		// Body read included: the caller's wait for this attempt is the
+		// exchange, not just the headers.
+		cfg.Breakdown.Note(method, path, time.Since(attemptStart))
 		// Every response states the budget — any status, including the 429
 		// about to be retried, so the next attempt's Wait sees it first.
 		if cfg.Budget != nil {
@@ -112,18 +133,18 @@ func DoRaw(ctx context.Context, cfg Config, method, path string, payload []byte,
 		}
 		if retries(res.StatusCode) && attempt < cfg.Retries-1 {
 			if werr := httppolicy.Wait(ctx, cfg.Backoff, attempt, res.Header.Get("Retry-After"), cfg.Usage); werr != nil {
-				return 0, nil, werr
+				return 0, nil, nil, werr
 			}
 			cfg.Usage.NoteRetry()
 			continue
 		}
 		if res.StatusCode >= 200 && res.StatusCode < 300 && readErr != nil {
-			return 0, nil, fmt.Errorf("%s %s: %w", method, path, readErr)
+			return 0, nil, nil, fmt.Errorf("%s %s: %w", method, path, readErr)
 		}
 		if err := refuseHTML(res, data); err != nil {
-			return 0, nil, fmt.Errorf("%s %s: %w", method, path, err)
+			return 0, nil, nil, fmt.Errorf("%s %s: %w", method, path, err)
 		}
-		return res.StatusCode, data, nil
+		return res.StatusCode, res.Header, data, nil
 	}
 }
 
@@ -223,8 +244,11 @@ func Stream(ctx context.Context, cfg Config, method, path string, hdr http.Heade
 				req.Header.Add(k, v)
 			}
 		}
+		attemptStart := time.Now()
 		res, err := hc.Do(req)
 		cfg.Usage.NoteRequest()
+		// Headers only: the body streams after return, outside this loop.
+		cfg.Breakdown.Note(method, path, time.Since(attemptStart))
 		if err != nil {
 			if attempt < cfg.Retries-1 {
 				if werr := httppolicy.Wait(ctx, cfg.Backoff, attempt, "", cfg.Usage); werr != nil {

@@ -105,6 +105,11 @@ type Client struct {
 	// usage is process-local call volume; see Usage / TakeUsage. Never blocks
 	// a request on instrumentation failure (counters are atomic).
 	usage atlhttp.Meter
+
+	// breakdown is the per-kind request tally behind the sync pass's
+	// "sync: requests …" line; see TakeRequestBreakdown. It also
+	// carries the PauseBetween sleep, which no request meter sees.
+	breakdown atlhttp.Breakdown
 }
 
 // New builds a client. site is the Atlassian origin (no /wiki suffix).
@@ -136,6 +141,7 @@ func (c *Client) transport() atlhttp.Config {
 		Backoff:   c.Backoff,
 		ErrPrefix: "confluence",
 		Usage:     &c.usage,
+		Breakdown: &c.breakdown,
 	}
 }
 
@@ -319,10 +325,16 @@ func (c *Client) Page(ctx context.Context, id string) (Page, error) {
 		return Page{}, err
 	}
 	if c.PauseBetween > 0 {
+		timer := time.NewTimer(c.PauseBetween)
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			return out, ctx.Err()
-		case <-time.After(c.PauseBetween):
+		case <-timer.C:
+			// The politeness sleep is invisible to every request meter; the
+			// breakdown carries it so the pass line accounts for it (45.7 s
+			// of one first-sync benchmark).
+			c.breakdown.NoteSleep(c.PauseBetween)
 		}
 	}
 	return out, nil
@@ -528,6 +540,13 @@ func (c *Client) AddPageComment(ctx context.Context, pageID, adf string) (Commen
 // (including non-2xx). err is reserved for transport failures and bad paths.
 func (c *Client) Raw(ctx context.Context, method, path string, body []byte, mutating bool) (status int, out []byte, err error) {
 	return atlhttp.DoRaw(ctx, c.transport(), method, path, body, len(body) > 0, mutating)
+}
+
+// RawWithHeaders is Raw that also returns the response headers — the surface
+// `gadak api --headers` reads on wiki routes. Same retry and error
+// contract as Raw.
+func (c *Client) RawWithHeaders(ctx context.Context, method, path string, body []byte, mutating bool) (status int, hdr http.Header, out []byte, err error) {
+	return atlhttp.DoRawWithHeaders(ctx, c.transport(), method, path, body, len(body) > 0, mutating)
 }
 
 // call is the JSON envelope over atlhttp.Call; the only Confluence-specific

@@ -205,6 +205,13 @@ func runSource(
 	// once per cycle, so one-shot and watch share this single flush point.
 	if usage != nil {
 		defer FlushAPIUsage(ctx, db, usage, opts.logf)
+		// The per-kind request mix rides the same every-exit-path rule:
+		// a failed pass is exactly when the request tally is
+		// interesting. Linear clients do not implement the interface and
+		// print no line.
+		if bt, ok := usage.(requestBreakdownTaker); ok {
+			defer printRequestBreakdown(opts, bt)
+		}
 	}
 	if err := db.UpsertSource(ctx, store.Source{ID: src.ID, Kind: src.Kind, BaseURL: baseURL}); err != nil {
 		return res, err
