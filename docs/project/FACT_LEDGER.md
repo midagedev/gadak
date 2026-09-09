@@ -115,8 +115,9 @@ gadak init --projects ENG,PROD --spaces ENG
   (`internal/sync/sync.go:899-970`; a scan that returns zero keys refuses to
   empty the mirror). Without `serve`, `gadak sync --watch` runs the same loop;
   there is no `gadak watch` verb.
-- **The first full sync is the slow part**: 10.6 minutes for the benchmark
-  site (3,323 issues + 457 pages, 2026-08-26, `docs/BENCHMARKS.md`); 26.4 s for
+- **The first full sync is the slow part**: 3.7 minutes for the benchmark
+  site (3,514 issues + 462 pages, 2026-09-09, `docs/BENCHMARKS.md`; the same
+  site took 10 minutes before the GDK-1673 fetch pool); 26.4 s for
   the 534-issue demo. An edition that mentions first-sync cost cites one of
   those, never "a few minutes".
 - No Atlassian account: `gadak init --local` starts a workspace on the

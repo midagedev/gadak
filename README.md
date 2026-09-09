@@ -130,7 +130,7 @@ target a Linear team. A second machine pairs with a home `serve`:
 - **How much is copied.** The Cloud projects and spaces you named, as your
   account sees them; gadak adds no elevation and no service account.
 - **What stays local, and how fresh.** One SQLite file. The first full sync is
-  the slow part: 10.6 minutes for the benchmark site (3,323 issues and 457
+  the slow part: 3.7 minutes for the benchmark site (3,514 issues and 462
   pages). After that `gadak serve` syncs every 60 seconds by default
   (`syncIntervalSec`), plus an hourly reconcile that removes issues you can no
   longer see. Reads are one interval behind Jira.

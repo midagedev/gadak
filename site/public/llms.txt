@@ -72,4 +72,4 @@ Two commands, and they are not interchangeable:
 gadak figures include CLI process startup. Free-text search 543 ms → 41 ms.
 Open issues per epic (`GROUP BY`) 4,761 ms over 8 API pages aggregated
 client-side → 22 ms in one query. The first full sync of that site took
-10.6 minutes, and the cache trails Jira by one sync interval.
+3.7 minutes, and the cache trails Jira by one sync interval.

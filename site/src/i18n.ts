@@ -205,7 +205,7 @@ export const strings: Record<Locale, Strings> = {
     speed: {
       label: 'Local reads compared with the Jira REST API',
       heading: 'The same questions, measured',
-      note: 'Measured 2026-08-26 against a live Atlassian Cloud site: a real work project, 3,296 issues. Medians. The gadak numbers include full CLI process startup. In this measurement the epic count took 8 API pages, aggregated client-side, against one query on the mirror. The history count has no native aggregate; crawling and counting it client-side takes about 28 minutes. The rate-limit row is about reads, which stay local. A first full sync of that site took 10.6 minutes, and the mirror trails Jira by one sync interval. Method, re-measurements, and the rows where gadak loses: ',
+      note: 'Measured 2026-08-26 against a live Atlassian Cloud site: a real work project, 3,296 issues. Medians. The gadak numbers include full CLI process startup. In this measurement the epic count took 8 API pages, aggregated client-side, against one query on the mirror. The history count has no native aggregate; crawling and counting it client-side takes about 28 minutes. The rate-limit row is about reads, which stay local. A first full sync of that site took 3.7 minutes (2026-09-09), and the mirror trails Jira by one sync interval. Method, re-measurements, and the rows where gadak loses: ',
       rows: [
         { what: 'Simple filter, 100 issues', value: '583 ms', alt: '19 ms', ratio: '31×' },
         { what: 'One issue + full changelog', value: '710 ms', alt: '28 ms', ratio: '25×' },
@@ -381,7 +381,7 @@ export const strings: Record<Locale, Strings> = {
     speed: {
       label: '잰 값',
       heading: 'Jira API에 물을 때와 캐시에 물을 때',
-      note: '2026-08-26에 실제 Atlassian Cloud 업무 프로젝트(이슈 3,296건)에서 잰 중앙값입니다. 에픽별 열린 이슈는 REST API 쪽이 응답 8페이지를 받아 합산한 값이고, gadak 쪽은 쿼리 한 번에 CLI 프로세스가 뜨는 시간까지 넣은 값입니다. 첫 전체 동기화는 그 사이트에서 10.6분 걸렸고, 그 뒤로 캐시는 동기화 주기만큼 늦습니다. 측정 방법과 나머지 행: ',
+      note: '2026-08-26에 실제 Atlassian Cloud 업무 프로젝트(이슈 3,296건)에서 잰 중앙값입니다. 에픽별 열린 이슈는 REST API 쪽이 응답 8페이지를 받아 합산한 값이고, gadak 쪽은 쿼리 한 번에 CLI 프로세스가 뜨는 시간까지 넣은 값입니다. 첫 전체 동기화는 그 사이트에서 3.7분 걸렸고(2026-09-09 측정), 그 뒤로 캐시는 동기화 주기만큼 늦습니다. 측정 방법과 나머지 행: ',
       rows: [
         { what: '텍스트 검색', value: '543 ms', alt: '41 ms', ratio: '13×' },
         { what: '에픽별 열린 이슈 (GROUP BY)', value: '4,761 ms', alt: '22 ms', ratio: '214×' },
@@ -535,7 +535,7 @@ export const strings: Record<Locale, Strings> = {
     speed: {
       label: '計測条件と制約',
       heading: 'REST API とキャッシュの応答時間',
-      note: '上と同じ、2026-08-26 の計測です。エピックごとの未完了件数は、REST API 側が 8 ページを取得して集計した値、gadak 側はクエリ 1 本の値です。gadak が負ける行もあります。このサイトの初回フル同期には 10.6 分かかり、キャッシュは同期間隔 1 回ぶん遅れます。計測方法と再計測の履歴は次にまとめています: ',
+      note: '上と同じ、2026-08-26 の計測です。エピックごとの未完了件数は、REST API 側が 8 ページを取得して集計した値、gadak 側はクエリ 1 本の値です。gadak が負ける行もあります。このサイトの初回フル同期には 3.7 分かかり（2026-09-09 計測）、キャッシュは同期間隔 1 回ぶん遅れます。計測方法と再計測の履歴は次にまとめています: ',
       rows: [
         { what: '全文検索', value: '543 ms', alt: '41 ms', ratio: '13×' },
         { what: 'エピックごとの未完了件数（GROUP BY）', value: '4,761 ms', alt: '22 ms', ratio: '214×' },

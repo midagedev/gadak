@@ -82,6 +82,28 @@ then pays 240 ms of its own before settling. Each column set is paged in
 once per boot from the 145 MB mirror. Medians are the honest figure; the
 first sample is measuring the page cache.
 
+## First full sync after the fetch pool (2026-09-09)
+
+Same site, same hour, an empty mirror both times (a scratch `GADAK_HOME`
+holding only the workspace config). 3,514 issues + 462 pages, `/usr/bin/time`
+around `gadak sync`, one run each. Since GDK-1673 the Confluence pass fetches
+page bodies, comment listings and version history through a bounded worker
+pool; `--concurrency 1` is the pass as it was before.
+
+| `--concurrency` | Jira | Confluence | total wall |
+| --- | ---: | ---: | ---: |
+| 1 (the old serial pass) | 1 m 15 s | 8 m 48 s | **10 m 03 s** |
+| 4 (default) | 1 m 25 s | 2 m 19 s | **3 m 44 s** |
+
+The request mix was identical in both runs (131 Jira requests, 1,501
+Confluence requests; the pass line from GDK-1672 prints it), so the whole
+difference is overlap: at width 4 the Confluence requests summed to 508 s
+of origin time and finished in 139 s of wall. Neither run was throttled
+(`concurrency=4/4`). The Jira half is still serial — 73 search pages chained
+by `nextPageToken` cannot fan out — and it is now the larger remaining
+share. Peak memory 91 MB at width 4, 75 MB at width 1. The machine was not
+quiet (load 2.5–6.0), which the wall of a network-bound run barely sees.
+
 ## Where gadak loses
 
 Honesty rows, measured 2026-08-15 (same evening re-run, corpus now 2,865
