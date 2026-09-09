@@ -183,8 +183,20 @@ UPDATE sync_state SET version = version + 1;
 -- One day of call volume so the settings panel's "Jira calls" row has something
 -- to show. The row hides itself at zero, so without this the spec would pass
 -- against a panel that lost the row entirely.
+-- Two days, and that is the whole point (GDK-1592). The panel's "N today"
+-- figure is computed at request time against the UTC day, while this seed runs
+-- once at serve start: a shard that starts before 00:00 UTC and reaches the
+-- settings spec after the rollover read a "today" row holding only the handful
+-- of calls earlier tests had made, and "12 today" does not match the spec's
+-- four digits. Seeding tomorrow as well means the row that becomes today after
+-- a rollover already carries the four digits (measured both ways: the old seed
+-- shifted a day back fails the spec, this pair passes in either position).
+-- Throttling stays on one day only: the panel sums throttled across the
+-- window, and the spec asserts "2".
 INSERT INTO api_usage (day, requests, throttled, server_errors, retries, wait_ms, last_throttled_at)
-VALUES (strftime('%Y-%m-%d','now'), 1204, 2, 0, 3, 4500, strftime('%Y-%m-%dT%H:%M:%S.000Z','now'))
+VALUES
+  (strftime('%Y-%m-%d','now'), 1204, 2, 0, 3, 4500, strftime('%Y-%m-%dT%H:%M:%S.000Z','now')),
+  (strftime('%Y-%m-%d','now','+1 day'), 1204, 0, 0, 0, 0, NULL)
 ON CONFLICT(day) DO UPDATE SET
   requests = excluded.requests,
   throttled = excluded.throttled,

@@ -142,6 +142,9 @@ test.describe('settings dialog', () => {
     // counter (write-meta against the fake site), so the exact seed is not
     // stable — but it only ever grows, so require at least the four digits the
     // seed guarantees. \d+ would let "0 today" pass and defeat the guard above.
+    // The seed covers today AND tomorrow (e2e/serve.sh, GDK-1592): this figure
+    // is the UTC day at request time, the seed ran at serve start, and a shard
+    // that crosses midnight would otherwise assert against an empty day.
     await expect(dialog.getByText(/\d{4,} today/)).toBeVisible()
     await expect(dialog.getByText('2 throttled')).toBeVisible()
   })
