@@ -131,7 +131,7 @@ coloured only where the team agreed which way is better, never red, and
 never on the bucket still running — and the definitions fold behind one
 toggle ([GDK-1712]); a sprint cut on a workspace where several boards
 carry sprints offers a board picker instead of "could not load"
-([GDK-1713]). It says why a cell is empty (a
+([GDK-1713]). The report now opens with a sentence — closed, unplanned, reopened, oldest in progress, each number a door — and under it the materials a retrospective is actually held on: the decisions labelled `retro-action` with the metric each named then and now ([GDK-1453]), the age of everything in progress as bars against a p85 line ([GDK-1721]), a per-day density strip with the bucket's surprises named — reopened, churned, and under a sprint cut joined after the start or carried in ([GDK-1722]) — what closed by type and by epic with the cycle time of each as a dot and the unplanned share ([GDK-1723]), the issues you opened that nothing moved beside the ones that moved unseen ([GDK-1725]), and the full table folded at the foot ([GDK-1724]); every section unfolds three lines saying what it is, why a retro reads it and how, and the CLI prints the same sections with `--explain` ([GDK-1726]). All of it works on weekly buckets; only the two sprint surprises need the sprint cut. The demo mirror finally has flow to show: its issue histories had been written seconds apart, so every cycle time read 0.0d, and it carried no reading history at all — the snapshot now draws each issue a lifetime in days and seeds a month of visits, so the demo's retro has cycle percentiles, sessions and resume times ([GDK-1720]). It says why a cell is empty (a
 mirror with no `status_catalog` cannot say what `closed` means, and the
 reason now travels with the payload and prints under the table, including on
 a cold mirror), the definitions are no longer cut off or naming a repository
@@ -1755,3 +1755,11 @@ priority sorting keyed on `priority_rank`.
 [GDK-1711]: https://gadak.dev/backlog/#/?ks=GDK-1711
 [GDK-1712]: https://gadak.dev/backlog/#/?ks=GDK-1712
 [GDK-1713]: https://gadak.dev/backlog/#/?ks=GDK-1713
+[GDK-1453]: https://gadak.dev/backlog/#/?ks=GDK-1453
+[GDK-1720]: https://gadak.dev/backlog/#/?ks=GDK-1720
+[GDK-1721]: https://gadak.dev/backlog/#/?ks=GDK-1721
+[GDK-1722]: https://gadak.dev/backlog/#/?ks=GDK-1722
+[GDK-1723]: https://gadak.dev/backlog/#/?ks=GDK-1723
+[GDK-1724]: https://gadak.dev/backlog/#/?ks=GDK-1724
+[GDK-1725]: https://gadak.dev/backlog/#/?ks=GDK-1725
+[GDK-1726]: https://gadak.dev/backlog/#/?ks=GDK-1726
