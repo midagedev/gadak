@@ -478,3 +478,29 @@ landing (`site/src/i18n.ts`) and all three READMEs.
   connecting (or the security block) → agents → origins and limits → status →
   feedback → docs → license. Migration, the built-in tracker and pairing are
   "other workspaces", after the first Jira path, never inside it.
+
+## 17. Contract strings the gate checks (GDK-1602)
+
+Everything above is prose a person keeps true. This section is the part a
+script keeps true, and it exists because the prose failed once on its own:
+the brand round of 2026-09-08 changed the line in the three READMEs and
+missed `tools/hosted-demo/build.mjs`, which is why §1 ends with "a later
+change to the line must grep, not count". A ledger nobody can run is a
+ledger that drifts.
+
+Each line below is `file :: string`. `tools/doc-checks.sh` check 47 asserts
+that the file contains the string verbatim. Add a line when a fact is
+load-bearing, appears in more than one place, and no other check already
+holds it — a duplicate assertion is worse than none, because it makes two
+places to edit and one of them will be forgotten.
+
+```ledger-contract
+README.md :: <p align="center"><b>Find the thread in your backlog.</b></p>
+README.ko.md :: <p align="center"><b>Find the thread in your backlog.</b></p>
+README.ja.md :: <p align="center"><b>Find the thread in your backlog.</b></p>
+tools/hosted-demo/build.mjs :: gadak — Find the thread in your backlog.
+tools/hosted-demo/build.mjs :: <p class="tagline">Find the thread in your backlog.</p>
+README.md :: Apache-2.0
+README.ko.md :: Apache-2.0
+README.ja.md :: Apache-2.0
+```

@@ -2407,4 +2407,48 @@ PY46
 ok "every changelog release is at most three theme paragraphs, no bullets, in all three editions"
 
 
+# ── 47. the fact ledger's contract strings are in the files it names (GDK-1602) ──
+# The ledger is prose, and prose drifts: the 2026-09-08 brand round changed
+# the line in the three READMEs and missed tools/hosted-demo/build.mjs, which
+# sets it as the hosted demo's title, its OG and Twitter titles, and a visible
+# tagline. §1 of the ledger now says "a later change to the line must grep,
+# not count" — this is the grep. §17 carries the machine-readable half as
+# `file :: string` lines in a ```ledger-contract block; each is asserted
+# verbatim. FAIL-first 2026-09-09: dropping the tagline line from build.mjs
+# fails here, and nothing else in this file noticed.
+python3 - <<'PY47' || fail "fact ledger contract strings broken (see above)"
+import re, sys
+led = "docs/project/FACT_LEDGER.md"
+src = open(led, encoding="utf-8").read()
+blocks = re.findall(r"```ledger-contract\n(.*?)```", src, re.S)
+if not blocks:
+    print(f"  {led}: no ```ledger-contract block — check 47 has nothing to assert")
+    sys.exit(1)
+bad, n = [], 0
+for line in "".join(blocks).splitlines():
+    line = line.strip()
+    if not line or line.startswith("#"):
+        continue
+    if " :: " not in line:
+        bad.append(f"{led}: malformed entry (want `file :: string`): {line}")
+        continue
+    path, want = line.split(" :: ", 1)
+    path, want = path.strip(), want.strip()
+    try:
+        body = open(path, encoding="utf-8").read()
+    except OSError as e:
+        bad.append(f"{led} names {path}, which cannot be read: {e}")
+        continue
+    n += 1
+    if want not in body:
+        bad.append(f"{path} is missing the ledger's contract string: {want}")
+for b in bad:
+    print("  " + b)
+if not bad and n == 0:
+    print(f"  {led}: the contract block is empty")
+    sys.exit(1)
+sys.exit(1 if bad else 0)
+PY47
+ok "every contract string the fact ledger names is in the file it names"
+
 echo "doc-checks: all passed"
