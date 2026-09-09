@@ -64,6 +64,13 @@ returns immediately when every source is fresh, and runs one incremental
 pass when a source is older than 15m or its last sync failed. A running
 `gadak serve` keeps the mirror fresh on its own.
 
+While a first full sync is still filling the mirror, read commands print one
+stderr line (`first sync in progress: … — results are partial`) and
+`gadak status --json` carries a `first_sync` object (`phase`, `fetched`,
+`total`, `wiki_pending`). That is normal, not an error: work with what has
+landed so far, say in your answer that results are partial, and do not start
+a second sync — the running one owns the mirror until it finishes.
+
 `last_error` means the last sync failed. An old `watermark` on a quiet project
 is normal — treat it as "possibly behind", not broken. `watermark` /
 `sync_count` / `last_error` are the issue-source row (Jira when it has run,

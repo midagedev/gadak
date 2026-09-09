@@ -57,9 +57,16 @@ const staleAfter = time.Hour
 // clean, which is what makes the output pipeable. It reads the caller's
 // already-open connection — every caller has one, and a second open here
 // doubled any diagnostic the open path prints (GDK-314).
+//
+// A live first sync explains the mirror's state better than any staleness
+// verdict can (every source row is empty or half-written by design), so
+// warnFirstSync goes first and the rest stands down while it speaks (GDK-1677).
 func warnIfStale(db interface {
 	QueryRow(query string, args ...any) *sql.Row
 }) {
+	if warnFirstSync(db) {
+		return
+	}
 	type staleRow struct {
 		id        string
 		syncedAt  *string
@@ -120,6 +127,56 @@ func warnIfStale(db interface {
 		// mirror (and its watermark) was that old.
 		warn("%s", staleSourceWarning(oldestID, oldestRaw, time.Since(*oldest)))
 	}
+}
+
+// warnFirstSync prints the one "first sync in progress" line when the mirror
+// itself says a first full sync is running (GDK-1677), and reports whether it
+// did. It reads plain SQL through the caller's handle — the same interface
+// warnIfStale takes — so every read verb (sql, list, search, page, fields,
+// memory, the agent verbs) gets the line with no per-verb edits, whatever
+// kind of connection the verb opened. The liveness cutoff is
+// store.SyncProgressCutoff, the single owner, so this and the store reader
+// cannot disagree about what "live" means. A read error (including a mirror
+// too old to have the table) just means no warning.
+func warnFirstSync(db interface {
+	QueryRow(query string, args ...any) *sql.Row
+}) bool {
+	var sourceID string
+	var fetched int
+	var total sql.NullInt64
+	err := db.QueryRow(`SELECT source_id, fetched, total FROM sync_progress
+		WHERE first = 1 AND updated_at >= ?
+		ORDER BY started_at DESC LIMIT 1`, store.SyncProgressCutoff(time.Now())).
+		Scan(&sourceID, &fetched, &total)
+	if err != nil {
+		return false
+	}
+	wikiNext := false
+	if sourceID != syncer.ConfluenceSourceID {
+		if cfg, cfgErr := config.Load(); cfgErr == nil && cfg.Confluence != nil {
+			var n int
+			if qErr := db.QueryRow(`SELECT COUNT(*) FROM sync_progress
+				WHERE source_id = ? AND updated_at >= ?`,
+				syncer.ConfluenceSourceID, store.SyncProgressCutoff(time.Now())).Scan(&n); qErr == nil && n == 0 {
+				wikiNext = true
+			}
+		}
+	}
+	count := formatIntComma(fetched)
+	if total.Valid {
+		count += " / " + formatIntComma(int(total.Int64))
+	}
+	var line string
+	if sourceID == syncer.ConfluenceSourceID {
+		line = fmt.Sprintf("issues done, %s wiki pages so far — results are partial", count)
+	} else {
+		line = fmt.Sprintf("%s issues so far — results are partial", count)
+		if wikiNext {
+			line += "; wiki follows"
+		}
+	}
+	fmt.Fprintf(os.Stderr, "warning: first sync in progress: %s\n", line)
+	return true
 }
 
 // parseSyncedAt is the same RFC3339-then-ISOMilli ladder syncStale uses

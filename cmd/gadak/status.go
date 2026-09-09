@@ -145,6 +145,12 @@ func cmdStatus(args []string) error {
 	if cfg != nil && cfg.HasBuiltInOrigin() {
 		st["locale"] = cfg.EffectiveLocale()
 	}
+	// GDK-1677: the mirror-owned first-sync fact — the same doc the serve
+	// poll emits, so both surfaces answer "is a sync filling this mirror?"
+	// identically. Present only while a first full sync is actually running.
+	if doc := syncer.FirstSync(ctx, db, cfg); doc != nil {
+		st["first_sync"] = doc
+	}
 	st["custom_fields"] = cfg.CustomFieldsStatus()
 	notMirrored, notConfigured := projectScopeMismatch(cfg, db)
 	st["projects_configured_not_in_mirror"] = notMirrored
@@ -173,6 +179,9 @@ func cmdStatus(args []string) error {
 	printSourceSyncedAt("jira", jiraSS, jiraErr)
 	printSourceSyncedAt("linear", linearSS, linearErr)
 	printSourceSyncedAt("confluence", confSS, confErr)
+	if doc, ok := st["first_sync"].(*syncer.FirstSyncDoc); ok {
+		fmt.Printf("%-18s %s\n", "first sync", formatFirstSyncLine(doc))
+	}
 	if issueSSErr == nil {
 		if line := formatReconcileLine(issueSS.Reconcile, time.Now()); line != "" {
 			fmt.Printf("%-18s %s\n", "reconcile", line)
@@ -314,6 +323,20 @@ func syncStateJSON(ss store.SyncState) map[string]any {
 		m["first_sync_at"] = *ss.FirstSyncAt
 	}
 	return m
+}
+
+// formatFirstSyncLine is the text-mode row for the in-progress first sync
+// (GDK-1677): `issues 1,200 / 3,514 · wiki next`. The denominator and the
+// wiki fragment appear only when the facts exist.
+func formatFirstSyncLine(d *syncer.FirstSyncDoc) string {
+	line := d.Phase + " " + formatIntComma(d.Fetched)
+	if d.Total != nil {
+		line += " / " + formatIntComma(*d.Total)
+	}
+	if d.WikiPending {
+		line += " · wiki next"
+	}
+	return line
 }
 
 // reconcileJSON publishes the last two-way reconcile's tally (GDK-1400).

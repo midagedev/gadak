@@ -305,6 +305,8 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 	}
 
 	var maxUTC, maxRaw string
+	// The first-sync heartbeat (GDK-1677), same contract as the issue pass.
+	heartbeat := &progressHeartbeat{db: db, sourceID: ConfluenceSourceID}
 	// batchSpaces: path ② (config listed spaces) collects names from page hits;
 	// also a harmless refresh when path ① already wrote spaces from Spaces().
 	// Watermarks are committed per chunk after that chunk finishes — never
@@ -341,6 +343,13 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 		}
 		res.Fetched += len(batch)
 		res.Changed += changed
+		if res.Full {
+			// GDK-1677: same heartbeat as the issue pass. No denominator —
+			// Confluence exposes no page count per space, and inventing one
+			// (an extra CQL count per space) is a request this pass must not
+			// spend. total stays NULL; readers omit the "/ total" fragment.
+			heartbeat.touch(ctx, opts, res.Fetched, -1)
+		}
 		if opts.Progress != nil {
 			opts.Progress(res.Fetched, res.Changed)
 		}

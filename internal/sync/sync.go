@@ -287,7 +287,9 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	fieldIDs := appendSprintField(fieldList(cfg, res.Full), agile)
 	var maxUTC, maxRaw string
 	// pageBase / unitDenom drive per-Search progress lines. unitDenom < 0 means
-	// the approximate count failed and the line has no denominator.
+	// the approximate count failed and the line has no denominator. The same
+	// denominator rides the first-sync heartbeat (GDK-1677).
+	heartbeat := &progressHeartbeat{db: db, sourceID: SourceID}
 	pageBase := 0
 	unitDenom := -1
 	page := func(issues []jira.Issue) error {
@@ -379,6 +381,9 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 		} else {
 			opts.logf("  %s issues", formatCount(local))
 		}
+		if res.Full {
+			heartbeat.touch(ctx, opts, res.Fetched, unitDenom)
+		}
 		if opts.Progress != nil {
 			opts.Progress(res.Fetched, res.Changed)
 		}
@@ -392,10 +397,14 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	beginSearch := func(startLine, countJQL string, withAbout bool) {
 		pageBase = res.Fetched
 		unitDenom = -1
-		if opts.Log == nil {
-			// The denominator exists only for the log lines — Progress carries
-			// running totals, not a total. Watch loops run with no Log, and an
-			// unread count would be one extra request every cycle.
+		if opts.Log == nil && !res.Full {
+			// The denominator exists for the log lines and the first-sync
+			// heartbeat's total — Progress itself carries running totals, not
+			// a total. Watch loops run with no Log; an incremental tick with
+			// no Log still skips the count (one request every cycle saved,
+			// GDK-1075), but a full pass asks even Logless, because the
+			// sync_progress row it heartbeats is what serve's poll renders
+			// (GDK-1677).
 			return
 		}
 		if countJQL == "" {

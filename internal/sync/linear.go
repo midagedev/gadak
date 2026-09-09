@@ -98,6 +98,8 @@ func runLinearPass(ctx context.Context, c *linear.Client, cfg *config.Config, db
 	now := time.Now().UTC()
 
 	var maxUTC string // Linear stamps are ISO-8601 UTC ms: lexicographic max is chronological
+	// The first-sync heartbeat (GDK-1677), same contract as the other passes.
+	heartbeat := &progressHeartbeat{db: db, sourceID: LinearSourceID}
 	unknownTypes := map[string]int{}
 	var commentsTruncated, labelsTruncated, attachmentsTruncated, relationsTruncated int
 	seen := map[string]bool{}
@@ -174,6 +176,11 @@ func runLinearPass(ctx context.Context, c *linear.Client, cfg *config.Config, db
 			}
 		}
 		opts.logf("  linear: %s issues", formatCount(res.Fetched))
+		if res.Full {
+			// The first-sync heartbeat (GDK-1677). Linear exposes no count to
+			// hang a denominator on, so total stays NULL.
+			heartbeat.touch(ctx, opts, res.Fetched, -1)
+		}
 		if opts.Progress != nil {
 			opts.Progress(res.Fetched, res.Changed)
 		}

@@ -223,6 +223,26 @@ func runSource(
 	// No watermark means nothing has been mirrored yet, so incremental has no
 	// floor to start from.
 	res.Full = opts.Full || state.Watermark == ""
+	if res.Full {
+		// GDK-1677: a full pass writes its own progress row so every reader —
+		// CLI status, the serve poll, an MCP client, another process — sees
+		// "a sync is filling the mirror" from the mirror itself, not from this
+		// process's memory. first records whether the mirror was empty when
+		// the pass started; readers surface first syncs only. Bookkeeping
+		// must never fail the pass. The defer is registered before the first
+		// pass call so the BUSY retry path cannot leave the row behind;
+		// WithoutCancel because a pass cancelled mid-flight still owes the
+		// delete (a row that survives goes stale in 120s anyway — that is the
+		// crashed-process half of the same contract).
+		if berr := db.BeginSyncProgress(ctx, src.ID, state.Watermark == ""); berr != nil {
+			opts.logf("sync progress: row not stored: %v", berr)
+		}
+		defer func() {
+			if eerr := db.EndSyncProgress(context.WithoutCancel(ctx), src.ID); eerr != nil {
+				opts.logf("sync progress: row not cleared: %v", eerr)
+			}
+		}()
+	}
 
 	err = pass(state, &res)
 	if err != nil && store.IsBusy(err) {
@@ -355,4 +375,101 @@ func FlushAPIUsage(ctx context.Context, db *store.DB, c usageTaker, logf func(st
 			logf("api usage flush: %v", err)
 		}
 	}
+}
+
+// progressHeartbeat is one pass's handle on its sync_progress row. The zero
+// value is inert (touch is a nil-receiver no-op), so pass bodies that never
+// wired one — the inner-forced full cases, which set res.Full inside the pass
+// after the Begin decision — pay nothing.
+type progressHeartbeat struct {
+	db       *store.DB
+	sourceID string
+	warned   bool // a heartbeat problem logs once per pass, not once per page
+}
+
+// touch advances the heartbeat after a committed page. total < 0 means this
+// call has no denominator and the stored one is kept. Errors never fail the
+// pass — the row going stale is the degraded mode, not a failed sync.
+func (h *progressHeartbeat) touch(ctx context.Context, opts Options, fetched, total int) {
+	if h == nil || h.db == nil {
+		return
+	}
+	var tot *int
+	if total >= 0 {
+		t := total
+		tot = &t
+	}
+	if err := h.db.TouchSyncProgress(ctx, h.sourceID, fetched, tot); err != nil && !h.warned {
+		h.warned = true
+		opts.logf("sync progress: heartbeat not stored: %v", err)
+	}
+}
+
+// FirstSyncDoc is the one "a first full sync is in progress" document every
+// reader emits — `gadak status --json`, GET sync/progress/ — so the fact has
+// a single wire shape (GDK-1677). It exists only while a first=1 row is live;
+// a `--full` resync of a filled mirror shows nothing.
+type FirstSyncDoc struct {
+	InProgress bool   `json:"in_progress"` // always true when the doc exists
+	Phase      string `json:"phase"`       // "issues" | "documents"
+	Fetched    int    `json:"fetched"`
+	Total      *int   `json:"total,omitempty"` // omitted when the origin gave no count
+	// WikiPending: the wiki pass is configured and has not started (no live
+	// confluence row while the issues phase runs).
+	WikiPending bool   `json:"wiki_pending,omitempty"`
+	StartedAt   string `json:"started_at"`
+}
+
+// FirstSync builds the doc from the mirror, not from any process's memory —
+// a CLI-started first sync must show in a serve started later, and vice
+// versa. nil means no first sync is in progress. Any read error also means
+// nil: the warning this feeds is best-effort, never a failed status command.
+func FirstSync(ctx context.Context, db *store.DB, cfg *config.Config) *FirstSyncDoc {
+	if db == nil {
+		return nil
+	}
+	rows, err := db.SyncProgress(ctx)
+	if err != nil {
+		return nil
+	}
+	var pick *store.SyncProgressRow
+	for i := range rows {
+		if !rows[i].First {
+			continue
+		}
+		// Newest started_at wins; ties go to Confluence — every real sequence
+		// runs issues before documents, so on an equal stamp the wiki pass is
+		// the later phase even when two processes made the stamps.
+		later := pick == nil ||
+			rows[i].StartedAt > pick.StartedAt ||
+			(rows[i].StartedAt == pick.StartedAt && rows[i].SourceID == ConfluenceSourceID)
+		if later {
+			pick = &rows[i]
+		}
+	}
+	if pick == nil {
+		return nil
+	}
+	doc := &FirstSyncDoc{
+		InProgress: true,
+		Fetched:    pick.Fetched,
+		Total:      pick.Total,
+		StartedAt:  pick.StartedAt,
+	}
+	if pick.SourceID == ConfluenceSourceID {
+		doc.Phase = PhaseDocuments
+		return doc
+	}
+	doc.Phase = PhaseIssues
+	if cfg != nil && cfg.Confluence != nil {
+		live := false
+		for i := range rows {
+			if rows[i].SourceID == ConfluenceSourceID {
+				live = true
+				break
+			}
+		}
+		doc.WikiPending = !live
+	}
+	return doc
 }

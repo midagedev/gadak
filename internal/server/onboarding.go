@@ -306,9 +306,12 @@ type mirrorActivity struct {
 
 // progressResponse is GET/POST sync progress: the one-shot job fields plus the
 // activity slot for this server instance. Existing field meanings are unchanged.
+// first_sync is the mirror-owned fact (GDK-1677) — unlike activity it survives
+// the process that started the sync, so a CLI-started first sync shows here.
 type progressResponse struct {
 	progressDoc
-	Activity mirrorActivity `json:"activity"`
+	Activity  mirrorActivity     `json:"activity"`
+	FirstSync *sync.FirstSyncDoc `json:"first_sync,omitempty"`
 }
 
 // startSyncBody is optional. Empty body keeps the historical full-sync default
@@ -582,13 +585,16 @@ func (s *server) handleSyncRuns(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// syncProgressResponse is the polled document: one-shot job fields plus activity.
+// syncProgressResponse is the polled document: one-shot job fields plus
+// activity. first_sync is read from the store before the lock is taken — the
+// db read must not serialize against the job fields it does not share.
 func (s *server) syncProgressResponse() progressResponse {
+	first := sync.FirstSync(context.Background(), s.db, s.config())
 	s.syncMu.Lock()
 	defer s.syncMu.Unlock()
 	doc := s.syncJob
 	if doc.Phase == "" {
 		doc.Phase = "idle"
 	}
-	return progressResponse{progressDoc: doc, Activity: s.activity}
+	return progressResponse{progressDoc: doc, Activity: s.activity, FirstSync: first}
 }

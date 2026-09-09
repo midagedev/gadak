@@ -131,6 +131,12 @@ var originScopedTables = []tableRule{
 	// one history. GDK-418: missed by the old list.
 	{table: "sync_runs", scope: scopeDerived,
 		dropForSource: `DELETE FROM sync_runs WHERE source_id = ?`},
+	// sync_progress rows reuse the same source ids (GDK-1677); a heartbeat row
+	// left by the retired origin would read as a live first sync of the new
+	// one. Short-lived by the liveness window, but the conversion must not
+	// wait out that window.
+	{table: "sync_progress", scope: scopeDerived,
+		dropForSource: `DELETE FROM sync_progress WHERE source_id = ?`},
 
 	// ── Named by the origin, but not by one source of it.
 	// Feed event ids are built from mirror identity ("cr:" + issue key, see

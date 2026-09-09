@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -985,4 +985,25 @@ CREATE INDEX sprints_state ON sprints(source_id, state);
 const schemaV46 = `
 ALTER TABLE sprints ADD COLUMN external_id TEXT NOT NULL DEFAULT '';
 CREATE INDEX sprints_external ON sprints(source_id, external_id);
+`
+
+// schemaV47 (GDK-1677) adds sync_progress — the mirror-owned "a first full
+// sync is running" fact. Until now the only in-flight signal was an
+// in-memory activity slot in the serve process, invisible to `gadak sql`,
+// `status --json` and MCP clients; this table makes the pass itself the
+// single owner. source_id matches sync_state's ids ('jira', 'confluence',
+// 'linear'); first is 1 when the pass started with an empty watermark (what
+// readers surface — a `--full` resync of a filled mirror writes 0 and shows
+// nothing); updated_at is the heartbeat, touched with every committed page,
+// and the liveness window lives in sync_progress.go. No index: one row per
+// source, primary-key scans.
+const schemaV47 = `
+CREATE TABLE sync_progress (
+  source_id  TEXT PRIMARY KEY,
+  first      INTEGER NOT NULL,
+  started_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  fetched    INTEGER NOT NULL,
+  total      INTEGER
+);
 `
