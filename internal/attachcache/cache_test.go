@@ -268,3 +268,78 @@ func TestWaiterSeesTheOwnersTypedError(t *testing.T) {
 		t.Fatalf("waiter error = %v, want errors.Is(sentinel) to hold through the wrap", err)
 	}
 }
+
+// GDK-1616: an entry too large to keep used to be reported with the bytes
+// already thrown away, so the caller had to fetch the same object again to
+// answer its request. FillOrStream hands the body back with the verdict —
+// both when the origin stated the size and when the entry overran mid-copy,
+// which is the case a lying (or absent) Content-Length produces.
+func TestTooLargeHandsTheBytesBackAfterOneFetch(t *testing.T) {
+	const payload = "0123456789abcdefghij"
+	for _, tc := range []struct {
+		name string
+		size int64
+	}{
+		{"size stated up front", int64(len(payload))},
+		{"size unknown, overruns mid-copy", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// maxEntry 4: the 20-byte payload cannot be kept.
+			c, err := New(t.TempDir(), 0, 4)
+			if err != nil {
+				t.Fatal(err)
+			}
+			calls := 0
+			fetch := func() (io.ReadCloser, Meta, error) {
+				calls++
+				return io.NopCloser(strings.NewReader(payload)), Meta{ContentType: "video/mp4", Size: tc.size}, nil
+			}
+			body, meta, err := c.FillOrStream("big", fetch)
+			if err != nil {
+				t.Fatalf("err = %v, want the bytes instead", err)
+			}
+			if body == nil {
+				t.Fatal("no body: the caller has nothing to serve and must fetch again")
+			}
+			got, rerr := io.ReadAll(body)
+			body.Close()
+			if rerr != nil {
+				t.Fatal(rerr)
+			}
+			if string(got) != payload {
+				t.Errorf("body = %q, want the whole object %q", got, payload)
+			}
+			if meta.ContentType != "video/mp4" {
+				t.Errorf("ContentType = %q, want the origin's", meta.ContentType)
+			}
+			if calls != 1 {
+				t.Errorf("fetch called %d times, want 1", calls)
+			}
+			if c.Has("big") {
+				t.Error("an oversized entry was kept after all")
+			}
+			// Nothing staged is left behind.
+			ents, _ := os.ReadDir(c.Dir())
+			for _, e := range ents {
+				if strings.HasPrefix(e.Name(), ".part-") {
+					t.Errorf("staging file %s survived", e.Name())
+				}
+			}
+		})
+	}
+}
+
+// The warm path has nowhere to stream to, so for it a too-large entry is
+// still a TooLarge error and the body is dropped.
+func TestFillStillReportsTooLarge(t *testing.T) {
+	c, err := New(t.TempDir(), 0, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = c.Fill("big", func() (io.ReadCloser, Meta, error) {
+		return io.NopCloser(strings.NewReader("0123456789")), Meta{Size: 10}, nil
+	})
+	if !TooLarge(err) {
+		t.Fatalf("err = %v, want TooLarge", err)
+	}
+}

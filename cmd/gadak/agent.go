@@ -33,6 +33,7 @@ import (
 
 	"github.com/mattn/go-runewidth"
 	"github.com/midagedev/gadak/internal/adf"
+	"github.com/midagedev/gadak/internal/attachaudit"
 	"github.com/midagedev/gadak/internal/claim"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/fields"
@@ -470,6 +471,23 @@ func writeIssueJSON(docs []issueDoc, requested int) error {
 	return enc.Encode(jsonList(docs))
 }
 
+// attachmentTruncationMark tags an attachment whose size is the old built-in
+// upload cap exactly (GDK-1615). The wording and the predicate belong to
+// internal/attachaudit so doctor and this line cannot disagree. Only a
+// built-in-origin workspace ever went through that cap — the same origin type
+// the attachment proxy keys on — and config is read only when the size
+// already matches.
+func attachmentTruncationMark(size int64) string {
+	if !attachaudit.Suspect(size) {
+		return ""
+	}
+	cfg, err := config.Load()
+	if err != nil || cfg.OriginType() != config.OriginGadak {
+		return ""
+	}
+	return "\t" + attachaudit.Mark
+}
+
 func printIssueDocs(docs []issueDoc) {
 	for i, doc := range docs {
 		if i > 0 {
@@ -685,7 +703,7 @@ func printIssue(l store.IssueLite, d *store.Detail, dur store.Spans) {
 	if len(d.Attachments) > 0 {
 		fmt.Printf("\nattachments (%d)\n", len(d.Attachments))
 		for _, a := range d.Attachments {
-			fmt.Printf("  %s\t%s\t%d bytes\n", a.Filename, a.MimeType, a.Size)
+			fmt.Printf("  %s\t%s\t%d bytes%s\n", a.Filename, a.MimeType, a.Size, attachmentTruncationMark(a.Size))
 		}
 	}
 	if len(d.LinkedIssues) > 0 {

@@ -17,6 +17,8 @@ import (
 
 	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/applog"
+	"github.com/midagedev/gadak/internal/attachaudit"
+	"github.com/midagedev/gadak/internal/attachcache"
 	"github.com/midagedev/gadak/internal/clitool"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
@@ -87,6 +89,27 @@ type doctorReport struct {
 	// ProjectsMismatch follows. Nil when the mirror is level, is ahead, or no
 	// reconcile has run.
 	MirrorShort *doctorMirrorShort `json:"mirror_short,omitempty"`
+	// AttachmentsMaybeTruncated counts mirrored attachments of exactly 8 MiB
+	// on a built-in-origin workspace (GDK-1615): the size the old upload cap
+	// produced. Nil elsewhere and when the count is zero — a Jira or Linear
+	// workspace never went through that cap, so the line would be a false
+	// statement about intact files.
+	AttachmentsMaybeTruncated *int `json:"attachments_maybe_truncated,omitempty"`
+	// Attachments is the state of this workspace's attachment bytes: how
+	// many rows the mirror holds, and how much of it is local. It exists so
+	// "what shape are the attachments in here?" is one command rather than
+	// a directory walk plus a SQL query (GDK-1616/1615).
+	Attachments *doctorAttachments `json:"attachments,omitempty"`
+}
+
+// doctorAttachments is counts only, like every other section of this
+// paste-safe document: no filenames, no issue keys.
+type doctorAttachments struct {
+	Mirrored     int    `json:"mirrored"`
+	Cached       int    `json:"cached"`
+	CachedBytes  int64  `json:"cached_bytes"`
+	CacheDir     string `json:"cache_dir,omitempty"`
+	PerFileCapMB int    `json:"per_file_cap_mb,omitempty"`
 }
 
 // doctorMirrorShort is the count-only view of a mirror that holds less than
@@ -557,6 +580,17 @@ func collectDoctor() doctorReport {
 
 	if ms := collectMirrorShort(db); ms != nil {
 		rep.MirrorShort = ms
+	}
+
+	rep.Attachments = collectAttachments(db)
+
+	// Only a built-in origin ever had the 8 MiB upload cap. The gate is the
+	// origin type the attachment proxy itself keys on (config.OriginGadak),
+	// not the presence of the count.
+	if cfg, err := config.Load(); err == nil && cfg.OriginType() == config.OriginGadak {
+		if n, err := db.CountAttachmentsOfSize(ctx, attachaudit.TruncatedSize); err == nil && n > 0 {
+			rep.AttachmentsMaybeTruncated = &n
+		}
 	}
 
 	return rep
@@ -1058,6 +1092,12 @@ func formatDoctorText(r doctorReport) string {
 	if r.MirrorShort != nil {
 		line("mirror_short", formatDoctorMirrorShort(*r.MirrorShort))
 	}
+	if r.Attachments != nil {
+		line("attachments", formatDoctorAttachments(*r.Attachments))
+	}
+	if r.AttachmentsMaybeTruncated != nil {
+		line("attachments_maybe_truncated", attachaudit.Summary(*r.AttachmentsMaybeTruncated))
+	}
 	if r.ConfluenceSpaces != nil {
 		line("confluence_spaces", formatDoctorConfluenceSpaces(*r.ConfluenceSpaces))
 	}
@@ -1532,4 +1572,49 @@ func collectMirrorShort(db *store.DB) *doctorMirrorShort {
 func formatDoctorMirrorShort(m doctorMirrorShort) string {
 	return fmt.Sprintf("mirror=%d upstream=%d (at %s) — the origin held more than this mirror does; the hourly reconcile fetches the difference, or force it now with: gadak sync --full",
 		m.Mirror, m.Upstream, m.At)
+}
+
+// collectAttachments reports how many attachments the mirror knows about and
+// how many of their bytes are already local. The cache is read where it is,
+// never created: doctor must not mint a directory just by looking (the same
+// rule that keeps it from minting -wal/-shm above).
+func collectAttachments(db *store.DB) *doctorAttachments {
+	ctx := context.Background()
+	total, err := db.CountAttachments(ctx)
+	if err != nil {
+		return nil
+	}
+	out := &doctorAttachments{Mirrored: total}
+	if cfg, err := config.Load(); err == nil && cfg != nil {
+		out.PerFileCapMB = cfg.AttachmentMaxMB
+	}
+	dir, err := config.AttachmentDir()
+	if err != nil {
+		return out
+	}
+	if _, err := os.Stat(dir); err != nil {
+		// No directory yet means nothing has been cached — not an error.
+		return out
+	}
+	out.CacheDir = tildeHome(dir)
+	cache, err := attachcache.New(dir, 0, 0)
+	if err != nil {
+		return out
+	}
+	files, bytes := cache.Stats()
+	out.Cached, out.CachedBytes = files, bytes
+	return out
+}
+
+// formatDoctorAttachments is the one-line answer to "are this workspace's
+// attachment bytes local yet?".
+func formatDoctorAttachments(a doctorAttachments) string {
+	s := fmt.Sprintf("%d mirrored, %d cached (%s)", a.Mirrored, a.Cached, formatBytes(a.CachedBytes))
+	if a.PerFileCapMB > 0 {
+		s += fmt.Sprintf(", per-file cap %d MB", a.PerFileCapMB)
+	}
+	if a.CacheDir != "" {
+		s += " at " + a.CacheDir
+	}
+	return s
 }

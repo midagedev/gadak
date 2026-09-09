@@ -130,6 +130,12 @@ func Tag(key string) string {
 	return hex.EncodeToString(sum[:])[:32]
 }
 
+// MaxEntry is the largest object this cache will keep, in bytes. A caller
+// with a recorded size can ask before fetching whether an object could ever
+// be cached — which is how a ranged request decides between filling the
+// cache and streaming past it (GDK-1616).
+func (c *Cache) MaxEntry() int64 { return c.maxEntry }
+
 func (c *Cache) path(id string) string {
 	sum := sha256.Sum256([]byte(id))
 	name := hex.EncodeToString(sum[:])
@@ -164,21 +170,57 @@ func (c *Cache) Has(id string) bool {
 	return err == nil
 }
 
-// Fill is the single-flight write path: fetch runs at most once per id even if
-// ten renders miss at the same moment. It returns after the bytes are on disk.
+// Fill is FillOrStream for callers with nowhere to stream to (the warm
+// path): an entry too large to keep is reported as TooLarge and its body
+// discarded.
+func (c *Cache) Fill(id string, fetch func() (io.ReadCloser, Meta, error)) error {
+	rc, _, err := c.FillOrStream(id, fetch)
+	if rc != nil {
+		rc.Close()
+		return errTooLarge
+	}
+	return err
+}
+
+// FillOrStream is the single-flight write path, and it never asks a caller to
+// fetch the same bytes twice (GDK-1616). fetch runs at most once per call —
+// at most once per id when ten renders miss at the same moment — and the
+// three outcomes are distinct:
+//
+//   - (nil, meta, nil): the bytes are on disk. Serve them with Get.
+//   - (rc, meta, nil): too large to keep. rc is the whole object, exactly as
+//     the origin sent it, including any bytes this call had already staged.
+//     The caller streams it and closes it.
+//   - (nil, _, err): the fetch or the write failed.
+//
+// The returned body is why a request can no longer fetch twice: the size
+// verdict arrives with the bytes attached, so there is nothing left to go
+// back to the origin for.
 //
 // fetch must return the body, its content type, and its length (0 if unknown).
-func (c *Cache) Fill(id string, fetch func() (io.ReadCloser, Meta, error)) error {
+func (c *Cache) FillOrStream(id string, fetch func() (io.ReadCloser, Meta, error)) (io.ReadCloser, Meta, error) {
 	c.mu.Lock()
 	if f, busy := c.flight[id]; busy {
 		c.mu.Unlock()
 		f.wg.Wait()
-		if f.err != nil {
-			// %w keeps the owner's typed cause (auth, too-large) reaching
-			// every waiter's errors.Is branches (GDK-1237).
-			return fmt.Errorf("attachcache: concurrent fill: %w", f.err)
+		switch {
+		case f.err == nil:
+			return nil, Meta{}, nil
+		case TooLarge(f.err):
+			// The owner threw the bytes away because they will not fit.
+			// This caller still has to answer its request, so it fetches
+			// once — the same single fetch the owner made, not a second
+			// one on top of its own.
+			body, meta, err := fetch()
+			if err != nil {
+				return nil, Meta{}, err
+			}
+			return body, meta, nil
+		default:
+			// %w keeps the owner's typed cause (auth) reaching every
+			// waiter's errors.Is branches (GDK-1237).
+			return nil, Meta{}, fmt.Errorf("attachcache: concurrent fill: %w", f.err)
 		}
-		return nil
 	}
 	// Cached means no fetch — owned here, not by callers. Without this, a
 	// caller arriving between a flight's completion and its own Has check
@@ -186,7 +228,7 @@ func (c *Cache) Fill(id string, fetch func() (io.ReadCloser, Meta, error)) error
 	// single-flight test).
 	if c.Has(id) {
 		c.mu.Unlock()
-		return nil
+		return nil, Meta{}, nil
 	}
 	f := &fill{}
 	f.wg.Add(1)
@@ -201,58 +243,109 @@ func (c *Cache) Fill(id string, fetch func() (io.ReadCloser, Meta, error)) error
 		c.mu.Unlock()
 		f.wg.Done()
 	}()
-	f.err = c.fill(id, fetch)
-	return f.err
+	rc, meta, err := c.fill(id, fetch)
+	f.err = err
+	if rc != nil {
+		// A too-large entry is not a failed flight for the waiters — they
+		// must not inherit a body this caller owns, so they are told
+		// TooLarge and fetch for themselves.
+		f.err = errTooLarge
+		return rc, meta, nil
+	}
+	return nil, meta, err
 }
 
-// fill is Fill's owner half: fetch, stage, rename. Split out so the
+// fill is FillOrStream's owner half: fetch, stage, rename. Split out so the
 // single-flight bookkeeping above can record its error for the waiters.
-func (c *Cache) fill(id string, fetch func() (io.ReadCloser, Meta, error)) error {
+//
+// A non-nil first return means "not cached, here are the bytes": the caller
+// owns and closes it. It is never returned together with an error.
+func (c *Cache) fill(id string, fetch func() (io.ReadCloser, Meta, error)) (io.ReadCloser, Meta, error) {
 	body, meta, err := fetch()
 	if err != nil {
-		return err
+		return nil, Meta{}, err
 	}
-	defer body.Close()
 	if meta.Size > c.maxEntry {
-		return errTooLarge
+		// Known too large before a byte is read: hand the untouched body
+		// back rather than making the caller ask the origin again.
+		return body, meta, nil
 	}
+	// The body is closed here unless it is handed back to the caller: the
+	// spillover path below returns a reader that still needs it open.
+	handOff := false
+	defer func() {
+		if !handOff {
+			body.Close()
+		}
+	}()
 
 	p := c.path(id)
 	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
-		return err
+		return nil, Meta{}, err
 	}
 	// Write to a temp file and rename so a crashed download never becomes a
 	// half-cached image.
 	tmp, err := os.CreateTemp(filepath.Dir(p), ".part-*")
 	if err != nil {
-		return err
+		return nil, Meta{}, err
 	}
 	tmpName := tmp.Name()
+	keepTmp := false
 	defer func() {
+		if keepTmp {
+			return
+		}
 		tmp.Close()
 		os.Remove(tmpName)
 	}()
 
 	written, err := io.Copy(tmp, io.LimitReader(body, c.maxEntry+1))
 	if err != nil {
-		return err
+		return nil, Meta{}, err
 	}
 	if written > c.maxEntry {
-		return errTooLarge
+		// The size the origin stated was wrong (or absent) and the entry
+		// overran mid-copy. The bytes already read are in tmp, so the
+		// caller gets tmp followed by the rest of the body — one fetch,
+		// whole object, nothing to ask the origin for again.
+		if _, err := tmp.Seek(0, io.SeekStart); err != nil {
+			return nil, Meta{}, err
+		}
+		keepTmp, handOff = true, true
+		return &spilloverBody{tmp: tmp, name: tmpName, r: io.MultiReader(tmp, body), body: body}, meta, nil
 	}
 	if err := tmp.Close(); err != nil {
-		return err
+		return nil, Meta{}, err
 	}
 	meta.Size = written
 	if err := os.Rename(tmpName, p); err != nil {
-		return err
+		return nil, Meta{}, err
 	}
 	if err := writeMeta(p+".json", meta); err != nil {
 		os.Remove(p)
-		return err
+		return nil, Meta{}, err
 	}
 	c.evict()
-	return nil
+	return nil, meta, nil
+}
+
+// spilloverBody is the staged prefix plus the unread remainder of one fetch,
+// presented as a single body. Closing it closes the origin body and removes
+// the staging file.
+type spilloverBody struct {
+	tmp  *os.File
+	name string
+	r    io.Reader
+	body io.ReadCloser
+}
+
+func (s *spilloverBody) Read(p []byte) (int, error) { return s.r.Read(p) }
+
+func (s *spilloverBody) Close() error {
+	err := s.body.Close()
+	s.tmp.Close()
+	os.Remove(s.name)
+	return err
 }
 
 // errTooLarge is not exported: callers only need to know the fill failed, and

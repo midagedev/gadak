@@ -183,3 +183,52 @@ func TestBuiltInAttachmentRevalidatesWithoutA502(t *testing.T) {
 		t.Errorf("304 carries a %d-byte body", again.Body.Len())
 	}
 }
+
+// TestBuiltInAttachmentKeepsTheOriginsMime pins GDK-1616's mime half. The
+// proxy answered application/octet-stream for every built-in attachment.
+// An <img> survives that by sniffing; a <video> mostly refuses it, and the
+// mime the upload recorded was on the attachment row the whole time. Two
+// types, because one is indistinguishable from a hardcoded constant.
+func TestBuiltInAttachmentKeepsTheOriginsMime(t *testing.T) {
+	for _, tc := range []struct {
+		filename string
+		mime     string
+		body     string
+	}{
+		{"shot.png", "image/png", "\x89PNG\r\n\x1a\nfake"},
+		{"clip.mp4", "video/mp4", "\x00\x00\x00\x18ftypmp42"},
+	} {
+		t.Run(tc.mime, func(t *testing.T) {
+			// One workspace per case: mirrorAttachment writes a fixed item
+			// id, so two cases in one mirror would overwrite each other.
+			h, cfg, db := builtInServerDB(t)
+			ctx := context.Background()
+			c, err := origin.Client(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			key, err := c.CreateIssue(ctx, map[string]any{
+				"project":   map[string]any{"key": origin.DefaultProjectKey},
+				"summary":   "mime probe " + tc.mime,
+				"issuetype": map[string]any{"name": "Task"},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			atts, err := c.Upload(ctx, key, tc.filename, strings.NewReader(tc.body))
+			if err != nil || len(atts) == 0 {
+				t.Fatalf("upload: %v", err)
+			}
+			externalID := atts[0].ID
+			mirrorAttachment(t, db, key, externalID, tc.filename, tc.mime, int64(len(tc.body)))
+
+			rec := get(t, h, apiBase+key+"/attachments/"+externalID+"/content/", nil)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("view → %d %s", rec.Code, strings.TrimSpace(rec.Body.String()))
+			}
+			if got := rec.Header().Get("Content-Type"); got != tc.mime {
+				t.Errorf("Content-Type = %q, want the mime the origin recorded (%q)", got, tc.mime)
+			}
+		})
+	}
+}

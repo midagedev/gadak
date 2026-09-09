@@ -199,3 +199,25 @@ func (db *DB) DistinctCount(ctx context.Context, table, column string) (int, err
 	err := db.sql.QueryRowContext(ctx, q).Scan(&n)
 	return n, err
 }
+
+// CountAttachmentsOfSize counts the mirrored attachments whose recorded size
+// is exactly size. It exists for one question a workspace on the built-in
+// origin has to be able to answer without opening every issue: how many
+// attachments may have been cut off by the old 8 MiB upload cap (GDK-1615).
+// Count only, no names — doctor's document is paste-safe, and the names come
+// from a `gadak sql` one-liner the line itself prints.
+func (db *DB) CountAttachmentsOfSize(ctx context.Context, size int64) (int, error) {
+	var n int
+	err := db.sql.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM attachments WHERE size = ?`, size).Scan(&n)
+	return n, err
+}
+
+// CountAttachments is how many attachment rows the mirror holds. doctor pairs
+// it with the byte cache's own count so one line says whether this
+// workspace's attachment bytes are local yet (GDK-1616).
+func (db *DB) CountAttachments(ctx context.Context) (int, error) {
+	var n int
+	err := db.sql.QueryRowContext(ctx, `SELECT COUNT(*) FROM attachments`).Scan(&n)
+	return n, err
+}

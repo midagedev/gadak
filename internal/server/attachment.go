@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -60,36 +61,116 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fill the cache, then serve from it, so the bytes are written once and every
-	// later view is local. A cache failure is not a request failure: fall through
-	// to a straight stream.
-	if s.cache != nil {
-		// Diagnose before the fetch: a scoped miss with a leftover id-only file
-		// is the snapshot-import key bug, not a cold cache.
+	// One request, one fetch (GDK-1616). The counter is the structure, not a
+	// comment: every path below goes through this closure, so a second call
+	// in the same request cannot reach the origin at all — it errors. The
+	// double fetch it closes was real: the cache filled, refused the entry
+	// for its size, and the handler fell through and fetched the same large
+	// video again to stream it. In-process that is waste; on a paired serve
+	// it is the file crossing the tailnet twice for one <video>.
+	fetches := 0
+	fetchOnce := func(hdr http.Header) (*http.Response, error) {
+		fetches++
+		if fetches > 1 {
+			return nil, errDoubleFetch
+		}
+		return s.fetchAttachment(r.Context(), cfg, issueKey, id, hdr)
+	}
+
+	// A partial or conditional request still fills the cache when the object
+	// could fit it, and only streams past the cache when it could not.
+	//
+	// Skipping the cache for every ranged request was the shape this round
+	// first took, and it was wrong in the common case: a <video> opens with
+	// `Range: bytes=0-` on Safari, so the first play of a cacheable file
+	// would never cache — and if the warm pass (warmAttachments, detached and
+	// capped at eight per open) was still filling that same file, the request
+	// fetched it a second time in parallel. On a paired serve that is the
+	// file crossing the network twice for one play. Filling first costs the
+	// whole object once, and http.ServeContent then answers this range, and
+	// every later seek, off the local file.
+	//
+	// The size is the origin's claim from the mirror, and the only thing it
+	// is trusted for is this either/or: a file the cache could never keep is
+	// streamed with the browser's Range passed through, which is the one
+	// shape that cannot be served locally at all.
+	pass := rangeHeaders(r)
+	oversize := false
+	if s.cache != nil && pass != nil {
+		if cap := s.cache.MaxEntry(); cap > 0 {
+			if size, err := s.db.AttachmentSize(r.Context(), issueKey, id); err == nil && size > cap {
+				oversize = true
+			}
+		}
+	}
+	if s.cache != nil && !(pass != nil && oversize) {
 		log.Printf("server: attachment cache miss id=%s issue=%s: %s", id, issueKey, s.cache.MissReason(ck, id))
-		err := s.cache.Fill(ck, func() (io.ReadCloser, attachcache.Meta, error) {
-			res, err := s.fetchAttachment(r.Context(), cfg, issueKey, id, nil)
+		var upstream http.Header
+		body, meta, err := s.cache.FillOrStream(ck, func() (io.ReadCloser, attachcache.Meta, error) {
+			res, err := fetchOnce(nil)
 			if err != nil {
 				return nil, attachcache.Meta{}, err
 			}
+			upstream = res.Header
 			return res.Body, attachcache.Meta{
 				ContentType: contentTypeOf(res),
 				Size:        res.ContentLength,
 			}, nil
 		})
 		switch {
-		case err == nil:
+		case err == nil && body == nil:
+			// On disk now: every later view is local, and a Range — this
+			// request's included — is answered by http.ServeContent off the
+			// file rather than by the origin.
 			if s.serveCached(w, r, ck) {
 				return
 			}
+			// The bytes were written and then could not be read back. This
+			// request has spent its one fetch, and inventing a second is
+			// the bug this round closed — say so instead.
+			log.Printf("server: attachment cached but unreadable id=%s issue=%s", id, issueKey)
+			fail(w, http.StatusBadGateway, "attachment_unavailable")
+			return
+		case err == nil:
+			// Too large to keep, and the bytes came back with the verdict.
+			// Logged with the size: this is the one request shape that
+			// re-reads the origin on every view, so it should be visible
+			// when someone asks why a large video is slow twice.
+			// A ranged request that got here asked for part of a file the
+			// mirror said would fit and the origin then overran. The whole
+			// object is in hand and the fetch is spent, so it is answered
+			// whole: ignoring Range is a 200, which is allowed, and the next
+			// request takes the pass-through path above once the size is
+			// recorded.
+			log.Printf("server: attachment too large to cache, streamed once id=%s issue=%s bytes=%d ranged=%v", id, issueKey, meta.Size, pass != nil)
+			defer body.Close()
+			ct := meta.ContentType
+			if ct == "" {
+				ct = "application/octet-stream"
+			}
+			w.Header().Set("Content-Type", ct)
+			// The origin's own validator and range advertisement, so the
+			// browser's next request can seek and revalidate.
+			for _, h := range []string{"Accept-Ranges", "ETag"} {
+				if v := upstream.Get(h); v != "" {
+					w.Header().Set(h, v)
+				}
+			}
+			if meta.Size > 0 {
+				w.Header().Set("Content-Length", strconv.FormatInt(meta.Size, 10))
+			}
+			w.Header().Set("Cache-Control", "private, max-age=300")
+			setAttachmentGuards(w, ct)
+			if _, err := io.Copy(w, body); err != nil {
+				log.Printf("server: attachment stream: %v", err)
+			}
+			return
 		case errors.Is(err, errAttachmentAuth):
 			fail(w, http.StatusConflict, "credential_rejected")
 			return
 		case errors.Is(err, errAttachmentMissing):
 			fail(w, http.StatusNotFound, "not_found")
 			return
-		case attachcache.TooLarge(err):
-			// Too big to keep; stream it through below.
 		default:
 			var denied *originDeniedError
 			if errors.As(err, &denied) {
@@ -97,13 +178,15 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			log.Printf("server: attachment cache fill: %v", err)
+			fail(w, http.StatusBadGateway, "attachment_unavailable")
+			return
 		}
 	}
 
-	// Too large for the cache, or the cache is off: stream it, and pass the
-	// browser's Range through so seeking in a video works on the path that
-	// does not go through the cache either (GDK-1617).
-	res, err := s.fetchAttachment(r.Context(), cfg, issueKey, id, rangeHeaders(r))
+	// No cache at all, or a ranged request for a file too large to cache:
+	// stream from the origin and pass the browser's Range through so seeking
+	// in a video works here too (GDK-1617).
+	res, err := fetchOnce(pass)
 	switch {
 	case errors.Is(err, errAttachmentAuth):
 		fail(w, http.StatusConflict, "credential_rejected")
@@ -266,6 +349,10 @@ func (s *server) warmAttachments(cfg *config.Config, issueKey string, atts []det
 }
 
 var (
+	// errDoubleFetch is never expected: it is what a request gets if it asks
+	// the origin for the same attachment twice (GDK-1616). A 502 with this in
+	// the log is a regression report, not a user's problem.
+	errDoubleFetch       = errors.New("attachment: refusing a second origin fetch for one request")
 	errAttachmentAuth    = errors.New("attachment: credential rejected")
 	errAttachmentMissing = errors.New("attachment: not found")
 )
@@ -470,15 +557,6 @@ func inlineSafe(contentType string) bool {
 		strings.HasPrefix(mime, "audio/") || mime == "application/pdf"
 }
 
-// fetchBuiltInAttachment reads bytes from gadak's own tracker through
-// origin.Client, which resolves to the in-process origin or the paired home
-// serve without this file knowing which.
-//
-// Streamed, not buffered. The origin holds files a real workspace's size
-// (measured: 22% of 19,076 attachments over 8 MiB, the largest 884 MiB) now
-// that its bytes live on disk rather than in a BLOB (GDK-1617), and the
-// origin labels them properly and answers Range — so hdr is passed through
-// and the response is handed back exactly as it came, 206 included.
 // fetchServerAttachment streams a Jira Server attachment from the URL the
 // origin stated (GDK-1639). hdr is passed through: the measured instance
 // answers Range on this route, so seeking in a video works the same way it
@@ -499,6 +577,15 @@ func (s *server) fetchServerAttachment(ctx context.Context, cfg *config.Config, 
 	return mapAttachmentStatus(res, false)
 }
 
+// fetchBuiltInAttachment reads bytes from gadak's own tracker through
+// origin.Client, which resolves to the in-process origin or the paired home
+// serve without this file knowing which.
+//
+// Streamed, not buffered. The origin holds files a real workspace's size
+// (measured: 22% of 19,076 attachments over 8 MiB, the largest 884 MiB) now
+// that its bytes live on disk rather than in a BLOB (GDK-1617), and the
+// origin labels them properly and answers Range — so hdr is passed through
+// and the response is handed back exactly as it came, 206 included.
 func (s *server) fetchBuiltInAttachment(ctx context.Context, cfg *config.Config, id string, hdr http.Header) (*http.Response, error) {
 	c, err := origin.Client(cfg)
 	if err != nil {

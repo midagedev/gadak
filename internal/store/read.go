@@ -760,6 +760,36 @@ func (db *DB) AttachmentOrigin(ctx context.Context, issueKey, attachmentID strin
 	return sourceID, contentURL, err
 }
 
+// AttachmentSize is the byte count the origin recorded for one attachment,
+// or 0 when the mirror has no number for it (GDK-1616). It is a claim, not a
+// measurement: an origin may state a size and send a different one, so a
+// caller that needs certainty still has to count what arrives. What it is
+// good for is deciding, before a byte moves, whether an attachment could
+// ever fit a cache with a per-entry cap.
+func (db *DB) AttachmentSize(ctx context.Context, issueKey, attachmentID string) (int64, error) {
+	if issueKey == "" || attachmentID == "" {
+		return 0, ErrNotFound
+	}
+	var size sql.NullInt64
+	err := db.sql.QueryRowContext(ctx, `
+		SELECT a.size
+		FROM attachments a
+		JOIN issues i ON i.item_id = a.item_id
+		WHERE i.key = ?
+		  AND COALESCE(NULLIF(a.external_id, ''), a.id) = ?
+		LIMIT 1`, issueKey, attachmentID).Scan(&size)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	if err != nil {
+		return 0, err
+	}
+	if !size.Valid || size.Int64 < 0 {
+		return 0, nil
+	}
+	return size.Int64, nil
+}
+
 // RemoteLinks reads one issue's mirrored remote links (GDK-1032). An issue
 // with none — or one this mirror does not carry — is an empty list, not an
 // error: a pointer list is a read, and callers print what is there.
