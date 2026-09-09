@@ -49,6 +49,7 @@ under `project/` is that half — it is there so a reader looking for how to
 - [UX_PRINCIPLES.md](project/UX_PRINCIPLES.md): the standard every UI wave is measured against
 - [GOOD_FIRST_ISSUES.md](project/GOOD_FIRST_ISSUES.md): concrete starter work with code evidence
 - [MEDIA.md](project/MEDIA.md): regenerating demo GIFs/MP4
+- [AUDIT_LOG.md](project/AUDIT_LOG.md): what each release audit covered, what it measured, and where its findings went
 - [../AGENTS.md](../AGENTS.md): contributor contract — required reading order, SQL/CLI/REST/MCP pointers
 
 ### Specs and contracts

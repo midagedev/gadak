@@ -7,7 +7,8 @@ touched. This runbook is the procedure; it exists so the audit is repeatable
 rather than re-invented each cycle.
 
 **When:** after the last feature lands for the minor and before the release
-tag. Bug fixes still ship immediately as they land (that rule outranks this
+tag. Each cycle's record — axes covered, numbers measured, findings routed
+— goes in [`../project/AUDIT_LOG.md`](../project/AUDIT_LOG.md). Bug fixes still ship immediately as they land (that rule outranks this
 one); the audit is about everything that is not a defect.
 
 **What changed in this edition (v0.22 cycle).** The axes used to be
@@ -207,6 +208,14 @@ A check expressible one rung lower is a finding.
 - The gate set's wall-clock is measured before and after; the audit leaves
   it faster, not slower, and axis 9 carries the numbers.
 
+This axis and axis 9 read the same tables and can reach the same test from
+two directions — "move it down a rung" and "cut the seconds". **The split
+is by verdict, not by file: axis 5 owns every proposal that changes where a
+check lives, axis 9 owns every proposal that changes what CI runs or how it
+is scheduled.** A test that moves rungs is axis 5's finding even when the
+motive is minutes; a shard rebalance is axis 9's even when it lands in the
+same commit. Say which axis a merged round is reporting under.
+
 ### 6. UX consistency
 
 The AAA bar: nothing in the product should feel like it was written by two
@@ -310,13 +319,26 @@ today.
 ### 13. The invariants (GDK-972)
 
 The product invariants at the top of CLAUDE.md are checked on purpose, not
-as by-products of other axes: no outbound beyond the configured origins
-(`grep -rn 'http\.\(Get\|Post\|NewRequest\)\|https://' --include='*.go'` against
-`SECURITY.md`'s destination list), the mirror is a cache (no API that writes
-the mirror without passing the origin), writes go through the origin, and
-no token or pairing value reaches a log, an error string or a report. Five
-cycles produced six invariant findings, all incidental; this axis makes the
-zero a measured zero.
+as by-products of other axes. Five cycles produced six invariant findings,
+all incidental — this axis makes the zero a measured zero, which means it
+reports the same shape whether or not it finds anything.
+
+One row per invariant. A pass is the command's output **plus the sentence
+that says what was read**, because every one of these greps returns hits
+that are fine: the question is always whether each hit is on the allowed
+list, never whether the count is zero.
+
+| invariant | where to look | a pass reads like |
+|---|---|---|
+| No outbound beyond the configured origins | `grep -rn 'http\.\(Get\|Post\|NewRequest\|Client\)\|https://' --include='*.go' .` and the fetch/XHR sites in `web/src`, `mobile/src`, `site/src` | every host reached at runtime is one `SECURITY.md` lists (origin site, Linear, paired serve, user-run `gh`, loopback); each hit is classed origin / loopback / doc-string / test fixture, and the classification names the caller |
+| The cache is disposable | every writer of `gadak.db` — `grep -rn 'INSERT\|UPDATE\|DELETE' --include='*.go' internal/store internal/sync internal/server` | no route or verb writes a row the origin cannot regenerate, and the exceptions (`local.db`, saved views) are the two the invariant names and are exportable |
+| Writes pass the origin | the API surface — `internal/server` handlers that mutate, and `internal/origin/*writer.go` | every mutating handler reaches the origin before the cache; a handler that writes the cache directly is a finding even behind a flag |
+| No secret reaches a log, an error or a report | `bash scripts/scan-internal.sh` plus the token/pairing values in `internal/config`, and one read of every `fmt.Errorf` that interpolates a config struct | the scanner is green, and no error path formats a struct whose fields include a token — the scanner is line-oriented and a one-line JSON dump defeats it (measured, `incident-line-oriented-leak-gates`) |
+| A dev build does not decide for the release | `internal/store` open policy and its callers | plain `store.Open` callers inherit the process default; only commands opening a temp file they created opt out (GDK-1687) |
+
+The report is that table with a verdict column and a `path:line` for each
+class of hit. "No findings" without the table is not a pass — it is the
+by-product this axis exists to replace.
 
 ## Procedure
 
@@ -334,6 +356,17 @@ zero a measured zero.
    that ledger is what the next cycle's specs quote. Survivors go to Jira
    as sub-issues of one parent per audit (`품질개선 vX.Y`, label `quality`),
    priorities by cost/effect.
+
+   The ledger has an address, so the next cycle quotes it instead of
+   inventing the query:
+
+   ```bash
+   gadak --workspace gdk sql "select key, substr(summary,1,80) s, resolution
+     from issues_full where labels like '%audit-rejected%' order by key"
+   ```
+
+   Paste that output into each axis round's spec under "already rejected —
+   do not re-raise without new evidence".
 4. **Fix rounds** — normal delegation rules (project CLAUDE.md binds:
    file whitelists, gate discipline, Playwright mandatory when `web/`,
    `e2e/`, or i18n catalogs are touched, no git writes by delegates).
@@ -343,7 +376,36 @@ zero a measured zero.
 5. **Close** — full gate set on a quiet machine, CI green, sub-issues
    closed, parent closed with the census rerun: lines removed, the
    complexity and coupling numbers against the baseline, the CI ledger
-   before/after. Update this runbook with anything the cycle taught.
+   before/after. Update this runbook with anything the cycle taught, and
+   write the cycle's row into [`../project/AUDIT_LOG.md`](../project/AUDIT_LOG.md)
+   — see *Done* below.
+
+## Done — what makes the audit finished
+
+An audit is finished when a reader who was not here can answer "was this
+version audited?" from the tree alone. Three things have to be true, and
+the third is the one past cycles skipped:
+
+1. **Every axis has a verdict** — reported, or deliberately not run with the
+   reason written down. Thirteen rows, no blanks. An axis nobody ran is a
+   legitimate outcome; an axis nobody can tell apart from one that ran clean
+   is not.
+2. **Every finding has an address** — opened as a defect (Highest), opened
+   as a sub-issue of the audit parent, or closed with `audit-rejected` and a
+   reason. Nothing lives only in a report.
+3. **The cycle is recorded in the tree.** `docs/project/AUDIT_LOG.md` gets
+   one section per cycle: the base SHA, the axis table with verdicts, the
+   baseline numbers against the previous cycle's, and the defects that came
+   out. The scratch reports are not the record — they are deleted with the
+   session.
+
+**Release readiness is a separate question, and this runbook answers only
+half of it.** The audit says the code was looked at; it does not say the
+product is shippable. Before the tag the lead states both, in one place:
+the audit log's verdict table, and the open Highest defects with a decision
+per row (fixed, or shipped as a named known issue in the release notes).
+"Audit complete" over an open Highest defect is a statement about the audit,
+never about the release.
 
 What past cycles taught (keep this list short; delete a line once the
 procedure above absorbs it):
