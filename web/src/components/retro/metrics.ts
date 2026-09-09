@@ -8,6 +8,7 @@
  * surfaces print the same number.
  */
 
+import { t } from '../../lib/i18n'
 import type { RetroBucket } from '../../lib/types'
 
 export type Unit = 'count' | 'seconds' | 'days'
@@ -26,18 +27,29 @@ export type Direction = 'up-good' | 'down-good' | 'neutral'
 /** Tone for a delta chip; 'none' means print it without colour. */
 export type Tone = 'good' | 'bad' | 'none'
 
-/** The CLI's own ladder for a day-valued number (GDK-1683). */
+/*
+ * The CLI's own ladder for a day-valued number (GDK-1683) — with the unit in
+ * the reader's language (GDK-1728).
+ *
+ * The rung and the digits are the CLI's, so the two surfaces still print the
+ * same number; only the suffix is translated, through the catalog keys the
+ * rest of the app already uses for a duration. Measured before this: a ko
+ * capture of the retro read `9.0d` and `23.0h` in the middle of Korean
+ * sentences, and ja the same — the one thing on the screen that had not been
+ * translated. The CLI stays English on purpose: its footer says so, and a
+ * surface that translates writes its own from the JSON document.
+ */
 export function formatDays(v: number): string {
-  if (v >= 1) return `${v.toFixed(1)}d`
+  if (v >= 1) return t('time.day', { n: v.toFixed(1) })
   const h = v * 24
-  if (h >= 1) return `${h.toFixed(1)}h`
-  return `${Math.round(h * 60)}m`
+  if (h >= 1) return t('time.hour', { n: h.toFixed(1) })
+  return t('time.minute', { n: Math.round(h * 60) })
 }
 
 export function formatSeconds(v: number): string {
-  if (v < 60) return `${Math.round(v)}s`
-  if (v < 3600) return `${Math.round(v / 60)}m`
-  return `${(v / 3600).toFixed(1)}h`
+  if (v < 60) return t('time.second', { n: Math.round(v) })
+  if (v < 3600) return t('time.minute', { n: Math.round(v / 60) })
+  return t('time.hour', { n: (v / 3600).toFixed(1) })
 }
 
 /** A cell's text. `—` is the empty cell the CLI prints. */
