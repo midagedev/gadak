@@ -73,8 +73,8 @@ export const settings = {
   },
   'settings.aboutX': {
     en: '@midagedev on X',
-    ko: '@midagedev on X',
-    ja: '@midagedev on X',
+    ko: 'X의 @midagedev',
+    ja: 'X の @midagedev',
   },
   'settings.intro': {
     en: 'Choose what this workspace mirrors, how often it syncs, and which features are on. Saving re-reads this window.',
@@ -1222,8 +1222,8 @@ export const settings = {
   },
   'settings.memberAccountId': {
     en: 'Jira accountId',
-    ko: 'Jira accountId',
-    ja: 'Jira accountId',
+    ko: 'Jira 계정 ID',
+    ja: 'Jira アカウント ID',
   },
   'settings.displayName': {
     en: 'Display name',

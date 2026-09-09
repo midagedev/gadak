@@ -480,7 +480,9 @@ describe('GDK-1704 ko/ja values are not the en value in disguise', () => {
   // locale-neutral. The 2026-09-09 census (scratchpad audit/i18n-gaps.mjs,
   // 1303 keys) measured the baseline: ko identical-to-en = 2, ja = 4; the
   // two real ja gaps (`onboarding.token`, `jiraSettings.intro4`) were fixed
-  // in this round and everything else lands in the allowlist below with the
+  // in this round, the two borderline keys the census flagged
+  // (`settings.aboutX`, `settings.memberAccountId`) were translated on the
+  // user's call, and everything left lands in the allowlist below with the
   // census's reason. Any NEW byte-equality fails until an entry with a
   // reason is added here — that is the point of the gate.
   //
@@ -517,11 +519,6 @@ describe('GDK-1704 ko/ja values are not the en value in disguise', () => {
     ['ja terminal.shortcut', 'brand/acronym/keycap-only (Ctrl+`)'],
     ['ko write.commentShortcut', 'placeholders-only ({mod} ↵)'],
     ['ja write.commentShortcut', 'placeholders-only ({mod} ↵)'],
-    // ── lead's calls, 2026-09-09 ──
-    ['ko settings.aboutX', 'lead: borderline — handle + product name'],
-    ['ja settings.aboutX', 'lead: borderline — handle + product name'],
-    ['ko settings.memberAccountId', 'lead: borderline — Jira REST field name'],
-    ['ja settings.memberAccountId', 'lead: borderline — Jira REST field name'],
   ])
 
   test('a ko or ja value byte-equal to en fails unless allowlisted', () => {
