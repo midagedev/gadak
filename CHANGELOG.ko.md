@@ -132,7 +132,17 @@ SQLite 파일 하나가 그 뒤 한 간격(기본 60초, 시간마다 리컨사�
 스킬은 도착한 것으로 일하라고 말합니다 ([GDK-1677]). 그리고 dev 빌드가
 설치된 릴리스 대신 결정하는 일은 끝났습니다. `0.0.0-dev` 바이너리는 미러를 앞으로 마이그레이션하지 않고 두 버전과 두 출구(`GADAK_DEV_MIGRATE=1`, 또는
 프로필 사본)를 이름 붙여 거절하며, 백로그 스냅샷 스크립트는 스크래치 홈
-아래의 `sqlite3 .backup` 사본을 동기화하고 ([GDK-1687]), `GADAK_HOME`이 없으면 dev 빌드는 `~/.gadak-dev`에, 릴리스는 `~/.gadak`에 살며 `gadak doctor`가 `home`과 그 이유를 찍습니다 ([GDK-1697]).
+아래의 `sqlite3 .backup` 사본을 동기화하고 ([GDK-1687]), `GADAK_HOME`이 없으면 dev 빌드는 `~/.gadak-dev`에, 릴리스는 `~/.gadak`에 살며 `gadak doctor`가 `home`과 그 이유를 찍습니다 ([GDK-1697]). 버전을 자르기 전에 도는 릴리스 감사는 이제
+읽는 것이 아니라 세는 것에서 시작하고, 이번에는 그냥 나갈 뻔한 것들을
+잡았습니다. v0.21.0 이후 들어온 것이 스킬과 MCP 툴에 닿아 에이전트가
+셀프호스트 Jira 워크스페이스를 보고, 자기 코멘트를 고치고 지우고, 첫 동기화를
+시작할 수 있습니다 ([GDK-1700]). 폰 화면과 웹 패널 둘에서 카탈로그를 빠져나가
+있던 영어 문자열 스물넷이 세 언어의 키가 됐고, 폰의 날짜는 영어 월 이름 표를
+그만 씁니다 ([GDK-1704]). 문서와 사이트가 코드와 어긋나 있던 열 자리는 그
+문장에서 고쳤고 ([GDK-1705]), 회고 표는 필요한 만큼 넓어집니다 ([GDK-1706]).
+CI도 싸졌습니다. 정적 분석 게이트는 Go를 건드리지 않은 푸시를 건너뛰고,
+브라우저 샤드는 파일 순서가 아니라 실측 초로 나뉘며, 브라우저가 필요 없던
+검사 다섯은 유닛으로 내려왔습니다 ([GDK-1702], [GDK-1698]).
 
 ## v0.21.0 — 2026-09-08
 
@@ -1589,3 +1599,9 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1693]: https://gadak.dev/backlog/#/?ks=GDK-1693
 [GDK-1694]: https://gadak.dev/backlog/#/?ks=GDK-1694
 [GDK-1695]: https://gadak.dev/backlog/#/?ks=GDK-1695
+[GDK-1698]: https://gadak.dev/backlog/#/?ks=GDK-1698
+[GDK-1700]: https://gadak.dev/backlog/#/?ks=GDK-1700
+[GDK-1702]: https://gadak.dev/backlog/#/?ks=GDK-1702
+[GDK-1704]: https://gadak.dev/backlog/#/?ks=GDK-1704
+[GDK-1705]: https://gadak.dev/backlog/#/?ks=GDK-1705
+[GDK-1706]: https://gadak.dev/backlog/#/?ks=GDK-1706

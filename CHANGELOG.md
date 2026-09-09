@@ -195,7 +195,20 @@ and both ways out (`GADAK_DEV_MIGRATE=1`, or a copy of the profile), the
 backlog snapshot script syncs a `sqlite3 .backup` copy under a scratch home
 ([GDK-1687]), and with `GADAK_HOME` unset a dev build lives in `~/.gadak-dev`
 while the release keeps `~/.gadak`, which `gadak doctor` prints as `home`
-with the reason ([GDK-1697]).
+with the reason ([GDK-1697]). Before the version is cut, the audit
+now starts from a census rather than a reading, and this cycle it found
+things the release would otherwise have shipped: what landed since v0.21.0
+reached the skill and the MCP tools, so an agent can see a self-hosted Jira
+workspace, edit and delete its own comments, and start a first sync
+([GDK-1700]); twenty-four English strings that had escaped the catalog on the
+phone screens and two web panels became keys in all three languages, and the
+phone's dates stopped being an English month table ([GDK-1704]); ten places
+where the docs and the site disagreed with the code were fixed at the copy
+([GDK-1705]); the retro table takes the width it needs ([GDK-1706]); and the
+CI run got cheaper — the static-analysis gate skips a push that touches no
+Go, the browser shards are dealt by measured seconds instead of file order,
+and five assertions that never needed a browser moved to the unit suite
+([GDK-1702], [GDK-1698]).
 
 ## v0.21.0 — 2026-09-08
 
@@ -1718,3 +1731,9 @@ priority sorting keyed on `priority_rank`.
 [GDK-1693]: https://gadak.dev/backlog/#/?ks=GDK-1693
 [GDK-1694]: https://gadak.dev/backlog/#/?ks=GDK-1694
 [GDK-1695]: https://gadak.dev/backlog/#/?ks=GDK-1695
+[GDK-1698]: https://gadak.dev/backlog/#/?ks=GDK-1698
+[GDK-1700]: https://gadak.dev/backlog/#/?ks=GDK-1700
+[GDK-1702]: https://gadak.dev/backlog/#/?ks=GDK-1702
+[GDK-1704]: https://gadak.dev/backlog/#/?ks=GDK-1704
+[GDK-1705]: https://gadak.dev/backlog/#/?ks=GDK-1705
+[GDK-1706]: https://gadak.dev/backlog/#/?ks=GDK-1706
