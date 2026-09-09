@@ -10,7 +10,7 @@ import (
 
 // TestFormatRequestBreakdown pins the pass line's exact shape (GDK-1672):
 // canonical kind order, zero kinds omitted, one-decimal seconds, and the
-// politeness sleep appended in milliseconds.
+// politeness sleep appended in the same seconds unit (GDK-1685).
 func TestFormatRequestBreakdown(t *testing.T) {
 	snap := atlhttp.BreakdownSnapshot{
 		Kinds: []atlhttp.KindTally{
@@ -21,7 +21,7 @@ func TestFormatRequestBreakdown(t *testing.T) {
 		WallMS:  62600,
 		SleepMS: 45700,
 	}
-	want := "sync: requests  search-pages=34 (61.2s)  other=7 (1.4s)  total=41 (62.6s)  sleep=45700"
+	want := "sync: requests  search-pages=34 (61.2s)  other=7 (1.4s)  total=41 (62.6s)  sleep=45.7s"
 	if got := formatRequestBreakdown(snap); got != want {
 		t.Errorf("line =\n%s\nwant\n%s", got, want)
 	}

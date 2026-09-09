@@ -21,7 +21,8 @@ type requestBreakdownTaker interface {
 //
 // Rows come in the classifier's canonical order with zero-count kinds
 // omitted; sleep (the Confluence client's politeness pause) is appended in
-// milliseconds when any slept, because no request meter sees it.
+// the same one-decimal seconds when any slept, because no request meter sees
+// it (GDK-1685: a bare millisecond count next to "474.7s" read as seconds).
 func formatRequestBreakdown(s atlhttp.BreakdownSnapshot) string {
 	var b strings.Builder
 	b.WriteString("sync: requests")
@@ -30,7 +31,7 @@ func formatRequestBreakdown(s atlhttp.BreakdownSnapshot) string {
 	}
 	fmt.Fprintf(&b, "  total=%d (%s)", s.Total, formatWallMS(s.WallMS))
 	if s.SleepMS > 0 {
-		fmt.Fprintf(&b, "  sleep=%d", s.SleepMS)
+		fmt.Fprintf(&b, "  sleep=%s", formatWallMS(s.SleepMS))
 	}
 	return b.String()
 }
