@@ -14,6 +14,7 @@ import {
   type TerminalRenderer,
   watchChromeVars,
 } from '../../../../web/src/lib/terminal/protocol'
+import { installCjkMetricFaces } from '../../../../web/src/lib/terminal/cjk-metric'
 import type { CursorKeyMode } from './keys'
 import type { BufferType, MouseTrackingMode } from './scroll-gesture'
 
@@ -198,7 +199,12 @@ export async function createRenderer(): Promise<PhoneTerminalRenderer> {
     // serve's 256 KiB reconnect ring: that ring is what a *reattaching*
     // client replays, this is what the person can scroll back through in
     // one session.
-    fontFamily: fontFamily(),
+    // GDK-1597, same call as the web sibling: xterm pads a CJK cell with
+    // letterSpacing instead of scaling the glyph, so 한글 reads spaced out
+    // until an advance-corrected face is declared. Measured per platform in
+    // the shared owner (protocol.ts), because the correction is a ratio to
+    // whatever Latin face the lead resolved to.
+    fontFamily: installCjkMetricFaces({ stack: fontFamily() }),
     theme,
     cols: 80,
     rows: 24,

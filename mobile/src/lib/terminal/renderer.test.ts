@@ -177,8 +177,25 @@ describe('GDK-1131 — the terminal font stack comes from --font-mono-terminal',
     // The construction site is what shipped the defect: `fontFamily()` used
     // to read --font-mono directly and hand xterm a hardcoded SF Mono stack
     // beneath it.
-    expect(rendererSrc).toContain('fontFamily: fontFamily()')
+    //
+    // GDK-1597 wrapped the call rather than replaced it — the stack still
+    // comes from this reader, and installCjkMetricFaces only prepends the
+    // advance-corrected CJK families to whatever it returned. The assertion
+    // keeps its subject (the reader supplies the stack) and follows the
+    // shape.
+    expect(rendererSrc).toContain('installCjkMetricFaces({ stack: fontFamily() })')
     expect(rendererSrc).toContain("read('--font-mono-terminal')")
+  })
+
+  it('shares the CJK cell fit with the web renderer instead of copying it', () => {
+    // GDK-1597: xterm pads a CJK cell with letterSpacing rather than
+    // scaling the glyph, and the correction is a ratio to whichever Latin
+    // face the platform resolved. One owner for it, in the module the phone
+    // already imports — a phone-local copy is how the chrome-variable
+    // defect (GDK-1109) happened one directory over.
+    expect(rendererSrc).toContain("from '../../../../web/src/lib/terminal/cjk-metric'")
+    expect(rendererSrc).toContain('installCjkMetricFaces')
+    expect(rendererSrc).not.toMatch(/@font-face|size-adjust/)
   })
 
   it('the token this file asks for is the one app.css actually declares', () => {

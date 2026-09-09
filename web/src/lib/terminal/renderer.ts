@@ -21,6 +21,7 @@ import {
   watchChromeVars,
   type TerminalAnsiSlot,
 } from './protocol'
+import { installCjkMetricFaces } from './cjk-metric'
 import type { TerminalRenderer } from './protocol'
 import {
   findIssueKeyMatches,
@@ -277,7 +278,12 @@ async function createXtermRenderer(): Promise<BehaviorTerminalRenderer> {
   const theme = chromeTheme()
   const term = new Terminal({
     ...termOptions(),
-    fontFamily: fontFamily(),
+    // GDK-1597: the stack goes through installCjkMetricFaces, which declares
+    // the advance-corrected CJK faces for whatever Latin lead this platform
+    // resolved and hands back the stack that uses them. Not folded into
+    // fontFamily(): that one is pure and jsdom-testable, this one measures
+    // and writes to <head>.
+    fontFamily: installCjkMetricFaces({ stack: fontFamily() }),
     theme,
     cols: 80,
     rows: 24,
