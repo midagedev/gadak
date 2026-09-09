@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../helpers'
 import { drainTerminalSessions, forceLocale, readTerm } from '../helpers'
 import {
   BOUND_ISSUE,

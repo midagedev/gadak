@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './helpers'
 import { attachConsoleErrors, gotoApp, searchInput } from './helpers'
 import { en } from '../web/src/lib/i18n/en'
 

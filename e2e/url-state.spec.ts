@@ -12,7 +12,8 @@
  * new-issue dialog leaves the URL untouched, because a link that prefills a
  * form someone is about to submit is a phishing surface.
  */
-import { test, expect, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { test, expect } from './helpers'
 import { attachConsoleErrors, forceLocale, gotoApp, openServerSettings, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 import { en } from '../web/src/lib/i18n/en'
 

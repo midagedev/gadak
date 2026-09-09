@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './helpers'
 import { DEMO_ISSUE_COUNT_EN_RE, attachConsoleErrors, forceLocale } from './helpers'
 
 /**

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../helpers'
 
 /**
  * GDK-975 — /demo/gadak-demo.db is served, and it is a file someone else's

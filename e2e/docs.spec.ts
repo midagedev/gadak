@@ -1,4 +1,5 @@
-import { test, expect, type Page, type Route } from '@playwright/test'
+import { type Page, type Route } from '@playwright/test'
+import { test, expect } from './helpers'
 import { attachConsoleErrors, gotoApp, searchInput, walkRows } from './helpers'
 import { en } from '../web/src/lib/i18n/en'
 

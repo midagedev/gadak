@@ -1,4 +1,5 @@
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+import { type APIRequestContext, type Page } from '@playwright/test'
+import { expect, test } from './helpers'
 import { apiURL, gotoApp, openServerSettings, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 import { THEMES } from '../web/src/lib/theme'
 

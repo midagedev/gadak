@@ -10,7 +10,8 @@
 // The assertions here are not about looks — that judgement is the vision
 // round's — they pin that the state actually arrived, so a silent no-op fails
 // this spec instead of shipping a misleading photograph.
-import { expect, test, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { expect, test } from './helpers'
 import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'

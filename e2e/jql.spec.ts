@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from './helpers'
 import { attachConsoleErrors, e2eHomeDir, gotoApp, DEMO_ISSUE_COUNT_RE } from './helpers'
 
 const here = path.dirname(fileURLToPath(import.meta.url))

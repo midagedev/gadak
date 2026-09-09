@@ -31,7 +31,7 @@
 // like the others, and the vacuity guard is an explicit page.reload(): if the
 // marker survives that, the detector is broken and nothing here means
 // anything.
-import { expect, test } from '@playwright/test'
+import { expect, test } from './helpers'
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'

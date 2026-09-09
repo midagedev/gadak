@@ -24,7 +24,8 @@ import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { test, expect, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { test, expect } from '../helpers'
 
 import { forceLocale, DEMO_ISSUE_COUNT_EN_RE, e2eHomeDir } from '../helpers'
 

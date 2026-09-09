@@ -12,7 +12,8 @@
  * exists for, is fabricated with a route stub because no fixture row produces
  * it.
  */
-import { test, expect, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { test, expect } from './helpers'
 import { apiURL, attachConsoleErrors, forceLocale, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 
 const BASE = apiURL()

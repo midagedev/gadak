@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { test, expect } from './helpers'
 import { attachConsoleErrors, forceLocale } from './helpers'
 import { en } from '../web/src/lib/i18n/en'
 import type { Locale } from '../web/src/lib/i18n/types'

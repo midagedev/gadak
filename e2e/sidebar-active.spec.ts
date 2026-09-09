@@ -8,7 +8,8 @@
  * `aria-pressed` on the docs row — not the match, and not the palette token
  * that happens to paint it.
  */
-import { test, expect, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { test, expect } from './helpers'
 import { attachConsoleErrors, forceLocale, gotoApp, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 
 /** Boot straight into a hash query, the way a shared link or a reload arrives. */

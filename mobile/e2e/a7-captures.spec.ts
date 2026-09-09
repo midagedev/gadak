@@ -19,7 +19,8 @@
 // The assertions here are the contract, not the looks: a video must reach the
 // DOM with no `src` (anything else is an eager fetch, which is the defect),
 // and the chip must carry the stamp that makes its tap a copy.
-import { expect, test, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { expect, test } from './helpers'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { SERVE_ORIGIN, UI_ORIGIN } from '../playwright.config'

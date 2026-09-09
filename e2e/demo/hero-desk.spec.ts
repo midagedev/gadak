@@ -80,7 +80,8 @@
  * the four review keyframes from the finished webm — extraction is re-run
  * without a new take, so a mistimed frame never costs a live call.
  */
-import { test, expect, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { test, expect } from '../helpers'
 import { appendFileSync } from 'node:fs'
 import { forceLocale } from '../helpers'
 import { readTerm } from '../term-read'

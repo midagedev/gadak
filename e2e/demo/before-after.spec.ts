@@ -14,7 +14,8 @@
  *
  * GADAK_MEDIA=1 gated; GADAK_BA_BASE names the serve (record-before-after.sh).
  */
-import { test, expect, type Locator, type Page } from '@playwright/test'
+import { type Locator, type Page } from '@playwright/test'
+import { test, expect } from '../helpers'
 import { appendFileSync } from 'node:fs'
 import { forceLocale } from '../helpers'
 

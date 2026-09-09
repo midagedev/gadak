@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './helpers'
 import { attachConsoleErrors, gotoApp } from './helpers'
 import { RANGE_KEY } from '../web/src/lib/view-config'
 

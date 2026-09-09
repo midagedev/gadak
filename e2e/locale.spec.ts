@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './helpers'
 import { attachConsoleErrors, forceLocale, openServerSettings, DEMO_ISSUE_COUNT_EN_RE, DEMO_ISSUE_COUNT_KO, DEMO_ISSUE_COUNT_JA } from './helpers'
 
 test.describe('locale', () => {

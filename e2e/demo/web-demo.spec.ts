@@ -17,7 +17,8 @@
  *    documents are reached through the tabbed Documents view, and the tree is a
  *    toggle inside one space.
  */
-import { test, expect, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { test, expect } from '../helpers'
 import { gotoApp, searchInput, DEMO_ISSUE_COUNT_EN_RE } from '../helpers'
 
 const isMedia = !!process.env.GADAK_MEDIA

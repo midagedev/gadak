@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { test, expect } from '../helpers'
 
 /**
  * GDK-335 — hosted demo lands on the SPA with no intermediate overlay.

@@ -6,7 +6,8 @@
  * 15:03:12.577Z on 2026-07-20 = 6m47s → "Waited 6m". Progress runs to Now,
  * so only its presence is asserted, never its number.
  */
-import { test, expect, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { test, expect } from './helpers'
 import { attachConsoleErrors, forceLocale, gotoApp, searchInput } from './helpers'
 
 const BOT = 'Claude (build 1)'

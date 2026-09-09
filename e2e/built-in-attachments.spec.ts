@@ -2,7 +2,8 @@ import { spawn, execFileSync, type ChildProcess } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { expect, test, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { expect, test } from './helpers'
 import { e2eDir, e2eServePort, openServerSettings, repoRoot } from './helpers'
 
 /**

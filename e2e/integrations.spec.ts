@@ -18,7 +18,8 @@
  * The line-splitting itself (chunk boundaries, multi-byte output) is pinned in
  * web/src/lib/integrations.test.ts; Playwright covers the wiring.
  */
-import { test, expect, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { test, expect } from './helpers'
 import { attachConsoleErrors, forceLocale, gotoApp, openServerSettings } from './helpers'
 import { en } from '../web/src/lib/i18n/en'
 

@@ -12,7 +12,8 @@
  * Gated by GADAK_MEDIA=1. Viewport and video size must stay 1280×800
  * (see history.config.ts) or Playwright letterboxes the capture.
  */
-import { test, expect, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { test, expect } from '../helpers'
 import { attachConsoleErrors, forceLocale } from '../helpers'
 
 const isMedia = !!process.env.GADAK_MEDIA

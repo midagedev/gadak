@@ -2,9 +2,39 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, unlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { expect, type ConsoleMessage, type Locator, type Page } from '@playwright/test'
+import { expect, test as base, type ConsoleMessage, type Locator, type Page } from '@playwright/test'
 import { en, ja, ko, type MessageKey } from '../web/src/lib/i18n/catalog'
 import { LOCALES, type Locale } from '../web/src/lib/i18n/types'
+
+/*
+ * The suite's `test`, extended with one teardown (GDK-1735).
+ *
+ * A spec that rewrites a response registers `page.route(…)` with a handler
+ * that calls `route.fetch()`. The app keeps fetching after a test's last
+ * assertion — a negative assertion resolves the instant it is made — so a
+ * request can still be in flight when the test ends, reach the handler
+ * during teardown, and throw "Test ended". That fails a test that had
+ * already passed, and it fails it in another spec's words: the block that
+ * reaches the log leads with "Response has been disposed" and "Failed to
+ * find context", which reads as a dead browser rather than a race. It cost
+ * two CI reds in two days before it was read correctly.
+ *
+ * Dropping the routes before the page goes is Playwright's own advice — it
+ * prints it in the error. Doing it here rather than per spec is what makes
+ * it structural: 35 of these files register such a handler today and four
+ * cleaned up after themselves, and a spec that grows one tomorrow gets the
+ * teardown without knowing this happened.
+ *
+ * `expect` is re-exported so a spec has one import line, not two.
+ */
+export const test = base.extend<Record<string, never>>({
+  page: async ({ page }, use) => {
+    await use(page)
+    await page.unrouteAll({ behavior: 'ignoreErrors' })
+  },
+})
+
+export { expect }
 
 const E2E_DIR = dirname(fileURLToPath(import.meta.url))
 

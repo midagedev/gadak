@@ -21,7 +21,8 @@
  * letterboxes the capture. The sibling single-claim takes
  * (sprint-demo.spec.ts, retro-demo.spec.ts) stay as the landing halves.
  */
-import { test, expect, type Page, type TestInfo } from '@playwright/test'
+import { type Page, type TestInfo } from '@playwright/test'
+import { test, expect } from '../helpers'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {

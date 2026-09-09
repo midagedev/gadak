@@ -1,4 +1,5 @@
-import { expect, test, type Route } from '@playwright/test'
+import { type Route } from '@playwright/test'
+import { expect, test } from './helpers'
 import { apiURL, attachConsoleErrors, gotoApp, openServerSettings } from './helpers'
 
 /*

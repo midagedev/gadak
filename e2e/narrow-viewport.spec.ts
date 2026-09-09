@@ -11,7 +11,8 @@
  * so 1100–1439 is a three-track grid (no scrim), and <1100 is a real modal
  * (scrim click closes, background is inert). See web/src/lib/viewport-regime.ts.
  */
-import { test, expect, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { test, expect } from './helpers'
 import { attachConsoleErrors, gotoApp, searchInput } from './helpers'
 import { VIEWPORT_DOCKED_MIN_PX } from '../web/src/lib/viewport-regime'
 

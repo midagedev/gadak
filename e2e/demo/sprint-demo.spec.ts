@@ -13,7 +13,8 @@
  * video size must stay 1280×800 (sprint.config.ts) or Playwright letterboxes
  * the capture.
  */
-import { test, expect, type Page, type TestInfo } from '@playwright/test'
+import { type Page, type TestInfo } from '@playwright/test'
+import { test, expect } from '../helpers'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {

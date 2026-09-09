@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { expect, test, type Page, type Route } from '@playwright/test'
+import { type Page, type Route } from '@playwright/test'
+import { expect, test } from './helpers'
 import { attachConsoleErrors, forceLocale, gotoApp, searchInput } from './helpers'
 
 /**
@@ -167,15 +168,6 @@ async function openDetail(page: Page, key: string) {
   await expect(panel).toBeVisible()
   return panel
 }
-
-/*
- * Routes are dropped before the page is: this file registers passthrough
- * rewrites that run on every detail fetch, and the app keeps fetching after a
- * test's last assertion. Playwright names this fix in the error it raises.
- */
-test.afterEach(async ({ page }) => {
-  await page.unrouteAll({ behavior: 'ignoreErrors' })
-})
 
 /** The done-word mismatch comment, exactly as the spec's Part E writes it. */
 function doneWordComment(): Record<string, unknown> {

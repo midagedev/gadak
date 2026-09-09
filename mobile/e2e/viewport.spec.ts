@@ -3,7 +3,8 @@
 // scratch/mobile-viewport-probe.mjs. The demo tour is disarmed by omitting
 // `?demo-tour` (GDK-869) — do not abort `/__demo-tour__`; that workaround
 // existed only while HEAD 200 meant "armed".
-import { expect, test, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { expect, test } from './helpers'
 
 type Measure = {
   label: string

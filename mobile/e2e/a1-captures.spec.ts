@@ -8,7 +8,7 @@
 // about looks (that judgement is the vision round's) — they pin that the
 // ADF markup actually arrived, so a silent fall back to flattened text
 // fails this spec instead of shipping a misleading capture.
-import { expect, test } from '@playwright/test'
+import { expect, test } from './helpers'
 import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'

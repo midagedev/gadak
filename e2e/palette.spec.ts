@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './helpers'
 import { apiURL, attachConsoleErrors, gotoApp, searchInput, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 
 test.describe('command palette', () => {

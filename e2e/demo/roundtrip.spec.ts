@@ -80,7 +80,8 @@
  * record-roundtrip.sh turns them into video-relative seconds for the keyframes
  * and camera.mjs reads the same file for its cut and camera.
  */
-import { test, expect, type Locator, type Page } from '@playwright/test'
+import { type Locator, type Page } from '@playwright/test'
+import { test, expect } from '../helpers'
 import { appendFileSync, rmSync, writeFileSync } from 'node:fs'
 import { forceLocale, readTerm } from '../helpers'
 import {

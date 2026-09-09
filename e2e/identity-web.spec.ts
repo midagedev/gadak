@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './helpers'
 import { DEBUG_ATTRS_KEY } from '../web/src/lib/debug-attrs'
 import { gotoApp, searchInput } from './helpers'
 

@@ -1,4 +1,5 @@
-import { expect, test, type Locator } from '@playwright/test'
+import { type Locator } from '@playwright/test'
+import { expect, test } from './helpers'
 import { gotoApp, openServerSettings } from './helpers'
 
 /**

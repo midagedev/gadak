@@ -7,7 +7,7 @@
  * itself is web/src/lib/promote-search.test.ts; this file keeps the one wiring
  * case: the promoted `issue` actually opens the detail panel.
  */
-import { test, expect } from '@playwright/test'
+import { test, expect } from './helpers'
 import { attachConsoleErrors, forceLocale } from './helpers'
 
 /** Fixture issue used by keys-focus / detail for the hash form of the same link. */

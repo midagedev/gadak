@@ -1,4 +1,5 @@
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+import { type APIRequestContext, type Page } from '@playwright/test'
+import { expect, test } from './helpers'
 import { apiURL, attachConsoleErrors, gotoApp } from './helpers'
 
 const SETTINGS_URL = apiURL('/api/v1/issues/settings/')

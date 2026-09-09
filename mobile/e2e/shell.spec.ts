@@ -1,7 +1,8 @@
 // Shell tab (GDK-865). Playwright at 402×874 against `gadak demo` on
 // 127.0.0.1:7899 and vite on 127.0.0.1:5182 — same fixture as viewport.spec.ts.
 // Each test names the user behaviour it protects (release-audit.md axis 5).
-import { expect, test, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { expect, test } from './helpers'
 import { mkdirSync } from 'node:fs'
 import { SERVE_ORIGIN } from '../playwright.config'
 // The repo-root owner of the buffer walk (GDK-1567). This file's old local

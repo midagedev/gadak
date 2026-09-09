@@ -9,7 +9,8 @@
  * paragraph gap wider than the line gap, and a way to give the body the
  * width of the window.
  */
-import { test, expect, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { test, expect } from './helpers'
 import { attachConsoleErrors, gotoApp, searchInput } from './helpers'
 
 // A default-view fixture whose description carries several paragraphs.

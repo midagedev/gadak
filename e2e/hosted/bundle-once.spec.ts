@@ -3,7 +3,8 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { test, expect, type ConsoleMessage, type Page } from '@playwright/test'
+import { type ConsoleMessage, type Page } from '@playwright/test'
+import { test, expect } from '../helpers'
 import { dismissHostedFirstFrame } from './helpers'
 
 /**

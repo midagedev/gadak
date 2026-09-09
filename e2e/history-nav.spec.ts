@@ -14,7 +14,8 @@
  * Every spec here drives the app from its own controls (not the address bar)
  * and then presses the browser's buttons — the URL alone is not the claim.
  */
-import { test, expect, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { test, expect } from './helpers'
 import { attachConsoleErrors, forceLocale, gotoApp, openServerSettings, searchInput } from './helpers'
 import { en } from '../web/src/lib/i18n/en'
 

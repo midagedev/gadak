@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { expect, test } from './helpers'
 import { attachConsoleErrors, forceLocale, gotoApp, openServerSettings, searchInput } from './helpers'
 import { en } from '../web/src/lib/i18n/en'
 

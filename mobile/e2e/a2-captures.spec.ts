@@ -27,7 +27,7 @@
 // displays, which makes the mocked world self-consistent instead of
 // self-contradicting. It is labeled in the log, it touches one field of one
 // issue, and no other capture reads it.
-import { expect, test } from '@playwright/test'
+import { expect, test } from './helpers'
 import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'

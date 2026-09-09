@@ -1,4 +1,5 @@
-import { test, expect, type Locator, type Page, type Route } from '@playwright/test'
+import { type Locator, type Page, type Route } from '@playwright/test'
+import { test, expect } from './helpers'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { attachConsoleErrors, gotoApp } from './helpers'

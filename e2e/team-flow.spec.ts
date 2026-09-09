@@ -23,7 +23,8 @@
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { test, expect, type Locator, type Page } from '@playwright/test'
+import { type Locator, type Page } from '@playwright/test'
+import { test, expect } from './helpers'
 import { apiURL, attachConsoleErrors, gotoApp } from './helpers'
 
 /**

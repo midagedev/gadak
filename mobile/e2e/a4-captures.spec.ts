@@ -40,7 +40,7 @@
 //     home, so both visit fields are absent everywhere and no resume card can
 //     exist. The route gives the ONE photographed issue a previous read; the
 //     history and comments it is diffed against are the fixture's own.
-import { expect, test } from '@playwright/test'
+import { expect, test } from './helpers'
 import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'

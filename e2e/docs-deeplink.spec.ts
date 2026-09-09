@@ -8,7 +8,8 @@
  * they must not cross: they are selection, never view, so the sidebar's active
  * view and the saved-view string read exactly what they read before.
  */
-import { test, expect, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { test, expect } from './helpers'
 import { apiURL, attachConsoleErrors, forceLocale, gotoApp, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 
 const PAGES_URL = apiURL('/api/v1/issues/pages/')

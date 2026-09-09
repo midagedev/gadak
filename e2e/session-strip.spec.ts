@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { test, expect, type Page, type Route } from '@playwright/test'
+import { type Page, type Route } from '@playwright/test'
+import { test, expect } from './helpers'
 import { KEYS_CAP } from '../web/src/lib/view-config'
 import { attachConsoleErrors, gotoApp } from './helpers'
 

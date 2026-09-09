@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Request } from '@playwright/test'
+import { type Page, type Request } from '@playwright/test'
+import { expect, test } from './helpers'
 import { forceLocale, gotoApp, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 
 // e2e/serve.sh writes site https://nimbus.example.com — see composeCacheScope.

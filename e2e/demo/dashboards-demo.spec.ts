@@ -17,7 +17,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../helpers'
 
 import { forceLocale, DEMO_ISSUE_COUNT_EN_RE } from '../helpers'
 import {

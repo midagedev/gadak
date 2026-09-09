@@ -8,7 +8,8 @@
  * these tests skip immediately so `npm run test:e2e` stays green and does not
  * need a main-config edit (ownership: e2e/perf only).
  */
-import { test, expect, type Browser, type Page, type Request } from '@playwright/test'
+import { type Browser, type Page, type Request } from '@playwright/test'
+import { test, expect } from '../helpers'
 import { performance } from 'node:perf_hooks'
 
 const RUN = !!process.env.GADAK_PERF

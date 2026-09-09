@@ -10,7 +10,8 @@
  * "the last committed results stay on screen" is observable — without a
  * seed the list is empty the whole way and the flash is invisible.
  */
-import { test, expect, type Locator } from '@playwright/test'
+import { type Locator } from '@playwright/test'
+import { test, expect } from './helpers'
 import { attachConsoleErrors, gotoApp, searchInput } from './helpers'
 
 const STEPS = ['디', '딥', '딥ㄹ', '딥리', '딥링', '딥링ㅋ', '딥링크'] as const

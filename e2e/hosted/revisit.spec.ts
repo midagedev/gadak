@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { test, expect } from '../helpers'
 import { DEMO_ISSUE_COUNT_EN_RE } from '../helpers'
 import { dismissHostedFirstFrame } from './helpers'
 

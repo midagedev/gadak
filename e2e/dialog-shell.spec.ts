@@ -1,4 +1,5 @@
-import { expect, test, type Locator, type Page, type Route } from '@playwright/test'
+import { type Locator, type Page, type Route } from '@playwright/test'
+import { expect, test } from './helpers'
 import { gotoApp, openServerSettings } from './helpers'
 import { en } from '../web/src/lib/i18n/en'
 
