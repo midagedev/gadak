@@ -570,6 +570,17 @@ func TestRetroSessionGapValidation(t *testing.T) {
 // it through the views open --keys path (C3). FAIL-first: before this round
 // the flag did not exist and every subtest died on the unknown flag.
 func TestRetroOpenCell(t *testing.T) {
+	// GDK-1741: this test walks the real `views open --keys` tail, whose
+	// last step is `open -a Gadak` / `open gadak://…` when no serve answers.
+	// Left unstubbed it launched the installed desktop app from `go test`
+	// and never closed it — a gadak-desktop with this test's temp
+	// GADAK_HOME was found alive three days later, competing for the
+	// one-shot focus hash with the recording rig. Its start time (2026-09-06
+	// 21:19) dates the launch to this test's first revision (4210295f);
+	// the tree of 2026-09-10 no longer launches — the guard is green here —
+	// so this is the lock that turns the next such regression into a red
+	// test instead of a GUI process nobody can see.
+	forbidLaunches(t)
 	t.Run("--week without --open is a usage error", func(t *testing.T) {
 		out, err := capture(t, func() error { return cmdRetro([]string{"--week", "1"}) })
 		if err == nil || !strings.Contains(err.Error(), "--week only applies to --open") {

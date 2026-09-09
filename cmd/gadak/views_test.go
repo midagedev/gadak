@@ -192,6 +192,32 @@ func stubViewsLaunchSeams(t *testing.T, hits []serveHit) (openedWeb *bool, opene
 	return &web, &desk
 }
 
+// forbidLaunches turns every launch seam into a test failure for the
+// duration of t, and answers serve discovery with "none". For tests that
+// exercise a verb's open tail without meaning to open anything — the
+// difference from stubViewsLaunchSeams is only the message, which names
+// the incident instead of --no-open (GDK-1741).
+func forbidLaunches(t *testing.T) {
+	t.Helper()
+	savedDiscover, savedOpen, savedStart, savedWait := discoverServes, openFocusURL, startOpen, startOpenWait
+	t.Cleanup(func() {
+		discoverServes, openFocusURL, startOpen, startOpenWait = savedDiscover, savedOpen, savedStart, savedWait
+	})
+	discoverServes = func() []serveHit { return nil }
+	openFocusURL = func(u string) error {
+		t.Errorf("test must not open a browser (GDK-1741): %s", u)
+		return nil
+	}
+	startOpen = func(args ...string) error {
+		t.Errorf("test must not launch the desktop app (GDK-1741): open %v", args)
+		return nil
+	}
+	startOpenWait = func(args ...string) error {
+		t.Errorf("test must not launch the desktop app (GDK-1741): open %v", args)
+		return nil
+	}
+}
+
 // stubFocusSeams sets up a "raise is allowed" world and captures both launch
 // paths, so a test can assert which one ran.
 func stubFocusSeams(t *testing.T) (deepLinked *[]string, raised *[]string, deepLinkErr *error) {
