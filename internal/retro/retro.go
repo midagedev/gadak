@@ -1237,9 +1237,7 @@ func (r Report) Definitions() [][2]string {
 		[2]string{"mismatch", "comments claiming the work is finished on issues not done now (heuristic: a done-word standing on its own, negations and quoted text excluded; only comments newer than the issue's last status change count)"},
 		[2]string{"change", fmt.Sprintf("percentage for resume, wip age and cycle rows, signed count for the rest; n/a when the previous %s has no value", b)},
 	)
-	for _, n := range r.Notes() {
-		defs = append(defs, n)
-	}
+	defs = append(defs, r.Notes()...)
 	return defs
 }
 

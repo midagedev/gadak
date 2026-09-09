@@ -941,8 +941,8 @@ func TestWorkspaceSourceFlagEnvDefault(t *testing.T) {
 		t.Fatalf("SetProfile empty Profile() = %q", Profile())
 	}
 	kind, envName = WorkspaceSource()
-	if kind != SourceFlag {
-		t.Fatalf("SetProfile empty is still flag, got %q", kind)
+	if kind != SourceFlag || envName != "" {
+		t.Fatalf("SetProfile empty source = %q %q, want flag", kind, envName)
 	}
 }
 
@@ -1040,8 +1040,8 @@ func TestProfileResolutionFourLevels(t *testing.T) {
 		t.Fatalf("flag empty: Profile() = %q, want root (flag over stored)", Profile())
 	}
 	kind, envName = WorkspaceSource()
-	if kind != SourceFlag {
-		t.Fatalf("flag empty source = %q, want flag", kind)
+	if kind != SourceFlag || envName != "" {
+		t.Fatalf("flag empty source = %q %q, want flag", kind, envName)
 	}
 }
 

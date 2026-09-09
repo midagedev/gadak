@@ -296,6 +296,9 @@ func TestWarnWorkspaceIfEnvOnly(t *testing.T) {
 	if strings.Contains(stderr, "warning: workspace:") {
 		t.Fatalf("a pane's own workspace is not a hidden selection, got stderr=%q", stderr)
 	}
+	if strings.Contains(stdout, "warning:") || strings.Contains(stdout, "workspace:") {
+		t.Fatalf("disclosure leaked onto stdout: %q", stdout)
+	}
 	t.Setenv("GADAK_TERMINAL", "")
 
 	// flag → silent
@@ -306,6 +309,9 @@ func TestWarnWorkspaceIfEnvOnly(t *testing.T) {
 	_ = err
 	if strings.Contains(stderr, "warning: workspace:") {
 		t.Fatalf("flag source must not disclose, stderr=%q", stderr)
+	}
+	if strings.Contains(stdout, "warning:") || strings.Contains(stdout, "workspace:") {
+		t.Fatalf("disclosure leaked onto stdout: %q", stdout)
 	}
 
 	// root (default) even from env GADAK_PROFILE=default → Profile() empty → silent
@@ -318,6 +324,9 @@ func TestWarnWorkspaceIfEnvOnly(t *testing.T) {
 	if strings.Contains(stderr, "warning: workspace:") {
 		t.Fatalf("root must not disclose, stderr=%q", stderr)
 	}
+	if strings.Contains(stdout, "warning:") || strings.Contains(stdout, "workspace:") {
+		t.Fatalf("disclosure leaked onto stdout: %q", stdout)
+	}
 
 	// SetProfile("") is flag+root → silent
 	config.SetProfile("")
@@ -327,6 +336,9 @@ func TestWarnWorkspaceIfEnvOnly(t *testing.T) {
 	_ = err
 	if strings.Contains(stderr, "warning: workspace:") {
 		t.Fatalf("SetProfile empty must not disclose, stderr=%q", stderr)
+	}
+	if strings.Contains(stdout, "warning:") || strings.Contains(stdout, "workspace:") {
+		t.Fatalf("disclosure leaked onto stdout: %q", stdout)
 	}
 }
 
@@ -444,8 +456,8 @@ func TestCmdWorkspaceUseStoresDefault(t *testing.T) {
 		t.Fatalf("after --clear, Profile() = %q, want root", config.Profile())
 	}
 	kind, envName = config.WorkspaceSource()
-	if kind != config.SourceDefault {
-		t.Fatalf("after --clear, source = %q, want default", kind)
+	if kind != config.SourceDefault || envName != "" {
+		t.Fatalf("after --clear, source = %q %q, want default", kind, envName)
 	}
 }
 

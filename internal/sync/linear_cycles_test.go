@@ -151,7 +151,7 @@ type sprintRow struct {
 	id, boardID                     int64
 	name, goal, state               string
 	startAt, endAt, completeAt, ext string
-	extValid, startValid, endValid  bool
+	startValid, endValid            bool
 	completeValid                   bool
 }
 

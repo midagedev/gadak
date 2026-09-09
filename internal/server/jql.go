@@ -49,7 +49,7 @@ func (s *server) handleJql(w http.ResponseWriter, r *http.Request) {
 		// Six narrow columns, not the whole IssueLite set (GDK-756; CLI GDK-748).
 		if people, err := s.db.QueryActorPeople(r.Context()); err == nil {
 			jql.ResolveIdentity(&res, store.ActorPeople(people), me)
-			res.JQL, res.Omitted = jql.Emit(res.Filters, res.Display, jql.EmitOpts{Email: me.Email, AccountID: me.AccountID})
+			res.JQL, res.Omitted = jql.Emit(res.Filters, res.Display, jql.EmitOpts(me))
 		}
 	}
 	writeJSON(w, http.StatusOK, res)
@@ -66,7 +66,7 @@ func (s *server) handleJqlEmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	me := configuredIdentity(s, req.Email)
-	canonical, omitted := jql.Emit(req.Filters, req.Display, jql.EmitOpts{Email: me.Email, AccountID: me.AccountID})
+	canonical, omitted := jql.Emit(req.Filters, req.Display, jql.EmitOpts(me))
 	writeJSON(w, http.StatusOK, map[string]any{
 		"jql":     canonical,
 		"omitted": omitted,

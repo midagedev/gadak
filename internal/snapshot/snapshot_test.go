@@ -1123,9 +1123,9 @@ func TestInsertRowNotNullDefaults(t *testing.T) {
 			if err := db.QueryRow(q).Scan(&got); err != nil {
 				t.Fatalf("%s.%s: %v", table, c, err)
 			}
-			switch w.(type) {
+			switch w := w.(type) {
 			case string:
-				if got.String != w.(string) {
+				if got.String != w {
 					t.Errorf("%s.%s = %q, want %q", table, c, got.String, w)
 				}
 			default:

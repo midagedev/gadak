@@ -100,10 +100,10 @@ func TestWriteRejectsEmpty(t *testing.T) {
 }
 
 func TestListEmptyMissingDir(t *testing.T) {
-	if recs := List(filepath.Join(t.TempDir(), "missing")); recs != nil && len(recs) != 0 {
+	if recs := List(filepath.Join(t.TempDir(), "missing")); len(recs) != 0 {
 		t.Fatalf("missing dir List = %+v", recs)
 	}
-	if recs := List(""); recs != nil && len(recs) != 0 {
+	if recs := List(""); len(recs) != 0 {
 		t.Fatalf("empty dir List = %+v", recs)
 	}
 }
