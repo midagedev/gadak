@@ -923,8 +923,8 @@ export const detail = {
   'retro.range8w': { en: '8 weeks', ko: '8주', ja: '8 週' },
   'retro.range12w': { en: '12 weeks', ko: '12주', ja: '12 週' },
   'retro.sessions': { en: 'Sessions', ko: '세션', ja: 'セッション' },
-  'retro.resume': { en: 'Resume time (median)', ko: '재개 시간(중간값)', ja: '再開までの時間 (中央値)' },
-  'retro.closed': { en: 'Closed', ko: '닫음', ja: '完了' },
+  'retro.resume': { en: 'Resume time (median)', ko: '재개 시간(중앙값)', ja: '再開までの時間 (中央値)' },
+  'retro.closed': { en: 'Closed', ko: '완료', ja: '完了' },
   'retro.cycleP50': { en: 'Cycle time p50', ko: '사이클 타임 p50', ja: 'サイクルタイム p50' },
   'retro.cycleP85': { en: 'Cycle time p85', ko: '사이클 타임 p85', ja: 'サイクルタイム p85' },
   'retro.inProgress': { en: 'In progress', ko: '진행 중', ja: '進行中' },
@@ -962,7 +962,7 @@ export const detail = {
   },
   'retro.def.cycleP50': {
     en: 'median of cycle_hours — first entry into progress to the latest done entry — in days, over issues resolved during the {bucket} that are done now and were never reopened (reopen_count = 0)',
-    ko: 'cycle_hours — 진행 중에 처음 들어간 때부터 마지막 완료까지 — 의 중간값, 일 단위. 그 {bucket}에 해결됐고 지금도 완료이며 리오픈된 적 없는(reopen_count = 0) 이슈만',
+    ko: 'cycle_hours — 진행 중에 처음 들어간 때부터 마지막 완료까지 — 의 중앙값, 일 단위. 그 {bucket}에 해결됐고 지금도 완료이며 리오픈된 적 없는(reopen_count = 0) 이슈만',
     ja: 'cycle_hours — 最初に進行中へ入った時点から最後の完了まで — の中央値 (日)。その{bucket}に解決され、現在も完了で、再オープンされたことがない (reopen_count = 0) 課題のみ',
   },
   'retro.def.cycleP85': {
@@ -989,4 +989,33 @@ export const detail = {
   'retro.loadFailed': { en: 'Could not load the retro.', ko: '회고를 불러오지 못했습니다.', ja: 'ふりかえりを読み込めませんでした。' },
   'retro.openIssues': { en: 'Open these issues', ko: '이 이슈들 열기', ja: 'これらの課題を開く' },
   'retro.truncated': { en: '(first 500)', ko: '(앞 500개)', ja: '(先頭 500 件)' },
+  // GDK-1712: the summary strip, the per-cell step, and the toggle that
+  // unfolds the definitions the table used to print under every label.
+  'retro.definitions': { en: 'Definitions', ko: '정의', ja: '定義' },
+  'retro.vsPrevious': { en: 'change from the previous bucket', ko: '직전 구간 대비 변화', ja: '直前の区間からの変化' },
+  // GDK-1713: the sprint cut needs a board when several carry sprints. The
+  // sentence under the heading is the server's own — it names the boards —
+  // so these two are the heading and the picker's label, nothing more.
+  'retro.board': { en: 'Board', ko: '보드', ja: 'ボード' },
+  'retro.boardPick': { en: 'Pick a board', ko: '보드 선택', ja: 'ボードを選択' },
+  'retro.pickBoardHint': {
+    en: 'Sprint windows from two boards overlap, so one report cannot be both. Choose a board above.',
+    ko: '보드가 다르면 스프린트 기간이 겹쳐서 한 보고서로 묶을 수 없습니다. 위에서 보드를 고르세요.',
+    ja: 'ボードが違えばスプリントの期間が重なるため、ひとつの報告にまとめられません。上でボードを選んでください。',
+  },
+  'retro.noSprintsHint': {
+    en: 'Sprint columns need a board with sprints — a Jira Software board, a Linear cycle, or a sprint in the built-in tracker.',
+    ko: '스프린트 열을 그리려면 스프린트가 있는 보드가 필요합니다. Jira Software 보드, Linear 사이클, 또는 내장 트래커의 스프린트.',
+    ja: 'スプリントの列には、スプリントを持つボードが要ります。Jira Software のボード、Linear のサイクル、または内蔵トラッカーのスプリントです。',
+  },
+  'retro.pickBoard': {
+    en: 'Several boards have sprints — pick one',
+    ko: '스프린트가 있는 보드가 여럿입니다. 하나를 고르세요',
+    ja: 'スプリントを持つボードが複数あります。ひとつ選んでください',
+  },
+  'retro.noSprints': {
+    en: 'This workspace has no sprints',
+    ko: '이 워크스페이스에는 스프린트가 없습니다',
+    ja: 'このワークスペースにスプリントはありません',
+  },
 } as const satisfies Record<string, Message>

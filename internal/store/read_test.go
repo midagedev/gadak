@@ -161,3 +161,42 @@ func TestIssueLiteCarriesCarryoverCount(t *testing.T) {
 		t.Errorf("ENG-3 carryover_count = %v, want nil — an origin with no changelog cannot answer", rows[2].CarryoverCount)
 	}
 }
+
+// TestBoardsCarryTheSprintFlag — the retro's board picker has to offer
+// exactly the boards a sprint-cut report would accept (GDK-1713), so the
+// flag is the report's own predicate: a sprint with a start date. A board
+// whose only sprint has no start is not a choice.
+func TestBoardsCarryTheSprintFlag(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	if err := db.write(ctx, func(tx *sql.Tx) error {
+		_, err := tx.Exec(`
+			INSERT INTO sources (id, kind) VALUES ('jira','jira');
+			INSERT INTO boards (source_id, id, name, type, project_key) VALUES
+			  ('jira',1,'Team board','scrum',''),
+			  ('jira',2,'Kanban board','kanban',''),
+			  ('jira',3,'Unscheduled','scrum','');
+			INSERT INTO sprints (source_id, id, board_id, name, goal, state, start_at, end_at, external_id)
+			VALUES ('jira',42,1,'Sprint 42','','active','2026-09-01T00:00:00Z','2026-09-15T00:00:00Z','42'),
+			       ('jira',43,3,'Someday','','future',NULL,NULL,'43')`)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := db.Boards(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("boards = %d, want 3", len(rows))
+	}
+	want := map[int64]bool{1: true, 2: false, 3: false}
+	for _, b := range rows {
+		if b.HasSprints != want[b.ID] {
+			t.Errorf("board %d (%s): has_sprints = %v, want %v", b.ID, b.Name, b.HasSprints, want[b.ID])
+		}
+	}
+	if rows[0].Type != "scrum" {
+		t.Errorf("board 1 type = %q, want scrum", rows[0].Type)
+	}
+}

@@ -29,6 +29,14 @@ test.describe('weekly retro view', () => {
     await expect(page.getByTestId('retro-table')).toBeVisible()
     expect(page.url()).toContain('retro=1')
 
+    // GDK-1712: the summary strip names the bucket still filling and reads
+    // the four numbers out of it, so the question "how is this week going"
+    // is answered above the grid rather than in its rightmost column.
+    const summary = page.getByTestId('retro-summary')
+    await expect(summary).toBeVisible()
+    await expect(summary.getByTestId('retro-summary-cell')).toHaveCount(4)
+    await expect(page.getByTestId('retro-summary-title')).toContainText('this week')
+
     // The address restores the view on its own.
     await page.reload()
     await expect(page.getByTestId('retro-view')).toBeVisible()
@@ -128,6 +136,11 @@ test.describe('retro by sprint', () => {
     await page.goto('/#/?retro=1')
     await expect(page.getByTestId('retro-view')).toBeVisible()
     await expect(page.getByTestId('retro-week')).toHaveCount(5)
+    // GDK-1712: the definitions are folded away by default — eight
+    // paragraphs standing between the reader and the numbers is what forced
+    // the 260px label column. The toggle is where they live now.
+    await expect(page.getByTestId('retro-def')).toHaveCount(0)
+    await page.getByTestId('retro-defs-toggle').click()
     // The default cut is weeks, and the definitions say so.
     await expect(page.getByTestId('retro-table')).toContainText('at week end')
 
@@ -138,7 +151,9 @@ test.describe('retro by sprint', () => {
     await expect(page.getByTestId('retro-week').last()).toContainText('Sprint 42')
     // The partial column says which unit is still filling.
     await expect(page.getByTestId('retro-week').last()).toContainText('running')
-    // …and the sentence under every row names a sprint, not a week.
+    // …and the sentence under every row names a sprint, not a week. The
+    // fold survives the cut: a person who opened the definitions keeps them.
+    await expect(page.getByTestId('retro-def')).toHaveCount(8)
     await expect(page.getByTestId('retro-table')).toContainText('at sprint end')
     await expect(page.getByTestId('retro-table')).not.toContainText('at week end')
 
@@ -150,5 +165,135 @@ test.describe('retro by sprint', () => {
     await expect.poll(() => page.url()).toContain('ks=')
 
     expect(errors.filter((e) => !e.includes('409') && !e.includes('502'))).toEqual([])
+  })
+})
+
+/*
+ * GDK-1713: several boards with sprints is a question, not a failure. The
+ * demo fixture has one board — the server picks it and the cut just works —
+ * so the refusal is stubbed. That is the half that was actually broken: the
+ * view read every non-2xx as `retro.loadFailed`, one line with no boards in
+ * it and nothing for the reader to do, while the server had been sending the
+ * board list all along.
+ *
+ * FAIL-first: before this round the assertions below found "Could not load
+ * the retro." and no picker.
+ */
+test.describe('retro board picker', () => {
+  const BOARDS = [
+    { id: 1, name: 'Team board' },
+    { id: 7, name: 'Platform board' },
+  ]
+
+  test('the ambiguous-board refusal names the boards and offers the choice', async ({ page }) => {
+    const asked: string[] = []
+    await page.route('**/api/v1/issues/retro/**', async (route) => {
+      const url = route.request().url()
+      asked.push(url)
+      // Only the board-less sprint cut is ambiguous; naming one answers it.
+      if (url.includes('by=sprint') && !url.includes('board=')) {
+        await route.fulfill({
+          status: 409,
+          json: {
+            error: 'ambiguous_board',
+            message: 'retro: several boards have sprints — name one with --board:\n  1  Team board\n  7  Platform board',
+            boards: BOARDS,
+          },
+        })
+        return
+      }
+      // A named board is answered by the fixture's own sprint cut: this
+      // mirror has one board, so `?by=sprint` alone is the report board 7
+      // would have produced. The contract under test is the round trip —
+      // refusal → choice → a table — not the numbers in it.
+      const url2 = new URL(url)
+      url2.searchParams.delete('board')
+      await route.fulfill({ response: await route.fetch({ url: url2.toString() }) })
+    })
+    await page.route('**/api/v1/issues/boards/**', async (route) => {
+      await route.fulfill({
+        json: { boards: BOARDS.map((b) => ({ ...b, type: 'scrum', has_sprints: true })) },
+      })
+    })
+
+    await gotoApp(page)
+    await page.goto('/#/?retro=1')
+    await expect(page.getByTestId('retro-view')).toBeVisible()
+
+    await page.getByTestId('retro-range').filter({ hasText: 'By sprint' }).click()
+
+    // The server's own sentence, not the one-line failure copy.
+    await expect(page.getByText('Several boards have sprints — pick one')).toBeVisible()
+    // …and the copy points at the picker rather than reprinting the CLI's
+    // own sentence, which names a --board flag no web reader has.
+    await expect(page.getByText('Choose a board above.')).toBeVisible()
+    await expect(page.getByText('name one with --board')).toBeHidden()
+    await expect(page.getByText('Could not load the retro.')).toBeHidden()
+
+    // …and the picker is on the header, built from the same rows.
+    const picker = page.getByTestId('retro-board')
+    await expect(picker).toBeVisible()
+    await expect(picker.locator('option[value="7"]')).toHaveText('Platform board')
+    await picker.selectOption('7')
+
+    // Choosing one asks again with the board named, and the table returns.
+    await expect(page.getByTestId('retro-table')).toBeVisible()
+    expect(asked.some((u) => u.includes('board=7'))).toBe(true)
+  })
+})
+
+/*
+ * GDK-1712: the row's own shape and its step. Both are stubbed onto a known
+ * series rather than measured off the fixture — the point is the mapping
+ * from numbers to marks, and a fixture that drifts would make this test say
+ * something else next month.
+ */
+test.describe('retro trend marks', () => {
+  test('rows carry a sparkline, and cells carry a coloured step only where direction is agreed', async ({
+    page,
+  }) => {
+    await page.route('**/api/v1/issues/retro/**', async (route) => {
+      const res = await route.fetch()
+      const body = await res.json()
+      const b = body.buckets
+      // Closed climbs, cycle p85 climbs (worse), sessions climb (neutral).
+      b.forEach((x: Record<string, unknown>, i: number) => {
+        x.closed = 2 + i
+        x['cycle p85'] = 1 + i
+        x.sessions = 3 + i
+        x.partial = i === b.length - 1
+      })
+      await route.fulfill({ response: res, json: body })
+    })
+    await gotoApp(page)
+    await page.goto('/#/?retro=1')
+    await expect(page.getByTestId('retro-table')).toBeVisible()
+
+    // The row's own line, one per metric that has two or more values. Named
+    // rather than counted: how many of the eight the fixture fills is the
+    // fixture's business, not this contract's.
+    for (const m of ['closed', 'cycle p85', 'sessions']) {
+      await expect(page.locator(`[data-testid="retro-sparkline"][data-metric="${m}"]`)).toHaveCount(1)
+    }
+
+    const closed = page.locator('[data-testid="retro-delta"][data-metric="closed"]')
+    // Four steps across five buckets.
+    await expect(closed).toHaveCount(4)
+    await expect(closed.first()).toHaveText('↑+1')
+    await expect(closed.first()).toHaveAttribute('data-tone', 'good')
+    // Rising cycle time is the amber side of the same rule.
+    await expect(
+      page.locator('[data-testid="retro-delta"][data-metric="cycle p85"]').first(),
+    ).toHaveAttribute('data-tone', 'bad')
+    // Sessions move without being scored.
+    await expect(
+      page.locator('[data-testid="retro-delta"][data-metric="sessions"]').first(),
+    ).toHaveAttribute('data-tone', 'none')
+    // …and the running bucket's step is never scored, whatever the metric.
+    await expect(closed.last()).toHaveAttribute('data-tone', 'none')
+
+    // The summary strip reads the running bucket, uncoloured for the same reason.
+    await expect(page.getByTestId('retro-summary-cell').first()).toContainText('6')
+    await expect(page.getByTestId('retro-summary-delta').first()).toHaveAttribute('data-tone', 'none')
   })
 })

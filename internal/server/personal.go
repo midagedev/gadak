@@ -230,3 +230,21 @@ func (s *server) handleSprints(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"sprints": list})
 }
+
+// handleBoards lists the mirror's boards with the flag that says whether each
+// one carries dated sprints (store.Boards). The retro's board picker is the
+// reader (GDK-1713): when several boards have sprints the report refuses to
+// merge their cadences, and the picker has to name the same set the report
+// would accept — which is why the flag is computed next to the report's own
+// predicate rather than inferred from a sprint list on the client.
+func (s *server) handleBoards(w http.ResponseWriter, r *http.Request) {
+	list, err := s.db.Boards(r.Context())
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	if list == nil {
+		list = []store.BoardRowWithSprints{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"boards": list})
+}

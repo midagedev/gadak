@@ -20,6 +20,13 @@ export interface ResourceOptions {
 export interface Resource<T> {
   readonly data: T | null
   readonly errorKind: null | ResourceErrorKind
+  /**
+   * The rejection itself, kept alongside the coarse kind (GDK-1713). Some
+   * refusals are answers a surface has to act on — a 409 that hands over the
+   * boards to choose between — and `errorKind` deliberately flattens those to
+   * "network". Callers that know the endpoint read this; the rest ignore it.
+   */
+  readonly error: unknown
   readonly loading: boolean
   reload(): void
 }
@@ -31,12 +38,14 @@ export function createResource<T>(
 ): Resource<T> {
   let data = $state<T | null>(null)
   let errorKind = $state<null | ResourceErrorKind>(null)
+  let error = $state<unknown>(null)
   let loading = $state(false)
   let gen = 0
 
   async function load(k: string): Promise<void> {
     const my = ++gen
     errorKind = null
+    error = null
     loading = true
     try {
       const d = await loader(k)
@@ -46,6 +55,7 @@ export function createResource<T>(
       if (my !== gen) return
       const status = e instanceof ApiError ? e.status : 0
       errorKind = status === 404 ? 'notfound' : 'network'
+      error = e
       data = null
     } finally {
       if (my === gen) loading = false
@@ -65,6 +75,7 @@ export function createResource<T>(
       gen++ // invalidate in-flight
       data = null
       errorKind = null
+      error = null
       loading = false
       return
     }
@@ -86,6 +97,9 @@ export function createResource<T>(
     },
     get errorKind() {
       return errorKind
+    },
+    get error() {
+      return error
     },
     get loading() {
       return loading

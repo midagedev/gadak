@@ -596,6 +596,31 @@ export interface RetroDoc {
   bucket_noun?: string
 }
 
+/** One mirrored board. `has_sprints` is the retro's own predicate — a sprint
+ *  with a start date — so a picker built on this offers exactly the boards a
+ *  sprint-cut report would accept (GDK-1713). */
+export interface BoardRow {
+  id: number
+  name: string
+  type: string
+  project_key?: string
+  has_sprints: boolean
+}
+
+/** GET `boards/`. */
+export interface BoardsResponse {
+  boards: BoardRow[]
+}
+
+/** The 409 body a sprint cut gets back when several boards carry sprints
+ *  (GDK-1713): the rows the picker is built from, plus the report's own
+ *  sentence for a surface that has only a line to print. */
+export interface AmbiguousBoardBody {
+  error: 'ambiguous_board'
+  message: string
+  boards: { id: number; name: string }[]
+}
+
 /* ── Mirrored wiki pages (docs) ── */
 
 /** One mirrored wiki page, without body. Sidebar rows and search hits use this. */

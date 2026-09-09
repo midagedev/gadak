@@ -26,6 +26,13 @@ import (
 // a panel that wants the CLI's window says so with ?since=14d.
 const retroDefaultSince = "4w"
 
+// retroBoardJSON is one board of the 409 ambiguous-board body: the rows a
+// picker needs, in the shape boards/ serves them.
+type retroBoardJSON struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
 func (s *server) handleRetro(w http.ResponseWriter, r *http.Request) {
 	raw := strings.TrimSpace(r.URL.Query().Get("since"))
 	if raw == "" {
@@ -88,9 +95,27 @@ func (s *server) handleRetro(w http.ResponseWriter, r *http.Request) {
 		// A workspace with no sprints, or several boards and no choice, is
 		// the caller asking for a report that cannot be built — 409, with
 		// the sentence the error already carries, not a 500.
+		//
+		// The body carries a code and, for the ambiguous case, the board
+		// list itself (GDK-1713). `err.Error()` is the CLI's sentence — it
+		// names `--board`, a flag no web reader has — so a surface with a
+		// picker needs the rows, not the prose. The message stays for the
+		// callers that only have a line to print.
 		var amb *retro.ErrAmbiguousBoard
-		if errors.Is(err, retro.ErrNoSprints) || errors.As(err, &amb) {
-			fail(w, http.StatusConflict, err.Error())
+		if errors.As(err, &amb) {
+			boards := make([]retroBoardJSON, 0, len(amb.Boards))
+			for _, b := range amb.Boards {
+				boards = append(boards, retroBoardJSON{ID: b.ID, Name: b.Name})
+			}
+			writeJSON(w, http.StatusConflict, map[string]any{
+				"error":   "ambiguous_board",
+				"message": err.Error(),
+				"boards":  boards,
+			})
+			return
+		}
+		if errors.Is(err, retro.ErrNoSprints) {
+			failMsg(w, http.StatusConflict, "no_sprints", err.Error())
 			return
 		}
 		serverError(w, r, err)

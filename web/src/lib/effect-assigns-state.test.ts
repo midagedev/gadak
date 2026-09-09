@@ -157,6 +157,10 @@ const ALLOWED: Exception[] = [
     'the key went away: the fetch resource drops its last response so a closed panel cannot re-show it — this module IS the sync between a key and a request',
     'data',
     'errorKind',
+    // GDK-1713: `error` is `errorKind`'s own peer — the rejection the coarse
+    // kind flattens — written by the same three lines and for the same
+    // reason. Added to the existing claim, not a new one.
+    'error',
     'loading',
   ),
   {

@@ -54,17 +54,27 @@ export class ApiError extends Error {
   status: number
   code: string | null
   jiraErrors: Record<string, unknown> | null
+  /**
+   * The refusal body, parsed, when the server sent one (GDK-1713). A 4xx is
+   * an answer, and some answers carry the thing the surface needs to act on
+   * — the retro's ambiguous-board 409 hands over the board rows. Without
+   * this the message was thrown away at the fetch boundary and every caller
+   * could say no more than "could not load".
+   */
+  body: Record<string, unknown> | null
   constructor(
     status: number,
     message: string,
     code: string | null = null,
     jiraErrors: Record<string, unknown> | null = null,
+    body: Record<string, unknown> | null = null,
   ) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
     this.jiraErrors = jiraErrors
+    this.body = body
   }
 }
 
@@ -135,7 +145,25 @@ async function raw(path: string, init?: RequestInit): Promise<Response> {
 async function json<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await raw(path, init)
   if (!res.ok) {
-    throw new ApiError(res.status, `${init?.method ?? 'GET'} ${path} → ${res.status}`)
+    // Read the refusal before throwing it away (GDK-1713): the server's own
+    // `error` code and `message` ride on the ApiError, so a surface can tell
+    // "several boards, pick one" from "the server is unhappy". A body that
+    // is not JSON is not an error here — it just leaves the fields null.
+    let body: Record<string, unknown> | null = null
+    try {
+      const parsed = (await res.json()) as unknown
+      if (parsed && typeof parsed === 'object') body = parsed as Record<string, unknown>
+    } catch {
+      body = null
+    }
+    const code = typeof body?.error === 'string' ? body.error : null
+    throw new ApiError(
+      res.status,
+      `${init?.method ?? 'GET'} ${path} → ${res.status}`,
+      code,
+      null,
+      body,
+    )
   }
   return (await res.json()) as T
 }
@@ -292,9 +320,20 @@ export function getHistory(opts?: {
  *  "14d"); the endpoint's own default is four weeks. Pass `'sprint'` for the
  *  sprint-window columns instead (GDK-1693) — a different bucket source, not
  *  a window, so it replaces `since` rather than joining it. */
-export function getRetro(range: string = '4w'): Promise<RetroDoc> {
-  if (range === 'sprint') return json<RetroDoc>('retro/?by=sprint')
+export function getRetro(range: string = '4w', board = 0): Promise<RetroDoc> {
+  if (range === 'sprint') {
+    // ?board= names which board's cadence the columns are (GDK-1713). Absent
+    // is not "any board": the server refuses with 409 when several carry
+    // sprints, because merged windows would be neither team's cadence.
+    return json<RetroDoc>(board ? `retro/?by=sprint&board=${board}` : 'retro/?by=sprint')
+  }
   return json<RetroDoc>(`retro/?since=${encodeURIComponent(range)}`)
+}
+
+/** The mirror's boards, with the flag that says which can answer a sprint
+ *  cut (GDK-1713). The retro's board picker is the reader. */
+export function getBoards(): Promise<import('./types').BoardsResponse> {
+  return json<import('./types').BoardsResponse>('boards/')
 }
 
 /** JQL / Jira-URL → ViewFilters. Unsupported clauses are listed, never dropped. */

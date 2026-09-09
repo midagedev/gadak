@@ -305,6 +305,7 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	// Sprints as rows (GDK-1656): the board's sprint scope and the filter
 	// bar's Sprint axis read them; mirror only, no origin call.
 	mux.HandleFunc("GET "+apiBase+"sprints/{$}", s.handleSprints)
+	mux.HandleFunc("GET "+apiBase+"boards/{$}", s.handleBoards)
 	mux.HandleFunc("POST "+apiBase+"{key}/transition/{$}", s.handleTransition)
 	mux.HandleFunc("POST "+apiBase+"{key}/comment/{$}", s.handleComment)
 	mux.HandleFunc("POST "+apiBase+"{key}/link/{$}", s.handleLink)

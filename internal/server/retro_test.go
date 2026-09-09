@@ -25,6 +25,7 @@ package server
 // unreachable there. The endpoint is /api/v1/issues/retro/.
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -33,6 +34,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/retro"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 func TestRetroEndpoint(t *testing.T) {
@@ -219,5 +221,108 @@ func TestRetroEndpointSessionGapConfigDefault(t *testing.T) {
 	}
 	if body := rec.Body.String(); !strings.Contains(body, "retro.sessionGap") {
 		t.Fatalf("400 must name the config key: %s", body)
+	}
+}
+
+// TestRetroAmbiguousBoardCarriesTheBoards — the 409 that refuses a sprint cut
+// on a mirror with several sprint-bearing boards has to hand the picker its
+// rows (GDK-1713). FAIL-first: the endpoint used to answer
+// `{"error": "<the CLI sentence>"}` — prose that names `--board`, a flag no
+// web reader has — so the surface had nothing to build a choice out of.
+func TestRetroAmbiguousBoardCarriesTheBoards(t *testing.T) {
+	db, cfg := fixture(t)
+	if err := db.ReplaceAgile(context.Background(), "jira",
+		[]store.BoardRow{{ID: 1, Name: "Team board", Type: "scrum"}, {ID: 2, Name: "Platform board", Type: "scrum"}},
+		[]store.SprintRow{
+			{ID: 41, BoardID: 1, Name: "Sprint 41", State: "closed", StartAt: "2026-08-12T00:00:00Z", EndAt: "2026-08-26T00:00:00Z"},
+			{ID: 51, BoardID: 2, Name: "Platform 7", State: "closed", StartAt: "2026-08-19T00:00:00Z", EndAt: "2026-09-02T00:00:00Z"},
+		}); err != nil {
+		t.Fatal(err)
+	}
+	h := New(db, cfg)
+
+	rec := get(t, h, apiBase+"retro/?by=sprint", nil)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("by=sprint with two boards: %d %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+		Boards  []struct {
+			ID   int64  `json:"id"`
+			Name string `json:"name"`
+		} `json:"boards"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Error != "ambiguous_board" {
+		t.Errorf("error = %q, want ambiguous_board — the code is what the surface branches on", body.Error)
+	}
+	if len(body.Boards) != 2 {
+		t.Fatalf("boards = %d, want both", len(body.Boards))
+	}
+	if body.Boards[0].ID != 1 || body.Boards[0].Name != "Team board" {
+		t.Errorf("first board = %+v, want id 1 Team board", body.Boards[0])
+	}
+	if !strings.Contains(body.Message, "several boards") {
+		t.Errorf("message = %q, want the report's own sentence kept", body.Message)
+	}
+
+	// Naming one resolves it — the same id the body just handed over.
+	rec = get(t, h, apiBase+"retro/?by=sprint&board=2", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("board=2: %d %s", rec.Code, rec.Body.String())
+	}
+	var doc struct {
+		Buckets []struct {
+			Name string `json:"name"`
+		} `json:"buckets"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Buckets) != 1 || doc.Buckets[0].Name != "Platform 7" {
+		t.Errorf("board=2 buckets = %+v, want just Platform 7", doc.Buckets)
+	}
+}
+
+// TestBoardsEndpoint — the picker's source list (GDK-1713). The flag is the
+// report's own predicate, so a board with no dated sprint is offered as a
+// board but never as a sprint cut.
+func TestBoardsEndpoint(t *testing.T) {
+	db, cfg := fixture(t)
+	if err := db.ReplaceAgile(context.Background(), "jira",
+		[]store.BoardRow{{ID: 1, Name: "Team board", Type: "scrum"}, {ID: 9, Name: "Support", Type: "kanban"}},
+		[]store.SprintRow{
+			{ID: 41, BoardID: 1, Name: "Sprint 41", State: "closed", StartAt: "2026-08-12T00:00:00Z", EndAt: "2026-08-26T00:00:00Z"},
+		}); err != nil {
+		t.Fatal(err)
+	}
+	h := New(db, cfg)
+
+	rec := get(t, h, apiBase+"boards/", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("boards/: %d %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Boards []struct {
+			ID         int64  `json:"id"`
+			Name       string `json:"name"`
+			Type       string `json:"type"`
+			HasSprints bool   `json:"has_sprints"`
+		} `json:"boards"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Boards) != 2 {
+		t.Fatalf("boards = %d, want 2", len(body.Boards))
+	}
+	if !body.Boards[0].HasSprints || body.Boards[1].HasSprints {
+		t.Errorf("has_sprints = %v/%v, want true/false", body.Boards[0].HasSprints, body.Boards[1].HasSprints)
+	}
+	if body.Boards[1].Type != "kanban" {
+		t.Errorf("board 9 type = %q, want kanban", body.Boards[1].Type)
 	}
 }

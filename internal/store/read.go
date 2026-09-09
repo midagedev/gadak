@@ -1681,3 +1681,42 @@ func (db *DB) KeysInSprint(ctx context.Context, sprintID int64) ([]string, error
 	}
 	return out, rows.Err()
 }
+
+// BoardRowWithSprints is one mirrored board. `HasSprints` says whether the board can
+// answer a sprint-cut report (GDK-1713) — a board with no dated sprint is
+// not a choice a retro picker should offer.
+type BoardRowWithSprints struct {
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	ProjectKey string `json:"project_key,omitempty"`
+	HasSprints bool   `json:"has_sprints"`
+}
+
+// Boards lists the mirror's boards by id, with the sprint-bearing flag the
+// retro's board picker keys on. The sprint predicate is the same one
+// retro.SprintBuckets uses to decide the report is ambiguous — a dated
+// sprint on this board — so the picker offers exactly the boards the report
+// would have accepted, and not one more.
+func (db *DB) Boards(ctx context.Context) ([]BoardRowWithSprints, error) {
+	rows, err := db.sql.QueryContext(ctx, `
+		SELECT b.id, b.name, b.type, b.project_key,
+		       EXISTS (SELECT 1 FROM sprints s
+		               WHERE s.source_id = b.source_id AND s.board_id = b.id
+		                 AND s.start_at IS NOT NULL AND s.start_at != '')
+		FROM boards b
+		ORDER BY b.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []BoardRowWithSprints{}
+	for rows.Next() {
+		var b BoardRowWithSprints
+		if err := rows.Scan(&b.ID, &b.Name, &b.Type, &b.ProjectKey, &b.HasSprints); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
