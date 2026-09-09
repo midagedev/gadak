@@ -72,8 +72,12 @@ jobs:
       - name: Go build (static)
         run: CGO_ENABLED=0 go build -trimpath -o /tmp/gadak ./cmd/gadak
 
+      # The repo-wide AST gates live behind the sourcelint build
+      # tag; this runner is their single owner and first checks that every
+      # archlint.Walk caller carries the tag, then runs the tagged suite —
+      # a strict superset of plain `go test ./...`.
       - name: Go tests
-        run: go test ./...
+        run: bash tools/sourcelint.sh
 
       - name: Frontend typecheck
         run: npm run typecheck

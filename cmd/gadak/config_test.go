@@ -354,10 +354,9 @@ func TestConfigSetProjectsWarnsOfflineAgainstMirror(t *testing.T) {
 	jira.DefaultRetries, jira.DefaultBackoff = 1, 0
 	t.Cleanup(func() { jira.DefaultRetries, jira.DefaultBackoff = prevR, prevB })
 
-	// Closed server: origin lookup fails. Mirror has D1; config asks for DI.
-	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	url := srv.URL
-	srv.Close()
+	// Reserved port: origin lookup fails. Mirror has D1; config asks for DI.
+	// (unreachableEndpoint is defined in pairing_cmd_test.go — same package.)
+	url := unreachableEndpoint(t)
 
 	cfg := mirror(t, url)
 	cfg.Projects = nil

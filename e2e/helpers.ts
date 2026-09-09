@@ -112,17 +112,25 @@ export function clearUIFocus(): void {
 /**
  * GDK-672: a literal 127.0.0.1:7877 in e2e/*.spec.ts pins the suite to one
  * port and two worktrees cannot run at once. Use apiURL() from this file.
+ * GDK-1559: e2e/demo/*.config.ts joins the scan — a demo suite hardcoding
+ * the port collides with a parallel round exactly the same way. (The one
+ * deliberate off-port demo config, terminal.config.ts on 7793, documents
+ * its reason in the file and never spells this literal.)
  */
 export function hardcodedE2EHosts(root = E2E_DIR): string[] {
   const hits: string[] = []
-  for (const name of readdirSync(root)) {
-    if (!name.endsWith('.spec.ts')) continue
-    const lines = readFileSync(join(root, name), 'utf8').split('\n')
-    for (let i = 0; i < lines.length; i++) {
-      if (!lines[i].includes(HARDCODED_E2E_HOST)) continue
-      hits.push(`${name}:${i + 1}: ${lines[i].trim()}`)
+  const scan = (dir: string, label: string, keep: (name: string) => boolean) => {
+    for (const name of readdirSync(dir)) {
+      if (!keep(name)) continue
+      const lines = readFileSync(join(dir, name), 'utf8').split('\n')
+      for (let i = 0; i < lines.length; i++) {
+        if (!lines[i].includes(HARDCODED_E2E_HOST)) continue
+        hits.push(`${label}${name}:${i + 1}: ${lines[i].trim()}`)
+      }
     }
   }
+  scan(root, '', (name) => name.endsWith('.spec.ts'))
+  scan(join(root, 'demo'), 'demo/', (name) => name.endsWith('.config.ts'))
   return hits
 }
 
@@ -202,7 +210,7 @@ export default function globalSetup(): void {
   const hits = hardcodedE2EHosts()
   if (hits.length) {
     throw new Error(
-      `hardcoded ${HARDCODED_E2E_HOST} in e2e/*.spec.ts — use apiURL() from e2e/helpers.ts:\n${hits.join('\n')}`,
+      `hardcoded ${HARDCODED_E2E_HOST} in e2e/*.spec.ts or e2e/demo/*.config.ts — use apiURL()/e2eServePort() from e2e/helpers.ts:\n${hits.join('\n')}`,
     )
   }
   assertServedArtifact()
@@ -382,7 +390,10 @@ export async function gotoApp(page: Page, opts: { startup?: 'epics' | 'product' 
   await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
   // Sidebar pool size — visible as soon as bootstrap lands, *before* the
   // startup view. A DEMO_ISSUE_COUNT match is not "the list is ready for keys".
-  await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 30_000 })
+  // The bare count, not the English label: a spec that pre-seeds another
+  // locale (locale-goto.spec.ts, GDK-1727) renders "534건" here, and digits
+  // are the part every locale shares.
+  await expect(page.getByText(DEMO_ISSUE_COUNT_RE).first()).toBeVisible({ timeout: 30_000 })
   // applyStartupView waits for me.authChecked (favorites + GET auth/me/ +
   // personal loads) and then writes the default all-open filter into the
   // hash. IssueList's viewKey effect resetCursor()s on that write, so a
@@ -390,7 +401,12 @@ export async function gotoApp(page: Page, opts: { startup?: 'epics' | 'product' 
   // hash *and* the refiltered count — Playwright auto-wait, not a sleep —
   // so keyboard tests start after that commit. (GDK-39)
   await expect(page).toHaveURL(/[#?&]sc=/, { timeout: 30_000 })
-  await expect(page.getByTestId('list-count')).not.toHaveText(DEMO_ISSUE_COUNT_EN)
+  // The regex, not the English string: not.toHaveText(string) resolves the
+  // instant the text differs from "534 issues", which every non-en locale
+  // does before any filtering lands — the wait GDK-39 exists for would be
+  // a vacuous pass there (jql.spec.ts:91 and search-demo.spec.ts:86 use the
+  // same shape for the same reason).
+  await expect(page.getByTestId('list-count')).not.toHaveText(DEMO_ISSUE_COUNT_RE)
   // The fixture's account (dana@example.com) has open work, so the product's
   // first-run rule (startup-view.ts: identified + assigned work → My issues)
   // lands every fresh context on Dana's 46 issues. The specs that call this
@@ -428,7 +444,8 @@ export async function gotoAppBeforeStartup(page: Page): Promise<void> {
   await forceLocale(page, 'en')
   await page.goto('/')
   await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
-  await expect(page.getByText(DEMO_ISSUE_COUNT_EN_RE).first()).toBeVisible({ timeout: 30_000 })
+  // Bare count for the same reason as gotoApp above (GDK-1727).
+  await expect(page.getByText(DEMO_ISSUE_COUNT_RE).first()).toBeVisible({ timeout: 30_000 })
   await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
 }
 

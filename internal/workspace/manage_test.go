@@ -9,6 +9,7 @@ package workspace
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -538,12 +539,12 @@ func TestManageCreatePairedRefusals(t *testing.T) {
 		t.Fatalf("pairing_refused wrote a profile: %v", err)
 	}
 
-	// serve_unreachable: a real port that is already closed (127.0.0.1
-	// httptest, never a routed-away address). The endpoint itself is the
-	// one thing the detail may name — the user supplied it.
-	ts2 := httptest.NewServer(http.NotFoundHandler())
-	endpoint := ts2.URL
-	ts2.Close()
+	// serve_unreachable: a real 127.0.0.1 endpoint nobody can serve on — a
+	// port reserved for this test's lifetime (never a closed httptest port,
+	// which another process can rebind mid-test, and never a routed-away
+	// address). The endpoint itself is the one thing the detail may name —
+	// the user supplied it.
+	endpoint := unreachableEndpoint(t)
 	offer2 := manageOffer(t, endpoint)
 	rec = manageSend(t, h, http.MethodPost, "/api/v1/workspaces",
 		`{"name":"p3","kind":"paired","offer":"`+offer2+`"}`)
@@ -629,4 +630,40 @@ func TestManageCreatePairedV2TerminalOnlyRefused(t *testing.T) {
 	if _, err := os.Stat(manageDir(t, "laptop3")); !os.IsNotExist(err) {
 		t.Fatalf("profile dir created for a refused offer (stat err=%v)", err)
 	}
+}
+
+// unreachableEndpoint reserves a loopback port for this test's lifetime and
+// drops every connection that arrives. The closed-httptest-server shape it
+// replaces was OS state another process could rebind mid-test (GDK-1699);
+// a held listener cannot be stolen, and accept+close fails each request
+// fast with exactly the transport-level error class the pairing fold
+// consumes. Same helper exists in every package that needs an unreachable
+// fixture; internal/sync's TestUnreachableFixturesDoNotReuseClosedPorts
+// (sourcelint) keeps the closed-port shape from coming back.
+func unreachableEndpoint(t *testing.T) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve loopback port: %v", err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			// SO_LINGER 0 → RST, not FIN. A plain close races the client's
+			// request bytes: if they have not landed yet the kernel sends a
+			// clean FIN and the client sees EOF, which the pairing fold does
+			// not classify as unreachable. The reset always arrives as
+			// *net.OpError("connection reset by peer") — the exact class the
+			// fold consumes, on every platform.
+			if tc, ok := c.(*net.TCPConn); ok {
+				_ = tc.SetLinger(0)
+			}
+			_ = c.Close()
+		}
+	}()
+	return "http://" + ln.Addr().String()
 }

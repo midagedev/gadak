@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test'
+import { apiURL, e2eServePort } from '../helpers'
 
 /**
  * History-focus recording (F2) — one issue thread read end to end.
@@ -8,6 +9,8 @@ import { defineConfig, devices } from '@playwright/test'
  * Run via `make media-history` (sets GADAK_MEDIA=1). Committed fixture
  * (no GADAK_SEED_DB): NMB-139's thread is fixture-injected by serve.sh.
  */
+const e2ePort = e2eServePort()
+
 export default defineConfig({
   testDir: '.',
   testMatch: 'history-demo.spec.ts',
@@ -20,7 +23,7 @@ export default defineConfig({
   expect: { timeout: 60_000 },
   outputDir: 'test-results-history',
   use: {
-    baseURL: 'http://127.0.0.1:7877',
+    baseURL: apiURL(),
     locale: 'en-US',
     colorScheme: 'light',
     viewport: { width: 1280, height: 800 },
@@ -37,8 +40,8 @@ export default defineConfig({
     trace: 'on',
   },
   webServer: {
-    command: 'GADAK_FRESHEN=1 bash e2e/serve.sh',
-    url: 'http://127.0.0.1:7877/healthz',
+    command: `GADAK_E2E_PORT=${e2ePort} GADAK_FRESHEN=1 bash e2e/serve.sh`,
+    url: apiURL('/healthz'),
     reuseExistingServer: false,
     timeout: 180_000,
     cwd: '../..',

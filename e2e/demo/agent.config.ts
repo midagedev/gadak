@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test'
+import { apiURL, e2eServePort } from '../helpers'
 
 /**
  * Agent-focus promo recording — CLI types, the paper list follows.
@@ -7,6 +8,8 @@ import { defineConfig, devices } from '@playwright/test'
  *
  * Run via `make media-agent` (sets GADAK_MEDIA=1).
  */
+const e2ePort = e2eServePort()
+
 export default defineConfig({
   testDir: '.',
   testMatch: 'agent-demo.spec.ts',
@@ -19,7 +22,7 @@ export default defineConfig({
   expect: { timeout: 30_000 },
   outputDir: 'test-results-agent',
   use: {
-    baseURL: 'http://127.0.0.1:7877',
+    baseURL: apiURL(),
     locale: 'en-US',
     // Terminal chrome (168) + the same 1024×640 app frame as the hero.
     viewport: { width: 1024, height: 808 },
@@ -34,8 +37,8 @@ export default defineConfig({
     trace: 'off',
   },
   webServer: {
-    command: 'GADAK_FRESHEN=1 bash e2e/serve.sh',
-    url: 'http://127.0.0.1:7877/healthz',
+    command: `GADAK_E2E_PORT=${e2ePort} GADAK_FRESHEN=1 bash e2e/serve.sh`,
+    url: apiURL('/healthz'),
     reuseExistingServer: false,
     timeout: 180_000,
     cwd: '../..',

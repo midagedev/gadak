@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test'
+import { apiURL, e2eServePort } from '../helpers'
 
 /**
  * Demo media recording config — separate from e2e/playwright.config.ts.
@@ -6,6 +7,8 @@ import { defineConfig, devices } from '@playwright/test'
  *
  * Run via `make media-web` (sets GADAK_MEDIA=1). Do not use for CI gates.
  */
+const e2ePort = e2eServePort()
+
 export default defineConfig({
   testDir: '.',
   testMatch: 'web-demo.spec.ts',
@@ -18,7 +21,7 @@ export default defineConfig({
   expect: { timeout: 30_000 },
   outputDir: 'test-results',
   use: {
-    baseURL: 'http://127.0.0.1:7877',
+    baseURL: apiURL(),
     locale: 'en-US',
     // Showcase framing. 1024 CSS px, not 1280: the GIF is displayed at ~900 px
     // in the README, so a narrower logical viewport is the only lever on text
@@ -42,9 +45,9 @@ export default defineConfig({
     trace: 'off',
   },
   webServer: {
-    command: 'GADAK_FRESHEN=1 bash e2e/serve.sh',
-    url: 'http://127.0.0.1:7877/healthz',
-    // Always start fresh: a leftover :7877 from an earlier e2e run is not
+    command: `GADAK_E2E_PORT=${e2ePort} GADAK_FRESHEN=1 bash e2e/serve.sh`,
+    url: apiURL('/healthz'),
+    // Always start fresh: a leftover serve from an earlier e2e run is not
     // freshened, and "Sync delayed" prints into every frame.
     reuseExistingServer: false,
     timeout: 180_000,

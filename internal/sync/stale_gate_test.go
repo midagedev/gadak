@@ -1,3 +1,9 @@
+//go:build sourcelint
+
+// Repo-wide AST gate (GDK-1144): lives behind the sourcelint tag so the
+// default `go test ./...` never pays the whole-tree parse. Run with
+// `bash tools/sourcelint.sh` — CI's Go-tests step runs exactly that.
+
 package sync
 
 import (

@@ -193,6 +193,42 @@ func TestIssueKeyLiteral(t *testing.T) {
 	}
 }
 
+// TestCanonicalKey is GDK-1129's composition contract: trim first, then
+// case-fold. The eleven call sites it replaces each spelled this by hand.
+func TestCanonicalKey(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"GDK-1", "GDK-1"},
+		{"gdk-1", "GDK-1"},
+		{"  gdk-1  ", "GDK-1"},
+		{"\tgdk-1\n", "GDK-1"},
+		{"  ", ""},
+		{"", ""},
+	}
+	for _, tc := range cases {
+		if got := CanonicalKey(tc.in); got != tc.want {
+			t.Errorf("CanonicalKey(%q)=%q want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+// TestIsIssueKey pins the composition the "looks like an issue key" sites
+// need: canonicalize, then shape-check. Mixed-case and padded keys pass;
+// near-miss shapes still fail after canonicalization.
+func TestIsIssueKey(t *testing.T) {
+	yes := []string{"GDK-1", " gdk-1 ", "nmb-42", "A0-9"}
+	for _, s := range yes {
+		if !IsIssueKey(s) {
+			t.Errorf("IsIssueKey(%q)=false, want true", s)
+		}
+	}
+	no := []string{"", "  ", "gdk", "gdk-", "-1", "not a key", "GDK-1 extra", "1-1"}
+	for _, s := range no {
+		if IsIssueKey(s) {
+			t.Errorf("IsIssueKey(%q)=true, want false", s)
+		}
+	}
+}
+
 func TestEditableAliasesLegacyWins(t *testing.T) {
 	cfg := &config.Config{
 		Fields: []config.FieldSpec{

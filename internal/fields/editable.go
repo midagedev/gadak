@@ -220,17 +220,37 @@ func DateOnlyLiteral(s string) bool {
 
 // IssueKeyLiteral is a Jira issue key ABC-123: a project key (A–Z then
 // A–Z0–9), a hyphen, and one or more digits. It does not trim or case-fold
-// — callers that accept mixed-case input ToUpper+Trim first (looksLikeIssueKey,
-// gadak_show issue). Single owner of the key-shape check (GDK-328): CLI
-// positional keys, MCP gadak_show, and the server's create / parent endpoints
-// import it.
+// — canonicalization is CanonicalKey's job, and mixed-case or padded input
+// goes through IsIssueKey rather than a hand-rolled ToUpper+Trim. Single
+// owner of the key-shape check (GDK-328): CLI positional keys, MCP
+// gadak_show, and the server's create / parent endpoints import it.
 func IssueKeyLiteral(s string) bool {
 	return issueKeyRe.MatchString(s)
 }
 
 // Same pattern cmd/gadak/views.go and internal/mcp/tools.go used to each
-// compile. Callers still own ToUpper/Trim so those sites stay byte-identical.
+// compile (GDK-328).
 var issueKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*-\d+$`)
+
+// CanonicalKey is the single owner of the key-normalization composition:
+// trim, then case-fold. Before it, eleven production sites
+// hand-rolled strings.ToUpper(strings.TrimSpace(…)) beside the shape check,
+// and a caller that forgot the Trim still compiled. Keys from positionals,
+// saved views, MCP tools and paste targets come through here. Project keys
+// share the composition (they are the ABC- half of an issue key), which is
+// why this is not named CanonicalIssueKey. The sourcelint gate
+// (canonical_gate_test.go) keeps new hand-rolled copies out.
+func CanonicalKey(s string) string {
+	return strings.ToUpper(strings.TrimSpace(s))
+}
+
+// IsIssueKey canonicalizes (CanonicalKey) and then checks the shape
+// (IssueKeyLiteral) — the exact composition the "does this look like an
+// issue key" sites used to spell by hand; cmd/gadak's looksLikeIssueKey was
+// the first to fold.
+func IsIssueKey(s string) bool {
+	return IssueKeyLiteral(CanonicalKey(s))
+}
 
 // IssueKeyBare is the regex body of a bare Jira issue key as it appears in
 // free text: a project key of two or more characters (a letter, then letters
