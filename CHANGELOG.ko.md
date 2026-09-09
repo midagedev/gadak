@@ -154,7 +154,11 @@ SQLite 파일 하나가 그 뒤 한 간격(기본 60초, 시간마다 리컨사�
 문장에서 고쳤고 ([GDK-1705]), 회고 표는 필요한 만큼 넓어집니다 ([GDK-1706]).
 CI도 싸졌습니다. 정적 분석 게이트는 Go를 건드리지 않은 푸시를 건너뛰고,
 브라우저 샤드는 파일 순서가 아니라 실측 초로 나뉘며, 브라우저가 필요 없던
-검사 다섯은 유닛으로 내려왔습니다 ([GDK-1702], [GDK-1698]).
+검사 다섯은 유닛으로 내려왔습니다 ([GDK-1702], [GDK-1698]). 서비스 설치는 `--` 뒤의
+serve 플래그를 유닛에 그대로 싣고, 설치 시점에 serve 파서로 검증합니다 — 잘못된 주소는
+예전엔 설치가 되고 나서 KeepAlive 아래에서 재시작을 반복했습니다 ([GDK-1267]). 공개
+백로그 내보내기는 자격증명 모양의 문자열이 든 설명을 게시 대신 거부합니다 — 셸 스캔과
+같은 패턴입니다 ([GDK-1260]).
 
 ## v0.21.0 — 2026-09-08
 
@@ -1614,6 +1618,8 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1698]: https://gadak.dev/backlog/#/?ks=GDK-1698
 [GDK-1700]: https://gadak.dev/backlog/#/?ks=GDK-1700
 [GDK-1702]: https://gadak.dev/backlog/#/?ks=GDK-1702
+[GDK-1260]: https://gadak.dev/backlog/#/?ks=GDK-1260
+[GDK-1267]: https://gadak.dev/backlog/#/?ks=GDK-1267
 [GDK-1704]: https://gadak.dev/backlog/#/?ks=GDK-1704
 [GDK-1705]: https://gadak.dev/backlog/#/?ks=GDK-1705
 [GDK-1706]: https://gadak.dev/backlog/#/?ks=GDK-1706

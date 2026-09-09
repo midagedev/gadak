@@ -169,10 +169,11 @@ var helps = map[string]cmdHelp{
 	},
 	"install-service": {
 		summary: "keep serve running across reboots (launchd / systemd user)",
-		usage:   "gadak [--workspace <name>] install-service [--uninstall]",
+		usage:   "gadak [--workspace <name>] install-service [--uninstall] [-- <serve flags>]",
 		examples: []string{
 			"gadak install-service",
 			"gadak install-service --uninstall",
+			"gadak install-service -- --addr 127.0.0.1:8200",
 			"gadak --workspace work install-service",
 		},
 		seeAlso: []string{"gadak serve"},

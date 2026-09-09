@@ -356,6 +356,17 @@ out). To survive reboot:
 gadak install-service   # launchd (macOS) or systemd --user (Linux)
 ```
 
+Serve flags can ride in the unit after `--`, and they are validated at
+install time — a unit whose serve would die on a bad address does not fail
+the install, it crash-loops under KeepAlive / Restart=on-failure, so the
+refusal happens up front:
+
+```bash
+gadak install-service -- --addr 127.0.0.1:8200
+gadak install-service -- --addr 0.0.0.0:7777 --allow-remote   # non-loopback still needs --allow-remote
+gadak install-service --uninstall   # ignores extras; the unit is named by profile alone
+```
+
 **Mirroring the wiki too** is one config key — the same site, email, and token
 already cover it. Add to `~/.gadak/config.json`:
 

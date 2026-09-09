@@ -14,7 +14,7 @@ import (
 
 func TestServeArgsIncludesProfile(t *testing.T) {
 	// Without profile: serve --no-open only.
-	got := serveArgsFor(config.Profile())
+	got := serveArgsFor(config.Profile(), nil)
 	if len(got) < 2 || got[len(got)-2] != "serve" || got[len(got)-1] != "--no-open" {
 		t.Fatalf("serveArgsFor = %v", got)
 	}
@@ -60,11 +60,11 @@ func TestTwoProfilesWriteTwoSystemdUnits(t *testing.T) {
 	mockServiceCmds(t)
 
 	config.SetProfile("")
-	if err := installSystemd(); err != nil {
+	if err := installSystemd(nil); err != nil {
 		t.Fatalf("default install: %v", err)
 	}
 	config.SetProfile("work")
-	if err := installSystemd(); err != nil {
+	if err := installSystemd(nil); err != nil {
 		t.Fatalf("work install: %v", err)
 	}
 
@@ -100,11 +100,11 @@ func TestTwoProfilesWriteTwoLaunchdPlists(t *testing.T) {
 	mockServiceCmds(t)
 
 	config.SetProfile("")
-	if err := installLaunchd(); err != nil {
+	if err := installLaunchd(nil); err != nil {
 		t.Fatalf("default install: %v", err)
 	}
 	config.SetProfile("work")
-	if err := installLaunchd(); err != nil {
+	if err := installLaunchd(nil); err != nil {
 		t.Fatalf("work install: %v", err)
 	}
 
@@ -137,7 +137,7 @@ func TestSystemdEnableFailurePropagates(t *testing.T) {
 		return nil
 	}
 
-	err := installSystemd()
+	err := installSystemd(nil)
 	if err == nil {
 		t.Fatal("systemctl enable --now failure must be a non-zero exit")
 	}
@@ -162,7 +162,7 @@ func TestLaunchdLoadFailurePropagates(t *testing.T) {
 		return nil
 	}
 
-	err := installLaunchd()
+	err := installLaunchd(nil)
 	if err == nil {
 		t.Fatal("launchctl load/bootstrap failure must be a non-zero exit")
 	}
@@ -186,7 +186,7 @@ func TestMigrateLegacyDefaultUnitForNamedProfile(t *testing.T) {
 	}
 
 	config.SetProfile("work")
-	if err := installSystemd(); err != nil {
+	if err := installSystemd(nil); err != nil {
 		t.Fatalf("install work: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "gadak-work.service")); err != nil {
@@ -205,11 +205,11 @@ func TestMigrateLeavesRealDefaultUnit(t *testing.T) {
 	mockServiceCmds(t)
 
 	config.SetProfile("")
-	if err := installSystemd(); err != nil {
+	if err := installSystemd(nil); err != nil {
 		t.Fatal(err)
 	}
 	config.SetProfile("work")
-	if err := installSystemd(); err != nil {
+	if err := installSystemd(nil); err != nil {
 		t.Fatal(err)
 	}
 	def := filepath.Join(home, ".config", "systemd", "user", "gadak.service")
@@ -226,11 +226,11 @@ func TestUninstallNamedLeavesDefault(t *testing.T) {
 	mockServiceCmds(t)
 
 	config.SetProfile("")
-	if err := installSystemd(); err != nil {
+	if err := installSystemd(nil); err != nil {
 		t.Fatal(err)
 	}
 	config.SetProfile("work")
-	if err := installSystemd(); err != nil {
+	if err := installSystemd(nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := uninstallSystemd(); err != nil {
@@ -276,7 +276,7 @@ func TestInstallServiceWritesUnit(t *testing.T) {
 	}
 	// Don't call real launchctl/systemctl in unit tests — write the file the
 	// same way the install helpers do, then assert shape.
-	args := serveArgsFor(config.Profile())
+	args := serveArgsFor(config.Profile(), nil)
 	switch runtime.GOOS {
 	case "darwin":
 		dir := filepath.Join(home, "Library", "LaunchAgents")
@@ -323,6 +323,188 @@ func TestInstallServiceWritesUnit(t *testing.T) {
 		s := string(raw)
 		if !strings.Contains(s, "serve") || !strings.Contains(s, "--no-open") {
 			t.Errorf("unit missing serve --no-open: %s", s)
+		}
+	}
+}
+
+// GDK-1267. install-service accepted serve flags after -- only in the sense
+// that it never read them: an --addr that serve itself refuses (non-loopback
+// without --allow-remote) installed happily, and the written unit would die
+// at start and restart forever under KeepAlive / Restart=on-failure — the
+// crash loop has no exit code to read. The refusal belongs at install time.
+func TestInstallServiceRefusesServeFlagServeItselfRefuses(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("install-service unsupported on windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	mockServiceCmds(t)
+
+	err := cmdInstallService([]string{"--", "--addr", "0.0.0.0:7777"})
+	if err == nil {
+		t.Fatal("install accepted --addr 0.0.0.0:7777 without --allow-remote")
+	}
+	if !strings.Contains(err.Error(), "allow-remote") {
+		t.Fatalf("error should name the flag that was missing: %v", err)
+	}
+	// A refused install writes nothing — a half-written unit carrying an
+	// address serve refuses is worse than no unit.
+	var wrote []string
+	paths := map[string][]string{
+		"darwin": {filepath.Join(home, "Library", "LaunchAgents", serviceLabel+".plist")},
+		"linux":  {filepath.Join(home, ".config", "systemd", "user", "gadak.service")},
+	}
+	for _, p := range paths[runtime.GOOS] {
+		if _, statErr := os.Stat(p); statErr == nil {
+			wrote = append(wrote, p)
+		}
+	}
+	if len(wrote) > 0 {
+		t.Errorf("refused install still wrote: %v", wrote)
+	}
+}
+
+// GDK-1267, the carry half: serve flags the parser accepts ride in the
+// unit's ExecStart, after serve --no-open.
+func TestInstallServicePassesServeFlagsToUnit(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("install-service unsupported on windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Cleanup(func() { config.SetProfile("") })
+	config.SetProfile("")
+	mockServiceCmds(t)
+
+	extra := []string{"--addr", "127.0.0.1:8200", "--allow-remote"}
+	if err := cmdInstallService(append([]string{"--"}, extra...)); err != nil {
+		t.Fatalf("valid serve flags refused: %v", err)
+	}
+	var body string
+	switch runtime.GOOS {
+	case "darwin":
+		raw, err := os.ReadFile(filepath.Join(home, "Library", "LaunchAgents", serviceLabel+".plist"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		body = string(raw)
+	case "linux":
+		raw, err := os.ReadFile(filepath.Join(home, ".config", "systemd", "user", "gadak.service"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		body = string(raw)
+	}
+	if !strings.Contains(body, "serve") || !strings.Contains(body, "--no-open") {
+		t.Fatalf("unit lost serve --no-open: %s", body)
+	}
+	for _, a := range extra {
+		if !strings.Contains(body, a) {
+			t.Fatalf("unit dropped serve flag %q: %s", a, body)
+		}
+	}
+	if iNoOpen, iAddr := strings.Index(body, "--no-open"), strings.Index(body, "--addr"); iNoOpen < 0 || iAddr < iNoOpen {
+		t.Fatalf("extras must ride after serve --no-open: %s", body)
+	}
+}
+
+func TestServeArgsCarryServeExtras(t *testing.T) {
+	got := serveArgsFor("", []string{"--addr", "127.0.0.1:8200"})
+	want := []string{"serve", "--no-open", "--addr", "127.0.0.1:8200"}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("serveArgsFor = %v, want %v", got, want)
+	}
+	got = serveArgsFor("work", []string{"--no-sync"})
+	want = []string{"--profile", "work", "serve", "--no-open", "--no-sync"}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("serveArgsFor(profile, extra) = %v, want %v", got, want)
+	}
+}
+
+// Both unit formats carry the extras — installLaunchd/installSystemd are
+// plain writers (cmdInstallService picks one by GOOS), so the tests call
+// both and each format is asserted on every host.
+func TestUnitsCarryServeExtrasBothFormats(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Cleanup(func() { config.SetProfile("") })
+	config.SetProfile("")
+	mockServiceCmds(t)
+	extra := []string{"--addr", "127.0.0.1:8200", "--allow-remote"}
+
+	if err := installLaunchd(extra); err != nil {
+		t.Fatalf("launchd install with extras: %v", err)
+	}
+	plist, err := os.ReadFile(filepath.Join(home, "Library", "LaunchAgents", serviceLabel+".plist"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pair := range [][2]string{
+		{"<string>serve</string>", "serve"},
+		{"<string>--no-open</string>", "--no-open"},
+		{"<string>--addr</string>", "--addr"},
+		{"<string>127.0.0.1:8200</string>", "--addr value"},
+		{"<string>--allow-remote</string>", "--allow-remote"},
+	} {
+		if !strings.Contains(string(plist), pair[0]) {
+			t.Fatalf("plist missing %s (%s): %s", pair[1], pair[0], plist)
+		}
+	}
+
+	if err := installSystemd(extra); err != nil {
+		t.Fatalf("systemd install with extras: %v", err)
+	}
+	unit, err := os.ReadFile(filepath.Join(home, ".config", "systemd", "user", "gadak.service"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "ExecStart="; !strings.Contains(string(unit), want) {
+		t.Fatalf("unit missing ExecStart: %s", unit)
+	}
+	if want := "serve --no-open --addr 127.0.0.1:8200 --allow-remote"; !strings.Contains(string(unit), want) {
+		t.Fatalf("ExecStart does not carry the extras in order (%s): %s", want, unit)
+	}
+}
+
+// An unknown extra (`-- --nonsense`) needs no test here: newFlagSet is
+// flag.ExitOnError, so the parse inside parseServeOpts exits 2 with serve's
+// own usage — which documents exactly the flags allowed after -- — before
+// any unit is written. That refusal belongs to the flag package, shared by
+// every subcommand; what this round adds is gated above (extras carried into
+// the unit, checkServeAddr enforced at install time, uninstall tolerating
+// extras).
+
+// --uninstall ignores extras: the unit being removed is identified by
+// profile alone, and a scripted uninstall+reinstall cycle would otherwise
+// fail on its second half.
+func TestUninstallToleratesServeExtras(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("install-service unsupported on windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Cleanup(func() { config.SetProfile("") })
+	config.SetProfile("")
+	mockServiceCmds(t)
+
+	if err := cmdInstallService([]string{"--", "--addr", "0.0.0.0:7777", "--allow-remote"}); err != nil {
+		t.Fatalf("install with a serve-refused-but-flagged addr: %v", err)
+	}
+	if err := cmdInstallService([]string{"--uninstall", "--", "--addr", "0.0.0.0:7777"}); err != nil {
+		t.Fatalf("uninstall must tolerate the extras it is not using: %v", err)
+	}
+	switch runtime.GOOS {
+	case "darwin":
+		if _, err := os.Stat(filepath.Join(home, "Library", "LaunchAgents", serviceLabel+".plist")); !os.IsNotExist(err) {
+			t.Fatalf("uninstall left the plist behind; stat=%v", err)
+		}
+	case "linux":
+		if _, err := os.Stat(filepath.Join(home, ".config", "systemd", "user", "gadak.service")); !os.IsNotExist(err) {
+			t.Fatalf("uninstall left the unit behind; stat=%v", err)
 		}
 	}
 }

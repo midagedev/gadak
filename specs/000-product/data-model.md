@@ -190,7 +190,8 @@ An issue can sit in several sprints (closed history plus the current one).
 The three columns hold **one** of them: `active` over `future` over `closed`,
 and the larger id when the state ties. Sync discovers the field from
 `GET /field` (`schema.custom` ending in `com.pyxis.greenhopper.jira:gh-sprint`);
-there is no hardcoded customfield id and no board catalog table. The next
+there is no hardcoded customfield id; the board and sprint catalog is the
+`boards` and `sprints` tables below. The next
 sync fills existing rows; the migration does not backfill.
 
 ## `versions` (v31)
@@ -229,6 +230,62 @@ backfill; the mirror is a cache.
 Moved to [`docs/DERIVE.md`](../../docs/DERIVE.md) — one file for every column
 gadak computes rather than mirrors, with the reasoning behind each rule and
 copy-paste queries a test executes verbatim against `examples/demo.db`.
+
+## `boards` (v45)
+
+The board half of the agile catalog. One row per Jira Software board, or — on
+a Linear source — one row per in-scope team, typed `cycles` (GDK-1667). Not
+one of the three 0.x contracts.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `source_id` | TEXT | PK part; FK `sources.id`, `ON DELETE CASCADE` |
+| `id` | INTEGER | PK part. **Jira**: the Agile API's integer board id, stored as-is. **Linear**: derived — `linear.SprintID` of the team UUID (FNV-1a 64-bit, top bit cleared, `0` → `1`), so it fits SQLite's signed INTEGER; not a Linear id |
+| `name` | TEXT | Board name; on Linear the team name |
+| `type` | TEXT | Jira board type (`scrum`, `kanban`, …); on Linear always `cycles` |
+| `project_key` | TEXT | Jira `location.projectKey`; on Linear the team key |
+
+There is no `external_id` on boards: a Jira id already is the origin's id,
+and on Linear the team UUID is recoverable only through the hash above — the
+mirror never stores origin data it cannot rebuild, and no write path resolves
+a board back to a team.
+
+## `sprints` (v45, `external_id` v46)
+
+The sprint half. One row per Jira sprint or Linear cycle. `issues.sprint_id`
+and `first_sprint_id` live in this table's `id` space — that is the join.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `source_id` | TEXT | PK part; FK `sources.id`, `ON DELETE CASCADE` |
+| `id` | INTEGER | PK part. **Jira**: integer sprint id, stored as-is. **Linear**: `linear.SprintID` of the cycle UUID — same derivation as boards |
+| `board_id` | INTEGER | Owning board's `id`. Jira: the sprint's `originBoardId`, falling back to the board the sprints listing came from; NULL when neither is known. Linear: always the team's board id |
+| `name` | TEXT | Jira sprint name. Linear: the cycle name, or `Cycle <number>` for an unnamed cycle — the fallback the Linear UI shows, so the issue projection and this row agree |
+| `goal` | TEXT | Sprint goal; on Linear the cycle description |
+| `state` | TEXT | `active` \| `future` \| `closed`, lowercase — the value queries are told to ask for, never a display name. Jira: the API's `state` lowercased. Linear: derived from dates at sync time — `closed` when `complete_at` is set or `end_at` has passed, `active` when `start_at` has, else `future`; a stamp that does not parse reads as absent, never a guess that flips a state |
+| `start_at` | TEXT | `start_date` on Jira, `startsAt` on Linear. NULL when the origin sent none |
+| `end_at` | TEXT | `end_date` / `endsAt`. NULL when absent |
+| `complete_at` | TEXT | `complete_date` / `completedAt`. NULL when absent |
+| `activated_at` | TEXT | Jira `activated_date`; a Linear cycle has no such concept, so NULL there |
+| `external_id` | TEXT | The origin's own sprint id verbatim (v46, GDK-1667): Jira's integer as a string, Linear's cycle UUID. On Linear this is the wire truth the write path resolves a cycle by — the derived `id` is presentation of it, not a second identity |
+
+Indexes: `sprints_board (source_id, board_id)`, `sprints_state
+(source_id, state)`, `sprints_external (source_id, external_id)` (v46).
+
+Each agile pass replaces the source's rows wholesale — what the origin no
+longer lists is gone from the mirror — and re-derives `issues_raw.sprint_state`
+from the rows it just wrote, in the same transaction (GDK-1661): closing a
+sprint moves no `updated` on the issues that stay in it, so the issue pass
+can never refresh the denormalized column — the sprint listing is the only
+observation path that state change has. An issue whose `sprint_id` has no row
+here (a board the credential cannot read) keeps its projected value.
+
+On a Jira-shaped origin, a site without Jira Software answers the agile
+routes with a recognizable error and the pass returns quietly, previous rows
+untouched; a kanban board's sprints route 400s or 404s, so the board simply
+carries no sprint rows — kanban has no sprints. On Linear the teams/cycles
+listing runs on every sync tick, quiet cycles included, for the same
+observation-path reason.
 
 ## `spaces` (v14, `homepage_id` v17)
 

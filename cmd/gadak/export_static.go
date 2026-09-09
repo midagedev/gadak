@@ -17,6 +17,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/attachcache"
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/secretscan"
 	"github.com/midagedev/gadak/internal/server"
 	"github.com/midagedev/gadak/internal/store"
 )
@@ -427,7 +428,9 @@ func scrubBootstrap(body []byte) ([]byte, error) {
 // the file:line, the failure scenario and the fix all live in the description,
 // so dropping it published the index and withheld the content (reported
 // 2026-08-20, GDK-430). The flag is opt-in so the rebuild stays a whitelist:
-// a caller that says nothing still gets the closed shape.
+// a caller that says nothing still gets the closed shape. The re-admitted
+// description passes the credential scan (GDK-1260) — a code block is an
+// allowed node type, so a pasted token would otherwise publish verbatim.
 func scrubDetail(body []byte, keepDescription bool, publishedKeys map[string]struct{}) ([]byte, error) {
 	var det map[string]json.RawMessage
 	if err := json.Unmarshal(body, &det); err != nil {
@@ -440,6 +443,18 @@ func scrubDetail(body []byte, keepDescription bool, publishedKeys map[string]str
 	description := json.RawMessage("null")
 	if keepDescription {
 		if adf := det["description_adf"]; len(adf) > 0 {
+			// The one re-admitted surface gets the credential scan the shell
+			// pipeline runs on the written files (GDK-1260): a code block is
+			// an allowed node since GDK-1008, and a token pasted into one
+			// rides the whitelist rebuild verbatim. internal/secretscan is
+			// the Go owner of the same regex family the shell greps with, so
+			// the two cannot disagree about what a token looks like — but
+			// refusing here names the issue before a file exists. The error
+			// names the pattern, never the value; the key arrives from the
+			// caller's "scrub detail %s" wrap.
+			if name := secretscan.Match(string(adf)); name != "" {
+				return nil, fmt.Errorf("description carries a credential-shaped string (pattern %s) — remove it before publishing", name)
+			}
 			description = adf
 		}
 	}

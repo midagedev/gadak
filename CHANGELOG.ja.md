@@ -178,7 +178,11 @@ Jira に遅れること、トークンの置き場所、拒否された書き込
 その文面で直し ([GDK-1705])、レトロの表は必要な幅を取ります ([GDK-1706])。CI も安く
 なりました。静的解析のゲートは Go に触れないプッシュを飛ばし、ブラウザのシャードは
 ファイル順ではなく実測の秒で分けられ、ブラウザの要らなかった検査 5 つはユニットに
-移りました ([GDK-1702], [GDK-1698])。
+移りました ([GDK-1702], [GDK-1698])。サービスのインストールは `--` 以降の serve
+フラグをそのままユニットに載せ、インストール時に serve 自身のパーサーで検証します —
+不正なアドレスは以前ならインストールされてから KeepAlive の下で再起動を繰り返していま
+した ([GDK-1267])。公開バックログの書き出しは、資格情報の形をした文字列を含む説明を公開
+せずに拒否します — シェルのスキャンと同じパターンです ([GDK-1260])。
 
 ## v0.21.0 — 2026-09-08
 
@@ -1716,6 +1720,8 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1698]: https://gadak.dev/backlog/#/?ks=GDK-1698
 [GDK-1700]: https://gadak.dev/backlog/#/?ks=GDK-1700
 [GDK-1702]: https://gadak.dev/backlog/#/?ks=GDK-1702
+[GDK-1260]: https://gadak.dev/backlog/#/?ks=GDK-1260
+[GDK-1267]: https://gadak.dev/backlog/#/?ks=GDK-1267
 [GDK-1704]: https://gadak.dev/backlog/#/?ks=GDK-1704
 [GDK-1705]: https://gadak.dev/backlog/#/?ks=GDK-1705
 [GDK-1706]: https://gadak.dev/backlog/#/?ks=GDK-1706

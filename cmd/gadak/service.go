@@ -38,23 +38,41 @@ func profileLabel(profile string) string {
 	return profile
 }
 
-// serveArgsFor is serve --no-open, with --profile when the profile is named.
-func serveArgsFor(profile string) []string {
+// serveArgsFor is serve --no-open, with --profile when the profile is named,
+// plus any serve flags the caller passed after -- — they ride in
+// the unit's ExecStart verbatim.
+func serveArgsFor(profile string, serveExtra []string) []string {
 	var args []string
 	if profile != "" && profile != "default" {
 		args = append(args, "--profile", profile)
 	}
 	args = append(args, "serve", "--no-open")
+	args = append(args, serveExtra...)
 	return args
 }
 
 // cmdInstallService writes a user-level unit so the mirror survives reboot:
 // launchd on darwin, systemd --user on linux. Windows is unsupported.
+// Everything after -- is serve flags (`install-service -- --addr
+// 127.0.0.1:8200 --allow-remote`); they are validated here with serve's own
+// parser, because a unit whose serve dies on an unknown flag or a refused
+// address does not fail the install — it crash-loops under KeepAlive /
+// Restart=on-failure, where no exit code can carry the reason.
 func cmdInstallService(args []string) error {
 	fs := newFlagSet("install-service")
 	uninstall := fs.Bool("uninstall", false, "remove the installed service unit")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	serveExtra := fs.Args()
+	if len(serveExtra) > 0 && !*uninstall {
+		opts, err := parseServeOpts(serveExtra)
+		if err != nil {
+			return fmt.Errorf("install-service: arguments after -- are serve flags: %w", err)
+		}
+		if err := checkServeAddr(opts.addr, opts.allowRemote); err != nil {
+			return fmt.Errorf("install-service: %w", err)
+		}
 	}
 
 	switch runtime.GOOS {
@@ -62,12 +80,12 @@ func cmdInstallService(args []string) error {
 		if *uninstall {
 			return uninstallLaunchd()
 		}
-		return installLaunchd()
+		return installLaunchd(serveExtra)
 	case "linux":
 		if *uninstall {
 			return uninstallSystemd()
 		}
-		return installSystemd()
+		return installSystemd(serveExtra)
 	case "windows":
 		return fmt.Errorf("install-service is not supported on Windows — run `gadak serve --no-open` from Task Scheduler or a login script instead")
 	default:
@@ -83,7 +101,7 @@ func executablePath() (string, error) {
 	return filepath.EvalSymlinks(exe)
 }
 
-func installLaunchd() error {
+func installLaunchd(serveExtra []string) error {
 	exe, err := executablePath()
 	if err != nil {
 		return err
@@ -100,7 +118,7 @@ func installLaunchd() error {
 	}
 	path := filepath.Join(dir, plistName)
 
-	args := serveArgsFor(profile)
+	args := serveArgsFor(profile, serveExtra)
 	var progArgs strings.Builder
 	progArgs.WriteString(fmt.Sprintf("    <string>%s</string>\n", xmlEscape(exe)))
 	for _, a := range args {
@@ -164,7 +182,7 @@ func uninstallLaunchd() error {
 	return nil
 }
 
-func installSystemd() error {
+func installSystemd(serveExtra []string) error {
 	exe, err := executablePath()
 	if err != nil {
 		return err
@@ -180,7 +198,7 @@ func installSystemd() error {
 		return err
 	}
 	path := filepath.Join(dir, unitName)
-	args := serveArgsFor(profile)
+	args := serveArgsFor(profile, serveExtra)
 	// Quote each arg for ExecStart.
 	parts := make([]string, 0, 1+len(args))
 	parts = append(parts, shellQuote(exe))

@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -165,6 +167,57 @@ func TestKeepDescriptionOpensOnlyTheDescription(t *testing.T) {
 	}
 	if string(closedMap["issue_key"]) != `"GDK-1"` || string(closedMap["key"]) != string(closedMap["issue_key"]) {
 		t.Errorf("scrubDetail key alias diverged: issue_key=%s key=%s", closedMap["issue_key"], closedMap["key"])
+	}
+}
+
+// GDK-1260. A code block became an allowed node type (GDK-1008), so a
+// credential pasted into one rides the whitelist rebuild verbatim onto the
+// public surface. The shell pipeline (scripts/scan-internal.sh) catches it
+// only after files are written; the export itself refuses at the source, on
+// the same regex family (internal/secretscan) the shell greps with. The
+// refusal names the pattern — echoing the value into a test failure or an
+// error would put the token in one more place than it already is.
+func TestKeepDescriptionRefusesCredentialShapedCode(t *testing.T) {
+	// Fixture token assembled at runtime, never a literal in this file: the
+	// repo's own scanner greps tracked files, and this file is tracked.
+	token := "ATATT" + strings.Repeat("A", 20)
+
+	benign := `{
+		"issue_key": "NMB-1",
+		"description_adf": {"type":"doc","version":1,"content":[
+			{"type":"paragraph","content":[{"type":"text","text":"run the tool"}]},
+			{"type":"codeBlock","content":[{"type":"text","text":"gadak sync --projects NMB"}]}
+		]}
+	}`
+	out, err := scrubDetail([]byte(benign), true, map[string]struct{}{"NMB-1": {}})
+	if err != nil {
+		t.Fatalf("benign code block refused: %v", err)
+	}
+	if !bytes.Contains(out, []byte("gadak sync")) {
+		t.Errorf("benign code block was dropped: %s", out)
+	}
+
+	leaking := fmt.Sprintf(`{
+		"issue_key": "NMB-1",
+		"description_adf": {"type":"doc","version":1,"content":[
+			{"type":"paragraph","content":[{"type":"text","text":"the token is below"}]},
+			{"type":"codeBlock","content":[{"type":"text","text":"export TOKEN=%s"}]}
+		]}
+	}`, token)
+	if out, err = scrubDetail([]byte(leaking), true, map[string]struct{}{"NMB-1": {}}); err == nil {
+		t.Fatalf("credential-shaped code block published: %s", out)
+	}
+	if !strings.Contains(err.Error(), "atlassian_api_token") {
+		t.Errorf("refusal does not name the pattern: %v", err)
+	}
+	if strings.Contains(err.Error(), token) {
+		t.Errorf("refusal echoes the token value back: %v", err)
+	}
+	// The scan guards only the opened door: without --keep-description the
+	// description is dropped before any byte of it is re-admitted, and a
+	// closed export must keep succeeding on the same body.
+	if _, err = scrubDetail([]byte(leaking), false, map[string]struct{}{"NMB-1": {}}); err != nil {
+		t.Errorf("closed-shape export refused a body it drops anyway: %v", err)
 	}
 }
 

@@ -222,7 +222,13 @@ where the docs and the site disagreed with the code were fixed at the copy
 CI run got cheaper — the static-analysis gate skips a push that touches no
 Go, the browser shards are dealt by measured seconds instead of file order,
 and five assertions that never needed a browser moved to the unit suite
-([GDK-1702], [GDK-1698]).
+([GDK-1702], [GDK-1698]). The service installer now carries serve flags
+given after -- into the unit's ExecStart and validates them at install time
+with serve's own parser — an address serve refuses would otherwise install
+fine and crash-loop under KeepAlive ([GDK-1267]). The public-backlog export
+now refuses a kept description that carries a credential-shaped string, on
+the same patterns the shell scan greps for, instead of publishing it and
+failing later in the pipeline ([GDK-1260]).
 
 ## v0.21.0 — 2026-09-08
 
@@ -1748,6 +1754,8 @@ priority sorting keyed on `priority_rank`.
 [GDK-1698]: https://gadak.dev/backlog/#/?ks=GDK-1698
 [GDK-1700]: https://gadak.dev/backlog/#/?ks=GDK-1700
 [GDK-1702]: https://gadak.dev/backlog/#/?ks=GDK-1702
+[GDK-1260]: https://gadak.dev/backlog/#/?ks=GDK-1260
+[GDK-1267]: https://gadak.dev/backlog/#/?ks=GDK-1267
 [GDK-1704]: https://gadak.dev/backlog/#/?ks=GDK-1704
 [GDK-1705]: https://gadak.dev/backlog/#/?ks=GDK-1705
 [GDK-1706]: https://gadak.dev/backlog/#/?ks=GDK-1706

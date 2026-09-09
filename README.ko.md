@@ -126,8 +126,8 @@ SQL 레퍼런스는 [`docs/MIRROR.md`](docs/MIRROR.md), 도구별 연결은
 
 ## SQL로 집계하기
 
-JQL에는 `GROUP BY`가 없습니다. 에픽별 열린 이슈를 세려면 API 결과 8페이지를 받아
-합산해야 했는데, gadak에서는 쿼리 한 번입니다:
+JQL에는 `GROUP BY`가 없습니다. 에픽별 열린 이슈를 세는 데 이번 측정에서는 API 결과
+8페이지를 받아 합산해야 했는데, gadak에서는 쿼리 한 번입니다:
 
 ```bash
 gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
