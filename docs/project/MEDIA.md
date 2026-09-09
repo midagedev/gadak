@@ -303,11 +303,11 @@ Measured 2026-09-08 (landing clips and their ko/ja takes; the rest 2026-09-07) v
 | `terminal-demo.gif` | 6.91 MB | 6907679 | 23.0 s | 860×1075 @ 9 fps |
 | `terminal-demo.mp4` | 1.80 MB | 1795187 | 23.0 s | 1080×1350 h264 |
 | `terminal-hero.gif` | 5.37 MB | 5372717 | 44.9 s | 900×563 @ 8 fps |
-| `terminal-hero.ko.gif` | 7.03 MB | 7028342 | 43.0 s | 1200×750 @ 8 fps |
-| `terminal-hero.ja.gif` | 4.66 MB | 4658302 | 46.9 s | 900×563 @ 8 fps |
+| `terminal-hero.ko.gif` | 5.07 MB | 5074870 | 53.0 s | 900×563 @ 8 fps |
+| `terminal-hero.ja.gif` | 4.88 MB | 4878032 | 47.6 s | 900×563 @ 8 fps |
 | `terminal-hero.mp4` | 3.44 MB | 3436388 | 44.9 s | 1440×900 h264 |
-| `terminal-hero.ko.mp4` | 2.45 MB | 2452346 | 43.0 s | 1440×900 h264 |
-| `terminal-hero.ja.mp4` | 3.21 MB | 3213258 | 46.9 s | 1440×900 h264 |
+| `terminal-hero.ko.mp4` | 3.02 MB | 3020795 | 53.0 s | 1440×900 h264 |
+| `terminal-hero.ja.mp4` | 3.35 MB | 3351184 | 47.6 s | 1440×900 h264 |
 | `mcp.gif` | 0.22 MB | 216496 | 24.7 s | 1080×620 @ 25 fps |
 | `mcp.mp4` | 0.23 MB | 229806 | 24.7 s | 1080×620 h264 |
 | `raycast.gif` | 0.98 MB | 982043 | 13.2 s | 960×579 @ 10 fps |
