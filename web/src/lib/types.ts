@@ -123,6 +123,11 @@ export interface IssueLite {
   last_activity_at?: string | null
   cycle_hours?: number | null
   open_blockers?: number
+  /** How many times the issue was carried into a further sprint: distinct
+   *  sprints entered, minus one (v48, DERIVE.md). Null — never 0 — on an
+   *  origin that supplies no changelog, where "never carried" cannot be
+   *  distinguished from "cannot be read". Older servers omit it. */
+  carryover_count?: number | null
 
   comment_count: number
   dev_project_number: string | null
@@ -1018,7 +1023,24 @@ export interface SprintRow {
   state: 'active' | 'future' | 'closed' | string
   start_at?: string
   end_at?: string
-  issues: number
+  /** How many mirrored issues sit in the sprint. Named for the wire
+   *  (store.SprintRowWithCount `issue_count`): this interface said `issues`
+   *  from the day it was written and the server has never sent that name, so
+   *  every reader of it would have got `undefined` (GDK-1709). */
+  issue_count: number
+  /** The same total split by status_category, counted server-side over the
+   *  whole sprint — not over the issues this client happens to hold, which a
+   *  filter or a page limit makes a subset of. The three always add up to
+   *  `issue_count`; `todo` is the remainder, so a category outside the three
+   *  is still on the bar. */
+  done: number
+  in_progress: number
+  todo: number
+  /** Story-point sums, present only when the workspace maps a `story_points`
+   *  alias. Absent, never 0: "nobody estimated" and "this origin has no
+   *  points" are different answers. */
+  points?: number
+  done_points?: number
 }
 export interface SprintsResponse {
   sprints: SprintRow[]

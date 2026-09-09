@@ -739,6 +739,67 @@ export const list = {
     ko: '{date} 종료',
     ja: '{date} に終了',
   },
+  // The sprint strip (GDK-1709). The days line is a sentence, not a "D-6":
+  // the abbreviation is a Korean office idiom that neither English nor
+  // Japanese readers parse, and the strip has room for the words.
+  'board.sprintDaysLeft': {
+    en: '{n} days left',
+    ko: '{n}일 남음',
+    ja: '残り {n} 日',
+  },
+  'board.sprintOneDayLeft': {
+    en: '1 day left',
+    ko: '하루 남음',
+    ja: '残り 1 日',
+  },
+  'board.sprintEndsToday': {
+    en: 'ends today',
+    ko: '오늘 종료',
+    ja: '本日終了',
+  },
+  'board.sprintEndedAgo': {
+    en: 'ended {n} days ago',
+    ko: '{n}일 전 종료',
+    ja: '{n} 日前に終了',
+  },
+  'board.sprintEndedYesterday': {
+    en: 'ended yesterday',
+    ko: '어제 종료',
+    ja: '昨日終了',
+  },
+  // The bar's basis, on hover (G7). Read left to right in the bar's own order.
+  'board.sprintBreakdown': {
+    en: 'done {done} · in progress {inprogress} · to do {todo}',
+    ko: '완료 {done} · 진행 중 {inprogress} · 할 일 {todo}',
+    ja: '完了 {done}・進行中 {inprogress}・未着手 {todo}',
+  },
+  'board.sprintProgress': {
+    en: '{done} of {total} done',
+    ko: '{total}개 중 {done}개 완료',
+    ja: '{total} 件中 {done} 件が完了',
+  },
+  'board.sprintPoints': {
+    en: '{done} / {total} pt',
+    ko: '{done} / {total} 포인트',
+    ja: '{done} / {total} ポイント',
+  },
+  'board.sprintGoal': {
+    en: 'Sprint goal',
+    ko: '스프린트 목표',
+    ja: 'スプリントの目標',
+  },
+  // The carry-over mark on a card and a row (GDK-1711). It counts sprint
+  // boundaries crossed, so "2" means the issue is in its third sprint.
+  'board.carriedOver': {
+    en: 'Carried over from {n} sprints',
+    ko: '스프린트 {n}개에서 이월',
+    ja: '{n} スプリントから持ち越し',
+  },
+  'board.carriedOverOnce': {
+    en: 'Carried over from one sprint',
+    ko: '스프린트 하나에서 이월',
+    ja: '1 スプリントから持ち越し',
+  },
   'board.columnEmpty': {
     en: 'Nothing here',
     ko: '비어 있음',

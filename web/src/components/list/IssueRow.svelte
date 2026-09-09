@@ -429,6 +429,36 @@
       </span>
     {/if}
   </span>
+
+  <!-- Carry-over (GDK-1711): quiet, muted, after the title and before the
+       trailing scan columns — the last thing on the row's own line. Not a
+       trailing column: those are the catalog's, width-budgeted and
+       user-toggled, and this is one glyph that appears only on the rows that
+       have the fact. `>= 1` because the column is null, never 0, on an origin
+       with no changelog. Lucide's Layers, because rotate-ccw is already the
+       reopen badge two slots to the right — and, because the two still sat
+       side by side at the same size on the demo rows (vision pass), this one
+       keeps 8px of air and a step less ink than that badge. Suppressed on the header row,
+       which is this same component with a frozen empty issue.
+
+       `trail-fold-1`, the rung `assignee` and `updated` already sit on: the
+       mark is 50px, and on the two-pane row (678px) those 50px come straight
+       off the title — measured, and row-narrow.spec.ts went red on it before
+       this class was here. The same argument the fold rung was written for
+       applies: with the detail panel open the issue being read is on screen
+       in full, and the list's remaining job on that row is identification. -->
+  {#if !header && issue.carryover_count != null && issue.carryover_count >= 1}
+    <span
+      data-testid="issue-row-carryover"
+      class="trail-fold-1 mr-2 flex flex-none items-center gap-0.5 text-micro tabular-nums text-text-muted opacity-70"
+      title={issue.carryover_count === 1
+        ? t('board.carriedOverOnce')
+        : t('board.carriedOver', { n: issue.carryover_count })}
+    >
+      <Icon name="layers" size={11} />
+      {issue.carryover_count}
+    </span>
+  {/if}
   </div>
 
   <!-- Trailing scan columns. Fixed-width flex slots, not inline flow: an on

@@ -26,6 +26,7 @@
   import IssueList from './IssueList.svelte'
   import FirstSyncBand from './FirstSyncBand.svelte'
     import BoardView from '../board/BoardView.svelte'
+  import SprintStrip from '../board/SprintStrip.svelte'
   import IssueRow from './IssueRow.svelte'
   import MatchLine from './MatchLine.svelte'
   import SearchSection from './SearchSection.svelte'
@@ -324,7 +325,17 @@
           />
         {/snippet}
         {#if filters.display.layout === 'board'}
-          <BoardView />
+          <!-- The sprint strip sits between the toolbar and the columns
+               (GDK-1709): it describes what the board is showing, so it
+               belongs above the thing it describes and below the control
+               that chose it. It draws nothing unless the board is scoped to
+               exactly one active sprint — which is why the column here is
+               the layout even when the strip is absent, rather than a wrapper
+               that appears and takes the board's height with it. -->
+          <div class="flex h-full min-h-0 flex-col">
+            <SprintStrip />
+            <div class="min-h-0 flex-1"><BoardView /></div>
+          </div>
         {:else}
           <IssueList />
         {/if}

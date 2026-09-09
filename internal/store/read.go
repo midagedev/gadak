@@ -105,6 +105,13 @@ type IssueLite struct {
 	LastActivityAt *string  `json:"last_activity_at"`
 	CycleHours     *float64 `json:"cycle_hours"`
 	OpenBlockers   int      `json:"open_blockers"`
+	// CarryoverCount is issues_raw.carryover_count (v48, Derive-owned —
+	// DERIVE.md): distinct sprints the issue has ever entered, minus one.
+	// Nil, never 0, on an origin that supplies no changelog (Linear) — the
+	// column was written that way on purpose, and flattening it to 0 here
+	// would tell a reader "never carried" where the mirror means "cannot be
+	// read" (GDK-1711).
+	CarryoverCount *int `json:"carryover_count"`
 }
 
 // MarshalJSON adds `key` as an alias of `issue_key` so JSON surfaces and
@@ -160,7 +167,8 @@ const issueLiteSelect = `
 	       COALESCE(i.custom, '{}'), COALESCE(it.source_id, ''),
 	       i.sprint_id, i.sprint_name, i.sprint_state,
 	       i.security_level_id, i.security_level, COALESCE(it.url, ''),
-	       i.started_at, i.last_activity_at, i.cycle_hours, i.open_blockers
+	       i.started_at, i.last_activity_at, i.cycle_hours, i.open_blockers,
+	       i.carryover_count
 	FROM issues i JOIN items it ON it.id = i.item_id`
 
 // ErrKeyAmbiguous means one key exists under more than one source (a Jira
@@ -344,6 +352,7 @@ func (db *DB) issueLites(ctx context.Context, query string, args ...any) ([]Issu
 			&v.SprintID, &v.SprintName, &v.SprintState,
 			&v.SecurityLevelID, &v.SecurityLevel, &v.URL,
 			&v.StartedAt, &v.LastActivityAt, &v.CycleHours, &v.OpenBlockers,
+			&v.CarryoverCount,
 		); err != nil {
 			return nil, err
 		}
@@ -1585,7 +1594,16 @@ func each(ctx context.Context, db *sql.DB, query string, scan func(*sql.Rows) er
 	return rows.Err()
 }
 
-// SprintRowWithCount is one sprint plus how many mirrored issues sit in it.
+// SprintRowWithCount is one sprint plus how many mirrored issues sit in it,
+// split by status category so a reader can draw progress without holding the
+// issues (GDK-1709). Done + InProgress + Todo always equals IssueCount: Todo
+// is the remainder, not a fourth COUNT, so a mirror carrying a category
+// outside the three lands in "to do" instead of vanishing from the bar.
+//
+// Points/DonePoints are the story-point sums when the workspace maps a
+// `story_points` alias (config custom fields) and nil when it does not — a
+// zero would read as "nobody estimated", which is a different answer from
+// "this origin has no points at all".
 type SprintRowWithCount struct {
 	ID         int64  `json:"id"`
 	BoardID    int64  `json:"board_id"`
@@ -1595,16 +1613,33 @@ type SprintRowWithCount struct {
 	StartAt    string `json:"start_at,omitempty"`
 	EndAt      string `json:"end_at,omitempty"`
 	IssueCount int    `json:"issue_count"`
+	Done       int    `json:"done"`
+	InProgress int    `json:"in_progress"`
+	Todo       int    `json:"todo"`
+
+	Points     *float64 `json:"points,omitempty"`
+	DonePoints *float64 `json:"done_points,omitempty"`
 }
 
 // Sprints lists the mirror's sprints, active first, then future, then closed
 // — the order a person reads a sprint list in (GDK-1654). Ordering is by the
 // stored lowercase state, never a display name.
 func (db *DB) Sprints(ctx context.Context) ([]SprintRowWithCount, error) {
+	// The counts are correlated subqueries over the same predicate the total
+	// uses, keyed on status_category — never a display name, which is empty
+	// on a Korean-language site (CLAUDE.md). Points come from the aliased
+	// custom blob; SUM over no estimated issue is SQL NULL, which is exactly
+	// the "no points here" the pointer preserves.
 	rows, err := db.sql.QueryContext(ctx, `
 		SELECT s.id, COALESCE(s.board_id, 0), s.name, s.goal, s.state,
 		       COALESCE(s.start_at, ''), COALESCE(s.end_at, ''),
-		       (SELECT COUNT(*) FROM issues_raw i WHERE i.sprint_id = s.id)
+		       (SELECT COUNT(*) FROM issues_raw i WHERE i.sprint_id = s.id),
+		       (SELECT COUNT(*) FROM issues_raw i WHERE i.sprint_id = s.id AND i.status_category = 'done'),
+		       (SELECT COUNT(*) FROM issues_raw i WHERE i.sprint_id = s.id AND i.status_category = 'inprogress'),
+		       (SELECT SUM(CAST(json_extract(i.custom, '$.story_points') AS REAL))
+		          FROM issues_raw i WHERE i.sprint_id = s.id),
+		       (SELECT SUM(CAST(json_extract(i.custom, '$.story_points') AS REAL))
+		          FROM issues_raw i WHERE i.sprint_id = s.id AND i.status_category = 'done')
 		FROM sprints s
 		ORDER BY CASE s.state WHEN 'active' THEN 0 WHEN 'future' THEN 1 ELSE 2 END,
 		         s.start_at DESC, s.id DESC`)
@@ -1615,8 +1650,14 @@ func (db *DB) Sprints(ctx context.Context) ([]SprintRowWithCount, error) {
 	out := []SprintRowWithCount{}
 	for rows.Next() {
 		var s SprintRowWithCount
-		if err := rows.Scan(&s.ID, &s.BoardID, &s.Name, &s.Goal, &s.State, &s.StartAt, &s.EndAt, &s.IssueCount); err != nil {
+		if err := rows.Scan(&s.ID, &s.BoardID, &s.Name, &s.Goal, &s.State, &s.StartAt, &s.EndAt,
+			&s.IssueCount, &s.Done, &s.InProgress, &s.Points, &s.DonePoints); err != nil {
 			return nil, err
+		}
+		// The remainder, so the three always add up to the total.
+		s.Todo = s.IssueCount - s.Done - s.InProgress
+		if s.Todo < 0 {
+			s.Todo = 0
 		}
 		out = append(out, s)
 	}

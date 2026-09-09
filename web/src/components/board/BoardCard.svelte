@@ -79,6 +79,28 @@
    * reaped is not one to offer a way into. */
   const session = $derived(edge ? shellForIssue(shells.sessions, issue.issue_key) : null)
 
+  /* GDK-1711 — the carry-over mark. `carryover_count` has been derived since
+   * v48 and no surface read it: the one fact a standup asks about an issue
+   * ("is this the third sprint we are looking at it?") was in the mirror and
+   * nowhere on screen. Null, not zero, on an origin with no changelog, so the
+   * test is `>= 1` and a Linear card stays unmarked rather than claiming the
+   * issue has never moved.
+   *
+   * Lucide's Layers, not RotateCcw: rotate-ccw is spoken for as "reopened"
+   * (the reopen badge on every list row) and one glyph with two meanings on
+   * the same screen teaches neither. Layers is unused anywhere else in the
+   * app, and stacked planes is what the count is — the sprints this issue has
+   * sat in.
+   */
+  const carriedOver = $derived(
+    issue.carryover_count != null && issue.carryover_count >= 1 ? issue.carryover_count : null,
+  )
+  const carriedOverTitle = $derived(
+    carriedOver === 1
+      ? t('board.carriedOverOnce')
+      : t('board.carriedOver', { n: carriedOver ?? 0 }),
+  )
+
   const shellTitle = $derived(
     shell === 'needs'
       ? t('board.shellNeeds')
@@ -168,6 +190,31 @@
     {issue.summary}
   </p>
 
+  <!-- Peripheral, not a badge (G5): muted micro text at the end of the meta
+       line, the last thing read rather than the first. It earns a line of its
+       own only when the card has no meta line at all — an unassigned,
+       untouched issue that has still been carried twice is exactly the card
+       this mark exists for. -->
+  {#snippet carryover()}
+    {#if carriedOver}
+      <span
+        data-testid="board-card-carryover"
+        class="flex flex-none items-center gap-0.5 text-micro tabular-nums text-text-muted"
+        title={carriedOverTitle}
+      >
+        <Icon name="layers" size={11} />
+        {carriedOver}
+      </span>
+    {/if}
+  {/snippet}
+
+  {#if !actors.length && !issue.assignee && carriedOver}
+    <div class="mt-1.5 flex items-center gap-1">
+      <span class="flex-1"></span>
+      {@render carryover()}
+    </div>
+  {/if}
+
   {#if actors.length || issue.assignee}
     <div class="mt-1.5 flex items-center gap-1">
       {#each actors as actor (actor.id)}
@@ -183,6 +230,7 @@
         <span class="text-micro tabular-nums text-text-muted">+{extraActors}</span>
       {/if}
       <span class="flex-1"></span>
+      {@render carryover()}
       {#if issue.assignee}
         <span class="flex h-5 w-5 flex-none items-center justify-center overflow-hidden">
           <Avatar
