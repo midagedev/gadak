@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48, schemaV49}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -1023,4 +1023,18 @@ ALTER TABLE issues_raw ADD COLUMN carryover_count INTEGER;
 ALTER TABLE issues_raw ADD COLUMN first_sprint_id INTEGER;
 ALTER TABLE issues_raw ADD COLUMN first_sprint_at TEXT;
 CREATE INDEX issues_carryover ON issues_raw(carryover_count);
+`
+
+// schemaV49 adds no column: it recomputes the reopen triple
+// (reopen_count / reopened_at / reopen_reason) under the rule that grew an
+// inprogress→new axis. On the mirror that reported the bug, 59% of real
+// reopens were 'QA testing → Reopened' moves on a workflow whose resolved
+// states sit in the inprogress category — rows the done-only rule stored as
+// reopen_count = 0. The work is backfillFlow's (flow.go), the same single
+// owner the v43 migration and the snapshot pipeline use, so a migrated
+// mirror and a freshly synced one cannot disagree. The SELECT is a no-op
+// statement the migration runner can exec: a migration with no DDL still has
+// to advance user_version, which only running an entry does.
+const schemaV49 = `
+SELECT 1;
 `

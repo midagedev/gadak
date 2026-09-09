@@ -706,3 +706,109 @@ func TestBackfillFlowRederivesStatusChangedAt(t *testing.T) {
 		t.Fatal("no issue in the fixture has a status changelog — the test would pass vacuously")
 	}
 }
+
+// TestMigrateV49RecomputesReopenCount pins the GDK-1499 backfill: a v48 mirror
+// whose 'QA testing → Reopened' rows (inprogress→new on that workflow) were
+// stored with reopen_count = 0 gets the count, the stamp and the reason
+// recomputed on the way to v49 — through backfillFlow, the same single owner
+// the sync path uses, so a migrated mirror and a freshly synced one cannot
+// disagree. The issue with no changelog at all keeps its stored 0: an origin
+// that never sent history cannot have its reopens invented by a migration.
+func TestMigrateV49RecomputesReopenCount(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "gadak.db")
+	raw, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 48; i++ {
+		if _, err := raw.Exec(migrations[i]); err != nil {
+			raw.Close()
+			t.Fatalf("migration %d: %v", i+1, err)
+		}
+	}
+	if _, err := raw.Exec(`PRAGMA user_version = 48`); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`INSERT INTO sources (id, kind) VALUES ('jira', 'jira')`); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	// A real v48 mirror carries the site's status list (v34+): '4' only ever
+	// appears in the changelog, so without catalog rows the issue-row
+	// reconstruction cannot name it and the move reads unknown→new — no
+	// reopen, by the unknown-id rule.
+	for _, c := range [][2]string{{"1", "new"}, {"3", "inprogress"}, {"4", "inprogress"}, {"5", "done"}} {
+		if _, err := raw.Exec(`INSERT INTO status_catalog (source_id, status_id, category) VALUES ('jira', ?, ?)`, c[0], c[1]); err != nil {
+			raw.Close()
+			t.Fatal(err)
+		}
+	}
+	ins := func(ext, key, statusID, category string) {
+		t.Helper()
+		itemID := "jira:" + ext
+		if _, err := raw.Exec(`
+			INSERT INTO items (id, source_id, kind, external_id, key, title, created_at, updated_at, synced_at)
+			VALUES (?, 'jira', 'issue', ?, ?, ?, '2026-01-01', '2026-02-01', '2026-02-01')`,
+			itemID, ext, key, key); err != nil {
+			raw.Close()
+			t.Fatal(err)
+		}
+		if _, err := raw.Exec(`
+			INSERT INTO issues_raw (item_id, key, project_key, status_id, status_category, priority_rank, reopen_count, comment_count, raw)
+			VALUES (?, ?, 'STD', ?, ?, 0, 0, 0, '{}')`,
+			itemID, key, statusID, category); err != nil {
+			raw.Close()
+			t.Fatal(err)
+		}
+	}
+	log := func(ext, id, at, from, to string) {
+		t.Helper()
+		if _, err := raw.Exec(`
+			INSERT INTO changelog (id, item_id, at, field, from_id, to_id)
+			VALUES (?, ?, ?, 'status', ?, ?)`,
+			"jira:"+id, "jira:"+ext, at, from, to); err != nil {
+			raw.Close()
+			t.Fatal(err)
+		}
+	}
+
+	// STD-1: the QA-testing shape. Status ids: 1 new (Reopened), 3 in progress,
+	// 4 QA testing (inprogress on this workflow), 5 done. The stored row says
+	// reopen_count = 0 — the value the done-only rule produced.
+	ins("1", "STD-1", "1", "new")
+	log("1", "m1", "2026-01-05T00:00:00Z", "1", "3")
+	log("1", "m2", "2026-01-06T00:00:00Z", "3", "4")
+	log("1", "m3", "2026-01-07T00:00:00Z", "4", "1") // QA testing → Reopened
+	if _, err := raw.Exec(`
+		INSERT INTO comments (id, item_id, body_text, created_at)
+		VALUES ('jira:c1', 'jira:1', 'came back: flaky again on staging', '2026-01-07T01:00:00Z')`); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	// STD-2: no changelog at all — its stored zero must survive the migration.
+	ins("2", "STD-2", "3", "inprogress")
+	raw.Close()
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("migrate to v%d: %v", len(migrations), err)
+	}
+	defer db.Close()
+	var count int
+	var at, reason string
+	if err := db.QueryRow(
+		`SELECT reopen_count, COALESCE(reopened_at,''), COALESCE(reopen_reason,'') FROM issues_raw WHERE key = 'STD-1'`).
+		Scan(&count, &at, &reason); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 || at != "2026-01-07T00:00:00Z" || reason != "came back: flaky again on staging" {
+		t.Fatalf("STD-1 after v49: count=%d at=%q reason=%q, want 1 / 2026-01-07T00:00:00Z / the post-reopen comment", count, at, reason)
+	}
+	if err := db.QueryRow(`SELECT reopen_count FROM issues_raw WHERE key = 'STD-2'`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("STD-2 (no changelog) reopen_count = %d after v49, want the stored 0", count)
+	}
+}

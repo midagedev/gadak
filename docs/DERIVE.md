@@ -57,7 +57,7 @@ otherwise depend on site-specific naming keys on `statusCategory` instead.
 | --- | --- |
 | `status_changed_at` | Timestamp of the newest changelog entry whose field is `status` |
 | `resolved_at` | Timestamp of the newest transition whose target category is `done`; NULL if the current category is not `done` |
-| `reopen_count` | Count of changelog transitions from a `done`-category status to a non-`done` one |
+| `reopen_count` | Count of changelog transitions where the status category goes backwards: out of `done` to any non-`done` category, or out of `inprogress` back to `new` |
 | `reopened_at` | Timestamp of the newest such transition |
 | `assignee_changed_at` | Timestamp of the newest changelog entry whose field is `assignee` |
 | `priority_rank` | Position in the site's priority list, 1-based; 0 when unset or unknown |
@@ -74,8 +74,9 @@ otherwise depend on site-specific naming keys on `statusCategory` instead.
 | `last_activity_at` | Newest of the item's `updated_at`, the newest changelog entry and the newest comment — a string max, because ISO-8601 UTC stamps compare lexicographically; NULL when all three are absent |
 | `open_blockers` | Count of inward links of a blocking type whose target issue is in the mirror and not `done`. Which types block resolves through the cached `link_types` catalog (`lower(name) = 'blocks'` or `lower(outward) LIKE 'block%'`), never a hardcoded display name; a target outside the mirror is not blocking — unknown must not hold work back. Recomputed on every batch for the batch's keys plus every issue holding an inward link at one of them, and swept whole-table after a full sync |
 
-A status id the site's status list does not cover counts as **not** `done`.
-That direction is deliberate: it can only miss a reopen, never invent one.
+A status id the site's status list does not cover counts as **not** `done`, and
+for the reopen rule as **neither** `new` nor `inprogress`. That direction is
+deliberate: it can only miss a reopen, never invent one.
 
 ## Why the rules look like that
 
@@ -89,6 +90,16 @@ status id, no transition into it is a resolution and no transition out of it is
 a reopen. The other direction — treating unknown as `done` — would invent
 reopens whenever a site renames or adds statuses. A missed reopen is recoverable
 (fix the status list, re-sync); an invented one is a lie in the metrics.
+
+**A reopen is the category going backwards, however far back it goes.** Leaving
+`done` is the classic reopen. Its sibling is `inprogress` → `new`: on workflows
+whose resolved states sit in the `inprogress` category (a QA pipeline where
+Resolved and QA testing both count as in progress), work comes back through
+"QA testing → Reopened", and under a done-only rule those reopens are invisible
+— on the mirror that reported it, 59% of real reopens read `reopen_count = 0`.
+Sideways (`inprogress` → `inprogress`) and forward moves never
+count, and an unknown destination never counts: the rule names categories, and
+a category the map cannot name is not `new`.
 
 **`resolved_at` is nulled when the issue is not done now.** The pass keeps the
 newest transition into `done`, then discards it unless the issue currently sits

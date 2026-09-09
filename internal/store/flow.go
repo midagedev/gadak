@@ -194,12 +194,15 @@ func (db *DB) RecomputeOpenBlockers(ctx context.Context) error {
 //
 // Categories resolve through categoriesForSource per source (status_catalog
 // first, issue-row reconstruction when a source holds no catalog rows — the
-// shipped fixture's state). reopen_reason/cloned_from/priority_rank are NOT
-// rewritten: those columns already hold their values and Derive's inputs
-// here are deliberately lean (no comment bodies, no links, no priority
-// list). resolved_at and reopened_at ARE rewritten since GDK-1720 — they
-// name transitions, and Derive is their single owner on the sync path too
-// (write.go), so the backfill and a sync agree on them.
+// shipped fixture's state). cloned_from/priority_rank are NOT rewritten:
+// those columns already hold their values and Derive's inputs here are
+// deliberately lean (no links, no priority list). resolved_at and reopened_at
+// ARE rewritten since GDK-1720 — they name transitions, and Derive is their
+// single owner on the sync path too (write.go), so the backfill and a sync
+// agree on them. The reopen triple is rewritten with them too
+// (count, stamp, reason): the rule grew an inprogress→new axis, and a reason
+// keyed to the pre-migration stamp would describe a reopen the count no
+// longer names — so comment bodies joined the lean inputs.
 func backfillFlow(tx *sql.Tx) error {
 	type issueRow struct {
 		itemID, source, category, updated, created, kind string
@@ -252,13 +255,13 @@ func backfillFlow(tx *sql.Tx) error {
 		}
 
 		comments := []Comment{}
-		if err := txEach(tx, `SELECT COALESCE(created_at,'') FROM comments WHERE item_id = ?`,
+		if err := txEach(tx, `SELECT COALESCE(created_at,''), COALESCE(body_text,'') FROM comments WHERE item_id = ?`,
 			func(rows *sql.Rows) error {
-				var at string
-				if err := rows.Scan(&at); err != nil {
+				var at, body string
+				if err := rows.Scan(&at, &body); err != nil {
 					return err
 				}
-				comments = append(comments, Comment{CreatedAt: at})
+				comments = append(comments, Comment{CreatedAt: at, BodyText: body})
 				return nil
 			}, r.itemID); err != nil {
 			return err
@@ -312,10 +315,17 @@ func backfillFlow(tx *sql.Tx) error {
 				return fmt.Errorf("backfill resolved_at %s: %w", r.itemID, err)
 			}
 		}
+		// The reopen triple rides the same guard and the same drift fix
+		// as resolved_at: the rule now counts inprogress→new moves, so a mirror
+		// backfilled before it holds counts the changelog disagrees with, and
+		// a reason keyed to the old reopened_at would name a comment the new
+		// stamp no longer points at. Count and reason are written only here,
+		// under the same "history produced one" guard — an issue whose
+		// changelog never reached the mirror keeps all three as they were.
 		if d.ReopenedAt != nil {
 			if _, err := tx.Exec(
-				`UPDATE issues_raw SET reopened_at = ? WHERE item_id = ?`,
-				*d.ReopenedAt, r.itemID); err != nil {
+				`UPDATE issues_raw SET reopen_count = ?, reopened_at = ?, reopen_reason = ? WHERE item_id = ?`,
+				d.ReopenCount, *d.ReopenedAt, d.ReopenReason, r.itemID); err != nil {
 				return fmt.Errorf("backfill reopened_at %s: %w", r.itemID, err)
 			}
 		}

@@ -1198,6 +1198,10 @@ func runBuiltInInitJSON(t *testing.T) string {
 // FAIL-first (2026-08-21, pre-fix): init succeeded, ~/.claude existed,
 // SKILL.md was not created, --json had no "skill" field.
 func TestInitBuiltInAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
+	// Pinned off the GADAK_HOME axis (GDK-1611): this test pins init's
+	// auto-install, a real (non-scratch) run. The GADAK_HOME below is the
+	// config home's isolation, not a scratch-workspace statement.
+	pinSkillHomeNotIsolated(t)
 	home := isolateHomeWithClaude(t)
 	t.Setenv("GADAK_HOME", home)
 	out := runBuiltInInitJSON(t)
@@ -1233,6 +1237,7 @@ func TestInitBuiltInSkillSkippedWithoutClaudeDir(t *testing.T) {
 // earlier and is covered by TestInitBuiltInDevBuildLeavesInstalledSkillAlone.
 func TestInitBuiltInSkillConflictPreservesFile(t *testing.T) {
 	releaseVersionForTest(t)
+	pinSkillHomeNotIsolated(t) // conflict refusal is a non-scratch-run axis (GDK-1611)
 	home := isolateHomeWithClaude(t)
 	t.Setenv("GADAK_HOME", home)
 	clearCredentialEnv(t)
@@ -1275,6 +1280,7 @@ func TestInitBuiltInSkillConflictPreservesFile(t *testing.T) {
 
 func TestInitBuiltInHumanSkillInstalledLine(t *testing.T) {
 	releaseVersionForTest(t)
+	pinSkillHomeNotIsolated(t) // the installed line is a non-scratch-run axis (GDK-1611)
 	home := isolateHomeWithClaude(t)
 	t.Setenv("GADAK_HOME", home)
 	clearCredentialEnv(t)
@@ -1308,6 +1314,7 @@ func TestInitBuiltInDevBuildLeavesInstalledSkillAlone(t *testing.T) {
 	if !skillinstall.IsDevBuild(version) {
 		t.Fatalf("the test binary should carry the dev version, got %q", version)
 	}
+	pinSkillHomeNotIsolated(t) // the dev refusal is the axis under test; GADAK_HOME must not answer first (GDK-1611)
 	home := isolateHomeWithClaude(t)
 	t.Setenv("GADAK_HOME", t.TempDir()) // the scratch profile of the incident
 	clearCredentialEnv(t)
@@ -1344,6 +1351,7 @@ func TestInitBuiltInDevBuildLeavesInstalledSkillAlone(t *testing.T) {
 }
 
 func TestInitConnectedAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
+	pinSkillHomeNotIsolated(t) // auto-install is a non-scratch-run axis (GDK-1611)
 	home := isolateHomeWithClaude(t)
 	t.Setenv("GADAK_HOME", home)
 	clearCredentialEnv(t)
@@ -1376,6 +1384,7 @@ func TestInitConnectedAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
 }
 
 func TestInitPairedAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
+	pinSkillHomeNotIsolated(t) // auto-install is a non-scratch-run axis (GDK-1611)
 	home := isolateHomeWithClaude(t)
 	t.Setenv("GADAK_HOME", home)
 	clearCredentialEnv(t)

@@ -260,6 +260,65 @@ func TestDeriveReopenReasonTruncatesOnRuneBoundary(t *testing.T) {
 	}
 }
 
+// TestDeriveReopenCountsInProgressToNew pins the GDK-1499 rule extension: a
+// workflow whose resolved states sit in the inprogress category sends work
+// back with an inprogress→new move ('QA testing → Reopened' on the measured
+// site), and that move is a reopen too — on the production mirror behind
+// GDK-1499, 59% of real reopens were such rows and read reopen_count = 0
+// under the done-only rule. Every case keys on categories only, the rule the
+// file header states.
+//
+//	in progress → new         → reopen            (FAIL-first: was 0)
+//	in progress → in progress → no reopen         (sideways is not back)
+//	in progress → done        → no reopen         (forward)
+//	new → …                   → no reopen         (nothing to reopen from)
+//	in progress → unknown id  → no reopen         (unknown never invents)
+//	done → unknown id         → reopen            (the unchanged axis, pinned)
+func TestDeriveReopenCountsInProgressToNew(t *testing.T) {
+	cats := map[string]string{"1": "new", "3": "inprogress", "4": "inprogress", "5": "done"} // "9" absent
+	sc := func(at, from, to string) ChangeEntry {
+		return ChangeEntry{At: at, Field: "status", FromID: from, ToID: to}
+	}
+	cases := []struct {
+		name string
+		log  []ChangeEntry
+		want int
+	}{
+		{"in progress to new is a reopen", []ChangeEntry{
+			sc("2026-07-01T00:00:00Z", "1", "3"),
+			sc("2026-07-02T00:00:00Z", "3", "4"), // into QA testing (inprogress)
+			sc("2026-07-03T00:00:00Z", "4", "1"), // QA testing → Reopened
+		}, 1},
+		{"in progress to in progress is not", []ChangeEntry{
+			sc("2026-07-01T00:00:00Z", "3", "4"),
+			sc("2026-07-02T00:00:00Z", "4", "3"),
+		}, 0},
+		{"in progress to done is not", []ChangeEntry{
+			sc("2026-07-01T00:00:00Z", "4", "5"),
+		}, 0},
+		{"new is never a reopen source", []ChangeEntry{
+			sc("2026-07-01T00:00:00Z", "1", "4"),
+		}, 0},
+		{"unknown target never invents a reopen", []ChangeEntry{
+			sc("2026-07-01T00:00:00Z", "4", "9"),
+		}, 0},
+		{"done to unknown still is", []ChangeEntry{
+			sc("2026-07-01T00:00:00Z", "5", "9"),
+		}, 1},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := Derive(DeriveInput{Changelog: c.log, Categories: cats, CurrentCategory: "new"})
+			if got.ReopenCount != c.want {
+				t.Fatalf("reopen_count = %d, want %d", got.ReopenCount, c.want)
+			}
+			if c.want > 0 && got.ReopenedAt == nil {
+				t.Fatalf("reopen_count = %d but reopened_at is nil", got.ReopenCount)
+			}
+		})
+	}
+}
+
 // The clone displays the outward phrase ("clones <origin>"), so the origin
 // sits behind the OUTWARD link. Inward ("is cloned by") marks the origin
 // itself and must derive nothing (GDK-1214; inverted before it).

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,12 +30,18 @@ import (
 )
 
 // doctorBanner is the first line of every doctor dump so a user pasting into a
-// public issue can see what was stripped before they hit submit.
-const doctorBanner = "# gadak doctor — safe to paste: counts and versions only, no keys, names, URLs or tokens"
+// public issue can see what was stripped before they hit submit. The site
+// hostname is the one identifier the document does carry: it names
+// the server, not the user, and it is the only surface that can reveal a
+// wrong or placeholder site — masking it turned a config error into a
+// half-day "Atlassian outage".
+const doctorBanner = "# gadak doctor — safe to paste: no keys, names, emails or tokens; the site hostname is shown (it names the server, not you)"
 
 // doctorReport is the redacted diagnostic document. Field names are stable for
-// --json consumers; values never carry tokens, hostnames, emails, project
-// keys, custom-field names, or raw error strings.
+// --json consumers; values never carry tokens, emails, project keys,
+// custom-field names, or raw error strings. The one exception
+// is Site, which shows the configured hostname — a wrong site is a config
+// error this document must be able to name.
 type doctorReport struct {
 	GadakVersion    string `json:"gadak_version"`
 	GoVersion       string `json:"go_version"`
@@ -380,10 +387,18 @@ func collectDoctor() doctorReport {
 	if cfg, err := config.Load(); err == nil && cfg != nil {
 		if cfg.Token != "" {
 			rep.Credential = "present"
+			if sampleTokenLiterals[cfg.Token] {
+				// The placeholder config.json carried the doc
+				// example "secret-token" and doctor passed it as present.
+				rep.Credential = "sample placeholder"
+			}
 		}
-		rep.Site = redactSite(cfg.Site)
+		rep.Site = siteReport(cfg.Site)
 		if cfg.Email != "" {
 			rep.Email = "configured"
+			if sampleEmailLiterals[strings.ToLower(cfg.Email)] {
+				rep.Email = "sample placeholder"
+			}
 		}
 		rep.CustomFields.Mapped = len(cfg.FieldSpecs())
 		rep.CustomFields.AppliedAt = cfg.FieldsAppliedAt
@@ -403,8 +418,9 @@ func collectDoctor() doctorReport {
 		n, persist, _ := originbind.LocalData(cfg)
 		hasTok := cfg.Token != ""
 		if rem, err := origin.PairedStatus(cfg); err == nil && rem != nil {
-			// Same redaction as site: no hostname. Label is the pairing
-			// identity doctor can name without leaking the endpoint.
+			// No endpoint here, unlike the site line (which shows only
+			// the configured site host): a pairing label is the identity
+			// doctor can name without leaking the serve endpoint.
 			if rem.Label != "" {
 				rep.Origin = fmt.Sprintf("paired gadak serve (label %q)", rem.Label)
 			} else {
@@ -1377,20 +1393,60 @@ func tildeHome(path string) string {
 	return clitool.TildeHome(path)
 }
 
-// redactSite never returns a hostname. Atlassian Cloud sites collapse to a
-// fixed pattern; anything else is "configured (cloud)" or "none".
-func redactSite(site string) string {
+// sampleSiteHosts are the reserved example hosts: the one gadak's own prompts
+// suggest (your-site.atlassian.net) and the one a real incident found
+// configured on a real machine (example.atlassian.net — unprovisioned, so
+// Atlassian answers every request with 404 "Site temporarily unavailable",
+// which reads as a remote outage). A site on one of these hosts is a config
+// error, and doctor says so instead of showing it as an ordinary site.
+var sampleSiteHosts = map[string]bool{
+	"example.atlassian.net":   true,
+	"your-site.atlassian.net": true,
+}
+
+// sampleTokenLiterals and sampleEmailLiterals are the sample strings from the
+// same incident's placeholder config.json: they reported "present" and
+// "configured" while the workspace could not talk to anything. Match is exact
+// (email case-insensitive); a real token colliding with "secret-token" is not
+// a configuration anyone has.
+var (
+	sampleTokenLiterals = map[string]bool{"secret-token": true}
+	sampleEmailLiterals = map[string]bool{"someone@example.com": true}
+)
+
+// siteReport renders the configured Jira site for the doctor document: the
+// hostname, unmasked. Before the unmasking this collapsed every Atlassian Cloud
+// site to "<redacted>.atlassian.net", which hid the one value whose wrongness
+// explained every symptom — masking turned a placeholder site into a
+// half-day "wait for Atlassian to recover". A hostname names the server, not
+// the user; tokens, emails, project keys and error bodies stay out (the
+// banner's rule, TestDoctorRedaction). Userinfo in the URL is dropped by
+// Hostname(); a value with no parsable host is shown raw behind "malformed:"
+// because that value itself is the defect.
+func siteReport(site string) string {
 	site = strings.TrimSpace(site)
 	if site == "" {
 		return "none"
 	}
-	// Avoid net/url import of full URL when the value is a bare host, but still
-	// never echo any host component back.
-	lower := strings.ToLower(site)
-	if strings.Contains(lower, "atlassian.net") {
-		return "<redacted>.atlassian.net"
+	host := ""
+	if u, err := url.Parse(site); err == nil {
+		host = u.Hostname()
 	}
-	return "configured (cloud)"
+	if host == "" && !strings.Contains(site, "/") {
+		// A bare host with no scheme is still a site someone meant; classify
+		// it by host rather than calling it malformed.
+		if u, err := url.Parse("https://" + site); err == nil {
+			host = u.Hostname()
+		}
+	}
+	if host == "" {
+		return "malformed: " + site
+	}
+	host = strings.ToLower(host) // hostnames are case-insensitive; one spelling
+	if sampleSiteHosts[host] {
+		return host + " (sample placeholder — run gadak init)"
+	}
+	return host
 }
 
 // jiraStatusRe matches the store's usual last_error shape from jira.APIError:

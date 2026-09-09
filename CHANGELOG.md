@@ -262,7 +262,19 @@ with serve's own parser — an address serve refuses would otherwise install
 fine and crash-loop under KeepAlive ([GDK-1267]). The public-backlog export
 now refuses a kept description that carries a credential-shaped string, on
 the same patterns the shell scan greps for, instead of publishing it and
-failing later in the pipeline ([GDK-1260]).
+failing later in the pipeline ([GDK-1260]). `reopen_count` now counts the reopen most
+teams actually fire: in a workflow whose resolved statuses sit in the
+in-progress category (QA testing → Reopened), a done→new-only rule read 59%
+of real reopens as 0. The rule keys on the status category the transition
+leaves, every stored row is recomputed once on upgrade, and docs/DERIVE.md
+is where it lives. `gadak init` under a throwaway `GADAK_HOME` no longer
+rewrites the real skills directory — the automatic sync is skipped with one
+line saying why, while `gadak skill install` still writes where it is
+pointed. `gadak doctor` shows the site host (the token stays masked) and
+calls the documented placeholders a configuration error rather than a
+healthy workspace. And a read that names an issue this workspace never
+mirrors gets one stderr line naming the workspace that answered and what it
+holds, where an empty answer used to be indistinguishable from no data.
 
 ## v0.21.0 — 2026-09-08
 

@@ -370,6 +370,12 @@ func cmdIssue(args []string) error {
 		return err
 	}
 	if len(keys) == 1 && len(notFound) == 1 {
+		// GDK-1612: a key from a project this workspace never mirrors is a
+		// scope fact, and "run `gadak sync`" is the wrong advice for it — sync
+		// pulls the configured scope, never a foreign project.
+		if hint := zeroRowScopeHint(db, "", keys[0]); hint != "" {
+			return errors.New(hint)
+		}
 		return fmt.Errorf("%s is not in the mirror — check the key, or run `gadak sync`", notFound[0])
 	}
 	for _, k := range notFound {
@@ -629,6 +635,11 @@ func printIssueLink(db *store.DB, key string, asJSON bool) error {
 		return err
 	}
 	if len(lites) == 0 {
+		// GDK-1612: same scope verdict as cmdIssue's not-found path — a dead
+		// link for a key outside this workspace's scope should say so.
+		if hint := zeroRowScopeHint(db, "", key); hint != "" {
+			return errors.New(hint)
+		}
 		return fmt.Errorf("%s is not in the mirror — check the key, or run `gadak sync`", key)
 	}
 	hash := "issue=" + key
@@ -1339,6 +1350,15 @@ func cmdSearch(args []string) error {
 	if matches == nil {
 		matches = map[string]store.SearchMatch{}
 	}
+	if res.Total == 0 && len(res.Pages) == 0 {
+		// GDK-1612: "0 matches" for a key this workspace does not mirror is a
+		// scope fact, not a search miss — same verdict `gadak sql` prints, on
+		// stderr so the TSV stdout contract stays untouched. Prints on a pipe
+		// too: the reader with no TTY is exactly the agent who pasted the key.
+		if hint := zeroRowScopeHint(db, "0 matches", query); hint != "" {
+			fmt.Fprintln(os.Stderr, hint)
+		}
+	}
 	if *asJSON {
 		pages := res.Pages
 		if pages == nil {
@@ -1511,6 +1531,14 @@ func searchJQL(query string, limit int, asJSON, emitOnly, force bool) error {
 	// record the same number. --emit returned above before any matching ran.
 	recordSearchBestEffort(db, query, len(matched))
 	warnJQL(parsed)
+	if len(matched) == 0 {
+		// GDK-1612: the text-search path's scope verdict, same rule here — a
+		// JQL naming `key = D1-8228` on a workspace that never mirrors D1 gets
+		// the one stderr line naming what was read and what it holds.
+		if hint := zeroRowScopeHint(db, "0 matches", query); hint != "" {
+			fmt.Fprintln(os.Stderr, hint)
+		}
+	}
 
 	if asJSON {
 		return json.NewEncoder(os.Stdout).Encode(map[string]any{

@@ -325,11 +325,32 @@ func claudeDirExists() bool {
 // is exactly where a working-tree draft destroys something.
 // ---------------------------------------------------------------------------
 
+// skillHomeIsolated is the GADAK_HOME axis of the unattended-write guard, its
+// own var so the tests that pin the *sync* behavior (GDK-996) can hold the
+// axis off while still isolating their rate-limit stamps under GADAK_HOME —
+// the same injection-point pattern as startIssueOpen and searchIsTTY.
+var skillHomeIsolated = func() bool { return config.Env("HOME") != "" }
+
 // skillAutoWriteAllowed reports whether an unattended skill write may go ahead
 // against what is at dest, printing the single refusal line on w when it may
 // not. verb names the write being declined ("syncing" for the daily hook,
 // "replacing" for auto-install), so the line reads for the path the user took.
 func skillAutoWriteAllowed(w io.Writer, dest, verb string) bool {
+	// GADAK_HOME isolates every piece of state this gadak owns into a scratch
+	// home — except the skill, whose destination is the real user home either
+	// way. An unattended write from a workspace made to be thrown away touches
+	// exactly the machine the isolation was meant to leave alone (GDK-1611,
+	// measured 2026-09-08: `GADAK_HOME=$(mktemp -d) gadak init --local` printed
+	// "skill: updated ~/.claude/skills/gadak/SKILL.md"). The version axis below
+	// cannot see this: a release binary is the one allowed to sync. Asked
+	// first, so it covers the create case too — the dev-build guard only ever
+	// protects a copy that already exists. `gadak skill install` never passes
+	// here; it is the deliberate act the refusal line names.
+	if skillHomeIsolated() {
+		fmt.Fprintf(w, "skill: GADAK_HOME is set — not %s %s (run gadak skill install to do it on purpose)\n",
+			verb, clitool.TildeHome(filepath.Dir(dest)))
+		return false
+	}
 	if !skillinstall.IsDevBuild(version) {
 		return true
 	}

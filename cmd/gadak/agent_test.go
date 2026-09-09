@@ -3257,3 +3257,111 @@ func TestIssuePrintsMarkdownSource(t *testing.T) {
 		t.Fatalf("--json must carry description_md/body_md: %+v", doc)
 	}
 }
+
+// TestSearchZeroMatchScopeHint — GDK-1612 on the search surface: an agent
+// pasting a key from a workspace this profile does not mirror gets "0
+// matches" (nothing at all on a pipe) and reads a defect. The same scope
+// verdict `gadak sql` prints, on stderr; the TSV stdout contract is untouched.
+func TestSearchZeroMatchScopeHint(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+
+	out, stderr, err := captureBoth(t, func() error { return cmdSearch([]string{"D1-8228"}) })
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if !strings.Contains(stderr, "D1-8228") || !strings.Contains(stderr, "NMB") {
+		t.Fatalf("0-match foreign-key search must name the key and the workspace's scope, got %q", stderr)
+	}
+	if strings.TrimSpace(out) != "" {
+		t.Fatalf("stdout must stay empty on 0 matches (TSV contract), got %q", out)
+	}
+
+	_, ctl, err := captureBoth(t, func() error { return cmdSearch([]string{"sandbox"}) })
+	if err != nil {
+		t.Fatalf("search control: %v", err)
+	}
+	if strings.Contains(ctl, "outside this workspace") {
+		t.Fatalf("matching search must not claim a scope miss, got %q", ctl)
+	}
+}
+
+// TestIssueNotFoundNamesScope — GDK-1612 on the issue surface: for a key whose
+// project this workspace does not mirror, "not in the mirror — check the key,
+// or run `gadak sync`" is the wrong advice (sync pulls the configured scope,
+// never a foreign project); the error now names the workspace that was read
+// and what it holds. A key from a mirrored project keeps the old advice.
+func TestIssueNotFoundNamesScope(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+
+	_, _, err := captureBoth(t, func() error { return cmdIssue([]string{"D1-8228"}) })
+	if err == nil {
+		t.Fatal("foreign key must stay an error")
+	}
+	msg := err.Error()
+	for _, want := range []string{"D1-8228", "NMB", "outside this workspace"} {
+		if !strings.Contains(msg, want) {
+			t.Fatalf("error missing %q: %v", want, msg)
+		}
+	}
+
+	_, _, ctlErr := captureBoth(t, func() error { return cmdIssue([]string{"NMB-404"}) })
+	if ctlErr == nil {
+		t.Fatal("unknown key in a mirrored project must stay an error")
+	}
+	if strings.Contains(ctlErr.Error(), "outside this workspace") {
+		t.Fatalf("mirrored-project key must keep the check-the-key advice, got %v", ctlErr)
+	}
+}
+
+// TestSearchJSONCarriesOriginURL — GDK-174. External surfaces (the Raycast
+// extension that filed it) need an "Open in Jira" action from search --json
+// alone. IssueLite.URL is items.url — the origin's own page for the row,
+// exactly as sync stored it, the same single deep-link source `gadak open`
+// uses (GDK-1149): no consumer-side URL assembly and no second assembler
+// here. No FAIL-first: the field already ships (premise closed); this pin
+// keeps it on the wire.
+func TestSearchJSONCarriesOriginURL(t *testing.T) {
+	mirror(t, "https://jira.example.com")
+	db, err := store.Open(filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Seeded the way a Jira Cloud sync stores it: <site>/browse/KEY —
+	// byte-for-byte the URL `gadak open` opens for this key.
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Categories: map[string]string{"3": "inprogress"},
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:1007", SourceID: "jira", Kind: "issue", ExternalID: "1007", Key: "NMB-7",
+				Title: "url pin row", URL: "https://jira.example.com/browse/NMB-7",
+				CreatedAt: "2026-07-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+			},
+			Issue: store.Issue{ProjectKey: "NMB", Status: "Open", StatusID: "1", StatusCategory: "new"},
+		}},
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdSearch([]string{"--json", "NMB-7"}) })
+	if err != nil {
+		t.Fatalf("search --json: %v\n%s", err, out)
+	}
+	var body struct {
+		Issues []struct {
+			Key string `json:"key"`
+			URL string `json:"url"`
+		} `json:"issues"`
+	}
+	if err := json.Unmarshal([]byte(out), &body); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if len(body.Issues) != 1 {
+		t.Fatalf("issues = %d, want the NMB-7 row:\n%s", len(body.Issues), out)
+	}
+	if got := body.Issues[0].URL; got != "https://jira.example.com/browse/NMB-7" {
+		t.Fatalf("url = %q, want the origin's own page for the row", got)
+	}
+}

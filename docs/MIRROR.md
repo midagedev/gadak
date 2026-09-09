@@ -111,7 +111,11 @@ ids next to the name array `fix_versions`). Every column is listed in
 `specs/000-product/data-model.md`. JSON surfaces (`gadak search --json`,
 `gadak issue --json`, HTTP IssueLite) name the tracker key `issue_key`; SQL
 (`issues_full`) names the same value `key`. From 0.17 those JSON objects also
-carry `key` as an alias of `issue_key`.
+carry `key` as an alias of `issue_key`. Each issue row carries `url` — the
+origin's own page for it (Jira `<site>/browse/KEY`, Linear the URL its API
+minted, the built-in tracker a relative `/browse/KEY`), the same stored value
+`gadak open` deep-links through, so an external surface can offer "open in
+the tracker" from the JSON alone (GDK-174).
 
 Personal history lives in a second file next to the mirror (`local.db`),
 ATTACHed as `local` when gadak opens the mirror — you do not type ATTACH.

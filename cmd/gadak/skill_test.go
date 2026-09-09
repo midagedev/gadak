@@ -999,9 +999,11 @@ func stampNamesToday(t *testing.T, stamp string) bool {
 // the issue names: a stale-but-ours copy plus ONE arbitrary subcommand must
 // end with the embedded current content and an advanced rate-limit stamp.
 func TestSkillAutoSyncUpdatesStaleCopyOnAnyCommand(t *testing.T) {
+	// No GADAK_HOME, and none may appear: the child is a release binary, and
+	// under GDK-1611 a scratch gadak home is exactly the run that must not
+	// touch the skill. The stamp isolates under this test's fresh HOME instead
+	// (a release binary's gadak home is <HOME>/.gadak, per config.homeRoot).
 	home := isolateHomeWithClaude(t)
-	gadakHome := t.TempDir()
-	t.Setenv("GADAK_HOME", gadakHome)
 	dest := skillDestUnder(home)
 	autoSyncSeedStaleCopy(t, dest)
 
@@ -1022,7 +1024,7 @@ func TestSkillAutoSyncUpdatesStaleCopyOnAnyCommand(t *testing.T) {
 	if !strings.Contains(stderr, "skill: updated") {
 		t.Errorf("the update must say so on stderr, got:\n%s", stderr)
 	}
-	lastCheck, ok := readAutoSyncStampForTest(t, gadakHome)
+	lastCheck, ok := readAutoSyncStampForTest(t, filepath.Join(home, ".gadak"))
 	if !ok {
 		t.Fatal("no rate-limit stamp after a sync: the next command would redo the work")
 	}
@@ -1079,8 +1081,10 @@ func TestSkillAutoSyncSwallowsUnwritableSkillDir(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("running as root: directory permission bits are not enforced")
 	}
+	// No GADAK_HOME, for the same reason as the release-binary test above: the
+	// axis under test is a swallowed write failure, which only happens once the
+	// write is allowed at all (GDK-1611).
 	home := isolateHomeWithClaude(t)
-	t.Setenv("GADAK_HOME", t.TempDir())
 	dest := skillDestUnder(home)
 	autoSyncSeedStaleCopy(t, dest)
 	if err := os.Chmod(filepath.Dir(dest), 0o500); err != nil {
@@ -1110,6 +1114,10 @@ func TestSkillAutoSyncSwallowsUnwritableSkillDir(t *testing.T) {
 // from yesterday does not rate-limit today.
 func TestSkillAutoSyncRateLimitIsOncePerDay(t *testing.T) {
 	releaseVersionForTest(t)
+	// Pinned off the GADAK_HOME axis (GDK-1611): this test pins the rate limit
+	// of a real sync, and a real sync by definition runs outside a scratch
+	// home. The GADAK_HOME below is only the stamp's isolation.
+	pinSkillHomeNotIsolated(t)
 	home := isolateHomeWithClaude(t)
 	gadakHome := t.TempDir()
 	t.Setenv("GADAK_HOME", gadakHome)
@@ -1228,6 +1236,10 @@ func TestSkillAutoSyncSkippedOnDevBuild(t *testing.T) {
 	if !skillinstall.IsDevBuild(version) {
 		t.Fatalf("the test binary should carry the dev version, got %q", version)
 	}
+	// Pinned off the GADAK_HOME axis (GDK-1611): this test pins the dev-build
+	// refusal line, so the home axis must not answer first. The GADAK_HOME
+	// below is only the stamp's isolation.
+	pinSkillHomeNotIsolated(t)
 	home := isolateHomeWithClaude(t)
 	gadakHome := t.TempDir()
 	t.Setenv("GADAK_HOME", gadakHome)
@@ -1288,8 +1300,11 @@ func TestSkillAutoSyncDevBuildSilentWhenCurrent(t *testing.T) {
 // shape of the incident. The in-process test above cannot prove the wiring;
 // only the built binary does.
 func TestSkillAutoSyncDevBinaryLeavesInstalledCopyAlone(t *testing.T) {
+	// No GADAK_HOME: the child must take the no-scratch-home path for the dev
+	// refusal to be the reason it prints (the GADAK_HOME axis asks first,
+	// GDK-1611). Stamp isolation comes from the fresh HOME, as in the
+	// release-binary test above.
 	home := isolateHomeWithClaude(t)
-	t.Setenv("GADAK_HOME", t.TempDir())
 	dest := skillDestUnder(home)
 	autoSyncSeedStaleCopy(t, dest)
 	before, err := os.ReadFile(dest)
@@ -1578,5 +1593,103 @@ func TestAutoInstallSkillDevBuildStillReportsUnreadableDest(t *testing.T) {
 	}
 	if strings.Contains(buf.String(), devSkillRefusalLine) {
 		t.Fatalf("the dev line must not stand in for a real failure:\n%s", buf.String())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GADAK_HOME isolates every piece of state this gadak owns — except the agent
+// skill, whose destination is the real user home either way (GDK-1611)
+//
+// Measured 2026-09-08: `GADAK_HOME=$(mktemp -d) gadak init --local` printed
+// "skill: updated ~/.claude/skills/gadak/SKILL.md". A workspace made to be
+// thrown away had touched the machine's real agent configuration. The version
+// axis below (GDK-1531/1539) cannot see this case: a release binary is
+// exactly the binary allowed to sync. The tests fake a release version so the
+// home axis is measured on its own.
+// ---------------------------------------------------------------------------
+
+// pinSkillHomeNotIsolated holds the GADAK_HOME axis of the unattended-write
+// guard off for one test that pins behavior of a *real* (non-scratch) run —
+// GDK-996's sync, init's auto-install. Those tests isolate their rate-limit
+// stamps under GADAK_HOME, which the guard itself reads as a scratch workspace
+// (GDK-1611); the home axis under test there is not the axis these pin. It
+// only works in-process — subprocess tests must keep GADAK_HOME unset instead.
+func pinSkillHomeNotIsolated(t *testing.T) {
+	t.Helper()
+	prev := skillHomeIsolated
+	skillHomeIsolated = func() bool { return false }
+	t.Cleanup(func() { skillHomeIsolated = prev })
+}
+
+// TestSkillAutoInstallSkippedUnderGadakHome (FAIL-first: was "installed"):
+// an init under a scratch home must not create the real home's skill, and
+// must say why in one line that names the deliberate command.
+func TestSkillAutoInstallSkippedUnderGadakHome(t *testing.T) {
+	releaseVersionForTest(t)
+	home := isolateHomeWithClaude(t)
+	t.Setenv("GADAK_HOME", t.TempDir())
+	dest := skillDestUnder(home)
+
+	var buf bytes.Buffer
+	if got := autoInstallSkill(&buf); got != "skipped" {
+		t.Fatalf("autoInstallSkill under GADAK_HOME = %q, want skipped", got)
+	}
+	if _, err := os.Stat(dest); err == nil {
+		t.Fatal("a scratch-home init created the real home's skill")
+	}
+	if !strings.Contains(buf.String(), "GADAK_HOME") || !strings.Contains(buf.String(), "gadak skill install") {
+		t.Fatalf("the skip must say why and name the deliberate command; got:\n%s", buf.String())
+	}
+}
+
+// TestSkillAutoSyncSkippedUnderGadakHome (FAIL-first: the bytes moved): the
+// daily hook under a scratch home leaves a stale real-home copy alone, still
+// spends the day's stamp, and stays silent for the rest of the day.
+func TestSkillAutoSyncSkippedUnderGadakHome(t *testing.T) {
+	releaseVersionForTest(t)
+	home := isolateHomeWithClaude(t)
+	gadakHome := t.TempDir()
+	t.Setenv("GADAK_HOME", gadakHome)
+	dest := skillDestUnder(home)
+	autoSyncSeedStaleCopy(t, dest)
+	before, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	maybeAutoSyncSkill(&buf, "version")
+	after, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("the daily hook under GADAK_HOME rewrote the real home's skill")
+	}
+	if !strings.Contains(buf.String(), "GADAK_HOME") {
+		t.Fatalf("the skip must be announced; got:\n%s", buf.String())
+	}
+	if _, ok := readAutoSyncStampForTest(t, gadakHome); !ok {
+		t.Fatal("the skip must still spend the day's stamp, or the line prints on every command")
+	}
+	buf.Reset()
+	maybeAutoSyncSkill(&buf, "version")
+	if buf.Len() != 0 {
+		t.Fatalf("the second check of the day must be silent, got:\n%s", buf.String())
+	}
+}
+
+// TestSkillInstallExplicitUnderGadakHomeStillWorks — `gadak skill install` is
+// the deliberate act; GADAK_HOME must not take that away (it goes through
+// installSkill, never the auto guard).
+func TestSkillInstallExplicitUnderGadakHomeStillWorks(t *testing.T) {
+	home := isolateHomeWithClaude(t)
+	t.Setenv("GADAK_HOME", t.TempDir())
+	dest := skillDestUnder(home)
+	if err := installSkill(io.Discard, gadak.SkillMarkdown(), dest, false, false); err != nil {
+		t.Fatalf("explicit install under GADAK_HOME: %v", err)
+	}
+	if _, err := os.Stat(dest); err != nil {
+		t.Fatalf("the deliberate install must land: %v", err)
 	}
 }

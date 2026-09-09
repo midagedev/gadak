@@ -373,6 +373,14 @@ func (db *DB) migrate() error {
 					return fmt.Errorf("migration 48 backfill: %w", err)
 				}
 			}
+			// v49: recompute the reopen triple under the rule that grew an
+			// inprogress→new axis — backfillFlow again, so a
+			// migrated mirror and a freshly synced one agree.
+			if i+1 == 49 {
+				if err := backfillFlow(tx); err != nil {
+					return fmt.Errorf("migration 49 backfill: %w", err)
+				}
+			}
 		}
 		// user_version is the migration level; sync_state.schema_version is the
 		// documented mirror of it and has to move with it.

@@ -589,3 +589,71 @@ func TestSQLDidYouMeanOmitsDistant(t *testing.T) {
 		t.Fatalf("distant name must not suggest, got %v", err)
 	}
 }
+
+// TestSQLZeroRowScopeHintNamesWorkspace — GDK-1612. "(0 rows)" has two causes
+// that need opposite next moves: nothing matched, or this workspace never
+// mirrors that project at all. The incident: `gadak --workspace work sql "…
+// WHERE item_id='jira:124963'"` was read as a sync defect while that workspace
+// holds a single other project. A 0-row query naming an issue key the mirror's
+// project scope does not cover now gets one stderr line saying which workspace
+// was read and what it holds; stdout (the TSV/JSON contract) stays untouched.
+func TestSQLZeroRowScopeHintNamesWorkspace(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+
+	out, stderr, err := captureBoth(t, func() error {
+		return cmdSQL([]string{"select key from issues where key = 'D1-8228'"})
+	})
+	if err != nil {
+		t.Fatalf("sql: %v\n%s", err, out)
+	}
+	if !strings.Contains(stderr, "D1-8228") {
+		t.Fatalf("0-row foreign-key query must name the key, got stderr %q", stderr)
+	}
+	if !strings.Contains(stderr, `"default"`) || !strings.Contains(stderr, "NMB") {
+		t.Fatalf("hint must name the workspace read and what it holds, got %q", stderr)
+	}
+	if strings.Contains(out, "workspace") {
+		t.Fatalf("hint must stay off stdout (sql stdout is a contract), got %q", out)
+	}
+
+	// Control: a key from a mirrored project that simply does not exist is
+	// key-territory ("check the key"), not scope-territory.
+	_, ctl, err := captureBoth(t, func() error {
+		return cmdSQL([]string{"select key from issues where key = 'NMB-404'"})
+	})
+	if err != nil {
+		t.Fatalf("sql control: %v", err)
+	}
+	if strings.Contains(ctl, "outside this workspace") {
+		t.Fatalf("mirrored-project key must not claim a scope miss, got %q", ctl)
+	}
+}
+
+// TestSQLZeroRowScopeHintCoversItemIDs — the incident's own query keyed by
+// item id, not issue key: agents copy `item_id` out of JSON payloads. Same
+// verdict, same one line.
+func TestSQLZeroRowScopeHintCoversItemIDs(t *testing.T) {
+	mirror(t, "https://unused.example.com")
+
+	_, stderr, err := captureBoth(t, func() error {
+		return cmdSQL([]string{"select id from items where id = 'jira:424242'"})
+	})
+	if err != nil {
+		t.Fatalf("sql: %v", err)
+	}
+	if !strings.Contains(stderr, "jira:424242") || !strings.Contains(stderr, "NMB") {
+		t.Fatalf("foreign item id must name the id and the workspace's scope, got %q", stderr)
+	}
+
+	// Control: the id is present; a filter that still returns 0 rows is the
+	// query's business, not a scope miss.
+	_, ctl, err := captureBoth(t, func() error {
+		return cmdSQL([]string{"select id from items where id = 'jira:1001' and kind = 'page'"})
+	})
+	if err != nil {
+		t.Fatalf("sql control: %v", err)
+	}
+	if strings.Contains(ctl, "outside this workspace") {
+		t.Fatalf("present item id must not claim a scope miss, got %q", ctl)
+	}
+}

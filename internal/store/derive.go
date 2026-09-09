@@ -13,6 +13,11 @@ import (
 // site or account language (contracts/sync.md, "Localization hazard").
 const CategoryDone = "done"
 
+// CategoryNew names the remaining status category; CategoryInProgress lives
+// in durations.go, where the lifecycle spans first needed it. The reopen rule
+// below reasons about all three as categories, never status names.
+const CategoryNew = "new"
+
 // DeriveInput is everything the derived-field rules need. Changelog entries
 // carry only status ids, so the id -> category map has to come from the site's
 // status list, which the connector supplies per batch.
@@ -126,7 +131,7 @@ func Derive(in DeriveInput) Derived {
 			if to == CategoryDone {
 				d.ResolvedAt = &at
 			}
-			if from == CategoryDone && to != CategoryDone {
+			if reopenTransition(from, to) {
 				d.ReopenCount++
 				d.ReopenedAt = &at
 			}
@@ -248,6 +253,23 @@ func Derive(in DeriveInput) Derived {
 		d.ReopenReason = reopenReason(in.Comments, *d.ReopenedAt)
 	}
 	return d
+}
+
+// reopenTransition is the single owner of what a "reopened" move is: the
+// category going backwards. Leaving done is the classic reopen; leaving
+// in-progress back to new is its sibling on workflows whose resolved states
+// sit in the in-progress category — there 'QA testing → Reopened' is how work
+// comes back, and under the done-only rule this replaced, those rows read
+// reopen_count = 0 (59% of the real reopens on the mirror that reported it).
+// Unknown ids stay what
+// they always were: not done, not new — a category the map cannot name never
+// counts as the destination of a backwards move, so an uncatalogued status
+// cannot invent a reopen.
+func reopenTransition(from, to string) bool {
+	if from == CategoryDone {
+		return to != CategoryDone
+	}
+	return from == CategoryInProgress && to == CategoryNew
 }
 
 // reopenReason is the body of the earliest comment written at or after the

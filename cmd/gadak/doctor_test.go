@@ -340,7 +340,10 @@ func TestDoctorRedaction(t *testing.T) {
 	_ = db.Close()
 
 	const (
-		fakeSite  = "https://example.atlassian.net"
+		// fakeSite is deliberately NOT a sample host: the unmasked site line
+		// must show it (GDK-1631), while every other secret stays out. The
+		// sample-host classification has its own test (TestDoctorFlagsSampleConfig).
+		fakeSite  = "https://x.atlassian.net"
 		fakeEmail = "alice.secret@example.invalid"
 		fakeToken = "NOT-A-REAL-TOKEN-fixture-value-0123456789"
 	)
@@ -369,10 +372,17 @@ func TestDoctorRedaction(t *testing.T) {
 		t.Fatalf("doctor --json: %v\n%s", err, jsonOut)
 	}
 
+	// GDK-1631 (2026-09-10): the site host no longer leaks by definition — it
+	// is the one value the document must be able to name when it is wrong, so
+	// fakeSite moved from the forbidden list to the positive markers below.
+	// The host inside the planted sync ERROR still must not appear: the error
+	// body stays classified to "http NNN (kind)" even now that the site line
+	// shows a hostname. Derivation: the issue's measured misdiagnosis (a
+	// placeholder site read as an Atlassian outage for hours because doctor
+	// masked the only surface that named it). FAIL-first for this rewrite is
+	// in scratch/store/gate-1631-failfirst.txt.
 	forbidden := []string{
-		fakeSite,
-		"example.atlassian.net",
-		"example",
+		"example.atlassian.net", // only the seeded error body + source row carry it
 		fakeEmail,
 		"alice.secret",
 		fakeToken,
@@ -398,7 +408,7 @@ func TestDoctorRedaction(t *testing.T) {
 	for _, want := range []string{
 		"credential:            present",
 		"email:                 configured",
-		"<redacted>.atlassian.net",
+		"site:                  x.atlassian.net",
 		"http 403 (auth)",
 	} {
 		if !strings.Contains(out, want) {
@@ -416,6 +426,48 @@ func TestDoctorRedaction(t *testing.T) {
 		if base != "" && base != "tmp" && strings.Contains(out, "/"+base+"/") {
 			t.Errorf("username path segment %q appeared in output:\n%s", base, out)
 		}
+	}
+}
+
+// TestDoctorFlagsSampleConfig is FAIL-first for GDK-1631: the placeholder
+// config.json the incident found (site example.atlassian.net, token
+// "secret-token", email "someone@example.com") passed doctor as a fully
+// configured workspace while every request died looking like an Atlassian
+// outage. All three are sample literals; doctor now reports them as config
+// errors instead of "present"/"configured", and the site line names the host
+// so a wrong site is visible at all.
+func TestDoctorFlagsSampleConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+
+	cfg := &config.Config{
+		Site:  "https://example.atlassian.net",
+		Email: "someone@example.com",
+		Token: "secret-token",
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	out, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, out)
+	}
+	if got := doctorValue(t, out, "site"); got != "example.atlassian.net (sample placeholder — run gadak init)" {
+		t.Fatalf("site = %q, want the sample-placeholder verdict", got)
+	}
+	if got := doctorValue(t, out, "credential"); got != "sample placeholder" {
+		t.Fatalf("credential = %q, want sample placeholder", got)
+	}
+	if got := doctorValue(t, out, "email"); got != "sample placeholder" {
+		t.Fatalf("email = %q, want sample placeholder", got)
+	}
+	// The sample token literal itself never appears — the classification is
+	// the report, not the value.
+	if strings.Contains(out, "secret-token") {
+		t.Errorf("the sample token literal leaked:\n%s", out)
 	}
 }
 
@@ -885,17 +937,30 @@ func TestClassifyLastError(t *testing.T) {
 	}
 }
 
-func TestRedactSite(t *testing.T) {
+// TestSiteReport — GDK-1631 (2026-09-10 rewrite of TestRedactSite). The
+// masking hid the one value whose wrongness explained every symptom: a
+// placeholder site answered every request with 404 "Site temporarily
+// unavailable" for hours while doctor kept saying "<redacted>.atlassian.net".
+// A hostname names the server, not the user, so the site line shows it — and
+// the reserved sample hosts say so as a config error, not a site. Gate
+// modification triple: attribution here, derivation in the issue
+// (misdiagnosis measured 2026-09-08), FAIL-first in scratch/store/
+// gate-1631-failfirst.txt (this table ran red against the masking code).
+func TestSiteReport(t *testing.T) {
 	cases := map[string]string{
-		"":                               "none",
-		"https://example.atlassian.net":  "<redacted>.atlassian.net",
-		"https://example.atlassian.net/": "<redacted>.atlassian.net",
-		"https://jira.example.com":       "configured (cloud)",
-		"http://localhost:8080":          "configured (cloud)",
+		"":                                "none",
+		"https://x.atlassian.net":         "x.atlassian.net",
+		"https://x.atlassian.net/":        "x.atlassian.net",
+		"https://jira.acme.com:8443/x":    "jira.acme.com",
+		"https://user:secretpw@acme.net":  "acme.net",        // userinfo never shown
+		"x.atlassian.net":                 "x.atlassian.net", // bare host, no scheme
+		"https://example.atlassian.net":   "example.atlassian.net (sample placeholder — run gadak init)",
+		"your-site.atlassian.net":         "your-site.atlassian.net (sample placeholder — run gadak init)",
+		"https://Your-Site.Atlassian.Net": "your-site.atlassian.net (sample placeholder — run gadak init)",
 	}
 	for in, want := range cases {
-		if got := redactSite(in); got != want {
-			t.Errorf("redactSite(%q) = %q, want %q", in, got, want)
+		if got := siteReport(in); got != want {
+			t.Errorf("siteReport(%q) = %q, want %q", in, got, want)
 		}
 	}
 }
