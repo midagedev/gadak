@@ -133,6 +133,16 @@ Server、Linear、Built-in の 4 つを並べ、新しい列のセルはすべ�
 スコープに見せるものがあるよう、派生したスプリントを 3 つ入れました
 ([GDK-1656])。
 
+Linear のサイクルも、スプリントになりました。Linear ワークスペースも、
+  ほかの origin と同じ三つのスプリント項目を埋めるようになり、チームごとに
+  ボードひとつを置いて、そのサイクルを `sprints` の行として並べます。ボードの
+  スプリント範囲も、スプリントの軸も、`gadak sprint list` も、そこで使えます。
+  `sprint add` と `remove` は Linear へ書き抜けます。実際のチームで測りました。
+  入れれば課題のスプリント項目が埋まり、外せば空になります。三つの動詞は当てず
+  っぽうを言わず、名指しで断ります。`start` と `close` は、サイクルの始まりと
+  終わりを決めるのが日付だからです。`create` は、Linear がチームの周期設定から
+  サイクルを作るからです。 ([GDK-1667], [GDK-1678])
+
 **そのほかに、週次レトロの画面、取り消せるコメント、実物の大きさの添付、そして
 ひとつ減った外向きの呼び出し。** `gadak retro` の文書は、来ることのなかった画面
 のために用意されていました。今はあります。パレットの *Weekly retro* を開くと、
@@ -1732,4 +1742,6 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662
 [GDK-1666]: https://gadak.dev/backlog/#/?ks=GDK-1666
+[GDK-1667]: https://gadak.dev/backlog/#/?ks=GDK-1667
 [GDK-1672]: https://gadak.dev/backlog/#/?ks=GDK-1672
+[GDK-1678]: https://gadak.dev/backlog/#/?ks=GDK-1678

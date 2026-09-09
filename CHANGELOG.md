@@ -131,6 +131,17 @@ panel shows the sprint, and `sprint is EMPTY`, the backlog, now round-trips
 through the view grammar as `sprint_state=none`. The demo fixture carries
 three derived sprints so the scope has something to show ([GDK-1656]).
 
+Linear's cycles are sprints as well. A Linear workspace now fills the same
+  three sprint columns every other origin does, and lists its cycles as
+  `sprints` rows with one board per team, so the board's sprint scope, the
+  Sprint axes and `gadak sprint list` work there too. `sprint add` and
+  `remove` write through to Linear, measured against a live team: an add
+  fills the issue's sprint columns and a remove empties them. Three verbs
+  refuse by name instead of guessing: `start` and `close`, because a cycle
+  begins and ends by its dates, and `create`, because Linear generates its
+  cycles from the team's cadence and says so.
+  ([GDK-1667], [GDK-1678])
+
 **Elsewhere: a retro screen, comments you can take back, attachments the
 size of real ones, and one fewer outbound call.** `gadak retro`'s document
 was served for a surface that never came. It is here now: the palette's
@@ -1718,4 +1729,6 @@ priority sorting keyed on `priority_rank`.
 [GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662
 [GDK-1666]: https://gadak.dev/backlog/#/?ks=GDK-1666
+[GDK-1667]: https://gadak.dev/backlog/#/?ks=GDK-1667
 [GDK-1672]: https://gadak.dev/backlog/#/?ks=GDK-1672
+[GDK-1678]: https://gadak.dev/backlog/#/?ks=GDK-1678

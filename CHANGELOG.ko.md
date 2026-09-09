@@ -120,6 +120,15 @@ Jira와 같습니다 ([GDK-1666]).
 `sprint_state=none`으로 뷰 문법을 왕복합니다. 데모 픽스처는 범위가 보일 수 있게
 스프린트 셋을 파생해 실어 둡니다 ([GDK-1656]).
 
+Linear의 사이클도 스프린트입니다. Linear 워크스페이스도 다른 origin과 같은
+  세 스프린트 컬럼을 채우고, 팀마다 보드 한 줄로 사이클을 `sprints` 행에 싣습니다.
+  그래서 보드의 스프린트 범위도, 스프린트 축도, `gadak sprint list`도 거기서
+  됩니다. `sprint add`·`remove`는 Linear로 써 나갑니다. 실제 팀에서 재 봤습니다.
+  넣으면 이슈의 스프린트 컬럼이 차고, 빼면 비워집니다. 세 동사는 넘겨짚지 않고
+  이름을 대고 거절합니다. `start`·`close`는 사이클의 시작과 끝을 정하는 것이
+  날짜여서, `create`는 Linear가 팀의 주기 설정에서 사이클을 만들기 때문입니다.
+  ([GDK-1667], [GDK-1678])
+
 **그 밖에: 회고 화면, 되돌릴 수 있는 코멘트, 실제 크기의 첨부, 그리고 하나
 줄어든 외부 연결.** `gadak retro`의 문서는 오지 않은 표면을 위해 서빙되고
 있었습니다. 이제 팔레트의 *주간 회고*가 차분한 표를 엽니다. 주마다 한 열,
@@ -1631,4 +1640,6 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1661]: https://gadak.dev/backlog/#/?ks=GDK-1661
 [GDK-1662]: https://gadak.dev/backlog/#/?ks=GDK-1662
 [GDK-1666]: https://gadak.dev/backlog/#/?ks=GDK-1666
+[GDK-1667]: https://gadak.dev/backlog/#/?ks=GDK-1667
 [GDK-1672]: https://gadak.dev/backlog/#/?ks=GDK-1672
+[GDK-1678]: https://gadak.dev/backlog/#/?ks=GDK-1678
