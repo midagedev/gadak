@@ -1,0 +1,133 @@
+# How long each spec file takes in CI — the weight table behind
+# tools/e2e-partition.sh's balanced split (GDK-1702, cut 1).
+#
+# Provenance: the CI cost census (GDK-1702 audit, run 34313848348) timed
+# every test in the e2e job; this table is that per-test list aggregated
+# per file. Five rows are adjusted to the post-cut-5 expectation, each by
+# a measured deletion (the moved case's own census seconds) except
+# mirror-instant, whose two tests merged into one (decomposed from the
+# census pair — the shared boot+anchor ≈13 s, two 3 s windows, the pull
+# and visibility budgets — and checked against a local measurement of the
+# merged test, 21.8 s):
+#
+#   mirror-instant  39.5 -> 23.0  (merge)
+#   menu-loading    15.5 ->  7.9  (picker fallback case -> vitest, -7.6)
+#   settings        18.6 -> 13.8  (3 copy cases -> source-scan, -4.8)
+#   docs-ux         32.6 -> 26.4  (2 sync-status cases -> source-scan, -6.2)
+#   palette         17.0 -> 15.8  (entry copy case -> source-scan, -1.2)
+#
+# A spec file absent from this table is dealt the table's median weight —
+# a new spec starts average-heavy until the next census refresh, it is
+# never silently free. A row naming a file that no longer exists fails
+# `tools/e2e-partition.sh --check`. Weights are seconds of test time; the
+# ~2 min of fixed per-shard cost (build, serve, browsers) is the same on
+# every shard and therefore not modelled here.
+#
+# format: <e2e/path> <TAB> <seconds>
+e2e/board-drag.spec.ts	7.9
+e2e/board-sprint-scope.spec.ts	3.8
+e2e/board.spec.ts	8.7
+e2e/boot.spec.ts	0.8
+e2e/bots.spec.ts	3.4
+e2e/breakdown-esc.spec.ts	1.3
+e2e/browse-pane.spec.ts	11.7
+e2e/built-in-attachments.spec.ts	2.7
+e2e/built-in.spec.ts	11.5
+e2e/bulk-edit.spec.ts	4.0
+e2e/cache-upgrade.spec.ts	1.8
+e2e/column-views.spec.ts	7.1
+e2e/create-fields.spec.ts	2.8
+e2e/cross-links.spec.ts	6.6
+e2e/dashboards.spec.ts	18.8
+e2e/dates.spec.ts	2.5
+e2e/deeplink-query.spec.ts	0.8
+e2e/demo-console.spec.ts	2.3
+e2e/desktop-chrome.spec.ts	1.9
+e2e/desktop-drag.spec.ts	2.1
+e2e/detail-coaching.spec.ts	11.3
+e2e/detail.spec.ts	13.0
+e2e/dialog-shell.spec.ts	7.7
+e2e/docs-deeplink.spec.ts	7.9
+e2e/docs-ux.spec.ts	26.4
+e2e/docs.spec.ts	12.7
+e2e/duedate.spec.ts	7.9
+e2e/edit-fields.spec.ts	5.9
+e2e/enrichment.spec.ts	1.1
+e2e/epics.spec.ts	6.7
+e2e/esc-negotiate.spec.ts	9.6
+e2e/feed-days.spec.ts	0.7
+e2e/feed-error.spec.ts	0.6
+e2e/filter-chips.spec.ts	4.3
+e2e/first-sync-band.spec.ts	6.4
+e2e/freshness.spec.ts	8.1
+e2e/history-nav.spec.ts	11.5
+e2e/history.spec.ts	8.6
+e2e/identity-web.spec.ts	2.8
+e2e/ime-composition.spec.ts	1.3
+e2e/integrations.spec.ts	22.8
+e2e/issue-command.spec.ts	27.2
+e2e/jira-credentials.spec.ts	4.2
+e2e/jql.spec.ts	3.7
+e2e/keys-focus.spec.ts	12.8
+e2e/keys-order.spec.ts	1.6
+e2e/last-view.spec.ts	0.6
+e2e/linked-issues.spec.ts	6.8
+e2e/list-column-header.spec.ts	4.0
+e2e/list-empty-state.spec.ts	2.9
+e2e/list-menus-esc.spec.ts	2.8
+e2e/list-row-columns.spec.ts	2.1
+e2e/list-row-overflow.spec.ts	11.9
+e2e/locale.spec.ts	2.8
+e2e/menu-loading.spec.ts	7.9
+e2e/mirror-instant.spec.ts	23.0
+e2e/motion.spec.ts	5.2
+e2e/my-work.spec.ts	5.6
+e2e/narrow-clip.spec.ts	8.1
+e2e/narrow-viewport.spec.ts	24.0
+e2e/nav-issue-list.spec.ts	6.5
+e2e/offline-banner.spec.ts	3.6
+e2e/omnibox.spec.ts	8.1
+e2e/onboarding-built-in.spec.ts	0.9
+e2e/onboarding-no-tracker.spec.ts	2.8
+e2e/onboarding.spec.ts	6.8
+e2e/page-comment-shortcut.spec.ts	1.3
+e2e/palette-create.spec.ts	2.9
+e2e/palette.spec.ts	15.8
+e2e/person.spec.ts	10.0
+e2e/picker-esc.spec.ts	4.5
+e2e/polish.spec.ts	2.9
+e2e/prose-readability.spec.ts	3.1
+e2e/resume-card.spec.ts	3.8
+e2e/retro.spec.ts	6.3
+e2e/row-narrow.spec.ts	1.2
+e2e/scroll-region.spec.ts	1.4
+e2e/search-entry.spec.ts	5.6
+e2e/search-placeholder.spec.ts	3.2
+e2e/search.spec.ts	8.6
+e2e/session-entry.spec.ts	10.1
+e2e/session-strip.spec.ts	7.7
+e2e/settings.spec.ts	13.8
+e2e/sidebar-active.spec.ts	2.4
+e2e/sidebar-sections.spec.ts	10.1
+e2e/stale-threshold.spec.ts	1.2
+e2e/team-flow.spec.ts	2.4
+e2e/team-groups.spec.ts	1.8
+e2e/terminal-burst.spec.ts	3.4
+e2e/terminal-link-focus.spec.ts	4.9
+e2e/terminal-modes.spec.ts	3.6
+e2e/terminal-settings.spec.ts	4.4
+e2e/terminal-strip.spec.ts	27.9
+e2e/terminal-theme.spec.ts	8.8
+e2e/terminal.spec.ts	16.7
+e2e/theme.spec.ts	11.6
+e2e/toast-kind.spec.ts	2.9
+e2e/triage.spec.ts	18.7
+e2e/url-state.spec.ts	10.1
+e2e/usearch.spec.ts	6.6
+e2e/user-tokens.spec.ts	4.5
+e2e/ux-p1.spec.ts	3.9
+e2e/view-cross-device.spec.ts	5.5
+e2e/view-delete.spec.ts	2.3
+e2e/visited-rows.spec.ts	2.4
+e2e/workspaces-manage.spec.ts	4.6
+e2e/write-through.spec.ts	13.8

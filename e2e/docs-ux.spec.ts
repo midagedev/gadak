@@ -835,6 +835,14 @@ test.describe('docs empty states', () => {
  * ("Fetching documents") — at the same moment, about the same pass. Read
  * together, issue sync and document sync looked like two systems. These pin
  * that every surface renders the same string, and that the count is in it.
+ *
+ * The issues-pass wording and the announce threshold moved to vitest by the
+ * GDK-1702 cost ladder: the sentence is web/src/lib/mirror-status.test.ts
+ * (busyLabel's issues branch, the 4-digit comma, and the GDK-460 scans of
+ * which surface may render it), and the elapsed-time rule is
+ * web/src/stores/issues-activity-visibility.test.ts (ACTIVITY_MIN_VISIBLE_MS
+ * and the `a.running && old` gate). The browser keeps the running half —
+ * the document pass below crosses chip, CTA and sidebar end to end.
  */
 test.describe('sync status is one sentence', () => {
   const API = apiURL('/api/v1/issues/')
@@ -889,35 +897,6 @@ test.describe('sync status is one sentence', () => {
     await expect(page.getByTestId('docs-empty-cta')).toContainText(expected)
     await expect(page.getByTestId('sidebar-sync-now')).toContainText('Sync log')
     await expect(page.getByTestId('sidebar-sync-now')).not.toContainText(expected)
-  })
-
-  test('an issue pass says issues, not documents', async ({ page }) => {
-    await activity(page, { running: true, source: 'issues', fetched: 6932 })
-    await gotoApp(page)
-
-    // GDK-460: busy wording is the chip's. The sidebar keeps its own name.
-    await expect(page.getByTestId('freshness-chip')).toContainText('Syncing issues · 6,932', {
-      timeout: 20_000,
-    })
-    await expect(page.getByTestId('sidebar-sync-now')).toContainText('Sync log')
-    await expect(page.getByTestId('sidebar-sync-now')).not.toContainText('Syncing issues')
-  })
-
-  test('a pass is announced only once it has run long enough to wonder about', async ({ page }) => {
-    // The watch loop finishes an incremental in a second or two, every minute.
-    // Narrating those would put a blinking status in front of someone all day;
-    // the six-minute backfill is what needed saying. So the rule is elapsed
-    // time, and this asserts both halves of it rather than the quiet first
-    // instant, which would pass with no rule at all.
-    await activity(page, { running: true, source: 'issues', fetched: 2 }, 500)
-    await gotoApp(page)
-
-    const chip = page.getByTestId('freshness-chip')
-    await page.waitForTimeout(1_500) // two polls in, still young
-    await expect(chip).not.toContainText('Syncing')
-    // Same stubbed pass, now old enough: the wording appears without anything
-    // else changing, which is the threshold and not a coincidence of timing.
-    await expect(chip).toContainText('Syncing issues', { timeout: 15_000 })
   })
 })
 

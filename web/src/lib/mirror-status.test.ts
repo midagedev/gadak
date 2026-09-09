@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import type { SyncHealth, SyncSourceHealth } from './types'
 
@@ -113,6 +114,14 @@ describe('busyLabel', () => {
     expect(busyLabel()).toBe('Syncing issues · 40')
   })
 
+  test('a four-digit count is grouped: 6932 reads 6,932', () => {
+    // Blocks: a raw "Syncing issues · 6932" on the leg that actually runs
+    // long enough to reach four digits (moved from e2e/docs-ux.spec.ts,
+    // which asserted this exact chip sentence in a browser).
+    issues.mirrorActivity = { running: true, source: 'issues', fetched: 6932 }
+    expect(busyLabel()).toBe('Syncing issues · 6,932')
+  })
+
   test('tab-started pull with no phase yet is the generic busy sentence', () => {
     // Blocks: the first second of a pull this tab started reading as idle.
     issues.mirrorSyncing = true
@@ -180,5 +189,33 @@ describe('mirrorLabel', () => {
     idle()
     settle()
     expect(mirrorLabel()).toBe('Synced 3m ago')
+  })
+})
+
+/*
+ * GDK-460 ownership, moved from e2e/docs-ux.spec.ts's "sync status is one
+ * sentence" describe by the GDK-1702 cost ladder: the busy sentence
+ * belongs to the toolbar chip (and surfaces naming the same pass), and the
+ * sidebar row is the sync-history entry — it must not repeat the chip.
+ * The kept document-pass e2e case still proves this end to end against a
+ * running app; these scans pin where the sentence is allowed to render so
+ * a new surface cannot start borrowing it silently.
+ */
+describe('GDK-460: the busy sentence is the chip\'s, the sidebar row is sync history', () => {
+  test('the freshness chip renders mirrorLabel', () => {
+    const chip = readFileSync(new URL('../components/shell/FreshnessChip.svelte', import.meta.url), 'utf8')
+    expect(chip).toMatch(/mirrorLabel\(\)/)
+  })
+
+  test('the sidebar sync row names the log, not the pass', () => {
+    const nav = readFileSync(new URL('../components/sidebar/SidebarNav.svelte', import.meta.url), 'utf8')
+    const button = nav.slice(
+      nav.indexOf('data-testid="sidebar-sync-now"'),
+      nav.indexOf('</button>', nav.indexOf('data-testid="sidebar-sync-now"')),
+    )
+    // Visible text is the log entry; syncLabel may ride the tooltip only.
+    expect(button).toMatch(/\{t\('sidebar\.syncHistory'\)\}/)
+    expect(button).not.toMatch(/\{syncLabel\}/)
+    expect(button).not.toMatch(/\{mirrorLabel\(\)\}/)
   })
 })

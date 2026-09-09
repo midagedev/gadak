@@ -273,7 +273,56 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # GDK-1702: this job billed ~5 min of setup+install per push while
+      # the census measured most pushes touching no Go at all. It is a gate
+      # (the cross-platform list is empty since 90e27bdf), so the skip must
+      # never hide a Go change — hence the fail-open rules below. GitHub Actions has no
+      # per-job paths filter (`on:` filters are workflow-level and would
+      # skip every job), so the first step diffs the change and every step
+      # below is gated on its output.
+      #
+      # It fails OPEN, and that is the contract: a forced push whose before
+      # is unreachable, a first push (all-zero before), workflow_dispatch,
+      # an empty event base, or any diff error runs the job. A gate skipped
+      # by mistake is the failure mode that matters; a gate run for nothing
+      # is five minutes.
+      #
+      # The path list is the Go surface plus the job's own inputs: the
+      # script it runs, and this workflow (a change here can rewrite the
+      # gate itself). `git diff A B` compares trees without needing shared
+      # history, so two depth-1 objects are enough.
+      - name: Did this change touch Go?
+        id: gofilter
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          SHA: ${{ github.sha }}
+        run: |
+          run_job() { echo "go=true" >> "$GITHUB_OUTPUT"; echo "staticcheck: $1"; exit 0; }
+          skip_job() { echo "go=false" >> "$GITHUB_OUTPUT"; echo "staticcheck: $1"; exit 0; }
+          case "$EVENT_NAME" in
+            pull_request) base="$BASE_SHA" ;;
+            push) base="$BEFORE" ;;
+            *) run_job "event '$EVENT_NAME' has no before — running (fail open)" ;;
+          esac
+          if [ -z "$base" ] || printf '%s' "$base" | grep -Eq '^0+$'; then
+            run_job "no usable base sha (first push or forced push) — running (fail open)"
+          fi
+          if ! git fetch --no-tags --depth=1 origin "$base" 2>/dev/null; then
+            run_job "base $base not fetchable — running (fail open)"
+          fi
+          if ! changed="$(git diff --name-only "$base" "$SHA")"; then
+            run_job "git diff failed — running (fail open)"
+          fi
+          n=$(printf '%s\n' "$changed" | grep -c . || true)
+          if printf '%s\n' "$changed" | grep -Eq '\.go$|^go\.mod$|^go\.sum$|^desktop/|^tools/staticcheck\.sh$|^\.github/workflows/ci\.yml$'; then
+            run_job "Go-touching change in ${n} changed path(s)"
+          fi
+          skip_job "no Go-touching change in ${n} changed path(s)"
+
       - name: Set up Go
+        if: steps.gofilter.outputs.go == 'true'
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -283,11 +332,13 @@ jobs:
       # artefact is the script's classifier, not staticcheck. It runs over
       # fixtures, needs no toolchain, and takes a second.
       - name: staticcheck.sh self-test
+        if: steps.gofilter.outputs.go == 'true'
         run: bash tools/staticcheck.sh --self-test
 
       # Pinned on purpose: staticcheck gains checks between releases, and
       # @latest would turn a new check into a CI change nobody made.
       - name: Install staticcheck
+        if: steps.gofilter.outputs.go == 'true'
         run: |
           go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
@@ -301,6 +352,7 @@ jobs:
       # second copy of the mirror-flaky apt step in this file for a job that
       # cannot fail. The root module gets all three either way.
       - name: staticcheck over the GOOS matrix
+        if: steps.gofilter.outputs.go == 'true'
         run: bash tools/staticcheck.sh
 
   e2e:
@@ -312,6 +364,15 @@ jobs:
     # seeded home, so e2e/playwright.config.ts keeps workers: 1 and
     # fullyParallel: false — raising workers inside one runner is the
     # unsafe variant (single shared served instance) and stays out.
+    #
+    # GDK-1702: which files land on which shard is owned by
+    # tools/e2e-partition.sh — dealt by the measured table
+    # (e2e/shard-weights.tsv), because --shard's count-based split sent
+    # 220/297/261 s of test time to the three runners and the longest
+    # shard is the job's wall clock. --check runs in every shard before
+    # the run: a spec that escaped the deal (new file outside the table,
+    # stale weight row, glob drifting from what playwright collects)
+    # fails the job that would otherwise have skipped it silently.
     strategy:
       fail-fast: false
       matrix:
@@ -478,8 +539,14 @@ jobs:
           echo "::error::playwright chromium download failed three times — browser cache, not apt, not the tests"
           exit 1
 
+      # Positional e2e/-prefixed paths on purpose: --shard=N/3 splits by
+      # count (balanced only if every file costs the same), while the
+      # partitioner deals files by measured seconds.
+      - name: E2E partition check
+        run: bash tools/e2e-partition.sh --check 3
+
       - name: Run browser E2E
-        run: npx playwright test --config e2e/playwright.config.ts --shard=${{ matrix.shard }}/3
+        run: npx playwright test --config e2e/playwright.config.ts $(bash tools/e2e-partition.sh ${{ matrix.shard }} 3)
 
   # Nested module (desktop/go.mod). package main imports wails v3, which does
   # not compile on Linux with CGO_ENABLED=0 (undefined pointer in the linux

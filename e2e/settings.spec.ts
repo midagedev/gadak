@@ -148,87 +148,16 @@ test.describe('settings dialog', () => {
 })
 
 /*
- * Settings-audit contracts (false copy / dead toggle). These two assertions
- * failed against the pre-fix catalogs and Features tab (FAIL-first 2026-08-15):
- * sourcesNoProjects said "no issue is mirrored" / "미러링되는 이슈가 없습니다",
- * and Features rendered a "Web push" checkbox that saved a flag whose
- * endpoints 404. The web-push toggle is a source-scan now
- * (web/src/components/settings/FeaturesTab.test.ts) — it cannot fail in a
- * browser once the checkbox is gone from the source.
+ * Settings-audit contracts (false copy / dead toggle) moved off the browser
+ * by the GDK-1702 cost ladder: the empty-project-picker label, the GDK-476
+ * settings lead and the About-tab hrefs were three app boots asserting
+ * strings that live in the catalogs and the components — they are
+ * web/src/components/settings/settings-copy.test.ts now (source-scan, the
+ * FeaturesTab.test.ts idiom that took the web-push toggle before them).
+ * The audit they came from failed pre-fix on: sourcesNoProjects said "no
+ * issue is mirrored" / "미러링되는 이슈가 없습니다", and Features rendered a
+ * "Web push" checkbox that saved a flag whose endpoints 404.
  */
-test.describe('settings copy contracts', () => {
-  test('empty project picker label includes every project', async ({ page }) => {
-    const API = apiURL('/api/v1/issues/')
-    await page.route(`${API}settings/`, (route) =>
-      route.fulfill({
-        json: { projects: [], staleThresholdHours: 72 },
-      }),
-    )
-    await page.route(`${API}projects/available/`, (route) =>
-      route.fulfill({
-        json: {
-          projects: [{ key: 'NMB', name: 'Nimbus Backend', projectTypeKey: 'software' }],
-          truncated: false,
-        },
-      }),
-    )
-    await page.route(`${API}settings/spaces/`, (route) =>
-      route.fulfill({
-        json: { spaces: [], all_global_when_empty: false, enabled: false },
-      }),
-    )
-
-    await gotoApp(page)
-    await openServerSettings(page)
-    const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('button', { name: 'Sources', exact: true }).click()
-
-    const projects = dialog.getByTestId('scope-projects')
-    await expect(projects).toBeVisible()
-    await expect(projects.getByTestId('scope-empty')).toContainText('every project')
-  })
-
-  // Moved from ux-f12.spec.ts (v0.21 audit ladder round); its /tmp capture
-  // was deleted with the move.
-  test('GDK-476: settings lead names the job, not a file path', async ({ page }) => {
-    const errors = attachConsoleErrors(page)
-    await page.setViewportSize({ width: 1280, height: 800 })
-    await gotoApp(page)
-    await openServerSettings(page)
-
-    const dialog = page.getByRole('dialog', { name: 'Settings' })
-    const lead = dialog.getByTestId('settings-intro')
-    await expect(lead).toBeVisible()
-    await expect(lead).toHaveText(en['settings.intro'])
-    await expect(lead).not.toContainText('config.json')
-    await expect(lead).not.toContainText('~/.gadak')
-
-    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
-  })
-})
-
-test.describe('settings about tab', () => {
-  test('lists the four feedback channel hrefs', async ({ page }) => {
-    await gotoApp(page)
-    await openServerSettings(page)
-    const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('button', { name: 'About', exact: true }).click()
-    await expect(page.getByTestId('settings-about')).toBeVisible()
-    await expect(page.getByTestId('about-link-github')).toHaveAttribute(
-      'href',
-      'https://github.com/midagedev/gadak',
-    )
-    await expect(page.getByTestId('about-link-issues')).toHaveAttribute(
-      'href',
-      'https://github.com/midagedev/gadak/issues',
-    )
-    await expect(page.getByTestId('about-link-email')).toHaveAttribute(
-      'href',
-      'mailto:midagedev@gmail.com',
-    )
-    await expect(page.getByTestId('about-link-x')).toHaveAttribute('href', 'https://x.com/midagedev')
-  })
-})
 
 /*
  * GDK-1061: the Sources-tab scope lists load once per dialog (the guard

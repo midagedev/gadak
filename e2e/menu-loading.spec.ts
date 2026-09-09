@@ -20,6 +20,13 @@ import { MENU_ORIGIN_TIMEOUT_MS } from '../web/src/lib/menu-loading'
  *    note) when one exists, otherwise the catalog's failure sentence and a
  *    Retry.
  *
+ * The detail-picker half of the contract moved to vitest (GDK-1702 cost
+ * ladder): withMenuTimeout's timing and the picker's cached-catalog
+ * fallback are web/src/lib/menu-loading.test.ts — the fallback is pinned
+ * as a source scan there, because the picker cannot mount in the unit
+ * project and the fallback's claims are its source. This spec keeps the
+ * real path: one menu opened against a stalled origin, end to end.
+ *
  * The stalled routes fulfill after 60 s — far past every assertion — so the
  * pre-fix tree hangs exactly like the unreachable origin did, and the
  * post-fix fallback state stays put for the assertions (no late-arriving
@@ -91,65 +98,6 @@ test.describe('menu origin wait is capped (GDK-1566)', () => {
     // capped wait, not a dead menu.
     await retry.click()
     await expect(menu.getByText(en['common.loading'])).toBeVisible()
-
-    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
-  })
-
-  test('detail priority picker: timeout falls back to the site catalog with the offline note', async ({
-    page,
-  }) => {
-    const errors = attachConsoleErrors(page)
-    // Prime the site catalog first: the bulk menu loads it instantly.
-    await page.route('**/api/v1/issues/priorities/', async (route) => {
-      if (route.request().method() !== 'GET') return route.continue()
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        json: { priorities: [{ id: '1', name: 'Highest' }, { id: '3', name: 'Medium' }] },
-      })
-    })
-    await gotoApp(page)
-    await selectBulkRows(page, 1)
-
-    await page.getByRole('button', { name: en['bulk.changePriority'], exact: true }).click()
-    const bulkMenu = page.getByTestId('bulk-priority-menu')
-    await expect(bulkMenu.getByText('Highest')).toBeVisible()
-    await page.keyboard.press('Escape')
-    await expect(bulkMenu).toBeHidden()
-    // Clear the bulk selection so the detail panel is the only surface.
-    await page.keyboard.press('Escape')
-    await expect(page.getByTestId('bulk-bar')).toBeHidden()
-
-    // Open the first issue; stall only its per-key catalog.
-    const row = page.locator('[data-testid="issue-list-scroller"] [data-issue-key]').first()
-    const key = await row.getAttribute('data-issue-key')
-    expect(key).toBeTruthy()
-    await page.route(`**/api/v1/issues/${key}/priorities/`, async (route) => {
-      if (route.request().method() !== 'GET') return route.continue()
-      await stall()
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        json: { priorities: [{ id: '9', name: 'Per-key Only' }] },
-      })
-    })
-    await row.click()
-    const panel = page.getByTestId('issue-detail-panel')
-    await expect(panel).toHaveClass(/is-open/)
-
-    await page.keyboard.press('p')
-    const menu = page.getByRole('listbox', { name: en['common.priority'] })
-    await expect(menu).toBeVisible()
-    await expect(menu.getByText(en['common.loading'])).toBeVisible()
-
-    await expect(menu.getByText(en['common.loading'])).toBeHidden({
-      timeout: MENU_ORIGIN_TIMEOUT_MS + 4_000,
-    })
-    // The per-key answer never came, so the rows are the cached site catalog
-    // (not "Per-key Only"), and the note says so.
-    await expect(menu.getByText('Highest')).toBeVisible()
-    await expect(menu.getByText('Per-key Only')).toHaveCount(0)
-    await expect(menu.getByTestId('menu-cached-note')).toHaveText(en['app.offlineBanner'])
 
     expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
   })

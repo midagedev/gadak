@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test'
 import { apiURL, attachConsoleErrors, gotoApp, searchInput, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
-import { en } from '../web/src/lib/i18n/en'
 
 test.describe('command palette', () => {
   test('Cmd+K opens it, typing stays local, Enter opens the issue detail', async ({ page }) => {
@@ -445,23 +444,10 @@ test.describe('command palette', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
-  test('GDK-472: palette entry names its scope; empty palette is one phrase', async ({
-    page,
-  }) => {
-    const errors = attachConsoleErrors(page)
-    await gotoApp(page)
-
-    const entry = page.getByTestId('palette-open')
-    await expect(entry).toContainText('Search everything')
-    await expect(entry.locator('kbd')).toBeVisible()
-
-    await entry.click()
-    const palette = page.getByRole('dialog', { name: 'Command palette' })
-    await expect(palette).toBeVisible()
-    const box = palette.getByRole('combobox')
-    await expect(box).toHaveAttribute('placeholder', en['palette.placeholder'])
-    await expect(palette.getByTestId('palette-empty-hint')).toHaveCount(0)
-
-    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
-  })
+  // GDK-472 (entry names its scope; empty palette is one phrase) moved to
+  // web/src/components/palette/palette-entry.test.ts by the GDK-1702 cost
+  // ladder: every assertion read source or catalog strings, and opening
+  // the palette to read them back cost a boot. Entry click-through — open,
+  // type, Enter — is the real path this spec keeps (above and in
+  // usearch.spec.ts).
 })

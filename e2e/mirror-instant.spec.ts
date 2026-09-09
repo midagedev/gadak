@@ -22,8 +22,17 @@ import {
  * value moves when and only when the mirror does, WAL included — is pinned in
  * Go (internal/store/version_test.go, internal/server/focus_test.go).
  *
+ * One test, both halves of the contract (GDK-1702 cost ladder merged the
+ * two: each paid a full boot + anchor to drive the same rig, and the
+ * windows combine cleanly):
+ *  - a still mirror must not pull (the control window before the burst);
+ *  - moves reach the pool within INSTANT_MS — not on the backstop;
+ *  - moves inside one 500ms tick coalesce into exactly one pull, and a
+ *    mirror that settles does not pull again (the settle window doubles
+ *    as the still-mirror control on the post-pull state).
+ *
  * FAIL-first: with the client ignoring mirrorVersion, the injected issue
- * appears only on the backstop tick, and this stopped on
+ * appears only on the backstop tick, and this stops on
  * 'the board must pull within 3s of the mirror moving'.
  */
 
@@ -99,7 +108,9 @@ async function installRig(page: Page): Promise<Rig> {
 }
 
 test.describe('GDK-1170 a write elsewhere reaches an open board', () => {
-  test('the board pulls when mirrorVersion moves, not on the 15s backstop', async ({ page }) => {
+  test('the board pulls on a move, within the instant window, exactly once — never on ticks or stacked', async ({
+    page,
+  }) => {
     const errors = attachConsoleErrors(page)
     const rig = await installRig(page)
     await gotoApp(page)
@@ -119,32 +130,11 @@ test.describe('GDK-1170 a write elsewhere reaches an open board', () => {
     await page.waitForTimeout(INSTANT_MS) // duration is the contract: no pull while the mirror sits still
     expect(rig.deltas(), 'a still mirror must not pull a delta on the 500ms tick').toBe(anchored)
 
-    rig.arm()
-    rig.bump()
-
-    // The assertion waits on the state itself: the injected issue is in the
-    // pool, which is only true after a delta landed and was applied.
-    await expect(
-      page.getByText(new RegExp(`${DEMO_ISSUE_COUNT + 1} issues`)).first(),
-      'the board must pull within 3s of the mirror moving',
-    ).toBeVisible({ timeout: INSTANT_MS })
-
-    expect(rig.deltas(), 'exactly one delta for one move').toBe(anchored + 1)
-    expect(appConsoleErrors(errors)).toEqual([])
-  })
-
-  test('a mirror that keeps moving pulls once per move, never stacked', async ({ page }) => {
-    const errors = attachConsoleErrors(page)
-    const rig = await installRig(page)
-    await gotoApp(page)
-    await expect(page.getByText(new RegExp(`${DEMO_ISSUE_COUNT} issues`)).first()).toBeVisible({
-      timeout: 30_000,
-    })
-    await page.waitForResponse((r) => r.url().includes('/delta/'), { timeout: 30_000 })
-    const anchored = rig.deltas()
-
     // Three moves inside one 500ms tick. The tab must not fire three deltas —
-    // a poll that stacks requests is a new defect, not a fixed one.
+    // a poll that stacks requests is a new defect, not a fixed one — and it
+    // must not fire zero either (the pre-fix client ignored the version and
+    // waited for the backstop).
+    rig.arm()
     rig.bump()
     rig.bump()
     rig.bump()
@@ -152,9 +142,21 @@ test.describe('GDK-1170 a write elsewhere reaches an open board', () => {
     await expect
       .poll(() => rig.deltas(), { timeout: INSTANT_MS })
       .toBeGreaterThan(anchored)
-    // Settle, then count. Still short of the backstop at anchored + 15s.
+
+    // Settle, then count. Still short of the backstop at anchored + 15s:
+    // the burst coalesced into one pull, and a mirror that went still again
+    // does not pull a follow-up — the same still-mirror control, on the
+    // post-pull state.
     await page.waitForTimeout(INSTANT_MS) // duration is the contract: no follow-up pull after the burst settles
     expect(rig.deltas(), 'three moves inside one tick are one pull').toBe(anchored + 1)
+
+    // The assertion waits on the state itself: the injected issue is in the
+    // pool, which is only true after a delta landed and was applied.
+    await expect(
+      page.getByText(new RegExp(`${DEMO_ISSUE_COUNT + 1} issues`)).first(),
+      'the move must reach the pool within 3s',
+    ).toBeVisible({ timeout: INSTANT_MS })
+
     expect(BACKSTOP_MS).toBeGreaterThan(2 * INSTANT_MS)
     expect(appConsoleErrors(errors)).toEqual([])
   })
