@@ -166,7 +166,17 @@
     <EmptyState icon="" title={t('retro.empty')} />
   {:else if doc}
     <div class="min-h-0 flex-1 overflow-auto px-3 py-3">
-      <table class="w-max min-w-full border-separate border-spacing-0 text-body" data-testid="retro-table">
+      <!--
+        `w-max` alone, not `w-max min-w-full` (GDK-1706). With many columns
+        the two agree and the row scrolls; with few, `min-w-full` won and
+        stretched the table to the container, sharing the slack out between
+        the columns — a two-sprint cut left the metric names at one edge and
+        their two numbers a third of the screen away. A spacer cell is not
+        the fix either: `w-full` on a table cell demands the whole container
+        and crushes the label column to one character (measured on the same
+        frame). The table simply takes the width it needs.
+      -->
+      <table class="w-max border-separate border-spacing-0 text-body" data-testid="retro-table">
         <thead>
           <tr>
             <th class="sticky left-0 z-10 bg-bg-base pb-2 pr-6 text-left text-micro font-medium text-text-muted"></th>

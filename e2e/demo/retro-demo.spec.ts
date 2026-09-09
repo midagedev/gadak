@@ -2,11 +2,11 @@
  * Retro promo for docs/media/retro.{gif,mp4} — the 0.22 release cut's
  * second half.
  *
- * The claim is one sentence: the weekly report is not a dashboard you read
- * and close — every number in it is a door. So the take opens the retro
- * from the palette, widens the range, and then clicks a number, and the
- * issues behind it stand on the list as a keys view. No terminal, no CLI,
- * no DOM caption.
+ * Two sentences. The report's columns are whatever unit the team works in —
+ * ISO weeks, or the sprints this release made objects (GDK-1693), with the
+ * definitions following the switch. And every number in it is a door: click
+ * one and the issues behind it stand on the list as a keys view. No
+ * terminal, no CLI, no DOM caption.
  *
  * Gated by GADAK_MEDIA=1. Viewport and video size must stay 1280×800
  * (retro.config.ts) or Playwright letterboxes the capture.
@@ -71,14 +71,21 @@ test.describe('retro demo', () => {
     await expect(page.getByTestId('retro-week').last()).toContainText(T['retro.thisWeek'])
     await beat(page, 2000)
 
-    // The range is a control on the header, and the columns follow it.
-    await page.getByTestId('retro-range').filter({ hasText: T['retro.range8w'] }).click()
-    await expect(page.getByTestId('retro-week')).toHaveCount(9)
-    await beat(page, 1800)
+    // The other half of the claim: the columns are whatever unit the team
+    // works in. The same control cuts the report by sprint (GDK-1693), and
+    // the whole table follows — two named columns instead of five weeks, the
+    // running sprint marked, and the definitions under every row switch from
+    // "week" to "sprint" so the footer still describes what is on screen.
+    await page.getByTestId('retro-range').filter({ hasText: T['retro.bySprint'] }).click()
+    await expect(page.getByTestId('retro-week')).toHaveCount(2)
+    await expect(page.getByTestId('retro-week').last()).toContainText(T['retro.thisSprint'])
+    await expect(page.getByTestId('retro-table')).toContainText(T['retro.bucket.sprint'])
+    await beat(page, 2600)
 
     // The claim: a number is a door. The closed cell carries the keys of
-    // what actually closed that week, so clicking it hands the list those
-    // issues — a keys view, not a filter, which is why the URL says `ks=`.
+    // what actually closed inside that sprint, so clicking it hands the list
+    // those issues — a keys view, not a filter, which is why the URL says
+    // `ks=`.
     const cell = page.locator('[data-testid="retro-cell"][data-metric="closed"]').last()
     await expect(cell).toBeVisible()
     await cell.hover()
