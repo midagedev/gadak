@@ -1,0 +1,28 @@
+{
+  "items": [
+    {
+      "actor_name": "박보고",
+      "current_status": "할 일",
+      "event_id": "cm:jira:2001:jira:c-9",
+      "event_type": "comment_added",
+      "id": 1265241335,
+      "issue_key": "NMA-9",
+      "key": "NMA-9",
+      "occurred_at": "2026-09-10T00:00:00.000Z",
+      "payload": {
+        "excerpt": "the import crash reproduces with the new build"
+      },
+      "read_at": null,
+      "reasons": [
+        "mention"
+      ],
+      "summary": "modeler crash on import"
+    }
+  ],
+  "unread_counts": {
+    "all": 1,
+    "assignee": 0,
+    "mention": 1,
+    "reporter": 0
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "attachments": [
+    {
+      "cache_status": "pending",
+      "content_url": "/api/v1/issues/NMB-1/attachments/10021/content/",
+      "created_at": "2026-07-02T00:00:00.000Z",
+      "filename": "trace.png",
+      "id": "10021",
+      "is_image": true,
+      "is_video": false,
+      "media_collection": "",
+      "media_id": "",
+      "mime_type": "image/png",
+      "size": 1234
+    }
+  ],
+  "bodies": {},
+  "comments": [
+    {
+      "author": "김현철",
+      "author_account_id": "acc-hc",
+      "author_email": "hc@example.com",
+      "body": "hydra parity check failed",
+      "comment_id": "c-1",
+      "created_at": "2026-07-02T00:00:00.000Z",
+      "raw_body": {
+        "content": [],
+        "type": "doc",
+        "version": 1
+      }
+    }
+  ],
+  "deploy": null,
+  "description_adf": {
+    "content": [],
+    "type": "doc",
+    "version": 1
+  },
+  "description_md": "",
+  "description_text": "seen on staging",
+  "development_opinion": null,
+  "format_loss": [],
+  "history": [
+    {
+      "at": "2026-07-03T00:00:00.000Z",
+      "by": "김현철",
+      "field": "status",
+      "from": "할 일",
+      "from_category": "new",
+      "to": "진행 중",
+      "to_category": "inprogress"
+    }
+  ],
+  "issue_key": "NMB-1",
+  "key": "NMB-1",
+  "linked_issues": [
+    {
+      "direction": "outward",
+      "key": "NMB-2",
+      "status_category": "done",
+      "summary": "cloud upload retries forever",
+      "type": "Blocks"
+    }
+  ],
+  "linked_prs": [],
+  "progress_ms": 60000,
+  "qa_context": null,
+  "wait_ms": 60000
+}

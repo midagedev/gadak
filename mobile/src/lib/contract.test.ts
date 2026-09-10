@@ -3,6 +3,22 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
+// GDK-803: the five REST goldens the Go suite emits from its real handlers
+// (internal/server/contract_golden_test.go — regenerate with
+// `go test ./internal/server/ -run TestRESTResponseGoldens -update`).
+// Static imports on purpose: the type annotations below make this file part
+// of `npm run check`, so a server field deletion/regeneration that thins a
+// golden below the phone's wire types is a compile error here, not just a
+// runtime assert. offer.test.ts is the readFileSync precedent; these go one
+// step further because the whole point is typing the serve's actual bytes.
+import bootstrapGolden from '../../../internal/server/testdata/contract/bootstrap.json'
+import deltaGolden from '../../../internal/server/testdata/contract/delta.json'
+import detailGolden from '../../../internal/server/testdata/contract/detail.json'
+import feedGolden from '../../../internal/server/testdata/contract/feed.json'
+import meGolden from '../../../internal/server/testdata/contract/me.json'
+import type { FeedResponse } from './domain'
+import type { BootstrapResponse, DetailResponse, IssueLite, Me } from './types'
+
 // Recurrence layer for GDK-870 / GDK-879: the viewport gate cannot grow
 // (its spec file is only allowed to unskip the 44pt test). These read the
 // source so a later round cannot silently put the status action back in
@@ -645,5 +661,109 @@ describe('GDK-1132 — shared wire shapes stay owned by the desk', () => {
     // clause exists so the two classes cannot rename the shared fields
     // apart again.
     expect(read('lib/api.ts')).toMatch(/class ApiError extends Error implements Pick<WebApiError/)
+  })
+})
+
+describe('GDK-803 — the phone decodes the serve’s own goldens', () => {
+  // The annotations ARE the contract: each golden is the body a real server
+  // handler produced (same fixture the Go suite pins), typed here as what
+  // the phone's sync() drinks. A field the server drops or retypes fails
+  // `npm run check` at these annotations; the asserts below cover the
+  // fields the phone actually paints that optionality alone cannot pin.
+  // Display names are deliberately not compared to English words — the
+  // fixture's names are Korean, and the phone keys on status_category /
+  // status_id / priority_rank, never on the name.
+  const bootstrap: BootstrapResponse = bootstrapGolden
+  const deltaRows: IssueLite[] = deltaGolden.upserted
+  // `as`, not an annotation: JSON module inference widens the desk's literal
+  // unions (cache_status "pending" → string) and the annotation cannot pass
+  // that honestly. The cast still demands the shapes be comparable — a
+  // deleted or retyped field in the golden is a conversion error here, only
+  // the union strictness is given up, and the asserts below re-check the
+  // literals the phone branches on.
+  const detail = detailGolden as DetailResponse
+  const feed: FeedResponse = feedGolden
+  const me: Me = meGolden
+
+  it('bootstrap carries the row set and the stable axes the phone keys on', () => {
+    expect(bootstrap.issues.map((i) => i.issue_key).sort()).toEqual(['NMA-9', 'NMB-1', 'NMB-2'])
+    const nmb1 = bootstrap.issues.find((i) => i.issue_key === 'NMB-1')!
+    expect(nmb1.status_category).toBe('inprogress')
+    expect(nmb1.status_id).toBe('3')
+    expect(typeof nmb1.status).toBe('string')
+    expect(nmb1.status.length).toBeGreaterThan(0)
+    expect(nmb1.priority_rank).toBe(2)
+    expect(nmb1.assignee_id).toBe('acc-hc')
+    expect(nmb1.assignee_email).toBe('hc@example.com')
+    expect(nmb1.reporter_id).toBe('acc-rp')
+    expect(nmb1.comment_count).toBe(1)
+    expect(nmb1.started_at).toBe('2026-07-03T00:00:00.000Z')
+    expect(nmb1.status_changed_at).toBe('2026-07-03T00:00:00.000Z')
+    // Null is a value on the wire, not absence: an unassigned reporter (and
+    // on NMA-9 an unassigned assignee) arrive as null, and the phone's
+    // fallbacks key on exactly that.
+    const nmb2 = bootstrap.issues.find((i) => i.issue_key === 'NMB-2')!
+    expect(nmb2.reporter_id).toBeNull()
+    expect(nmb2.status_category).toBe('done')
+    const nma9 = bootstrap.issues.find((i) => i.issue_key === 'NMA-9')!
+    expect(nma9.assignee_id).toBeNull()
+    expect(nma9.assignee).toBeNull()
+    expect(typeof bootstrap.server_time).toBe('string')
+    expect(typeof bootstrap.sync_version).toBe('number')
+  })
+
+  it('delta answers rows of the same shape the bootstrap carries', () => {
+    // The phone does not dial delta today; this locks that the row grammar
+    // cannot fork between the two endpoints.
+    expect(deltaRows.length).toBeGreaterThan(0)
+    expect(deltaRows.every((row) => typeof row.summary === 'string')).toBe(true)
+    expect(Array.isArray(deltaGolden.deleted_keys)).toBe(true)
+  })
+
+  it('detail carries the comment, attachment, history and link the phone renders', () => {
+    expect(detail.issue_key).toBe('NMB-1')
+    const comment = detail.comments.find((c) => c.comment_id === 'c-1')!
+    expect(comment.author).toBeTruthy()
+    expect(comment.body).toBe('hydra parity check failed')
+    // raw_body is the ADF document (GDK-1497): object with a type, or null.
+    expect(comment.raw_body?.type).toBe('doc')
+    const attachment = detail.attachments[0]!
+    expect(attachment.filename).toBe('trace.png')
+    expect(attachment.is_image).toBe(true)
+    expect(attachment.size).toBe(1234)
+    expect(attachment.content_url).toContain('NMB-1')
+    expect(detail.description_adf?.type).toBe('doc')
+    expect(detail.description_text).toBe('seen on staging')
+    const status = detail.history.find((h) => h.field === 'status')!
+    expect(status.to_category).toBe('inprogress')
+    const link = detail.linked_issues[0]!
+    expect(link.key).toBe('NMB-2')
+    expect(link.status_category).toBe('done')
+    // Visit fields: absent (not zero) when the issue was never opened —
+    // both stay undefined here and no resume card renders on them.
+    expect(detail.last_visited_at).toBeUndefined()
+    expect(detail.previous_visit_at).toBeUndefined()
+  })
+
+  it('feed carries one mention row and the four unread counts', () => {
+    expect(feed.items.length).toBe(1)
+    const item = feed.items[0]!
+    expect(item.event_id.startsWith('cm:')).toBe(true)
+    expect(item.issue_key).toBe('NMA-9')
+    expect(item.event_type).toBe('comment_added')
+    expect(item.actor_name).toBeTruthy()
+    expect(item.reasons).toEqual(['mention'])
+    expect(item.read_at).toBeNull()
+    expect(typeof item.occurred_at).toBe('string')
+    expect(feed.unread_counts.all).toBe(1)
+    expect(feed.unread_counts.mention).toBe(1)
+    expect(feed.unread_counts.assignee).toBe(0)
+    expect(feed.unread_counts.reporter).toBe(0)
+  })
+
+  it('me carries the paired identity, nullable by type', () => {
+    expect(me.email).toBe('hc@example.com')
+    expect(me.account_id).toBe('acc-hc')
+    expect(typeof me.name).toBe('string')
   })
 })
