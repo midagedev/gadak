@@ -34,22 +34,30 @@ only; the outsource guard blocks `git tag -l` and `git ls-tree` — use
 
 | Census | Command | Feeds |
 |---|---|---|
-| Size | `git ls-files '*.go' '*.svelte' '*.ts' \| xargs wc -l \| sort -n` (split test/non-test; per-package totals for `internal/*`, `cmd/gadak`, `desktop`) | axes 1, 2, 4 |
-| Function complexity | `go run github.com/fzipp/gocyclo/cmd/gocyclo@v0.6.0 -top 30 .` and `go run github.com/uudashr/gocognit/cmd/gocognit@v1.1.3 -top 30 .` (pass `.`, filter `desktop/` by path; tables with and without `_test.go`). Svelte/TS: functions over 60 lines, files with more than three `$effect(` | axes 1, 2 |
-| Churn × complexity | `git log --name-only --format='' \| sort \| uniq -c \| sort -rn` joined with the two above; the top 20 is the hotspot list the axes open first | axes 1, 2, 4 |
-| Coupling | `go list -f '{{.ImportPath}} {{.Imports}} {{.TestImports}}' ./...` → fan-in / fan-out per `internal/*` package, cycles, single-consumer packages. Always join `TestImports`: a gate package whose only importers are tests reads as dead otherwise (`internal/archlint`) | axis 1 |
+| Size | `bash tools/audit/complexity.sh` (Size section: test/non-test split, per-package totals; the page prints its own source commands) | axes 1, 2, 4 |
+| Function complexity | `bash tools/audit/complexity.sh` (gocyclo + gocognit over `.` with and without `_test.go`; desktop/ functions count — the tools walk the filesystem; plus the Svelte/TS hotspot section: functions over 60 lines, files with more than three `$effect(`) | axes 1, 2 |
+| Churn × complexity | `bash tools/audit/complexity.sh` (Churn section: top 20 most-changed files, the hotspot list the axes open first) | axes 1, 2, 4 |
+| Coupling | `bash tools/audit/complexity.sh` (Coupling section: fan-in/fan-out with `Imports` joined to `TestImports` — a gate package whose only importers are tests reads as dead otherwise, the `internal/archlint` lesson; cycles; single-consumer packages) | axis 1 |
 | Duplication | `go run github.com/mibk/dupl@latest -t 40 .` (Go); a 5-gram token-shingle Jaccard over `.svelte` for the web (no Go-only tool covers it) | axis 4 |
 | Trend | the per-package size totals at the last three tags via `git show <tag>:<path> \| wc -l`; one table package × tag | axis 4, close |
-| CI ledger | `gh run view <id> --json jobs --jq '.jobs[] \| [.name, ((.completedAt\|fromdate)-(.startedAt\|fromdate))] \| @tsv'` for the run at each of the last three tags and the current head; wall = slowest shard, billable = sum. A `cancelled` run is not a data point for its cancelled jobs — say so in the table | axis 9 |
+| CI ledger | `bash tools/audit/ci-ledger.sh` (last three tags + head: wall = slowest shard, billable = sum, cancelled runs flagged — a cancelled job's seconds are when it died, not a duration; plus a failure/cancel census over the last 60 main runs. Needs `gh`; without it the page says what was not measured and exits 0) | axis 9 |
 | E2E per spec | the E2E job logs (`gh run view <id> --log --job <job>`): Playwright prints per-test seconds; aggregate per file; the top 25 | axes 5, 9 |
 | Go slowest | `go test -race -count=1 -json ./... > /tmp/gotest.json && go run ./tools/slowest /tmp/gotest.json` (the only heavy command; nothing else runs beside it) | axis 5 |
-| Surface matrix | one row per `[GDK-nnnn]` cited in `CHANGELOG.md` Unreleased × {CLI, web, MCP description, SKILL.md, phone}; a `yes` cites `path:line`, a `MISSING` cites the grep. The Unreleased range is `## Unreleased` to the next `## v`-heading — `^## 0\.` matches nothing | axes 7, 10 |
-| i18n gaps | a script over `web/src/lib/i18n/messages/*.ts` listing keys whose ko or ja is missing, empty or byte-equal to en (allowlist printed with reasons); a template scan of `web/src` and `mobile/src` for user-visible ASCII outside `t()`; the ko/ja site pages for three-or-more-word English runs; every `Intl.`/`toLocale` site for whether it takes the active locale | axis 11 |
-| Fact map | for each clause of `docs/project/FACT_LEDGER.md`, every copy in the READMEs, `site/`, `docs/`, `skills/gadak/SKILL.md`, `site/public/llms.txt`, found by the fact's **values** (numbers, commands, hosts), with `agrees / DISAGREES` and whether `tools/doc-checks.sh` guards it | axis 12 |
+| Surface matrix | `bash tools/audit/surface-coverage.sh` (one row per `[GDK-nnnn]` cited in `CHANGELOG.md` Unreleased × {CLI, web, MCP, SKILL.md, phone}; a `YES(n)` cites files, a `MISSING` names the gap — a surface delivered under a different key reads as MISSING and is the axis-7 reader's triage, the page says so) | axes 7, 10 |
+| i18n gaps | `bash tools/audit/i18n-census.sh` (catalog completeness; ko/ja byte-equality against the `catalog.test.ts` allowlist with reasons and stale entries; a heuristic English-literal scan of `web/src` and `mobile/src`; every `Intl.`/`toLocale`/literal-locale site classified. The rendered ko/ja site pages are still a manual half — the page's Not-measured section owns that boundary) | axis 11 |
+| Fact map | `bash tools/audit/fact-ledger.sh` (§17 contract rows re-verified; every ledger value — fenced commands, URLs, §6 measurements, status minor — mapped to its copies with `by-check`/`ledger-marked`/`unguarded` and DISAGREES-candidate command-family variants) | axis 12 |
 
 The census is one read-only delegated round per row group (five rounds ran
-in parallel in the v0.22 cycle, 38–70 minutes each). Its reports are inputs,
-not findings: an axis round reads them and opens the code from there.
+in parallel in the v0.22 cycle, 38–70 minutes each). Eight of the rows are
+now scripts under `tools/audit/` (GDK-1707): each runs with no arguments,
+exits 0 even when it cannot measure (gh missing, module cache cold — the
+page then says so in plain words), starts with a markdown header, and
+prints its own source commands in a `## Sources` section, so the report
+carries its provenance. `bash tools/audit-test.sh` gates that contract,
+including on deliberately bad pages. The remaining rows (duplication,
+trend, E2E per spec, Go slowest) are still hand-run commands. Census
+reports are inputs, not findings: an axis round reads them and opens the
+code from there.
 
 The baseline the v0.22 census set, so the next one can say which way things
 moved: Go 219,183 lines (test 1.3× production), mean non-test cyclomatic

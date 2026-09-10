@@ -264,6 +264,11 @@ CSS 를 인용한 코멘트가 `@media` 가 누구냐고 origin 에 묻지 않�
 이미 실제 멘션 노드가 되고 있었고, 이제 "누가 요청하면 넣자" 던 주석 대신
 테스트가 그것을 고정합니다 ([GDK-21]).
 
+릴리스 감사의 센서스는 `tools/audit/` 의 스크립트 다섯이고 각각 자기 출처
+명령을 인쇄하며, doc-checks 가 그 계약 테스트를 돌립니다 ([GDK-1707]). 의미축
+감사 — 링크 방향처럼 거울상인 매핑이 또 있는가 — 는 후보 결함 둘과 메모 넷을
+담은 문서입니다 ([GDK-1206]).
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -1780,3 +1785,5 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1125]: https://gadak.dev/backlog/#/?ks=GDK-1125
 [GDK-1544]: https://gadak.dev/backlog/#/?ks=GDK-1544
 [GDK-21]: https://gadak.dev/backlog/#/?ks=GDK-21
+[GDK-1707]: https://gadak.dev/backlog/#/?ks=GDK-1707
+[GDK-1206]: https://gadak.dev/backlog/#/?ks=GDK-1206

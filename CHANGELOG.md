@@ -356,6 +356,12 @@ an `@email` already becomes a real mention node, which is now pinned by a
 test rather than by a comment that said "add it when someone asks"
 ([GDK-21]).
 
+The release audit's census is five scripts under `tools/audit/`, each
+printing its own source commands, with a contract test that doc-checks runs
+([GDK-1707]); and the semantic-axis audit — is any other mapping mirrored
+the way link direction was — is a document with two candidate defects and
+four notes ([GDK-1206]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -1938,3 +1944,5 @@ priority sorting keyed on `priority_rank`.
 [GDK-1125]: https://gadak.dev/backlog/#/?ks=GDK-1125
 [GDK-1544]: https://gadak.dev/backlog/#/?ks=GDK-1544
 [GDK-21]: https://gadak.dev/backlog/#/?ks=GDK-21
+[GDK-1707]: https://gadak.dev/backlog/#/?ks=GDK-1707
+[GDK-1206]: https://gadak.dev/backlog/#/?ks=GDK-1206

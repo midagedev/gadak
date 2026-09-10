@@ -2451,4 +2451,13 @@ sys.exit(1 if bad else 0)
 PY47
 ok "every contract string the fact ledger names is in the file it names"
 
+# ── 48. audit-test.sh actually runs (GDK-1707: census scripts promoted to tools/audit/) ──
+# The five tools/audit/*.sh census pages claim a contract (exit 0, markdown
+# header, ## Sources with commands, no paths outside the repo); audit-test.sh
+# asserts it, including on deliberately bad pages, and covers ci-ledger's
+# gh-missing degradation offline via a fake gh. Carried the way checks 43-44
+# carry their fixture tests: this file runs in CI's "Documentation factuality"
+# step, so the delegated run is the wiring (check 42's *-test.sh rule).
+bash tools/audit-test.sh
+
 echo "doc-checks: all passed"
