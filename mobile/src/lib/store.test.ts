@@ -22,6 +22,7 @@ import {
   app,
   boot,
   issuesBootKind,
+  openIssue,
   pair,
   removeRosterHost,
   searchPaint,
@@ -639,10 +640,15 @@ describe('switchHost() — per-host caches never cross (GDK-1097 B2)', () => {
     const b = await seedHost(EP_B, 'desk B', 'STD-B1')
     await bootOn(a)
     expect(app.issues.map((i) => i.issue_key)).toEqual(['STD-A1'])
+    // A key remembered on A's pool (GDK-1527) must not ride into B's
+    // session sheet — it is workspace-scoped session state.
+    openIssue('STD-A1')
+    expect(app.lastViewedIssueKey).toBe('STD-A1')
 
     expect(await switchHost(b)).toBe(true)
     expect(getActiveHostId()).toBe(b)
     expect(app.meta?.label).toBe('desk B')
+    expect(app.lastViewedIssueKey).toBeNull()
     // B's rows — A's rows left the view without being deleted.
     expect(app.issues.map((i) => i.issue_key)).toEqual(['STD-B1'])
     expect(JSON.parse(mem.get(`gadak.snapshot@${a}`) as string).issues[0].issue_key).toBe('STD-A1')

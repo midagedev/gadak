@@ -20,7 +20,15 @@ vi.mock('./api', async (importOriginal) => {
 })
 
 import { request } from './api'
-import { app, closeIssue, openIssue, openPage, recordVisit, resetVisitDebounce } from './store.svelte'
+import {
+  app,
+  closeIssue,
+  openIssue,
+  openPage,
+  recordVisit,
+  resetVisitDebounce,
+  switchTab,
+} from './store.svelte'
 
 const mockRequest = vi.mocked(request)
 
@@ -84,5 +92,43 @@ describe('GDK-1538 the phone feeds the visit history it reads', () => {
     expect(app.detail).toEqual({ kind: 'issue', key: 'STD-31' })
     expect(visits()).toEqual([])
     app.demo = false
+  })
+})
+
+/*
+ * GDK-1527 — the last viewed issue outlives the detail layer.
+ *
+ * The defect shape: the detail layer covers the whole tab column, so
+ * reaching the Terminal tab *means* closeIssue() ran and app.detail is
+ * null — the session sheet's issue field therefore opened empty every
+ * time, and typing the key by hand was the only real path. The store now
+ * remembers the last issue it recorded a visit for; the same record the
+ * resume card's boundary comes from, not a second owner.
+ */
+describe('GDK-1527 the last viewed issue survives closeIssue', () => {
+  beforeEach(() => {
+    app.lastViewedIssueKey = null
+  })
+
+  it('open → close → Terminal tab: the key is still there to prime the session sheet', () => {
+    openIssue('STD-30')
+    // A page read records too, but must not eat the remembered issue —
+    // the session sheet binds issues, not pages.
+    openPage('9912')
+    closeIssue()
+    switchTab('shell')
+
+    expect(app.detail).toBeNull()
+    expect(app.tab).toBe('shell')
+    expect(app.lastViewedIssueKey).toBe('STD-30')
+  })
+
+  it('never remembers one in the demo session — there is no shell to prime', () => {
+    app.demo = true
+    openIssue('STD-31')
+    app.demo = false
+
+    expect(app.detail).toEqual({ kind: 'issue', key: 'STD-31' })
+    expect(app.lastViewedIssueKey).toBeNull()
   })
 })

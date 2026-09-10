@@ -158,16 +158,19 @@
   const currentIssue = $derived(current?.issue_key?.trim() || null)
 
   /**
-   * The issue the app has open, when it has one — the desktop binds by
-   * opening a shell *from* an issue and this is the phone's nearest thing
-   * (store.svelte.ts `app.detail`). In practice it is almost always null
-   * here: the detail layer paints over the whole tab column (App.svelte), so
-   * reaching the Terminal tab means the detail was closed, and closeIssue()
-   * nulls it. It is read anyway rather than invented — when it is set, the
-   * key field opens already filled — and the missing piece (a last-viewed
-   * issue the store remembers) is reported, not added to the store here.
+   * The issue the session sheet's key field opens already filled with: the
+   * one open now, else the last one this session opened (store
+   * `lastViewedIssueKey`, GDK-1527). The desktop binds by opening a shell
+   * *from* an issue; `app.detail` alone was the phone's nearest thing and is
+   * almost always null here — the detail layer paints over the whole tab
+   * column (App.svelte), so reaching the Terminal tab means the detail was
+   * closed and closeIssue() nulled it. The remembered key is written beside
+   * the visit post (recordVisit), the same record the resume card reads —
+   * not a second "last viewed issue" owner.
    */
-  const openIssueKey = $derived(app.detail?.kind === 'issue' ? app.detail.key : null)
+  const openIssueKey = $derived(
+    app.detail?.kind === 'issue' ? app.detail.key : app.lastViewedIssueKey,
+  )
 
   async function refreshRoster(): Promise<void> {
     try {

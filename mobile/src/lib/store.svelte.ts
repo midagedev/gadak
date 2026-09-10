@@ -122,6 +122,18 @@ export const app = $state({
 
   tab: 'issues' as Tab,
   detail: null as DetailRef | null,
+  /**
+   * The last issue this session opened (GDK-1527). Outlives closeIssue() —
+   * closing the detail is exactly how the Terminal tab becomes reachable
+   * (the detail layer covers the whole tab column), and the session
+   * sheet's key field wants the issue the person was just reading, not an
+   * empty box. Written beside the visit post in recordVisit, the same
+   * single owner the resume card's boundary (GDK-1495 ③) comes from — no
+   * second "last viewed issue" to drift from the recorded one. Session
+   * RAM only, never persisted; dies with the workspace in
+   * resetSessionState().
+   */
+  lastViewedIssueKey: null as string | null,
   /** Terminal pairing metadata — never the token. Null → no Shell tab. */
   terminal: null as PairMeta | null,
   /** Ticks every 30s so relative times stay honest while the app is open. */
@@ -734,6 +746,9 @@ function resetSessionState(): void {
   app.lastSyncAt = null
   app.rejected = false
   app.detail = null
+  // Issue keys are workspace-scoped: a key remembered on one host's pool
+  // must not suggest itself into another host's session sheet (GDK-1527).
+  app.lastViewedIssueKey = null
   app.tab = 'issues'
   app.terminal = null
   // The boundary and the threshold belong to the host being left, not to the
@@ -957,6 +972,12 @@ export function recordVisit(kind: 'issue' | 'page', key: string, now = Date.now(
   if (lastVisitId === id && now - lastVisitAt < VISIT_DEBOUNCE_MS) return
   lastVisitId = id
   lastVisitAt = now
+  // The last *issue* read is remembered here, beside the record itself
+  // (GDK-1527): this is already the one owner of "the phone looked at
+  // this", so a remembered key can never disagree with what the serve's
+  // resume boundary will be computed from. A page read records too, but
+  // must not eat the remembered issue.
+  if (kind === 'issue') app.lastViewedIssueKey = key
   void request('issues/history/visits/', {
     method: 'POST',
     body: { kind, key },

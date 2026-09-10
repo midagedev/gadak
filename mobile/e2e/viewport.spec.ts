@@ -5,6 +5,7 @@
 // existed only while HEAD 200 meant "armed".
 import { type Page } from '@playwright/test'
 import { expect, test } from './helpers'
+import { SHEET_INSET_FLOOR_PX, sheetBottomInset } from '../src/lib/inset'
 
 type Measure = {
   label: string
@@ -17,6 +18,16 @@ type Measure = {
   buttonsUnder44pt: number
   under44: { h: number; cls: string }[]
   hasEscape: boolean
+  /**
+   * The open sheet's computed bottom padding and the --safe-bottom the
+   * page reports — the GDK-907/GDK-911 axis. Null padding = no sheet open
+   * at this step. The expected value is derived from sheetBottomInset, the
+   * same pure function the unit beside it pins app.css to, so this rig
+   * (inset 0 → the floor) and a notched one are both asserted against the
+   * one formula.
+   */
+  sheetInsetPx: number | null
+  safeBottomPx: number
 }
 
 async function measure(page: Page, label: string): Promise<Measure> {
@@ -45,6 +56,12 @@ async function measure(page: Page, label: string): Promise<Measure> {
         return { h: r.height, cls: String(b.className).split(' ')[0] }
       })
       .filter((x) => x.h > 0 && x.h < 44)
+    const sheet = document.querySelector('.sheet')
+    const sheetInsetPx = sheet ? parseFloat(getComputedStyle(sheet).paddingBottom) : null
+    const safeBottomPx =
+      parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue('--safe-bottom'),
+      ) || 0
     return {
       label,
       hOverflow: document.documentElement.scrollWidth - window.innerWidth,
@@ -59,6 +76,8 @@ async function measure(page: Page, label: string): Promise<Measure> {
         isShown(document.querySelector('nav.safe-bottom')) ||
         [...document.querySelectorAll('button.back')].some(isShown) ||
         [...document.querySelectorAll('button.cancel')].some(isShown),
+      sheetInsetPx,
+      safeBottomPx,
     }
   }, label)
 }
@@ -107,19 +126,29 @@ async function walkAll(page: Page): Promise<Measure[]> {
   await page.locator('button.back').waitFor()
   report.push(await measure(page, 'detail'))
 
-  // This used to open the transition sheet and measure it. `gadak demo` is a
-  // serve with no origin credential: the transitions GET answers 409
+  // GDK-911 — this walk measures a sheet inside .detail-layer again. It
+  // used to open the transition sheet for that; `gadak demo` is a serve
+  // with no origin credential, so the transitions GET answers 409
   // credential_required (measured 2026-08-26 — PROBE HTTP 409
-  // /api/v1/issues/NMS-134/transitions/). Before GDK-906 the sheet opened
-  // anyway and painted that refusal inside itself, so what this step measured
-  // was the empty-sheet dead end the fix removed. The control now refuses at
-  // the control — it disables and carries the sentence — which is the state
-  // this fixture can actually reach, so that is what is measured.
-  //
-  // Coverage this costs: `.detail-layer .sheet` geometry (the inset owner
-  // added in GDK-907) has no measurement on this fixture, because the
-  // transition sheet is the only sheet that lives in that layer. Tracked as
-  // GDK-911 — do not close it by deleting the assertion.
+  // /api/v1/issues/NMS-134/transitions/) and, since GDK-906, that sheet
+  // cannot open on this fixture. But the layer stopped being a one-sheet
+  // layer when the A2 write controls landed (GDK-1497): three more sheets
+  // live in it, and the assignee picker opens with no server round-trip —
+  // no fetch guards its open, so no 409 can close it. It is the inset
+  // owner GDK-907 added, measured on the bytes that ship; the inset
+  // assertion itself is in the geometry test below. The priority picker
+  // (the first m-btn) cannot be the vehicle: its open fires a priorities
+  // GET that 409s on this fixture and refuseWrite() closes the sheet it
+  // had just opened.
+  await page.locator('.detail-layer button.m-btn').nth(1).click()
+  await page.locator('button.cancel').waitFor()
+  await settleSheet(page)
+  report.push(await measure(page, 'detail-sheet'))
+  await page.locator('button.cancel').click()
+  await page.locator('button.cancel').waitFor({ state: 'hidden' })
+
+  // The state the 409 leaves behind is still measured: the control refuses
+  // at the control — it disables and carries the sentence.
   const chip = page.locator('button.status').first()
   if ((await chip.count()) > 0) {
     await chip.click()
@@ -188,6 +217,7 @@ test('viewport geometry at 402×874', async ({ page }) => {
     'issues',
     'scope-sheet',
     'detail',
+    'detail-sheet',
     'detail-writes-off',
     'docs',
     'page-detail',
@@ -235,6 +265,26 @@ test('viewport geometry at 402×874', async ({ page }) => {
   const docs = report.find((r) => r.label === 'docs')
   expect(docs, 'docs measurement').toBeTruthy()
   expect(docs!.rowsPerScreen, 'docs rows per screen').toBeGreaterThanOrEqual(12)
+  // GDK-911: a sheet inside .detail-layer is the bottom-most painted
+  // surface and clears the home indicator by the same formula .safe-bottom
+  // gives the tab bar — max(reported inset, floor), the number owned by
+  // sheetBottomInset and pinned to app.css by inset.test.ts. The walk's
+  // detail-sheet row is the assignee picker, a sheet actually open in that
+  // layer; the scope-sheet row is the same Sheet component inside .tabs,
+  // where the tab bar pays the inset — zero of its own is that layer's
+  // contract, so the difference below is the layer's, not the component's.
+  const detailSheet = report.find((r) => r.label === 'detail-sheet')
+  expect(detailSheet, 'detail-sheet measurement').toBeTruthy()
+  expect(detailSheet!.sheetInsetPx, 'detail-layer sheet bottom inset').toBe(
+    sheetBottomInset(detailSheet!.safeBottomPx),
+  )
+  const scopeSheet = report.find((r) => r.label === 'scope-sheet')
+  expect(scopeSheet!.sheetInsetPx, 'tabs sheet owes no inset of its own').toBe(0)
+  // Same debuggability stance as the rowH print above: the axis this gate
+  // owns, printed every run so a moved number explains itself.
+  console.log(
+    `[viewport] detail-sheet inset ${detailSheet!.sheetInsetPx}px (safe-bottom ${detailSheet!.safeBottomPx}px, floor ${SHEET_INSET_FLOOR_PX}px)`,
+  )
   // GDK-885: opening the picker must not cost the list its density.
   const afterSheet = report.find((r) => r.label === 'issues-dark')
   expect(afterSheet!.rowsPerScreen, 'rows per screen after the picker closed').toBeGreaterThanOrEqual(
