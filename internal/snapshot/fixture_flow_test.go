@@ -91,21 +91,25 @@ func TestDemoFixtureStatusHistoryIsOrdered(t *testing.T) {
 	db := fixtureDB(t)
 
 	// No issue may resolve before it started, be updated before it was
-	// created, or carry a changelog entry outside its own span.
+	// created, or carry a changelog entry outside its own span. These probes
+	// cover every kind, not just issues: pages ride the same spread since
+	// GDK-1731, and narrowing them to kind='issue' to stay green was the
+	// workaround this file documented on 2026-09-09 (2 pages inverted,
+	// 20 page comments outside span).
 	for _, probe := range []struct{ name, query string }{
 		{"resolved_at before started_at",
 			`SELECT COUNT(*) FROM issues_raw
 			 WHERE started_at IS NOT NULL AND resolved_at IS NOT NULL AND resolved_at < started_at`},
 		{"updated_at before created_at",
 			`SELECT COUNT(*) FROM items
-			 WHERE kind = 'issue' AND updated_at != '' AND updated_at < created_at`},
-		{"changelog entry outside issue span",
+			 WHERE updated_at != '' AND updated_at < created_at`},
+		{"changelog entry outside item span",
 			`SELECT COUNT(*) FROM changelog c JOIN items i ON i.id = c.item_id
-			 WHERE i.kind = 'issue' AND c.at != '' AND c.id NOT LIKE 'sprint:%'
+			 WHERE c.at != '' AND c.id NOT LIKE 'sprint:%'
 			   AND (c.at < i.created_at OR c.at > i.updated_at)`},
-		{"comment outside issue span",
+		{"comment outside item span",
 			`SELECT COUNT(*) FROM comments c JOIN items i ON i.id = c.item_id
-			 WHERE i.kind = 'issue' AND c.created_at != ''
+			 WHERE c.created_at != ''
 			   AND (c.created_at < i.created_at OR c.created_at > i.updated_at)`},
 	} {
 		var n int

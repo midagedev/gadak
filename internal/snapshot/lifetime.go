@@ -10,8 +10,9 @@ import (
 
 // Synthetic issue lifetimes and state-aware placement for --spread
 // (GDK-1720, GDK-1739). This file is the single owner of *when* a spread
-// issue's events land; clone.go decides which issues exist, build.go writes
-// them.
+// item's events land — issues since GDK-1720, and pages with their comments
+// since the page-spread round below; clone.go decides which issues exist,
+// build.go writes them.
 //
 // applySpread used to keep each issue's own created→updated duration and only
 // move the pair onto the destination window. On the demo fixture that is a
@@ -203,9 +204,12 @@ type history struct {
 	nAtt     int
 }
 
-func newHistory(p *plannedIssue, ch children, seed int64) history {
+// newHistory reduces one item's dated child rows to placement inputs. It is
+// keyed by (itemID, cloneSeq) only — the same two fields issueNoise draws on —
+// so pages ride it unchanged instead of growing a parallel machine.
+func newHistory(itemID string, cloneSeq int, ch children, seed int64) history {
 	var h history
-	srcID := p.src.itemID
+	srcID := itemID
 	changes := ch.changelogBy[srcID]
 	comms := ch.commentsBy[srcID]
 	atts := ch.attachmentsBy[srcID]
@@ -255,7 +259,7 @@ func newHistory(p *plannedIssue, ch children, seed int64) history {
 	// floor keeps a beat from landing on top of the one before it.
 	h.weights = make([]float64, len(h.beats))
 	for i := range h.weights {
-		u := clampUnit(issueNoise(seed, srcID, p.cloneSeq, fmt.Sprintf("gap%d", i)))
+		u := clampUnit(issueNoise(seed, srcID, cloneSeq, fmt.Sprintf("gap%d", i)))
 		h.weights[i] = -math.Log(u) + 0.15
 	}
 	return h
@@ -352,4 +356,93 @@ func (h history) emit(times []time.Time) eventPlacement {
 		}
 	}
 	return out
+}
+
+// applyPageSpread puts documents on the same destination window the issues
+// ride. Until it existed, build.go copied page stamps verbatim,
+// and the demo fixture — whose pages all grew inside a ~70s cluster while the
+// issues were spread over 90 days — shipped two pages with updated_at before
+// created_at and twenty page comments outside their own page's span
+// (measured 2026-09-09, the day fixture_flow_test.go's probes were narrowed
+// to kind='issue' to stay green).
+//
+// A page has no status history to anchor, so this is the plain GDK-1720
+// shape rather than the state-aware one: created_at placed evenly over the
+// window (same arithmetic as applySpread, so issues and documents interleave
+// as one timeline), a synthesized lifetime when the page has dated children,
+// and the children's beats spread by their gap weights across that span. The
+// invariants the callers gate on — created ≤ updated, every comment inside
+// its page's span, a comment never edited before it was written — follow from
+// place and emit, not from anything re-derived here.
+//
+// Unlike applySpread this does not bail on an empty issue set: a wiki-only
+// source has no planned issues and its pages still need the window.
+func applyPageSpread(pages []pageRow, window time.Duration, now time.Time, seed int64, ch children) {
+	if window <= 0 || len(pages) == 0 {
+		return
+	}
+	start := now.Add(-window)
+
+	// Even created_at over the window, in the (createdAt, key) order build.go
+	// sorted — the same contract the issues' placement keeps.
+	n := len(pages)
+	createds := make([]time.Time, n)
+	if n == 1 {
+		createds[0] = start
+	} else {
+		for i := 0; i < n; i++ {
+			frac := float64(i) / float64(n-1)
+			createds[i] = start.Add(time.Duration(frac * float64(window)))
+		}
+	}
+
+	for i := range pages {
+		p := &pages[i]
+		srcCreated, okC := parseTime(p.createdAt)
+		if !okC {
+			srcCreated = start
+		}
+		// Source high-water mark over every dated child, as in applySpread:
+		// items.updated_at alone can sit before a comment the page carries.
+		srcUpdated := srcCreated
+		if u, ok := parseTime(asString(p.itemCols["updated_at"])); ok && u.After(srcUpdated) {
+			srcUpdated = u
+		}
+		events := 0
+		for _, row := range ch.commentsBy[p.itemID] {
+			events++
+			for _, f := range []string{"created_at", "updated_at"} {
+				if t, ok := parseTime(asString(row[f])); ok && t.After(srcUpdated) {
+					srcUpdated = t
+				}
+			}
+		}
+		for _, row := range ch.attachmentsBy[p.itemID] {
+			events++
+			if t, ok := parseTime(asString(row["created_at"])); ok && t.After(srcUpdated) {
+				srcUpdated = t
+			}
+		}
+
+		dstCreated := createds[i]
+		dur := srcUpdated.Sub(srcCreated)
+		if events > 0 {
+			dur = synthLifetime(seed, p.itemID, 0, now.Sub(dstCreated))
+		}
+		if dur < 0 {
+			dur = 0
+		}
+		dstUpdated := dstCreated.Add(dur)
+
+		h := newHistory(p.itemID, 0, ch, seed)
+		p.useMap = true
+		if h.empty() {
+			p.events = h.emit(nil)
+		} else {
+			p.events = h.emit(h.place(dstCreated, dstUpdated, nil))
+		}
+		p.itemCreatedAt = formatTime(dstCreated)
+		p.itemUpdatedAt = formatTime(dstUpdated)
+		p.itemSyncedAt = formatTime(now)
+	}
 }

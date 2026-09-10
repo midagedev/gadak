@@ -191,7 +191,9 @@ func buildInto(tmp string, opts Options) (rotationStats, error) {
 	}
 
 	// Documents: kind=page items + pages projection + their comments.
-	// No scale/clone (scale is an issue-volume tool); timestamps kept as source.
+	// No scale/clone (scale is an issue-volume tool), but a requested spread
+	// covers them too: pages and their comments ride the same window the
+	// issues do, so one timeline interleaves both kinds.
 	pages, err := loadPages(src)
 	if err != nil {
 		return rot, err
@@ -202,6 +204,7 @@ func buildInto(tmp string, opts Options) (rotationStats, error) {
 		}
 		return pages[i].key < pages[j].key
 	})
+	applyPageSpread(pages, opts.Spread, opts.Now, opts.Seed, children)
 	for _, p := range pages {
 		keptIDs[p.itemID] = true
 		if err := insertPageBundle(tx, p, children); err != nil {
@@ -463,6 +466,14 @@ func insertPageBundle(tx *sql.Tx, p pageRow, ch children) error {
 		page["version"] = 1
 	}
 
+	// Planned stamps from applyPageSpread; a page that rode no
+	// spread keeps its source timestamps.
+	if p.useMap {
+		item["created_at"] = p.itemCreatedAt
+		item["updated_at"] = p.itemUpdatedAt
+		item["synced_at"] = p.itemSyncedAt
+	}
+
 	if err := insertRow(tx, "items", itemColumns, item); err != nil {
 		return err
 	}
@@ -472,17 +483,28 @@ func insertPageBundle(tx *sql.Tx, p pageRow, ch children) error {
 
 	// Page comments live on the shared comments table (same as issues).
 	comms := ch.commentsBy[itemID]
-	for _, row := range comms {
+	for i, row := range comms {
 		row = maps.Clone(row)
 		row["item_id"] = itemID
+		if p.useMap {
+			if asString(row["created_at"]) != "" && i < len(p.events.commentNew) && p.events.commentNew[i] != "" {
+				row["created_at"] = p.events.commentNew[i]
+			}
+			if asString(row["updated_at"]) != "" && i < len(p.events.commentUpd) && p.events.commentUpd[i] != "" {
+				row["updated_at"] = p.events.commentUpd[i]
+			}
+		}
 		if err := insertRow(tx, "comments", commentColumns, row); err != nil {
 			return err
 		}
 	}
 	// Attachments metadata (no file bytes) — same policy as issue path.
-	for _, row := range ch.attachmentsBy[itemID] {
+	for i, row := range ch.attachmentsBy[itemID] {
 		row = maps.Clone(row)
 		row["item_id"] = itemID
+		if p.useMap && asString(row["created_at"]) != "" && i < len(p.events.attachments) && p.events.attachments[i] != "" {
+			row["created_at"] = p.events.attachments[i]
+		}
 		if err := insertRow(tx, "attachments", attachmentColumns, row); err != nil {
 			return err
 		}

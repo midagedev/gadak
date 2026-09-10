@@ -448,6 +448,206 @@ func TestSpreadInvariants(t *testing.T) {
 	}
 }
 
+// TestPageSpreadInvariants closes GDK-1731 at the Build level: pages and
+// their comments ride the same --spread window the issues do. The source
+// carries the two pathologies the committed fixture shipped with — a page
+// whose updated_at sits before its created_at, and a comment stamp the ISO
+// parser cannot read — and the assertions are the invariants the placement
+// owes on every kind, not just issues: created ≤ updated, every comment
+// inside its own item's span, no comment edited before it was written.
+func TestPageSpreadInvariants(t *testing.T) {
+	src := seedSource(t, seedOpts{withPages: true, spreadish: true})
+
+	// Pathologies straight into the source (Build migrates a scratch copy,
+	// so this file is the test's to corrupt): the runbook page's updated_at
+	// moved an hour before its created_at, and its comment's created_at
+	// rewritten into the space-separated shape the 2026-09-09 measurement
+	// found on the fixture ('2026-09-09 09:04:06' — not ISO, parseTime
+	// rejects it). FAIL-first: with pages kept as source, this test's
+	// inverted-stamp and outside-span assertions fire on exactly these rows.
+	raw, err := sql.Open("sqlite", "file:"+src+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`UPDATE items SET updated_at = '2025-12-31T23:00:00.000Z'
+		WHERE id = 'confluence:100'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`UPDATE comments SET created_at = '2026-09-09 09:04:06'
+		WHERE id = 'confluence:c-1'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	out := filepath.Join(t.TempDir(), "snap.db")
+	now := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
+	window := 90 * 24 * time.Hour
+	if _, err := Build(Options{From: src, Out: out, Spread: window, Seed: 1, Now: now}); err != nil {
+		t.Fatal(err)
+	}
+	db := openRO(t, out)
+	defer db.Close()
+
+	// Every item of every kind: parsable stamps, created ≤ updated.
+	rows, err := db.Query(`SELECT kind, key, created_at, updated_at FROM items ORDER BY created_at, key`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pages int
+	for rows.Next() {
+		var kind, key, created, updated string
+		if err := rows.Scan(&kind, &key, &created, &updated); err != nil {
+			t.Fatal(err)
+		}
+		c, okC := parseTime(created)
+		u, okU := parseTime(updated)
+		if !okC || !okU {
+			t.Errorf("%s %s: unparsable stamps created=%q updated=%q", kind, key, created, updated)
+			continue
+		}
+		if u.Before(c) {
+			t.Errorf("%s %s: updated_at %v before created_at %v", kind, key, u, c)
+		}
+		if kind == "page" {
+			pages++
+		}
+	}
+	rows.Close()
+	if pages != 2 {
+		t.Fatalf("pages in snapshot = %d, want 2", pages)
+	}
+
+	// Source order survives the window: the runbook (source-created first)
+	// still precedes the architecture page.
+	var k1, k2 string
+	if err := db.QueryRow(`SELECT key FROM items WHERE kind = 'page' ORDER BY created_at, key LIMIT 1`).Scan(&k1); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`SELECT key FROM items WHERE kind = 'page' ORDER BY created_at DESC, key DESC LIMIT 1`).Scan(&k2); err != nil {
+		t.Fatal(err)
+	}
+	if k1 != "100" || k2 != "200" {
+		t.Errorf("page order after spread = %s, %s; want 100 then 200", k1, k2)
+	}
+
+	// Every comment of every kind sits inside its own item's span, and no
+	// comment was edited before it was written. The space-separated source
+	// stamp must come back normalized: place() rides unparsable rows on the
+	// first beat, which is a formatted destination instant.
+	crows, err := db.Query(`
+		SELECT i.kind, i.key, c.created_at, c.updated_at
+		FROM comments c JOIN items i ON i.id = c.item_id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pageComments int
+	for crows.Next() {
+		var kind, key, created, updated string
+		if err := crows.Scan(&kind, &key, &created, &updated); err != nil {
+			t.Fatal(err)
+		}
+		cC, okC := parseTime(created)
+		cU, okU := parseTime(updated)
+		if !okC || !okU {
+			t.Errorf("%s %s: comment stamps unparsable after spread: %q / %q", kind, key, created, updated)
+			continue
+		}
+		if cU.Before(cC) {
+			t.Errorf("%s %s: comment updated %v before created %v", kind, key, cU, cC)
+		}
+		var iC, iU time.Time
+		var sC, sU string
+		if err := db.QueryRow(`SELECT created_at, updated_at FROM items WHERE key = ? AND kind = ?`, key, kind).Scan(&sC, &sU); err != nil {
+			t.Fatal(err)
+		}
+		iC, _ = parseTime(sC)
+		iU, _ = parseTime(sU)
+		if cC.Before(iC) || cC.After(iU) {
+			t.Errorf("%s %s: comment created %v outside item span [%v, %v]", kind, key, cC, iC, iU)
+		}
+		if cU.Before(iC) || cU.After(iU) {
+			t.Errorf("%s %s: comment updated %v outside item span [%v, %v]", kind, key, cU, iC, iU)
+		}
+		if kind == "page" {
+			pageComments++
+		}
+	}
+	crows.Close()
+	if err := crows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if pageComments == 0 {
+		t.Fatal("no page comments in snapshot; the span assertion measured nothing")
+	}
+}
+
+// TestPageSpreadWithoutIssues pins the wiki-only property: applySpread bails
+// out when nothing was planned, so a documents-only source gets its window
+// only because applyPageSpread stands on its own.
+func TestPageSpreadWithoutIssues(t *testing.T) {
+	now := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
+	window := 90 * 24 * time.Hour
+	pages := make([]pageRow, 3)
+	for i := range pages {
+		pages[i] = pageRow{
+			itemID:    fmt.Sprintf("confluence:%d", i+1),
+			key:       fmt.Sprintf("%d", i+1),
+			createdAt: formatTime(now.Add(-time.Duration(i+1) * time.Hour)),
+			itemCols:  map[string]any{"updated_at": formatTime(now.Add(-time.Duration(i) * time.Hour))},
+		}
+	}
+	ch := children{commentsBy: map[string][]map[string]any{
+		"confluence:1": {
+			{"created_at": "2026-09-09 09:04:06", "updated_at": formatTime(now.Add(-30 * time.Minute))},
+		},
+	}}
+
+	applyPageSpread(pages, window, now, 1, ch)
+
+	prev := now.Add(-window)
+	for i, p := range pages {
+		if !p.useMap {
+			t.Fatalf("page %d not planned", i)
+		}
+		c, okC := parseTime(p.itemCreatedAt)
+		u, okU := parseTime(p.itemUpdatedAt)
+		if !okC || !okU {
+			t.Fatalf("page %d: unparsable planned stamps %q %q", i, p.itemCreatedAt, p.itemUpdatedAt)
+		}
+		if u.Before(c) {
+			t.Errorf("page %d: updated %v before created %v", i, u, c)
+		}
+		if c.Before(prev) {
+			t.Errorf("page %d created %v breaks the even order (previous %v)", i, c, prev)
+		}
+		prev = c
+		if p.itemSyncedAt != formatTime(now) {
+			t.Errorf("page %d synced_at = %q, want now", i, p.itemSyncedAt)
+		}
+	}
+	// The unparsable comment stamp rides the first beat and comes back a
+	// formatted instant inside the page's span.
+	p0 := pages[0]
+	if len(p0.events.commentNew) != 1 {
+		t.Fatalf("page 1 comment placements = %d, want 1", len(p0.events.commentNew))
+	}
+	cC, ok := parseTime(p0.events.commentNew[0])
+	if !ok {
+		t.Fatalf("unparsable source stamp was not normalized: %q", p0.events.commentNew[0])
+	}
+	cU, _ := parseTime(p0.events.commentUpd[0])
+	lo, _ := parseTime(p0.itemCreatedAt)
+	hi, _ := parseTime(p0.itemUpdatedAt)
+	if cC.Before(lo) || cC.After(hi) {
+		t.Errorf("comment created %v outside page span [%v, %v]", cC, lo, hi)
+	}
+	if cU.Before(cC) {
+		t.Errorf("comment updated %v before created %v", cU, cC)
+	}
+}
+
 func TestDeterminism(t *testing.T) {
 	src := seedSource(t, seedOpts{spreadish: true})
 	dir := t.TempDir()

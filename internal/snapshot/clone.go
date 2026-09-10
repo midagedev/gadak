@@ -531,7 +531,7 @@ func applySpread(planned []plannedIssue, window time.Duration, now time.Time, se
 		}
 		dstUpdated := dstCreated.Add(dur)
 
-		h := newHistory(p, ch, seed)
+		h := newHistory(p.src.itemID, p.cloneSeq, ch, seed)
 		// State-aware anchoring (GDK-1739). The default spread above is the
 		// provisional pass: it chooses the resolution instant a closed issue
 		// keeps, so the weekly closed rate is not moved by giving the issue a

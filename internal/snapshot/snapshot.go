@@ -401,6 +401,14 @@ type pageRow struct {
 	itemID, key        string
 	createdAt          string
 	itemCols, pageCols map[string]any
+
+	// Spread output, mirroring plannedIssue: useMap set means
+	// insertPageBundle writes the stamps below and rewrites the page's dated
+	// children from events. A page that rode no spread keeps source stamps.
+	useMap                       bool
+	itemCreatedAt, itemUpdatedAt string
+	itemSyncedAt                 string
+	events                       eventPlacement
 }
 
 func openSQLite(path string, readOnly bool) (*sql.DB, error) {

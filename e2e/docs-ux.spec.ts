@@ -346,7 +346,12 @@ test.describe('documents in the daily loop', () => {
     expect((await walkRows(view.getByTestId('space-list-scroll'))).length).toBe(43)
     // The space is the screen, so the row's "in ENG" clause would be noise.
     await expect(view.getByTestId('doc-row').first()).not.toContainText('in ENG')
-    await expect(view.getByTestId('doc-row').first()).toContainText('Alex Kim')
+    // The author clause takes the suffix's place. Which page sorts first is
+    // the fixture's updated_at order, which the snapshot spread rewrites
+    // (GDK-1731) — so the claim is "an author · age clause", not one name.
+    await expect(view.getByTestId('doc-row').first()).toContainText(
+      /(Alex Kim|Mina Park|Sam Ortiz) · \d/,
+    )
 
     // Tree is available on the same screen and gives the hierarchy back.
     await view.getByTestId('space-tree-toggle').click()

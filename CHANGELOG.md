@@ -408,6 +408,13 @@ looked" is a local join over the mirror rather than a sync, and the recipe for
 it sits in the Mine section of `docs/RECIPES.md`. Reads from the CLI are an
 agent looking, not you returning, and stay out of the answer ([GDK-1451]).
 
+The demo fixture's wiki pages ride the same time window as its issues. The
+snapshot spread used to skip pages, so the fixture shipped two pages updated
+before they were created and twenty page comments outside their page's span;
+pages and their comments are now placed on the same window, and a gate over
+the committed fixture keeps created ≤ updated and every comment inside its
+page's span ([GDK-1731]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2002,3 +2009,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1541]: https://gadak.dev/backlog/#/?ks=GDK-1541
 [GDK-1753]: https://gadak.dev/backlog/#/?ks=GDK-1753
 [GDK-1451]: https://gadak.dev/backlog/#/?ks=GDK-1451
+[GDK-1731]: https://gadak.dev/backlog/#/?ks=GDK-1731

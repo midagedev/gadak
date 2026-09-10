@@ -199,6 +199,75 @@ func normalizeFilename(s string) string {
 	return strings.ToLower(strings.TrimSpace(s))
 }
 
+// TestCommittedDemoDBPageStampsAreCoherent is the GDK-1731 recurrence gate.
+//
+// Until pages rode the spread, build.go copied their stamps verbatim and the
+// fixture — whose pages all grew inside a ~70s cluster while issues spanned
+// 90 days — carried the inversions the spread exists to remove. Measured on
+// the pre-fix committed file (2026-09-09, the day fixture_flow_test.go's
+// probes were narrowed to kind='issue' to stay green): 2 pages with
+// updated_at before created_at, and 20 page comments outside their own
+// page's span.
+//
+// internal/snapshot measures the same invariants at Build level
+// (TestPageSpreadInvariants); this one watches the shipped artifact, where a
+// regen that quietly drops the page spread would otherwise only resurface as
+// those narrowed probes staying green for the wrong reason.
+func TestCommittedDemoDBPageStampsAreCoherent(t *testing.T) {
+	src := filepath.Join("..", "..", "examples", "demo.db")
+	in, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatalf("examples/demo.db is part of the tree: %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "gadak.db")
+	if err := os.WriteFile(path, in, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := sql.Open("sqlite", "file:"+path+"?mode=ro")
+	if err != nil {
+		t.Fatalf("open demo copy read-only: %v", err)
+	}
+	defer raw.Close()
+
+	var pages, pageComments int
+	if err := raw.QueryRow(`SELECT COUNT(*) FROM items WHERE kind = 'page'`).Scan(&pages); err != nil {
+		t.Fatal(err)
+	}
+	if pages == 0 {
+		t.Fatal("fixture has no pages; the assertions below would measure nothing")
+	}
+	if err := raw.QueryRow(`
+		SELECT COUNT(*) FROM comments c JOIN items i ON i.id = c.item_id
+		WHERE i.kind = 'page'`).Scan(&pageComments); err != nil {
+		t.Fatal(err)
+	}
+	if pageComments == 0 {
+		t.Fatal("fixture has no page comments; the span assertion would measure nothing")
+	}
+
+	for _, probe := range []struct{ name, query string }{
+		{"page updated_at before created_at",
+			`SELECT COUNT(*) FROM items
+			 WHERE kind = 'page' AND updated_at != '' AND updated_at < created_at`},
+		{"page comment outside page span",
+			`SELECT COUNT(*) FROM comments c JOIN items i ON i.id = c.item_id
+			 WHERE i.kind = 'page' AND c.created_at != ''
+			   AND (c.created_at < i.created_at OR c.created_at > i.updated_at)`},
+		{"page comment edited before it was written",
+			`SELECT COUNT(*) FROM comments c JOIN items i ON i.id = c.item_id
+			 WHERE i.kind = 'page' AND c.updated_at != '' AND c.updated_at < c.created_at`},
+	} {
+		var n int
+		if err := raw.QueryRow(probe.query).Scan(&n); err != nil {
+			t.Fatalf("%s: %v", probe.name, err)
+		}
+		if n != 0 {
+			t.Errorf("%s: %d rows, want 0", probe.name, n)
+		}
+	}
+	t.Logf("pages=%d page-comments=%d", pages, pageComments)
+}
+
 // TestCommittedLinearDemoDBMatchesCurrentSchema is the same lockstep gate for
 // the Linear fixture (GDK-1298): examples/demo-linear.db serves on the
 // suite's second port, and a schema bump that regenerates demo.db but not
