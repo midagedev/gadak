@@ -368,10 +368,15 @@ export const list = {
     ko: '필터를 완화하거나 검색어를 바꿔보세요.',
     ja: 'フィルターを緩めるか、検索語を変えてください。',
   },
+  // GDK-1091 A-6: the title above already says nothing matched. This line is
+  // the only one with room for a next move, and it used to spend itself
+  // restating the title ("No issues match this search."). The move worth
+  // naming is the one the reader has not made: the query has only been run
+  // over titles and keys so far — Enter runs it over bodies and comments.
   'list.noMatchQueryHint': {
-    en: 'No issues match this search.',
-    ko: '이 검색어에 맞는 이슈가 없습니다.',
-    ja: 'この検索に一致する課題はありません。',
+    en: 'Press Enter to search descriptions and comments too.',
+    ko: 'Enter를 누르면 본문과 코멘트까지 찾습니다.',
+    ja: 'Enter を押すと本文とコメントも検索します。',
   },
   // GDK-478: Enter ran body search and the extra/docs groups are also empty.
   'list.noMatchBodyHint': {

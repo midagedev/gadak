@@ -327,6 +327,53 @@ roles: a row of tabs is a `tablist` with `aria-selected`, not nine buttons
 that happen to be painted differently — the mark and the semantic ride the
 same condition, exactly as §6's `aria-current` does.
 
+## 16. A number says what it counted; an empty state says what to do next
+
+(Added 2026-09-10, GDK-1091, GDK-1092.) Two findings from the R2 UI audit
+turned out to be one shape: a screen showing a reader a number, or a
+sentence, that is true and still misread because nothing on the screen says
+what it is about.
+
+**Two totals of different scope may not sit side by side unlabelled.**
+The Documents header said `Documents 0` on an account whose wiki held 71
+pages. The badge counted the active tab — Viewed, the pages this account has
+opened — and it sat beside the word Documents, so it read as the library. The
+denominator was worse than the numerator: it was
+`tab === 'viewed' ? recentlyViewed.length : index.length`, so the fraction a
+filter drew meant *of the library* on two tabs and *of what you have opened*
+on the third. The rule now:
+
+> The denominator beside a screen's name is the **library** total — one owner,
+> the same meaning on every tab and under every filter. A number that has been
+> narrowed is written as a fraction of it; a number that has not is written
+> alone.
+
+`0` becomes `0 / 71`. The narrowing is what the reader could not see, so the
+narrowing is what the badge shows. The owner is
+`components/docs/docs-count.ts`, and `docs-count-scope.test.ts` fails on a
+per-tab denominator coming back. The same rule is what makes the list
+toolbar's count legible beside the sidebar's built-in view counts: each of
+those sits inside the row that names its scope, and the toolbar's sits inside
+the column whose filters produced it. A count that can be read as belonging
+to neither is the defect this rule names.
+
+**An empty state's hint is the only line with room for a next move.** The
+0-hit search screen read `No issues match` over `No issues match this
+search.` — two lines that are one sentence, told to a reader already looking
+at an empty list. A hint may repeat a word from the title; it may not repeat
+the sentence. `components/list/empty-state-copy.test.ts` discovers every
+`<EmptyState>` pair from the source and fails on containment or near-total
+word overlap, so a pair written next year is gated the day it is written.
+
+**And a settled empty state centres in the surface it owns.** The issue
+panel's "not found" rendered at `py-16` — about 8% down an 830px scroller,
+the rest blank — while the same kind of message in the list column sat at its
+middle, because the panels had hand-laid copies of a block `EmptyState`
+already owns. Both panels render `EmptyState` now
+(`detail/panel-empty-centering.test.ts`). Where a sentence lands is not a
+per-file padding decision.
+
+
 ---
 
 ## What already embodies this (keep, and defend)

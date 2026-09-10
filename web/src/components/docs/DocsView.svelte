@@ -20,6 +20,7 @@
   import { docsEmpty } from '../../stores/docs-empty.svelte'
   import { pageMatches } from '../../lib/doc-search'
   import { docsListEmptyKind } from '../../lib/docs-empty'
+  import { headerCount } from './docs-count'
   import type { PageLite } from '../../lib/types'
   import EmptyState from '../list/EmptyState.svelte'
   import DocsFilter from './DocsFilter.svelte'
@@ -79,10 +80,11 @@
       .filter((group) => group.pages.length > 0)
   })
 
-  /** The tab's own total, before the filter — the denominator of "3 / 47". */
-  const total = $derived(
-    tab === 'viewed' ? pages.recentlyViewed.length : pages.index.length,
-  )
+  /* The denominator of "3 / 47" is the LIBRARY, on every tab — one owner
+     (docs-count.ts, GDK-1092 B-5). It used to be the tab's own length on
+     Viewed, which is why an account with 71 pages and nothing opened yet
+     read "Documents 0" beside the word Documents. */
+  const total = $derived(pages.index.length)
   const count = $derived(
     tab === 'viewed'
       ? viewed.length
@@ -209,7 +211,7 @@
 >
   <ColumnHeader
     title={t('docs.title')}
-    count={filtering ? `${formatNumber(count)} / ${formatNumber(total)}` : formatNumber(count)}
+    count={headerCount(count, total, formatNumber)}
     countTestid="docs-count"
     closeTestid="docs-close"
     onClose={() => pages.closeDocs()}

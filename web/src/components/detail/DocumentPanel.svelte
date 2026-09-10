@@ -24,6 +24,7 @@
   import RelatedIssues from './RelatedIssues.svelte'
   import Section from './Section.svelte'
   import Icon from '../ui/Icon.svelte'
+  import EmptyState from '../list/EmptyState.svelte'
   import CommentSubmitFooter from '../write/CommentSubmitFooter.svelte'
 
   const key = $derived(pages.selectedKey)
@@ -221,19 +222,15 @@
     <!-- Body — the panel's own scroller. -->
     <div class="min-h-0 flex-1 overflow-y-auto" data-testid="doc-scroll">
       {#if errorKind && !detailForKey}
-        <div class="flex flex-col items-center gap-3 px-5 py-16 text-center">
-          <p class="text-body text-text-secondary">
-            {errorKind === 'notfound' ? t('doc.notFound') : t('doc.loadFailed')}
-          </p>
-          {#if errorKind === 'network'}
-            <button
-              type="button"
-              onclick={() => key && void load(key)}
-              class="rounded-md border border-border-strong px-3 py-1.5 text-body font-medium text-text-secondary transition-colors hover:bg-bg-hover"
-            >
-              {t('common.retry')}
-            </button>
-          {/if}
+        <!-- Same owner as the issue panel's (GDK-1092 B-6): a settled empty
+             surface centres in the surface it owns. -->
+        <div class="h-full">
+          <EmptyState
+            icon="warning"
+            title={errorKind === 'notfound' ? t('doc.notFound') : t('doc.loadFailed')}
+            actionLabel={errorKind === 'network' ? t('common.retry') : ''}
+            onAction={() => key && void load(key)}
+          />
         </div>
       {:else if !detailForKey}
         {#if skeleton.visible}

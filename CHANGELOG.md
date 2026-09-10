@@ -545,6 +545,21 @@ unit's title exactly is red — plus a paragraph in `e2e/README.md` giving the
 test the lint cannot apply: take the browser out of the sentence, and see
 whether anything is left ([GDK-720]).
 
+Two totals of different scope stopped sitting side by side. The Documents
+header read "Documents 0" on an account with 71 wiki pages: the badge counted
+the tab it was on, the library held the rest, and nothing said the number had
+been narrowed. The denominator beside a screen's name is now the library on
+every tab, one owner, and a narrowed number is written as a fraction of it —
+the rule is in the principles file rather than re-decided per screen
+([GDK-1092]). The empty state stopped saying its own title twice: the hint
+line is the only room a screen has for the next move, and on a search with no
+matches that move is the search the reader has not run yet — Enter, over
+bodies and comments. A test reads the screens rather than a hand-kept list, so
+a pair written next year is measured the day it is written ([GDK-1091]). And
+the two panels that laid out their own "not found" block by hand use the same
+empty state as everything else, so the message sits where every other one
+does.
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2166,3 +2181,5 @@ priority sorting keyed on `priority_rank`.
 [GDK-137]: https://gadak.dev/backlog/#/?ks=GDK-137
 [GDK-732]: https://gadak.dev/backlog/#/?ks=GDK-732
 [GDK-720]: https://gadak.dev/backlog/#/?ks=GDK-720
+[GDK-1091]: https://gadak.dev/backlog/#/?ks=GDK-1091
+[GDK-1092]: https://gadak.dev/backlog/#/?ks=GDK-1092

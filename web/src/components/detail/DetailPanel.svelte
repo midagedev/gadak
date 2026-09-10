@@ -46,6 +46,7 @@
   import CommentList from './CommentList.svelte'
   import CommentComposer from '../write/CommentComposer.svelte'
   import Icon from '../ui/Icon.svelte'
+  import EmptyState from '../list/EmptyState.svelte'
   import HistoryTimeline from './HistoryTimeline.svelte'
   import LinkedIssues from './LinkedIssues.svelte'
   import RelatedDocs from './RelatedDocs.svelte'
@@ -246,24 +247,19 @@
     <!-- Body — the panel's own scroller. -->
     <div class="min-h-0 flex-1 overflow-y-auto" data-testid="detail-scroll">
       {#if errorKind}
-        <!-- Error: 404 (deleted) / network -->
-        <div class="flex flex-col items-center gap-3 px-5 py-16 text-center">
-          <p class="text-body text-text-secondary" data-testid="detail-load-error">
-            {#if errorKind === 'notfound'}
-              {t('detail.notFound')}
-            {:else}
-              {t('detail.loadFailed')}
-            {/if}
-          </p>
-          {#if errorKind === 'network'}
-            <button
-              type="button"
-              onclick={retry}
-              class="rounded-md border border-border-strong px-3 py-1.5 text-body font-medium text-text-secondary transition-colors hover:bg-bg-hover"
-            >
-              {t('common.retry')}
-            </button>
-          {/if}
+        <!-- Error: 404 (deleted) / network. EmptyState, not a block of its own
+             (GDK-1092 B-6): this settles on "nothing here" and owns the whole
+             scroller, and the sentence used to render at py-16 — about 8% down
+             an 830px panel with the rest blank, while the same kind of message
+             in the list column sat at its middle. One owner decides where a
+             settled empty surface puts its sentence. -->
+        <div class="h-full" data-testid="detail-load-error">
+          <EmptyState
+            icon="warning"
+            title={errorKind === 'notfound' ? t('detail.notFound') : t('detail.loadFailed')}
+            actionLabel={errorKind === 'network' ? t('common.retry') : ''}
+            onAction={retry}
+          />
         </div>
       {:else if !detailForKey}
         {#if skeleton.visible}
