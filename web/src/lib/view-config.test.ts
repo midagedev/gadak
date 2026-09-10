@@ -15,7 +15,6 @@ import {
   filterFields,
   filtersMatchIgnoringQuery,
   hasAnyFilter,
-  isReopen,
   isStale,
   workAge,
   matchesIdFirst,
@@ -544,54 +543,6 @@ describe('effectiveCategory (GDK-272)', () => {
     effectiveCategory(issueRow('완료', ''))
     expect(missingStatusCategorySeen()).toBe(missingBefore + 1)
     expect(categoryFallbackSeen()).toBe(fallbackBefore)
-  })
-})
-
-describe('isReopen (GDK-272)', () => {
-  test('done-category → non-done is a reopen', () => {
-    expect(isReopen({ field: 'status', from_category: 'done', to_category: 'inprogress' })).toBe(true)
-    expect(isReopen({ field: 'status', from_category: 'done', to_category: 'new' })).toBe(true)
-  })
-
-  test('non-done → done is not a reopen', () => {
-    expect(isReopen({ field: 'status', from_category: 'inprogress', to_category: 'done' })).toBe(false)
-  })
-
-  test('non-status field is never a reopen', () => {
-    expect(isReopen({ field: 'assignee', from_category: 'done', to_category: 'inprogress' })).toBe(false)
-  })
-
-  test('both categories empty is not a reopen, even when names look resolved', () => {
-    const korean = {
-      field: 'status',
-      from: '완료',
-      to: '진행 중',
-      from_category: null as string | null,
-      to_category: null as string | null,
-    }
-    const english = {
-      field: 'status',
-      from: 'Done',
-      to: 'To Do',
-      from_category: '',
-      to_category: '',
-    }
-    const custom = {
-      field: 'status',
-      from: 'Shipped',
-      to: 'To Do',
-      from_category: null as string | null,
-      to_category: null as string | null,
-    }
-    expect(isReopen(korean)).toBe(false)
-    expect(isReopen(english)).toBe(false)
-    expect(isReopen(custom)).toBe(false)
-  })
-
-  test('empty categories increment missingStatusCategorySeen', () => {
-    const before = missingStatusCategorySeen()
-    isReopen({ field: 'status', from_category: null, to_category: null })
-    expect(missingStatusCategorySeen()).toBe(before + 1)
   })
 })
 

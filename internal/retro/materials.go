@@ -444,7 +444,7 @@ func bucketEvents(b *Bucket, meta map[string]issueMeta, in materialsInput, sprin
 			switch {
 			case to == store.CategoryDone && from != store.CategoryDone:
 				add(r.at, it.key, EventResolved, "")
-			case from == store.CategoryDone && to != store.CategoryDone:
+			case store.ReopenTransition(from, to):
 				add(r.at, it.key, EventReopened, "")
 			case to == store.CategoryInProgress && from != store.CategoryInProgress:
 				add(r.at, it.key, EventStarted, "")
@@ -517,8 +517,7 @@ func bucketSurprises(b *Bucket, meta map[string]issueMeta, in materialsInput, sp
 				continue
 			}
 			moves++
-			if in.cat[it.sourceID+"\x00"+r.fromID] == store.CategoryDone &&
-				in.cat[it.sourceID+"\x00"+r.toID] != store.CategoryDone {
+			if store.ReopenTransition(in.cat[it.sourceID+"\x00"+r.fromID], in.cat[it.sourceID+"\x00"+r.toID]) {
 				reopened = true
 			}
 		}

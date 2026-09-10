@@ -441,6 +441,37 @@ test.describe('detail', () => {
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
+
+  /*
+   * GDK-1753: the reopen verdict has one owner (the server's is_reopen, from
+   * internal/store's ReopenTransition — done→non-done and in-progress→new).
+   * NMB-3 on the demo mirror carries In Progress → Backlog, the row the old
+   * done-only web rule left grey while SQL counted reopen_count=1 and the
+   * feed showed a red event. The row must paint: red dot plus the badge.
+   */
+  test('GDK-1753: an in-progress → new move paints the history point as a reopen (NMB-3)', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    const panel = await openIssueByKey(page, 'NMB-3')
+
+    const history = panel.getByRole('heading', { name: 'History' }).locator('..')
+    // The phrase, not the two words: NMB-3 also carries the forward move
+    // ("Backlog → In Progress") and filtering on both words matches it too.
+    const row = history
+      .locator('li')
+      .filter({ hasText: /In Progress → Backlog/ })
+      .first()
+    await expect(row).toBeVisible()
+    await expect(row).toContainText('Backlog')
+    // The badge is the visible claim; the dot class is the paint the issue
+    // was filed on ("타임라인 점은 무채색").
+    await expect(row.getByText(en['feed.kindReopen'])).toBeVisible()
+    await expect(row.locator('span.bg-status-reopen')).toHaveCount(1)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
 })
 
 /*

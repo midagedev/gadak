@@ -24,6 +24,7 @@ agent-ux
 agents
 api
 architecture
+audit
 audit-go
 audit-shells
 audit-simplify
@@ -144,8 +145,10 @@ release
 release-0.19
 release-0.20.2
 release-0.21
+release-0.22
 release-audit
 research
+retro
 roadmap
 schema
 search
@@ -165,6 +168,7 @@ terminal
 test
 tests
 theme
+theory
 tooling
 tools
 tracker-origin
@@ -184,6 +188,3 @@ windows
 workspace
 write-gap
 xplat
-release-0.22
-retro
-theory

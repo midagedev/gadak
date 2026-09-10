@@ -400,6 +400,13 @@ type historyEntry struct {
 	// Categories are resolved from status ids, never from localized names.
 	FromCategory *string `json:"from_category"`
 	ToCategory   *string `json:"to_category"`
+	// IsReopen is the server's reopen verdict for this row —
+	// store.ReopenTransition over the categories above (GDK-1753). The web
+	// used to keep its own done-only rule, so one changelog row could be a
+	// red feed event and reopen_count=1 in SQL while its timeline dot stayed
+	// grey. Always emitted, false included: absence is reserved for responses
+	// from older servers, which the client treats as unpainted.
+	IsReopen bool `json:"is_reopen"`
 }
 
 type linkedIssue struct {
@@ -691,6 +698,11 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		if h.Field == "status" {
 			e.FromCategory = nilIfEmpty(view.categories[h.FromID])
 			e.ToCategory = nilIfEmpty(view.categories[h.ToID])
+			// The verdict is the derived one (GDK-1753): ReopenTransition is
+			// the same function Derive's reopen_count/ReopenedAt column and
+			// the feed's reopened events key on, so the wire cannot disagree
+			// with either. Non-status rows are never reopens.
+			e.IsReopen = store.ReopenTransition(view.categories[h.FromID], view.categories[h.ToID])
 		}
 		res.History = append(res.History, e)
 	}

@@ -131,7 +131,7 @@ func Derive(in DeriveInput) Derived {
 			if to == CategoryDone {
 				d.ResolvedAt = &at
 			}
-			if reopenTransition(from, to) {
+			if ReopenTransition(from, to) {
 				d.ReopenCount++
 				d.ReopenedAt = &at
 			}
@@ -255,17 +255,23 @@ func Derive(in DeriveInput) Derived {
 	return d
 }
 
-// reopenTransition is the single owner of what a "reopened" move is: the
+// ReopenTransition is the single owner of what a "reopened" move is: the
 // category going backwards. Leaving done is the classic reopen; leaving
 // in-progress back to new is its sibling on workflows whose resolved states
 // sit in the in-progress category — there 'QA testing → Reopened' is how work
 // comes back, and under the done-only rule this replaced, those rows read
 // reopen_count = 0 (59% of the real reopens on the mirror that reported it).
-// Unknown ids stay what
-// they always were: not done, not new — a category the map cannot name never
-// counts as the destination of a backwards move, so an uncatalogued status
-// cannot invent a reopen.
-func reopenTransition(from, to string) bool {
+// Unknown ids stay what they always were: not done, not new — a category the
+// map cannot name never counts as the destination of a backwards move, so an
+// uncatalogued status cannot invent a reopen.
+//
+// Every consumer of the verdict routes through this one function (GDK-1753):
+// Derive's ReopenCount/ReopenedAt columns, the server's per-history-row
+// is_reopen on the detail wire, the CLI --derive listing, and the retro
+// materials. A second spelling of the predicate anywhere else is what the
+// sourcelint gate TestReopenVerdictHasOneOwner exists to keep from coming
+// back.
+func ReopenTransition(from, to string) bool {
 	if from == CategoryDone {
 		return to != CategoryDone
 	}

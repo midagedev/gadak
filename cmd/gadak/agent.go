@@ -1080,7 +1080,7 @@ func printDerivation(l store.IssueLite, d *store.Detail) error {
 				if to == store.CategoryDone {
 					resolvedRow = fmt.Sprintf("%s (%s)", n, h.At)
 				}
-				if from == store.CategoryDone && to != store.CategoryDone {
+				if store.ReopenTransition(from, to) {
 					note = "  ← reopen"
 					reopenRows = append(reopenRows, fmt.Sprintf("  %-4s %-24s %s", n, h.At, cats))
 				}

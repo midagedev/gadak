@@ -394,6 +394,14 @@ images on the desk and the phone instead of unresolved chips ([GDK-1750],
 [GDK-1541]). A built-in origin that has not grown the attachment routes is
 measured once per sync and skipped with one summary line, not a failure.
 
+The reopen verdict has one owner. `reopen_count` in SQL counted an
+in-progress → new move as a reopen and the feed painted it red, while the
+history timeline in the web left the same row grey, because the web kept a
+done-only rule of its own. The server now stamps each history row with
+`is_reopen` from the same function that derives the column, the timeline reads
+that field and nothing else, and a source-level gate keeps a second spelling of
+the predicate from coming back ([GDK-1753]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -1986,3 +1994,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1298]: https://gadak.dev/backlog/#/?ks=GDK-1298
 [GDK-1750]: https://gadak.dev/backlog/#/?ks=GDK-1750
 [GDK-1541]: https://gadak.dev/backlog/#/?ks=GDK-1541
+[GDK-1753]: https://gadak.dev/backlog/#/?ks=GDK-1753

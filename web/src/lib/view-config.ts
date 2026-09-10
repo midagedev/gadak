@@ -14,7 +14,7 @@
 
 import { config, feature, type GadakFeatures } from './config'
 import { columnLabel, type ColumnLabelKey } from './i18n'
-import type { DeployState, FlowSummary, HistoryEntry, IssueLite } from './types'
+import type { DeployState, FlowSummary, IssueLite } from './types'
 
 /* ── Filter state ── */
 
@@ -948,21 +948,13 @@ export function effectiveCategory(issueOrCat: IssueLite | string | null | undefi
 }
 
 /**
- * Reopen is a done-category → non-done status transition. Never a name match.
- * When both from_category and to_category are empty, return false: an unpainted
- * badge is a missing hint; a wrongly painted one is a false claim about the
- * issue's history.
- */
-export function isReopen(e: Pick<HistoryEntry, 'field' | 'from_category' | 'to_category'>): boolean {
-  if (e.field !== 'status') return false
-  if (e.from_category || e.to_category) return e.from_category === 'done' && e.to_category !== 'done'
-  missingStatusCategoryCount++
-  return false
-}
-
-/**
  * Issue deploy stage. Missing deploy_status (older server) or empty object → 'none'.
  *  (Same meaning as backend precompute — front only derives.)
+ *
+ * The reopen verdict is deliberately not here anymore (GDK-1753): the server
+ * attaches is_reopen to each history row, from internal/store's
+ * ReopenTransition — the same function behind reopen_count and the feed's
+ * reopened events. A web-side rule was a second owner that could disagree.
  */
 export function deployStateOf(issue: IssueLite): DeployState {
   return issue.deploy_status?.state ?? 'none'

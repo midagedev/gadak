@@ -252,9 +252,16 @@ export interface HistoryEntry {
   by: string | null
   /** Author's account id — attribution without display names. Older servers omit. */
   author_id?: string | null
-  /** Pre/post category of a status transition (new|inprogress|done). Prefer over names for reopen. */
+  /** Pre/post category of a status transition (new|inprogress|done). Kept on
+   *  the wire (additive; other clients may read them), but the reopen verdict
+   *  is not derived from them client-side anymore (GDK-1753). */
   from_category?: string | null
   to_category?: string | null
+  /** The server's reopen verdict (GDK-1753): internal/store's
+   *  ReopenTransition — done→non-done and in-progress→new — the same rule
+   *  behind reopen_count and the feed's reopened events. Absent on older
+   *  servers; treat that as unpainted, never as false. */
+  is_reopen?: boolean
 }
 
 /** One linked issue. */

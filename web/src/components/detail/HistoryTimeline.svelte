@@ -2,11 +2,12 @@
   /*
    * Change history timeline ([detail]).
    * Compact status/assignee/priority changes (from→to, by, relative time).
-   * Reopen (done-category → non-done) gets a red point.
+   * Reopen gets a red point — the server's verdict (e.is_reopen, GDK-1753),
+   * never a web-side category rule: the old one was done-only and missed the
+   * in-progress → new reopens that reopen_count and the feed both counted.
    */
   import { t, fieldLabel } from '../../lib/i18n'
   import type { HistoryEntry } from '../../lib/types'
-  import { isReopen } from '../../lib/view-config'
   import { relativeTime, absoluteTime } from './format'
   import BotBadge from '../list/BotBadge.svelte'
 
@@ -20,7 +21,7 @@
       aria-hidden="true"
     ></span>
     {#each history as e, i (i)}
-      {@const reopen = isReopen(e)}
+      {@const reopen = e.is_reopen === true}
       <li class="relative">
         <!-- Timeline point -->
         <span

@@ -469,9 +469,13 @@ func TestSurprisesReopenedAndReversal(t *testing.T) {
 	for _, s := range b.Surprises {
 		byKind[s.Kind] = append(byKind[s.Kind], s)
 	}
+	// T-3 left done; T-4's in-progress → new bounces are reopens too under
+	// the single-owner rule (store.ReopenTransition, GDK-1753) — before it
+	// this path spelled a done-only predicate and T-4 stayed a bare
+	// reversal. FAIL-first on the pre-change source: "want just T-3".
 	re := byKind[SurpriseReopened]
-	if len(re) != 1 || re[0].Key != "T-3" {
-		t.Fatalf("reopened surprises = %v, want just T-3", re)
+	if len(re) != 2 || re[0].Key != "T-3" || re[1].Key != "T-4" {
+		t.Fatalf("reopened surprises = %v, want T-3 then T-4", re)
 	}
 	if re[0].Detail != "regressed in staging" {
 		t.Errorf("reopened detail = %q, want the recorded reopen reason", re[0].Detail)
@@ -490,8 +494,16 @@ func TestSurprisesReopenedAndReversal(t *testing.T) {
 	// Three moves is not a reversal — the threshold is a contract, not a mood.
 	f := baseFixture()
 	f.statuses = f.statuses[:len(f.statuses)-1]
-	if got := matReport(t, f).Buckets[0].Surprises; len(got) != 1 || got[0].Kind != SurpriseReopened {
-		t.Errorf("three moves counted as a reversal: %v", got)
+	// T-4 still reads reopened (its first in-progress → new bounce is inside
+	// B0) but no longer as a reversal.
+	got := matReport(t, f).Buckets[0].Surprises
+	for _, sp := range got {
+		if sp.Kind == SurpriseReversal {
+			t.Errorf("three moves counted as a reversal: %v", got)
+		}
+	}
+	if len(got) != 2 {
+		t.Errorf("surprises with three T-4 moves = %v, want the two reopens only", got)
 	}
 }
 
