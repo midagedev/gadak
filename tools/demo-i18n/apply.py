@@ -174,13 +174,22 @@ def main() -> int:
     scrub = load_scrub()
     # Force a rebuild regardless of DDL shape: the tokens changed, not the schema.
     con.execute("DROP TABLE IF EXISTS items_fts")
-    con.execute("CREATE VIRTUAL TABLE items_fts USING fts5(title, body_text, comments_text, cjk_bigram, content='', tokenize='unicode61 remove_diacritics 2')")
+    # Same shape scripts/scrub-demo-db.py rebuilds: the labels column and the
+    # porter wrapper (GDK-1021). Recreating the pre-1021 4-column DDL here
+    # would hand the ko/ja recording fixture an index that silently loses
+    # label-only hits and English stem variants — the named trap of 0009
+    # §Consequences, one writer at a time.
+    con.execute("CREATE VIRTUAL TABLE items_fts USING fts5(title, labels, body_text, comments_text, cjk_bigram, content='', tokenize='porter unicode61 remove_diacritics 2')")
     rows = con.execute("""
         SELECT i.rowid, COALESCE(i.title,''), COALESCE(i.body_text, ''),
-               COALESCE((SELECT group_concat(body_text, char(10)) FROM (SELECT body_text FROM comments WHERE item_id = i.id AND body_text <> '' ORDER BY rowid)), '')
-        FROM items i""").fetchall()
-    con.executemany("INSERT INTO items_fts (rowid, title, body_text, comments_text, cjk_bigram) VALUES (?, ?, ?, ?, ?)",
-        [(r, t, b, c, scrub.cjk_bigram_column(t, b, c)) for r, t, b, c in rows])
+               COALESCE((SELECT group_concat(body_text, char(10)) FROM (SELECT body_text FROM comments WHERE item_id = i.id AND body_text <> '' ORDER BY rowid)), ''),
+               COALESCE(ir.labels, p.labels, '[]')
+        FROM items i
+        LEFT JOIN issues_raw ir ON ir.item_id = i.id
+        LEFT JOIN pages p ON p.item_id = i.id""").fetchall()
+    con.executemany("INSERT INTO items_fts (rowid, title, labels, body_text, comments_text, cjk_bigram) VALUES (?, ?, ?, ?, ?, ?)",
+        [(r, t, scrub.fts_labels_text(lb), b, c,
+          scrub.cjk_bigram_column(t, scrub.fts_labels_text(lb), b, c)) for r, t, b, c, lb in rows])
     con.commit()
     fts = con.execute("SELECT count(*) FROM items_fts").fetchone()[0]
     print(f"{db}: {locale} applied — issues {n_issue}, comments {n_comment}, pages {n_page}, catalog {sum(1 for k in tr if k.startswith('catalog:'))}; items_fts {fts} rows")

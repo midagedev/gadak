@@ -1236,6 +1236,15 @@ const (
 	ftsBM25Title    = 20.0
 	ftsBM25Body     = 2.0
 	ftsBM25Comments = 1.0
+	// ftsBM25Labels weights the labels column (GDK-1021): between title and
+	// body. A label is curated taxonomy — a hit names what the issue IS, the
+	// way a title token does — but one issue can carry several, so a label
+	// hit stays below a title hit. 8.0 measured 2026-09-10: the one-hit-per-
+	// field fixture orders [LT, LL, LB, LC] (TestSearchRelevanceLabelBetween-
+	// TitleAndBody), and on examples/demo.db the label-only hits of the terms
+	// "regression" and "auth" (the two with both classes present) rank under
+	// every title hit of the same term and above the body-only hits.
+	ftsBM25Labels = 8.0
 	// ftsBM25CJKBigram weights the cjk_bigram column (GDK-259): body-hit
 	// strength — a mid-compound hit is real evidence, weaker than a title
 	// token hit. 2.0 is the starting point 0009 §3a prescribes; renumber only
@@ -1243,16 +1252,16 @@ const (
 	ftsBM25CJKBigram = 2.0
 )
 
-// ftsRankSQL passes one bm25 weight per items_fts column (title, body_text,
-// comments_text, cjk_bigram). Fewer weights than columns leaves the tail at
-// SQLite's discretion — always pass all four.
+// ftsRankSQL passes one bm25 weight per items_fts column, in DDL order
+// (title, labels, body_text, comments_text, cjk_bigram). Fewer weights than
+// columns leaves the tail at SQLite's discretion — always pass all five.
 func ftsRankSQL() string {
-	return fmt.Sprintf("bm25(items_fts, %g, %g, %g, %g)",
-		ftsBM25Title, ftsBM25Body, ftsBM25Comments, ftsBM25CJKBigram)
+	return fmt.Sprintf("bm25(items_fts, %g, %g, %g, %g, %g)",
+		ftsBM25Title, ftsBM25Labels, ftsBM25Body, ftsBM25Comments, ftsBM25CJKBigram)
 }
 
 // Search runs a key lookup (when the query looks like a key) then an FTS5
-// query over titles, bodies and comment text. Key hits are reserved at the
+// query over titles, labels, bodies and comment text. Key hits are reserved at the
 // front of Keys/Pages so FTS cannot drop them when filling limit. Bare terms
 // are rewritten as quoted prefix queries (see ftsPrefixQuery). A query FTS5
 // cannot parse is retried as a literal phrase rather than surfaced as an
@@ -1433,6 +1442,7 @@ func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (Se
 		       COALESCE(it.author, ''), COALESCE(it.author_id, ''), COALESCE(it.updated_at, ''), COALESCE(it.url, ''),
 		       COALESCE(p.space_key, ''), COALESCE(sp.name, ''), COALESCE(sp.homepage_id, ''), COALESCE(p.parent_id, ''),
 		       COALESCE(p.version, 0), COALESCE(p.excerpt, ''), COALESCE(p.labels, '[]'),
+		       COALESCE(ir.labels, p.labels, '[]'),
 		       COALESCE(it.body_text, ''),
 		       COALESCE((SELECT group_concat(c.body_text, char(10)) FROM comments c WHERE c.item_id = it.id), ''),
 		       ranked.rank
@@ -1444,20 +1454,23 @@ func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (Se
 			LIMIT ?
 		) ranked
 		JOIN items it ON it.rowid = ranked.rowid
+		LEFT JOIN issues_raw ir ON ir.item_id = it.id
 		LEFT JOIN pages p ON p.item_id = it.id
 		LEFT JOIN spaces sp ON sp.source_id = it.source_id AND sp.key = p.space_key
 		ORDER BY ranked.rank`,
 		func(rows *sql.Rows) error {
 			var kind, key, title, author, authorID, updatedAt, url, spaceKey, spaceName, spaceHomepageID, parentID, excerpt, labels string
 			var version int
-			var bodyText, commentsText string
+			var labelsAll, bodyText, commentsText string
 			var score float64
 			if err := rows.Scan(&kind, &key, &title, &author, &authorID, &updatedAt, &url,
 				&spaceKey, &spaceName, &spaceHomepageID, &parentID, &version, &excerpt, &labels,
+				&labelsAll,
 				&bodyText, &commentsText,
 				&score); err != nil {
 				return err
 			}
+			labelsText := FTSLabelsText(labelsAll)
 			switch kind {
 			case "issue":
 				if key != "" {
@@ -1474,8 +1487,9 @@ func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (Se
 			if key != "" {
 				res.ftsHits = append(res.ftsHits, ftsHit{kind: kind, key: key, score: score})
 				if m, ok := resolveSearchMatch(
-					title, bodyText, commentsText, rawQuery,
+					title, labelsText, bodyText, commentsText, rawQuery,
 					ftsColumnPrefixHit(title, rawQuery),
+					ftsColumnPrefixHit(labelsText, rawQuery),
 					ftsColumnPrefixHit(bodyText, rawQuery),
 					ftsColumnPrefixHit(commentsText, rawQuery),
 				); ok {
@@ -1488,17 +1502,22 @@ func (db *DB) search(ctx context.Context, match, rawQuery string, limit int) (Se
 	return res, err
 }
 
-// resolveSearchMatch picks the winning field (title > body > comment) and a
-// plain-text snippet built as a window around the query token in the source
-// text. items_fts is contentless (GDK-920), so there is no FTS snippet() to
-// prefer — the column-filter hits alone decide the field.
+// resolveSearchMatch picks the winning field (title > labels > body >
+// comment — the bm25 weight order) and a plain-text snippet built as a window
+// around the query token in the source text. items_fts is contentless
+// (GDK-920), so there is no FTS snippet() to prefer — the column-filter hits
+// alone decide the field. A stem-only hit (porter matched payments against
+// payment) takes the default branch and is omitted rather than guessed at,
+// the same precision lock English mid-token matches already sit under.
 func resolveSearchMatch(
-	title, body, comments, rawQuery string,
-	titleHit, bodyHit, commentHit bool,
+	title, labels, body, comments, rawQuery string,
+	titleHit, labelsHit, bodyHit, commentHit bool,
 ) (SearchMatch, bool) {
 	switch {
 	case titleHit:
 		return SearchMatch{Field: "title", Snippet: makeSearchSnippet(title, rawQuery)}, true
+	case labelsHit:
+		return SearchMatch{Field: "labels", Snippet: makeSearchSnippet(labels, rawQuery)}, true
 	case bodyHit:
 		return SearchMatch{Field: "body", Snippet: makeSearchSnippet(body, rawQuery)}, true
 	case commentHit:

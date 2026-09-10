@@ -106,19 +106,21 @@ func (db *DB) ReingestCustom(ctx context.Context, specs []fields.SpecIDs, bodyFi
 		bodyText   string
 		customJSON string
 		comments   string
+		labelsJSON string
 	}
 	var updates []update
 	rs, err := db.sql.QueryContext(ctx, `
 		SELECT i.item_id, it.source_id, it.rowid, COALESCE(it.title, ''), COALESCE(it.body_text, ''),
-		       COALESCE(i.custom, '{}'), COALESCE(i.raw, ''), COALESCE(i.description_adf, '')
+		       COALESCE(i.custom, '{}'), COALESCE(i.raw, ''), COALESCE(i.description_adf, ''),
+		       COALESCE(i.labels, '[]')
 		FROM issues i JOIN items it ON it.id = i.item_id`)
 	if err != nil {
 		return 0, err
 	}
 	for rs.Next() {
-		var itemID, sourceID, title, bodyText, customJSON, raw, descADF string
+		var itemID, sourceID, title, bodyText, customJSON, raw, descADF, labelsJSON string
 		var rowid int64
-		if err := rs.Scan(&itemID, &sourceID, &rowid, &title, &bodyText, &customJSON, &raw, &descADF); err != nil {
+		if err := rs.Scan(&itemID, &sourceID, &rowid, &title, &bodyText, &customJSON, &raw, &descADF, &labelsJSON); err != nil {
 			rs.Close()
 			return 0, err
 		}
@@ -160,6 +162,7 @@ func (db *DB) ReingestCustom(ctx context.Context, specs []fields.SpecIDs, bodyFi
 			bodyText:   newBody,
 			customJSON: newCustom,
 			comments:   commentsByItem[itemID],
+			labelsJSON: labelsJSON,
 		})
 	}
 	if err := rs.Err(); err != nil {
@@ -189,7 +192,7 @@ func (db *DB) ReingestCustom(ctx context.Context, specs []fields.SpecIDs, bodyFi
 				if _, err := tx.Exec(`UPDATE items SET body_text = ?, synced_at = ? WHERE id = ?`, u.bodyText, now, u.itemID); err != nil {
 					return nil, err
 				}
-				if err := writeFTS(tx, u.rowid, u.title, u.bodyText, u.comments); err != nil {
+				if err := writeFTS(tx, u.rowid, u.title, u.bodyText, u.comments, u.labelsJSON); err != nil {
 					return nil, err
 				}
 				if u.sourceID != "" {

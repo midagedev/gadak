@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48, schemaV49}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48, schemaV49, schemaV50}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -17,12 +17,18 @@ var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, sche
 // the index when a database carries a different shape (GDK-112: the portable
 // examples/demo.db snapshot deliberately drops the option for Datasette
 // Lite). cjk_bigram (GDK-259) is filled by FTSCJKBigramColumn; leaving it out
-// of any writer is the silent-miss trap.
+// of any writer is the silent-miss trap. labels (GDK-1021) is the space-joined
+// label list (FTSLabelsText) — issues and pages both carry labels, so the
+// column is per-item, not per-projection. The porter wrapper (GDK-1021) keeps
+// unicode61's token boundaries and adds English stemming: measured 2026-09-10
+// the CJK bigram contract survives it (bigram phrases, one-rune prefixes and
+// mixed-script tokens all unchanged) while payment↔payments-class queries stop
+// missing — docs/decisions/0009 addendum has the measurement.
 const itemsFTSCreate = `CREATE VIRTUAL TABLE items_fts USING fts5(
-  title, body_text, comments_text, cjk_bigram,
+  title, labels, body_text, comments_text, cjk_bigram,
   content='',
   contentless_delete=1,
-  tokenize='unicode61 remove_diacritics 2'
+  tokenize='porter unicode61 remove_diacritics 2'
 );`
 
 const schemaV1 = `
@@ -1038,3 +1044,12 @@ CREATE INDEX issues_carryover ON issues_raw(carryover_count);
 const schemaV49 = `
 SELECT 1;
 `
+
+// schemaV50 (GDK-1021) grows items_fts by the labels column and wraps its
+// tokenizer in porter. The DDL change itself is owned by itemsFTSCreate:
+// repairItemsFTS rebuilds the index at Open when the stored CREATE differs,
+// and that rebuild — not this statement — is the migration for databases
+// created before either change (the v25 shape). This entry exists so PRAGMA
+// user_version (and with it sync_state.schema_version) moves to the
+// documented level; the body is a no-op on purpose.
+const schemaV50 = `SELECT 1`

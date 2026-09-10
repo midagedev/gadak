@@ -3,8 +3,9 @@ package store
 import "strings"
 
 // CJK mid-compound search (GDK-259 / docs/decisions/0009): items_fts keeps
-// the unicode61 tokenizer and gains a fourth column, cjk_bigram, carrying the
-// overlapping 2-grams of CJK runs. Query rewriting (read.go ftsPrefixQuery)
+// unicode61's token boundaries (under the porter stemming wrapper since
+// GDK-1021) and carries the cjk_bigram column, holding the overlapping
+// 2-grams of CJK runs. Query rewriting (read.go ftsPrefixQuery)
 // turns a CJK term of two or more runes into the AND of its bigrams, which is
 // the only way `결제` hits `간편결제` without switching tokenizers.
 
@@ -77,16 +78,29 @@ func cjkBigrams(s string) []string {
 }
 
 // FTSCJKBigramColumn is the items_fts.cjk_bigram value for one row: the CJK
-// bigrams of the title, body and comment text, space-joined. Exported because
+// bigrams of the title, label, body and comment text, space-joined. Labels
+// joined the source set in GDK-1021 — a Korean label like 간편결제 must
+// mid-compound-match 결제 exactly like a title token would, and the plain
+// labels column alone only gives whole-token matching. Exported because
 // internal/snapshot writes rows through the same shape — any writer that
-// fills only the three scored columns leaves CJK mid-match silently empty
+// fills only the scored columns leaves CJK mid-match silently empty
 // rather than broken, which is this design's named trap (0009 §Consequences).
-func FTSCJKBigramColumn(title, body, comments string) string {
-	parts := make([]string, 0, 3)
-	for _, text := range []string{title, body, comments} {
+func FTSCJKBigramColumn(title, labels, body, comments string) string {
+	parts := make([]string, 0, 4)
+	for _, text := range []string{title, labels, body, comments} {
 		if grams := cjkBigrams(text); len(grams) > 0 {
 			parts = append(parts, strings.Join(grams, " "))
 		}
 	}
 	return strings.Join(parts, " ")
+}
+
+// FTSLabelsText is the items_fts.labels value for one row: the stored JSON
+// label array (issues_raw.labels / pages.labels, both "[]" when absent) as
+// space-joined text. The single owner of the column's text form — writeFTS
+// callers, the rebuild, the snapshot pipeline and scripts/scrub-demo-db.py's
+// portable twin must all emit this shape, or a label-only issue silently
+// drops out of search again (GDK-1021).
+func FTSLabelsText(labelsJSON string) string {
+	return strings.Join(parseArray(&labelsJSON), " ")
 }

@@ -448,6 +448,17 @@ approximation, agreeing inside one percent of the origin's own number instead
 of escalating to a full key scan every tick on the sites where that scan
 costs the most ([GDK-1490]).
 
+Search finds labels and word forms. An issue whose only mention of
+`payments` was its label was invisible to `gadak search payments`, and
+`uploads` did not find `upload`; `items_fts` now carries a labels column,
+ranked between title and body, and stems English with porter while the CJK
+two-rune contract is unchanged, so `retries` reaches every `retry` and a label
+alone is enough to be found. The mirror schema moves up one version and the
+index is rebuilt on the first open. Every writer of that index in the tree,
+including the fixture translator no Go test compiles, is now checked by a
+census gate that reads the canonical column list out of the schema
+([GDK-1021]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2048,3 +2059,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1507]: https://gadak.dev/backlog/#/?ks=GDK-1507
 [GDK-1457]: https://gadak.dev/backlog/#/?ks=GDK-1457
 [GDK-1490]: https://gadak.dev/backlog/#/?ks=GDK-1490
+[GDK-1021]: https://gadak.dev/backlog/#/?ks=GDK-1021

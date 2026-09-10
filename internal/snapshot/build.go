@@ -510,8 +510,9 @@ func insertPageBundle(tx *sql.Tx, p pageRow, ch children) error {
 		}
 	}
 
-	// FTS — same contentless delete+insert path (and cjk_bigram fourth
-	// column) as issues / store.writeFTS.
+	// FTS — same contentless delete+insert path (and cjk_bigram / labels
+	// columns) as issues / store.writeFTS. Labels come from the page
+	// projection's stored JSON (defaulted above for pre-labels sources).
 	var rowid int64
 	if err := tx.QueryRow(`SELECT rowid FROM items WHERE id = ?`, itemID).Scan(&rowid); err != nil {
 		return err
@@ -525,12 +526,13 @@ func insertPageBundle(tx *sql.Tx, p pageRow, ch children) error {
 	title := asString(item["title"])
 	body := asString(item["body_text"])
 	comments := strings.Join(bodies, "\n")
+	labels := store.FTSLabelsText(asString(page["labels"]))
 	if _, err := tx.Exec(`DELETE FROM items_fts WHERE rowid = ?`, rowid); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(
-		`INSERT INTO items_fts (rowid, title, body_text, comments_text, cjk_bigram) VALUES (?,?,?,?,?)`,
-		rowid, title, body, comments, store.FTSCJKBigramColumn(title, body, comments),
+		`INSERT INTO items_fts (rowid, title, labels, body_text, comments_text, cjk_bigram) VALUES (?,?,?,?,?,?)`,
+		rowid, title, labels, body, comments, store.FTSCJKBigramColumn(title, labels, body, comments),
 	); err != nil {
 		return err
 	}
@@ -762,8 +764,9 @@ func insertIssueBundle(tx *sql.Tx, p plannedIssue, itemID, key string, ch childr
 		}
 	}
 
-	// FTS — same contentless delete+insert path (and cjk_bigram fourth
-	// column) as store.writeFTS.
+	// FTS — same contentless delete+insert path (and cjk_bigram / labels
+	// columns) as store.writeFTS. Labels ride the issue row (clones keep the
+	// source's — GDK-1558 rotates six columns, labels not among them).
 	var rowid int64
 	if err := tx.QueryRow(`SELECT rowid FROM items WHERE id = ?`, itemID).Scan(&rowid); err != nil {
 		return err
@@ -777,12 +780,13 @@ func insertIssueBundle(tx *sql.Tx, p plannedIssue, itemID, key string, ch childr
 	title := asString(item["title"])
 	body := asString(item["body_text"])
 	comments := strings.Join(bodies, "\n")
+	labels := store.FTSLabelsText(asString(issue["labels"]))
 	if _, err := tx.Exec(`DELETE FROM items_fts WHERE rowid = ?`, rowid); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(
-		`INSERT INTO items_fts (rowid, title, body_text, comments_text, cjk_bigram) VALUES (?,?,?,?,?)`,
-		rowid, title, body, comments, store.FTSCJKBigramColumn(title, body, comments),
+		`INSERT INTO items_fts (rowid, title, labels, body_text, comments_text, cjk_bigram) VALUES (?,?,?,?,?,?)`,
+		rowid, title, labels, body, comments, store.FTSCJKBigramColumn(title, labels, body, comments),
 	); err != nil {
 		return err
 	}

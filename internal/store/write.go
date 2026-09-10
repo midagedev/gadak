@@ -499,7 +499,7 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (upsertResult, error) {
 		return upsertResult{}, err
 	}
 
-	if err := writeFTS(tx, rowid, it.Title, it.BodyText, strings.Join(bodies, "\n")); err != nil {
+	if err := writeFTS(tx, rowid, it.Title, it.BodyText, strings.Join(bodies, "\n"), jsonArray(is.Labels)); err != nil {
 		return upsertResult{}, err
 	}
 
@@ -863,7 +863,7 @@ func upsertPageRecord(tx *sql.Tx, r PageRecord, knownProjects map[string]bool) (
 		}
 	}
 
-	if err := writeFTS(tx, rowid, it.Title, it.BodyText, strings.Join(bodies, "\n")); err != nil {
+	if err := writeFTS(tx, rowid, it.Title, it.BodyText, strings.Join(bodies, "\n"), jsonArray(pg.Labels)); err != nil {
 		return false, err
 	}
 
@@ -1034,15 +1034,18 @@ func pageRecordUnchanged(tx *sql.Tx, r PageRecord) (bool, error) {
 }
 
 // writeFTS rebuilds one row of the contentless index. Contentless FTS5 has no
-// update path, so delete-then-insert is the whole story. The fourth column is
-// the CJK bigram text (GDK-259): it is what mid-compound Korean matches.
-func writeFTS(tx *sql.Tx, rowid int64, title, body, comments string) error {
+// update path, so delete-then-insert is the whole story. labels is the row's
+// stored JSON label array (issues_raw.labels / pages.labels) — FTSLabelsText
+// owns the column's text form. cjk_bigram (GDK-259) covers the CJK runs of
+// all four text columns: it is what mid-compound Korean matches.
+func writeFTS(tx *sql.Tx, rowid int64, title, body, comments, labelsJSON string) error {
+	labels := FTSLabelsText(labelsJSON)
 	if _, err := tx.Exec(`DELETE FROM items_fts WHERE rowid = ?`, rowid); err != nil {
 		return err
 	}
 	_, err := tx.Exec(
-		`INSERT INTO items_fts (rowid, title, body_text, comments_text, cjk_bigram) VALUES (?,?,?,?,?)`,
-		rowid, title, body, comments, FTSCJKBigramColumn(title, body, comments))
+		`INSERT INTO items_fts (rowid, title, labels, body_text, comments_text, cjk_bigram) VALUES (?,?,?,?,?,?)`,
+		rowid, title, labels, body, comments, FTSCJKBigramColumn(title, labels, body, comments))
 	return err
 }
 

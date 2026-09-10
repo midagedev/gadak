@@ -186,7 +186,9 @@ order by i.key
 
 `gadak search` (and the REST/MCP search path) rewrites bare terms as FTS5 prefix
 matches, so Korean particles and verb endings are found (`로그인` → `로그인이`,
-`실패` → `실패합니다`) and English stems work too (`retri` → `retries`).
+`실패` → `실패합니다`) and English stems work too (`retri` → `retries`,
+`payments` → `payment` — same stem). Labels are indexed like titles and bodies,
+so an issue whose only signal is a label is found (`tech-debt`, `auth`).
 CJK *middles* hit — `결제` finds `간편결제`, because a `cjk_bigram` column
 indexes overlapping 2-grams of CJK runs and the rewrite turns a CJK term into
 the AND of its bigrams (`docs/decisions/0009`). English middles still miss on

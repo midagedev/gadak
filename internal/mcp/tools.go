@@ -74,10 +74,11 @@ Schema essentials:
   ('issue'|'page'), target_key (issue key or page id string), via ('url'|'text').
   Page bodies → issue keys; issue bodies/comments → page ids. Target need not
   exist; join items on key+kind to filter live rows. Index on (target_kind, target_key).
-- items_fts: FTS5 over titles, bodies, and comment text of BOTH kinds
+- items_fts: FTS5 over titles, labels, bodies, and comment text of BOTH kinds
   (WHERE items_fts MATCH 'term'; join items, then issues or pages by kind).
   CJK mid-compound matches: '결제' hits '간편결제' (cjk_bigram column). English
-  middles still miss ('ency' ≠ 'idempotency').
+  stem variants match ('payments' hits 'payment'); middles still miss
+  ('ency' ≠ 'idempotency').
 - sync_state: watermark, version, last_error, last_full_sync_at, schema_version
 
 CRITICAL: filter on status_category / status_id / issue_type_id, never on display

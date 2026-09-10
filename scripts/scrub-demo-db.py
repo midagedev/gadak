@@ -28,6 +28,7 @@ content, verified by MATCH-count probes). CI rejects a snapshot that regresses
 on this (see the "snapshot portability" step in ci.yml).
 """
 
+import json
 import re
 import shutil
 import sqlite3
@@ -84,14 +85,23 @@ def cjk_bigrams(text: str) -> list[str]:
     return grams
 
 
-def cjk_bigram_column(title: str, body: str, comments: str) -> str:
+def cjk_bigram_column(title: str, labels: str, body: str, comments: str) -> str:
     """Mirror of store.FTSCJKBigramColumn — the items_fts.cjk_bigram value."""
     parts = []
-    for text in (title, body, comments):
+    for text in (title, labels, body, comments):
         grams = cjk_bigrams(text)
         if grams:
             parts.append(" ".join(grams))
     return " ".join(parts)
+
+
+def fts_labels_text(labels_json: str) -> str:
+    """Mirror of store.FTSLabelsText — the items_fts.labels value."""
+    try:
+        labels = json.loads(labels_json) if labels_json else []
+    except ValueError:
+        return ""
+    return " ".join(l for l in labels if isinstance(l, str))
 
 
 def rebuild_portable_fts(con: sqlite3.Connection) -> None:
@@ -100,10 +110,13 @@ def rebuild_portable_fts(con: sqlite3.Connection) -> None:
     Contentless tables return no stored text, so parity is checked with MATCH
     counts over a fixed probe set (plus total row count) before and after.
     Comment text is re-concatenated in insertion order, matching writeFTS in
-    internal/store/write.go. The cjk_bigram fourth column is computed here in
+    internal/store/write.go. The cjk_bigram column is computed here in
     Python (SQL cannot emit overlapping 2-grams) and must match
     store.FTSCJKBigramColumn, or the hosted snapshot silently loses CJK
-    mid-compound search (GDK-259 / docs/decisions/0009).
+    mid-compound search (GDK-259 / docs/decisions/0009). The labels column
+    (GDK-1021) is the space-joined label list from whichever projection the
+    item has, mirroring store.FTSLabelsText — without it the snapshot loses
+    label-only hits while a local mirror keeps them.
     """
     fts_sql = con.execute(
         "SELECT sql FROM sqlite_master WHERE name = 'items_fts'"
@@ -111,10 +124,14 @@ def rebuild_portable_fts(con: sqlite3.Connection) -> None:
     if not fts_sql:
         return
     ddl = fts_sql[0] or ""
-    if "contentless_delete" not in ddl and "cjk_bigram" in ddl:
+    if "contentless_delete" not in ddl and "labels" in ddl:
         return  # already the portable shape this build produces
 
-    probes = ["upload", "retri*", "webhook AND retry", "로그인"]
+    # "tech-debt" is quoted as a phrase on purpose: bare `tech-debt` is not a
+    # valid FTS5 query — the hyphen makes the parser read `tech` as a column
+    # filter list and fail with "no such column: debt". The phrase form is what
+    # the label probe must be to exercise the labels column (GDK-1021).
+    probes = ["upload", "retri*", "webhook AND retry", "로그인", '"tech-debt"']
     before = {"rows": con.execute("SELECT count(*) FROM items_fts").fetchone()[0]}
     before.update(
         {p: con.execute(
@@ -125,8 +142,8 @@ def rebuild_portable_fts(con: sqlite3.Connection) -> None:
     con.execute("DROP TABLE items_fts")
     con.execute(
         "CREATE VIRTUAL TABLE items_fts USING fts5("
-        "title, body_text, comments_text, cjk_bigram, content='', "
-        "tokenize='unicode61 remove_diacritics 2')"
+        "title, labels, body_text, comments_text, cjk_bigram, content='', "
+        "tokenize='porter unicode61 remove_diacritics 2')"
     )
     rows = con.execute(
         """
@@ -134,16 +151,20 @@ def rebuild_portable_fts(con: sqlite3.Connection) -> None:
                COALESCE((SELECT group_concat(body_text, char(10))
                          FROM (SELECT body_text FROM comments
                                WHERE item_id = i.id AND body_text <> ''
-                               ORDER BY rowid)), '')
+                               ORDER BY rowid)), ''),
+               COALESCE(ir.labels, p.labels, '[]')
         FROM items i
+        LEFT JOIN issues_raw ir ON ir.item_id = i.id
+        LEFT JOIN pages p ON p.item_id = i.id
         """
     ).fetchall()
     con.executemany(
-        "INSERT INTO items_fts (rowid, title, body_text, comments_text, cjk_bigram) "
-        "VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO items_fts (rowid, title, labels, body_text, comments_text, cjk_bigram) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
         [
-            (rowid, title, body, comments, cjk_bigram_column(title, body, comments))
-            for rowid, title, body, comments in rows
+            (rowid, title, fts_labels_text(labels), body, comments,
+             cjk_bigram_column(title, fts_labels_text(labels), body, comments))
+            for rowid, title, body, comments, labels in rows
         ],
     )
 
@@ -230,6 +251,9 @@ def main() -> int:
         return 1
     if fts_sql and "cjk_bigram" not in (fts_sql[0] or ""):
         print("items_fts lost the cjk_bigram column in the portable rebuild", file=sys.stderr)
+        return 1
+    if fts_sql and "labels" not in (fts_sql[0] or ""):
+        print("items_fts lost the labels column in the portable rebuild", file=sys.stderr)
         return 1
 
     # e2e/person.spec.ts opens both kinds of comment from one person's panel,

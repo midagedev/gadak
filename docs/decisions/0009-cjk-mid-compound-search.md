@@ -451,3 +451,34 @@ A-table would leave RECIPES.md:66 **true** and the MCP example incomplete.
 
 ---
 
+
+## Addendum (2026-09-10, GDK-1021): the porter wrapper, measured
+
+`items_fts` gained a `labels` column and its tokenizer became
+`porter unicode61 remove_diacritics 2` (labels + English stem recall are
+GDK-1021). Porter wraps unicode61, so every non-CJK token is stemmed on both
+the index and query side. What that does to this decision's contracts was
+measured, not assumed, on a throwaway copy of `examples/demo.db` rebuilt in
+the new shape:
+
+- **CJK bigram contract survives.** `MATCH '결제'` behavior is unchanged:
+  porter passes CJK runes through untouched (it is a Latin-stemming wrapper),
+  so the `cjk_bigram` column tokens and the app-side rewrite are exactly what
+  they were. The full `search_cjk_test.go` suite passes unmodified.
+- **English infix lock survives.** `MATCH 'ency'` = 0, `MATCH 'idempot*'` = 14
+  — identical to the unicode61 baseline. Stemming changes recall only through
+  suffix variants, never through middles.
+- **One count in the precision gate moved, attributably.** `webhook AND
+  retry` went 16 → 18: the two new rows (NMA-589857, NMB-622723) carry
+  `retries`, which porter stems to `retri` == `retry`'s stem. That is the
+  recall GDK-1021 asked for, so the gate was re-derived to 18 with the rows
+  enumerated here (`internal/store/search_cjk_test.go`,
+  `TestDemoPrecisionGateCJKColumn`). `auth*` moved 35 → 40 for the labels
+  column, not porter: five issues carry the literal `auth` label.
+- **cjk_bigram now covers labels too.** `FTSCJKBigramColumn` takes the
+  space-joined label text as a second source, so `결제` hits a label that only
+  contains `간편결제` — mid-compound recall now includes the new column
+  (`internal/store/search_labels_test.go`, `TestSearchKoreanLabelMidCompound`).
+
+The §2/§3 measurement tables above were taken under bare unicode61 and are
+kept as-is; this addendum is the only deltas measured under porter.

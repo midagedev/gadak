@@ -456,7 +456,10 @@ JQL or a navigator URL, use `gadak search --jql '…'` (or pass the URL as the
 query). Clauses the subset cannot express are printed on stderr and must be
 repeated to the user — do not pretend the list is what Jira would have shown.
 
-CJK queries of two or more runes match inside a compound (`결제` hits
+Search covers labels as well as titles, bodies and comments — an issue whose
+only signal is a label comes back, and `--json` attributes it to field
+`labels`. English stem variants match (`payments` hits `payment`). CJK
+queries of two or more runes match inside a compound (`결제` hits
 `간편결제`). English middles still miss (`ency` does not hit a title that is
 only `idempotency`). JQL `project NOT IN (KEY, …)` applies; `status NOT IN`
 does not (`cannot apply JQL — status not in … (only = and IN)`). Prefer

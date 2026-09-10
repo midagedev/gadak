@@ -49,8 +49,8 @@ func (db *DB) repairItemsFTS(ctx context.Context) error {
 }
 
 // rebuildItemsFTS drops and recreates items_fts with the canonical DDL and
-// reloads it with the same content writeFTS produces: title, body_text, the
-// item's comments joined by newlines in insertion order (rowid order —
+// reloads it with the same content writeFTS produces: title, labels, body_text,
+// the item's comments joined by newlines in insertion order (rowid order —
 // comments are replaced wholesale, so rowids follow insert order), and the
 // CJK bigram column. SQL cannot emit overlapping 2-grams, so rows are walked
 // in Go (insertFTSBatch); the walk pages by items.rowid so a large mirror
@@ -84,8 +84,10 @@ func (db *DB) rebuildItemsFTS(ctx context.Context) (int64, error) {
 }
 
 // insertFTSBatch loads up to batch items with rowid > after (rowid order),
-// closes the read, then inserts each row with the same four content columns
-// writeFTS writes. Returns the rows written and the highest rowid seen, which
+// closes the read, then inserts each row with the same content columns
+// writeFTS writes. Labels come from whichever projection the item has —
+// issues_raw or pages; an item is exactly one of the two, so the COALESCE
+// picks it. Returns the rows written and the highest rowid seen, which
 // the caller uses as the next page cursor.
 func insertFTSBatch(ctx context.Context, tx *sql.Tx, after int64, batch int) (n int, last int64, err error) {
 	rows, err := tx.QueryContext(ctx, `
@@ -93,8 +95,11 @@ func insertFTSBatch(ctx context.Context, tx *sql.Tx, after int64, batch int) (n 
 		       COALESCE((SELECT group_concat(body_text, char(10))
 		                 FROM (SELECT body_text FROM comments
 		                       WHERE item_id = i.id AND body_text <> ''
-		                       ORDER BY rowid)), '')
+		                       ORDER BY rowid)), ''),
+		       COALESCE(ir.labels, p.labels, '[]')
 		FROM items i
+		LEFT JOIN issues_raw ir ON ir.item_id = i.id
+		LEFT JOIN pages p ON p.item_id = i.id
 		WHERE i.rowid > ?
 		ORDER BY i.rowid
 		LIMIT ?`, after, batch)
@@ -104,11 +109,12 @@ func insertFTSBatch(ctx context.Context, tx *sql.Tx, after int64, batch int) (n 
 	type srcRow struct {
 		rowid              int64
 		title, body, comms string
+		labelsJSON         string
 	}
 	var loaded []srcRow
 	for rows.Next() {
 		var r srcRow
-		if err := rows.Scan(&r.rowid, &r.title, &r.body, &r.comms); err != nil {
+		if err := rows.Scan(&r.rowid, &r.title, &r.body, &r.comms, &r.labelsJSON); err != nil {
 			rows.Close()
 			return 0, 0, err
 		}
@@ -121,13 +127,14 @@ func insertFTSBatch(ctx context.Context, tx *sql.Tx, after int64, batch int) (n 
 	rows.Close()
 
 	ins, err := tx.PrepareContext(ctx,
-		`INSERT INTO items_fts (rowid, title, body_text, comments_text, cjk_bigram) VALUES (?,?,?,?,?)`)
+		`INSERT INTO items_fts (rowid, title, labels, body_text, comments_text, cjk_bigram) VALUES (?,?,?,?,?,?)`)
 	if err != nil {
 		return 0, 0, err
 	}
 	defer ins.Close()
 	for _, r := range loaded {
-		if _, err := ins.Exec(r.rowid, r.title, r.body, r.comms, FTSCJKBigramColumn(r.title, r.body, r.comms)); err != nil {
+		labels := FTSLabelsText(r.labelsJSON)
+		if _, err := ins.Exec(r.rowid, r.title, labels, r.body, r.comms, FTSCJKBigramColumn(r.title, labels, r.body, r.comms)); err != nil {
 			return n, last, err
 		}
 		n++

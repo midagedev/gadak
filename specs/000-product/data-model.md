@@ -602,14 +602,15 @@ user would mourn may live only here.
 
 ## `items_fts`
 
-FTS5 external-content table over `items(title, body_text)` plus comment bodies.
+FTS5 external-content table over `items(title, body_text)`, the label list,
+plus comment bodies.
 
 ```sql
 CREATE VIRTUAL TABLE items_fts USING fts5(
-  title, body_text, comments_text, cjk_bigram,
+  title, labels, body_text, comments_text, cjk_bigram,
   content='',            -- contentless: rows are rebuilt on sync
   contentless_delete=1,  -- lets one row be replaced without the old values
-  tokenize='unicode61 remove_diacritics 2'
+  tokenize='porter unicode61 remove_diacritics 2'
 );
 ```
 
@@ -618,17 +619,27 @@ contentless table has no update path, so sync replaces a row by deleting and
 re-inserting it; `contentless_delete=1` (SQLite 3.43+) is what allows the delete
 without re-supplying the previous column values.
 
-`unicode61` is used rather than a CJK-aware tokenizer because the fallback path
-matters more than perfect segmentation: Korean substring narrowing already
-happens client-side over the warm issue pool, and FTS is for body and comment
-text where prefix matching is enough. CJK mid-compound matching is app-layer
-(v25 / `docs/decisions/0009`): the `cjk_bigram` column carries the overlapping
-2-grams of CJK runs from the title, body and comments, and the app rewrites a
-CJK term of two or more runes as the AND of those bigrams — `MATCH '결제'` hits
-`간편결제` with or without the rewrite. A `trigram` tokenizer was measured and
-rejected: a 2-character query emits no trigram tokens, so `MATCH` silently
-returns 0 rows, and it wrecks English precision (`ency` → 0.342). English is
-deliberately not n-grammed — `ency` does not match `idempotency`.
+`labels` (v50 / GDK-1021) is the space-joined label array of whichever
+projection the item has — `issues.labels` or `pages.labels`, both JSON arrays
+in their own tables — so an issue whose only signal is a label is searchable;
+`gadak search --json` attributes those hits to field `labels`. bm25 weights the
+column between title and body (a label names what the issue IS, but one issue
+carries several).
+
+`porter` wraps `unicode61` (v50 / GDK-1021) so English stem variants match:
+`payments` hits `payment`. Mid-token English still misses — `ency` does not
+match `idempotency` — and CJK tokens pass through the stemmer unchanged. A
+CJK-aware tokenizer is still deliberately absent: Korean substring narrowing
+already happens client-side over the warm issue pool, and FTS is for body and
+comment text where prefix matching is enough. CJK mid-compound matching is
+app-layer (v25 / `docs/decisions/0009`): the `cjk_bigram` column carries the
+overlapping 2-grams of CJK runs from the title, labels, body and comments, and
+the app rewrites a CJK term of two or more runes as the AND of those bigrams —
+`MATCH '결제'` hits `간편결제` with or without the rewrite. A `trigram`
+tokenizer was measured and rejected: a 2-character query emits no trigram
+tokens, so `MATCH` silently returns 0 rows, and it wrecks English precision
+(`ency` → 0.342). English is deliberately not n-grammed — `ency` does not
+match `idempotency`.
 
 ## Personal state in `local.db`: `saved_views`, `watches`, `favorites`, `feed_reads`
 

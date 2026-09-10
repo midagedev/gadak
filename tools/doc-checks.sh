@@ -2460,4 +2460,22 @@ ok "every contract string the fact ledger names is in the file it names"
 # step, so the delegated run is the wiring (check 42's *-test.sh rule).
 bash tools/audit-test.sh
 
+# -- 49. every items_fts writer names all five columns (GDK-1021) --
+# 0009 SS Consequences names the trap: items_fts is contentless, so a writer
+# that omits a column produces an index that is empty on that axis rather than
+# broken - no error, no failing test, just search silently losing a whole
+# class of hit. It has now happened twice (cjk_bigram in GDK-259, labels in
+# GDK-1021), and the second time the writer that lagged was
+# tools/demo-i18n/apply.py, which no Go test compiles and no gate opened. So
+# the census is mechanical: every INSERT INTO items_fts in the tree, in any
+# language, must name the full column list, and every CREATE VIRTUAL TABLE
+# items_fts must declare the same columns and the canonical tokenizer from
+# internal/store/schema.go. contentless_delete is deliberately absent from the
+# portable Datasette Lite snapshot (GDK-112), so only columns and tokenizer
+# are asserted here.
+if ! python3 tools/fts-writer-census.py; then
+  fail "an items_fts writer is missing a column or the canonical tokenizer (see above)"
+fi
+ok "every items_fts writer names all five columns and the canonical tokenizer"
+
 echo "doc-checks: all passed"
