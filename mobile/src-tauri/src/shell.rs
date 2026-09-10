@@ -288,7 +288,7 @@ mod tests {
     fn ts_net_https_any_port_is_in_scope() {
         assert!(endpoint_in_scope("https://home.example.ts.net", false));
         assert!(endpoint_in_scope("https://home.example.ts.net:8443", false));
-        assert!(endpoint_in_scope("https://deep.a.b.ts.net:443", false));
+        assert!(endpoint_in_scope("https://deep.home.example.ts.net:443", false));
         assert!(endpoint_in_scope("https://HOME.EXAMPLE.TS.NET", false));
     }
 
