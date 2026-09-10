@@ -608,6 +608,17 @@ serve 의 버전을 기록하고, serve 의 모든 응답에 `X-Gadak-Version` �
 ([GDK-1529])과 세션 이름·바인딩 키의 분리된 슬롯 ([GDK-1530]). 문서 행은 한 줄을 유지합니다 —
 픽스처의 제목 71개 중 잘리는 것이 하나도 없어서입니다 ([GDK-1551]).
 
+인프라 다섯 조각이 운에 기대기를 그만뒀습니다. 하드코딩 호스트 스캔이 `e2e/demo/*.spec.ts`
+도 읽습니다 — 데모 부패 게이트가 거기서 포트 리터럴을 잡았는데 스캔이 먼저 잡았어야 했습니다
+([GDK-1761]). 데스크톱의 CSP 는 실제 mux 를 통과한 정확한 문자열 하나로 단언되고, 문서 검사는
+display name 을 비교하는 대시보드 예제 펜스를 거절하며, 핀이 그 검사의 문법을 런타임 경고와
+같게 잡아 둡니다. 나머지 대시보드 게이트 셋은 HEAD 에 이미 있었습니다 ([GDK-783]). cask 게시
+단계는 푸시 전에 탭 formula 가 cask 버전 이상이 되기를 기다리고, 태그마다 나가는 미러 스키마
+레벨을 로그에 남깁니다 ([GDK-506]). Linux 데스크톱 잡은 GTK `.deb` 와 apt 목록을 캐시해
+Ubuntu 미러 장애에 런을 잃는 대신 캐시를 재생합니다 ([GDK-234]). Windows 실행 파일은 커밋된
+매니페스트와 `.syso` 쌍으로 PerMonitorV2 DPI 인식을 선언하고, 재생성기와 팩 스크립트의 바이트
+검사가 붙었습니다 ([GDK-1407]).
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -1654,6 +1665,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-223]: https://gadak.dev/backlog/#/?ks=GDK-223
 [GDK-225]: https://gadak.dev/backlog/#/?ks=GDK-225
 [GDK-229]: https://gadak.dev/backlog/#/?ks=GDK-229
+[GDK-234]: https://gadak.dev/backlog/#/?ks=GDK-234
 [GDK-237]: https://gadak.dev/backlog/#/?ks=GDK-237
 [GDK-238]: https://gadak.dev/backlog/#/?ks=GDK-238
 [GDK-239]: https://gadak.dev/backlog/#/?ks=GDK-239
@@ -1745,6 +1757,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-501]: https://gadak.dev/backlog/#/?ks=GDK-501
 [GDK-502]: https://gadak.dev/backlog/#/?ks=GDK-502
 [GDK-503]: https://gadak.dev/backlog/#/?ks=GDK-503
+[GDK-506]: https://gadak.dev/backlog/#/?ks=GDK-506
 [GDK-509]: https://gadak.dev/backlog/#/?ks=GDK-509
 [GDK-513]: https://gadak.dev/backlog/#/?ks=GDK-513
 [GDK-514]: https://gadak.dev/backlog/#/?ks=GDK-514
@@ -1832,6 +1845,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-771]: https://gadak.dev/backlog/#/?ks=GDK-771
 [GDK-781]: https://gadak.dev/backlog/#/?ks=GDK-781
 [GDK-782]: https://gadak.dev/backlog/#/?ks=GDK-782
+[GDK-783]: https://gadak.dev/backlog/#/?ks=GDK-783
 [GDK-785]: https://gadak.dev/backlog/#/?ks=GDK-785
 [GDK-786]: https://gadak.dev/backlog/#/?ks=GDK-786
 [GDK-787]: https://gadak.dev/backlog/#/?ks=GDK-787
@@ -2104,6 +2118,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1399]: https://gadak.dev/backlog/#/?ks=GDK-1399
 [GDK-1400]: https://gadak.dev/backlog/#/?ks=GDK-1400
 [GDK-1401]: https://gadak.dev/backlog/#/?ks=GDK-1401
+[GDK-1407]: https://gadak.dev/backlog/#/?ks=GDK-1407
 [GDK-1413]: https://gadak.dev/backlog/#/?ks=GDK-1413
 [GDK-1427]: https://gadak.dev/backlog/#/?ks=GDK-1427
 [GDK-1428]: https://gadak.dev/backlog/#/?ks=GDK-1428
@@ -2250,3 +2265,4 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1758]: https://gadak.dev/backlog/#/?ks=GDK-1758
 [GDK-1759]: https://gadak.dev/backlog/#/?ks=GDK-1759
 [GDK-1760]: https://gadak.dev/backlog/#/?ks=GDK-1760
+[GDK-1761]: https://gadak.dev/backlog/#/?ks=GDK-1761

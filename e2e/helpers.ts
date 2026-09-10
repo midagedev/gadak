@@ -171,6 +171,10 @@ export function clearUIFocus(): void {
  * the port collides with a parallel round exactly the same way. (The one
  * deliberate off-port demo config, terminal.config.ts on 7793, documents
  * its reason in the file and never spells this literal.)
+ * GDK-1761: e2e/demo/*.spec.ts joins too — the demo booted-rot gate's first
+ * run caught a hardcoded 7877 in agent-demo.spec.ts that this scan never
+ * saw, because it read only demo configs. The keep predicate is the single
+ * owner of "which demo files are scanned": .spec.ts and .config.ts, both.
  */
 export function hardcodedE2EHosts(root = E2E_DIR): string[] {
   const hits: string[] = []
@@ -185,7 +189,7 @@ export function hardcodedE2EHosts(root = E2E_DIR): string[] {
     }
   }
   scan(root, '', (name) => name.endsWith('.spec.ts'))
-  scan(join(root, 'demo'), 'demo/', (name) => name.endsWith('.config.ts'))
+  scan(join(root, 'demo'), 'demo/', (name) => name.endsWith('.spec.ts') || name.endsWith('.config.ts'))
   return hits
 }
 
@@ -315,7 +319,7 @@ export default function globalSetup(): void {
   const hits = hardcodedE2EHosts()
   if (hits.length) {
     throw new Error(
-      `hardcoded ${HARDCODED_E2E_HOST} in e2e/*.spec.ts or e2e/demo/*.config.ts — use apiURL()/e2eServePort() from e2e/helpers.ts:\n${hits.join('\n')}`,
+      `hardcoded ${HARDCODED_E2E_HOST} in e2e/*.spec.ts, e2e/demo/*.spec.ts or e2e/demo/*.config.ts — use apiURL()/e2eServePort() from e2e/helpers.ts:\n${hits.join('\n')}`,
     )
   }
   assertServedArtifact()

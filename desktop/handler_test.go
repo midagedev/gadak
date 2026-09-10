@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -446,6 +447,47 @@ func TestDesktopWorkspaceRoutes(t *testing.T) {
 		}
 		if strings.Contains(rec.Body.String(), "<!doctype html>") {
 			t.Fatalf("got SPA HTML instead of workspaces JSON")
+		}
+	})
+
+	t.Run("dashboard render CSP survives the desktop mux", func(t *testing.T) {
+		// [GDK-783] The render policy is composed per request from the Host
+		// the server sees (internal/server TestDashboardRenderCSP pins the
+		// composer), and the desktop mux rewrites a webview request's
+		// wails.localhost Host to 127.0.0.1 before /api/ reaches it. This
+		// pins the exact policy the sandboxed frame receives through
+		// fallbackHandler: the vendor path joined on the rewritten loopback
+		// host and nothing else. A mux that stops rewriting, or a composer
+		// that starts trusting a pre-rewrite Host, fails here as a string
+		// diff instead of as a frame that cannot load uPlot.
+		save := httptest.NewRequest(http.MethodPost, "/api/v1/dashboards/",
+			strings.NewReader(`{"name":"wall","config":{"html":"<p>w</p>"}}`))
+		save.Host = "wails.localhost"
+		save.Header.Set("Origin", "wails://wails.localhost")
+		srec := httptest.NewRecorder()
+		h.ServeHTTP(srec, save)
+		if srec.Code != http.StatusCreated {
+			t.Fatalf("save: %d %s", srec.Code, srec.Body.String())
+		}
+		var saved store.Dashboard
+		if err := json.Unmarshal(srec.Body.Bytes(), &saved); err != nil {
+			t.Fatalf("save decode: %v", err)
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/dashboards/"+saved.ID+"/render/", nil)
+		req.Host = "wails.localhost"
+		req.Header.Set("Origin", "wails://wails.localhost")
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("render: %d %s", rec.Code, rec.Body.String())
+		}
+		want := "default-src 'none'; " +
+			"script-src 'unsafe-inline' http://127.0.0.1/api/v1/dashboards/vendor/; " +
+			"style-src 'unsafe-inline' http://127.0.0.1/api/v1/dashboards/vendor/; " +
+			"img-src data:"
+		if got := rec.Header().Get("Content-Security-Policy"); got != want {
+			t.Fatalf("CSP through desktop mux =\n%s\nwant\n%s", got, want)
 		}
 	})
 }

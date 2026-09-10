@@ -2971,5 +2971,42 @@ if ! _pin .github/CONTRIBUTING.md 'Read on need'; then
   fail ".github/CONTRIBUTING.md lost the on-need pointer that replaced the must-read wall"
 fi
 ok "CONTRIBUTING.md front door: build named, rules caught in review, docs linked on need"
+# ── 58. fenced dashboard examples never compare display names (GDK-783) ──
+# docs/DASHBOARDS.md is the authoring cookbook for SQL datasources, and its
+# fenced examples are the part a reader copies verbatim. A fenced
+# `status = '…'` teaches the locale trap the product itself warns about at
+# runtime (internal/sqlhint ZeroRowDisplayNameWarning): 0 rows on any
+# account whose status names are not English. The teaching table under
+# "instead of | use" is deliberately out of scope — its cells are inline
+# code in prose, not a fence, and each shows the wrong spelling beside the
+# right one. Word boundaries keep status_category / priority_rank /
+# issue_type_id fences legal, same as the Go side. The regex body is the
+# same grammar as hint.go's displayNameFilterRe; tools/mirror-pins.sh pair 5
+# pins the two verbatim, so widening either side alone fails check 50.
+# FAIL-first 2026-09-11: a fenced `status = 'In Progress' -- done' example
+# appended under "Writing queries" failed here naming the file:line;
+# removing it was green.
+python3 - <<'PY51' || fail "a fenced dashboard example compares a display name (GDK-783)"
+import re, sys
+from pathlib import Path
+
+# mirror-pins.sh pair 5 extracts this literal and hint.go's backtick body
+# and requires them equal — edit both in one commit or neither.
+DISPLAY_NAME_FILTER_RE = r"(?i)\b(status|issue_type|issuetype|priority)\s*="
+
+pat = re.compile(DISPLAY_NAME_FILTER_RE)
+bad = []
+in_fence = False
+for lineno, line in enumerate(Path("docs/DASHBOARDS.md").read_text().splitlines(), 1):
+    if line.startswith("```"):
+        in_fence = not in_fence
+        continue
+    if in_fence and pat.search(line):
+        bad.append(f"docs/DASHBOARDS.md:{lineno}: {line.strip()}")
+for b in bad:
+    print("  " + b)
+sys.exit(1 if bad else 0)
+PY51
+ok "fenced dashboard examples never compare status/priority/type display names"
 
 echo "doc-checks: all passed"

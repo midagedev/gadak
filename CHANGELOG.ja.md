@@ -653,6 +653,18 @@ Replace は二度尋ね — 二度目のタップで武装したボタン — ar
 セッション名と結び付いたキーの別々のスロット ([GDK-1530])。文書行は一行のままです —
 フィクスチャの題名 71 件のうち切れるものがひとつもないからです ([GDK-1551])。
 
+インフラの五つの部品が運に頼るのをやめました。ハードコードされたホストの走査は
+`e2e/demo/*.spec.ts` も読みます — デモの腐敗ゲートがそこでポートのリテラルを捕まえましたが、
+先に走査が捕まえるべきでした ([GDK-1761])。デスクトップの CSP は本物の mux を通した正確な
+一つの文字列として主張され、文書の検査は display name を比較するダッシュボード例のフェンスを
+拒み、ピンがその検査の文法をランタイムの警告と同一に保ちます。残る三つのダッシュボードゲートは
+HEAD にすでにありました ([GDK-783])。cask の公開ステップはプッシュの前に tap の formula が
+cask のバージョン以上になるのを待ち、タグごとに出るミラースキーマのレベルをログに残します
+([GDK-506])。Linux デスクトップのジョブは GTK の `.deb` と apt のリストをキャッシュし、Ubuntu
+ミラーの障害でランを失う代わりにキャッシュを再生します ([GDK-234])。Windows の実行ファイルは
+コミットされたマニフェストと `.syso` の組で PerMonitorV2 の DPI 認識を宣言し、再生成器と
+パックスクリプトのバイト検査が付きました ([GDK-1407])。
+
 ## v0.21.0 — 2026-09-08
 
 **離れていた間に何が起きたのかに、キャッシュから答えます。** ステータスの変更も
@@ -1777,6 +1789,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-223]: https://gadak.dev/backlog/#/?ks=GDK-223
 [GDK-225]: https://gadak.dev/backlog/#/?ks=GDK-225
 [GDK-229]: https://gadak.dev/backlog/#/?ks=GDK-229
+[GDK-234]: https://gadak.dev/backlog/#/?ks=GDK-234
 [GDK-237]: https://gadak.dev/backlog/#/?ks=GDK-237
 [GDK-238]: https://gadak.dev/backlog/#/?ks=GDK-238
 [GDK-239]: https://gadak.dev/backlog/#/?ks=GDK-239
@@ -1868,6 +1881,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-501]: https://gadak.dev/backlog/#/?ks=GDK-501
 [GDK-502]: https://gadak.dev/backlog/#/?ks=GDK-502
 [GDK-503]: https://gadak.dev/backlog/#/?ks=GDK-503
+[GDK-506]: https://gadak.dev/backlog/#/?ks=GDK-506
 [GDK-509]: https://gadak.dev/backlog/#/?ks=GDK-509
 [GDK-513]: https://gadak.dev/backlog/#/?ks=GDK-513
 [GDK-514]: https://gadak.dev/backlog/#/?ks=GDK-514
@@ -1955,6 +1969,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-771]: https://gadak.dev/backlog/#/?ks=GDK-771
 [GDK-781]: https://gadak.dev/backlog/#/?ks=GDK-781
 [GDK-782]: https://gadak.dev/backlog/#/?ks=GDK-782
+[GDK-783]: https://gadak.dev/backlog/#/?ks=GDK-783
 [GDK-785]: https://gadak.dev/backlog/#/?ks=GDK-785
 [GDK-786]: https://gadak.dev/backlog/#/?ks=GDK-786
 [GDK-787]: https://gadak.dev/backlog/#/?ks=GDK-787
@@ -2227,6 +2242,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1399]: https://gadak.dev/backlog/#/?ks=GDK-1399
 [GDK-1400]: https://gadak.dev/backlog/#/?ks=GDK-1400
 [GDK-1401]: https://gadak.dev/backlog/#/?ks=GDK-1401
+[GDK-1407]: https://gadak.dev/backlog/#/?ks=GDK-1407
 [GDK-1413]: https://gadak.dev/backlog/#/?ks=GDK-1413
 [GDK-1427]: https://gadak.dev/backlog/#/?ks=GDK-1427
 [GDK-1428]: https://gadak.dev/backlog/#/?ks=GDK-1428
@@ -2373,3 +2389,4 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1758]: https://gadak.dev/backlog/#/?ks=GDK-1758
 [GDK-1759]: https://gadak.dev/backlog/#/?ks=GDK-1759
 [GDK-1760]: https://gadak.dev/backlog/#/?ks=GDK-1760
+[GDK-1761]: https://gadak.dev/backlog/#/?ks=GDK-1761

@@ -241,6 +241,50 @@ jobs:
           ssh-add - <<< "$TAP_DEPLOY_KEY"
           export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new"
           git clone --depth 1 git@github.com:midagedev/homebrew-tap.git /tmp/tap
+          # Formula-parity gate + schema record. The cask's app and the
+          # gadak-cli formula are the two brew install paths for the same
+          # `gadak` binary namespace (install one or the other, per the cask
+          # comment above), and they are written by two racing workflows:
+          # goreleaser pushes Formula/gadak-cli.rb from the Release workflow,
+          # this job pushes Casks/gadak.rb. A cask that lands while the
+          # formula is still at an older tag puts the channels at different
+          # versions — and a user who follows the tap sees whichever landed
+          # last win. So before pushing, wait (bounded, same shape as the
+          # release-wait loops above) until the tap's formula is at least
+          # this tag's version. The schema line records which mirror schema
+          # level ships with the tag (len(migrations) in
+          # internal/store/schema.go) so app/CLI parity audits have a
+          # per-tag record in the job log.
+          schema_count=$(sed -n 's/^var migrations = \[\]string{//p' \
+            internal/store/schema.go | tr -d '}' | tr ',' '\n' | wc -l | tr -d ' ')
+          echo "gadak ${version}: cask publish at mirror schema V${schema_count} (len(migrations) at ${tag})"
+          formula=/tmp/tap/Formula/gadak-cli.rb
+          for i in $(seq 1 30); do
+            fver=""
+            if [[ -f "$formula" ]]; then
+              fver=$(sed -n 's/^[[:space:]]*version[[:space:]]*"\(.*\)"$/\1/p' "$formula" | awk 'NR<=1')
+            fi
+            if [[ -n "$fver" ]] && awk -F. -v want="$version" -v got="$fver" 'BEGIN {
+                 # exit 0 iff got >= want, field-wise; both are x.y.z
+                 n = split(want, W, "."); m = split(got, G, ".")
+                 for (i = 1; i <= 3; i++) {
+                   w = (i <= n ? W[i] : 0); g = (i <= m ? G[i] : 0)
+                   if (g > w) exit 0
+                   if (g < w) exit 1
+                 }
+               }'; then
+              echo "formula gadak-cli ${fver} >= cask gadak ${version} — parity holds"
+              break
+            fi
+            if [[ "$i" -eq 30 ]]; then
+              echo "tap formula is behind or absent (want >= ${version}, got '${fver:-none}') — refusing to push the cask ahead of it" >&2
+              exit 1
+            fi
+            echo "waiting for the gadak-cli formula to reach ${version} (${i}/30)…"
+            git -C /tmp/tap fetch origin main >/dev/null 2>&1 || true
+            git -C /tmp/tap reset --hard origin/main >/dev/null 2>&1 || true
+            sleep 10
+          done
           mkdir -p /tmp/tap/Casks
           cp /tmp/gadak.rb /tmp/tap/Casks/gadak.rb
           # Gate before pushing: a cask that does not pass style must fail the

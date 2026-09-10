@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- GDK-1407: the application manifest embedded into gadak-desktop.exe.
+     Regenerate the .syso pair after editing: bash tools/windows-manifest.sh
+     (that script and desktop/build-windows.ps1's byte gate are the two
+     owners of this file's journey into the exe).
+
+     Deliberately minimal:
+     - No requestedExecutionLevel. Absent means the default asInvoker, which
+       is what both packs want: the portable zip must not raise a UAC prompt,
+       and the MSIX package's identity comes from AppxManifest.xml, not here.
+     - No file associations, no DPI-compat overrides beyond awareness.
+     - assemblyIdentity version is fixed at 1.0.0.0 on purpose: Windows only
+       compares it against itself for side-by-side binding of unversioned
+       exes; the product version travels in the PE version stamp
+       (-X main.appVersion), not here.
+
+     dpiAware true/pm plus dpiAwareness PerMonitorV2, PerMonitor: Windows
+     10 1607-1703 reads the legacy element, later builds read the modern one,
+     and the comma list falls back to PerMonitor where V2 is unavailable.
+     Without a manifest a GUI process is system-DPI-aware, so a WebView2
+     app moved between monitors of different scale factors renders at the
+     boot monitor's DPI and Windows bitmap-stretches it — the blur GDK-1407
+     was opened for. -->
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <assemblyIdentity type="win32" name="dev.gadak.Gadak" version="1.0.0.0" processorArchitecture="*"/>
+  <description>gadak desktop</description>
+  <asmv3:application xmlns:asmv3="urn:schemas-microsoft-com:asm.v3">
+    <asmv3:windowsSettings>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2, PerMonitor</dpiAwareness>
+    </asmv3:windowsSettings>
+  </asmv3:application>
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Windows 10 and 11 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>
+    </application>
+  </compatibility>
+</assembly>

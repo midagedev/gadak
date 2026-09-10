@@ -584,6 +584,15 @@ jobs:
       - name: Desktop Go build, test, vet
         run: cd desktop && go build ./... && go test ./... -count=1 && go vet ./...
 
+      # GDK-1407: the committed rsrc_windows_<arch>.syso pair must match
+      # desktop/windows-app.manifest. The Windows pack gate byte-searches the
+      # built exe, but a stale pair after a manifest edit compiles green all
+      # the way to the pack — this catches it at every push instead, on the
+      # cheapest desktop runner. --check regenerates both .syso and cmp's
+      # them against the committed pair (rsrc output is deterministic).
+      - name: Committed syso pair matches the manifest
+        run: bash tools/windows-manifest.sh --check
+
       # GDK-167: anything the OS reads from Info.plist is invisible to a
       # source test — the repo can be right while the artifact is wrong, and
       # the symptom is a gadak:// link that does nothing at all. So build the
@@ -651,9 +660,60 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      # GDK-234: mirror-outage resilience for the GTK step below. The
+      # 2026-08-18 incident (azure.archive.ubuntu.com Ign'ing every request,
+      # then the archive.ubuntu.com fallback silent mid-index) gave that step
+      # its per-attempt timeouts and its mirror-trouble diagnostics — but a
+      # hard outage still fails the job, because every retry re-downloads.
+      # The package set is fixed by this file, so the downloads are
+      # cacheable: the .debs and the apt lists land in runner-owned staging
+      # dirs and actions/cache carries them across runs. The key carries the
+      # distro and this file's hash — deliberately no date: a time-rolled key
+      # would miss exactly when the mirror is down, the only time the cache
+      # matters. The pair is saved only from a green install, and the
+      # fallback replays lists and archives together, so the versions the
+      # cached lists resolve always have their .debs on disk.
+      - name: Stamp the runner's apt environment
+        id: aptstamp
+        run: |
+          set -eu
+          . /etc/os-release
+          echo "image=$(dpkg --print-architecture)-${VERSION_CODENAME}-${VERSION_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: apt archives cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/gadak-apt-archives
+            ~/.cache/gadak-apt-lists
+          key: gadak-gtk4-apt-${{ steps.aptstamp.outputs.image }}-${{ hashFiles('.github/workflows/ci.yml') }}
+          # Prefix stays inside the same distro stamp, so a stale pair from
+          # an older workflow hash can be replayed but never crosses an
+          # image/distro roll.
+          restore-keys: gadak-gtk4-apt-${{ steps.aptstamp.outputs.image }}-
+
+      # Hit or miss, a cold runner behaves exactly as before this cache
+      # existed: seeding only copies files in, and the update-failure
+      # fallback in the GTK step engages only when cached lists exist.
+      - name: Seed apt archives from the cache
+        run: |
+          set -eu
+          n=0
+          for deb in "$HOME"/.cache/gadak-apt-archives/*.deb; do
+            [ -f "$deb" ] || continue
+            n=$((n + 1))
+          done
+          if [ "$n" -gt 0 ]; then
+            sudo cp "$HOME"/.cache/gadak-apt-archives/*.deb /var/cache/apt/archives/
+            echo "seeded ${n} cached .deb(s) into /var/cache/apt/archives"
+          else
+            echo "no cached .debs — cold apt path"
+          fi
+
       # wails v3's Linux host is GTK4 + WebKitGTK 6.0 and needs CGO. The 4.1
       # (gtk3) stack is the legacy tag and is deliberately not installed.
       - name: GTK4 / WebKitGTK 6.0 development packages
+        id: gtk
         timeout-minutes: 12
         run: |
           set -eu
@@ -761,9 +821,48 @@ jobs:
             fi
             apt_try_network "$cmd" "$@"
           }
-          apt_try update
+          # GDK-234: with a warm cache a hard mirror outage becomes a cache
+          # replay instead of a failed job. update failing is normally fatal;
+          # when cached lists exist they are replayed over the image's
+          # (possibly half-fetched) state, and the seeded archives already
+          # hold every .deb those lists resolve — install -d finds nothing
+          # left to download and --no-download unpacks from disk.
+          if ! apt_try update; then
+            if compgen -G "$HOME/.cache/gadak-apt-lists/*_Packages" >/dev/null; then
+              echo "apt-get update failed — mirror trouble; replaying the cached lists + archives instead (GDK-234)" >&2
+              sudo cp "$HOME"/.cache/gadak-apt-lists/* /var/lib/apt/lists/
+            else
+              echo "apt-get update failed and there are no cached lists to fall back on — cold runner, mirror trouble" >&2
+              exit 1
+            fi
+          fi
           apt_try install -y --no-install-recommends \
             libgtk-4-dev libwebkitgtk-6.0-dev pkg-config imagemagick
+
+      # GDK-234 pair save: only from a green GTK step, so the cached lists
+      # always come from an update whose install fully succeeded. Archives
+      # accumulate across saves (same-version .debs overwrite identically);
+      # the lists are the freshest successful update. lock and partial/ are
+      # runtime state, not cacheable content, and are left out.
+      - name: Collect apt state for the cache
+        if: steps.gtk.outcome == 'success'
+        run: |
+          set -eu
+          mkdir -p "$HOME/.cache/gadak-apt-archives" "$HOME/.cache/gadak-apt-lists"
+          ndeb=0
+          for deb in /var/cache/apt/archives/*.deb; do
+            [ -f "$deb" ] || continue
+            ndeb=$((ndeb + 1))
+          done
+          if [ "$ndeb" -gt 0 ]; then
+            sudo cp /var/cache/apt/archives/*.deb "$HOME/.cache/gadak-apt-archives/"
+          fi
+          nlist=0
+          while IFS= read -r f; do
+            sudo cp "$f" "$HOME/.cache/gadak-apt-lists/"
+            nlist=$((nlist + 1))
+          done < <(sudo find /var/lib/apt/lists -maxdepth 1 -type f ! -name lock)
+          echo "cache staging: ${ndeb} .deb(s), ${nlist} list file(s)"
 
       # Bad args must be 64 and a missing tool 69, the same contract
       # desktop/build-app.sh keeps. The missing tool is appimagetool, which

@@ -29,6 +29,13 @@
 #      — bodies verbatim, anchors included. A widened Go gate silently drops
 #      user styles after reload; a widened web side submits values the server
 #      refuses.
+#   5. Display-name filter grammar, internal/sqlhint/hint.go
+#      (displayNameFilterRe) ↔ tools/doc-checks.sh check 58's fence scanner
+#      (GDK-783) — bodies verbatim. The Go regex is the runtime warning's
+#      ear; the doc-check copy is the gate on what the dashboard cookbook
+#      teaches. If one learns a new spelling (issuetype variants, IN lists)
+#      and the other does not, the docs can teach a trap the runtime no
+#      longer names — or vice versa.
 #
 # The host-extraction regexes differ by more than the allowlist (scan-internal
 # forces an alphanumeric first character; the scrubber also accepts `.` and
@@ -221,11 +228,30 @@ else:
         findings.append(f"font total-length cap differs: uitokens.go "
                         f"{go_len.group(1)} vs user-tokens.ts {ts_len.group(1)}")
 
+# ── 5. display-name filter grammar: sqlhint ↔ doc-checks #58 (GDK-783) ─────
+hint = Path("internal/sqlhint/hint.go").read_text()
+dc = Path("tools/doc-checks.sh").read_text()
+
+go_dn = re.search(r"displayNameFilterRe = regexp\.MustCompile\(`([^`]+)`\)", hint)
+dc_dn = re.search(r'DISPLAY_NAME_FILTER_RE = r"([^"]+)"', dc)
+if not go_dn:
+    findings.append("internal/sqlhint/hint.go: cannot extract displayNameFilterRe — "
+                    "a rename made this pin blind")
+if not dc_dn:
+    findings.append("tools/doc-checks.sh: cannot extract DISPLAY_NAME_FILTER_RE — "
+                    "a rename made this pin blind (check 51)")
+if go_dn and dc_dn and go_dn.group(1) != dc_dn.group(1):
+    findings.append(
+        f"internal/sqlhint/hint.go:{where(hint, go_dn)} displayNameFilterRe = "
+        f"{go_dn.group(1)!r} vs tools/doc-checks.sh:{where(dc, dc_dn)} "
+        f"DISPLAY_NAME_FILTER_RE = {dc_dn.group(1)!r} — the runtime warning and the "
+        "doc gate must learn the same spellings in one commit")
+
 if findings:
     print("mirror-pins: a mirrored pair drifted — both owners are named; reconcile them in one commit:")
     for f in findings:
         print("  - " + f)
     sys.exit(1)
-print("mirror-pins: host allowlist, home path, profile grammar and the ui-token "
-      "family (5 bodies + 2 caps) agree")
+print("mirror-pins: host allowlist, home path, profile grammar, the ui-token "
+      "family (5 bodies + 2 caps) and the display-name filter grammar agree")
 PY

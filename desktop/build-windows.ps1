@@ -297,6 +297,33 @@ if ($subsystemBad.Count -gt 0) {
     exit 1
 }
 
+# DPI manifest gate (GDK-1407). desktop/rsrc_windows_<arch>.syso embeds
+# desktop/windows-app.manifest; the go tool links it into the windows build
+# of the desktop package by filename suffix alone. Anything that breaks that
+# handshake — a renamed .syso, a stale pair after a manifest edit, a tags or
+# module-layout change — compiles green and ships a system-DPI-aware exe
+# that Windows bitmap-stretches across scale factors. So the built exe is
+# byte-searched for the manifest's PerMonitorV2 value. Latin-1 (codepage
+# 28591) maps bytes 1:1 to chars, making this an exact byte search; the
+# needle includes the closing '<' so a manifest whose value was edited to
+# PerMonitorV2-something still fails. Verified from the cross-compile host
+# 2026-09-11: the pre-syso exe has 0 occurrences, the pair present has 1,
+# on both amd64 and arm64.
+function Test-ExeCarriesDpiManifest {
+    param([string]$Path)
+    $needle = '>PerMonitorV2, PerMonitor<'
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $text = [System.Text.Encoding]::GetEncoding(28591).GetString($bytes)
+    return $text.Contains($needle)
+}
+
+if (-not (Test-ExeCarriesDpiManifest $desktopOut)) {
+    [Console]::Error.WriteLine('build-windows: DPI manifest gate: gadak-desktop.exe does not carry the PerMonitorV2 manifest (GDK-1407)')
+    [Console]::Error.WriteLine('build-windows: regenerate the syso pair with: bash tools/windows-manifest.sh')
+    exit 1
+}
+Write-Host '  gadak-desktop.exe: DPI manifest PerMonitorV2 present'
+
 Write-Host "built $bundle ($version, $fileArch)"
 
 if ($wantMsix) {

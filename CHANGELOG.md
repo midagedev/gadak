@@ -779,6 +779,21 @@ scrollback ([GDK-1529]) and separate slots for a session's name and its
 bound key ([GDK-1530]) — and the document row keeps one line, since none of
 the fixture's 71 titles truncates ([GDK-1551]).
 
+Five pieces of infrastructure stopped trusting luck. The hard-coded-host
+scan now reads `e2e/demo/*.spec.ts` too — the demo rot gate had just caught
+a port literal there that the scan should have ([GDK-1761]). The desktop's
+CSP is asserted as one exact string through the real mux, a doc check
+refuses a fenced dashboard example that compares a display name, and a pin
+keeps that check's grammar identical to the runtime warning's; the other
+three dashboard gates were already on HEAD ([GDK-783]). The cask publish
+step waits for the tap formula to be at least the cask's version before it
+pushes, and logs the mirror schema level each tag ships ([GDK-506]). The
+Linux desktop job caches its GTK `.deb`s and apt lists, so an Ubuntu mirror
+outage replays the cache instead of failing the run ([GDK-234]). And the
+Windows executable declares PerMonitorV2 DPI awareness through a committed
+manifest and `.syso` pair, with a regenerator and a byte check in the pack
+script ([GDK-1407]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -1891,6 +1906,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-223]: https://gadak.dev/backlog/#/?ks=GDK-223
 [GDK-225]: https://gadak.dev/backlog/#/?ks=GDK-225
 [GDK-229]: https://gadak.dev/backlog/#/?ks=GDK-229
+[GDK-234]: https://gadak.dev/backlog/#/?ks=GDK-234
 [GDK-237]: https://gadak.dev/backlog/#/?ks=GDK-237
 [GDK-238]: https://gadak.dev/backlog/#/?ks=GDK-238
 [GDK-239]: https://gadak.dev/backlog/#/?ks=GDK-239
@@ -1982,6 +1998,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-501]: https://gadak.dev/backlog/#/?ks=GDK-501
 [GDK-502]: https://gadak.dev/backlog/#/?ks=GDK-502
 [GDK-503]: https://gadak.dev/backlog/#/?ks=GDK-503
+[GDK-506]: https://gadak.dev/backlog/#/?ks=GDK-506
 [GDK-509]: https://gadak.dev/backlog/#/?ks=GDK-509
 [GDK-513]: https://gadak.dev/backlog/#/?ks=GDK-513
 [GDK-514]: https://gadak.dev/backlog/#/?ks=GDK-514
@@ -2069,6 +2086,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-771]: https://gadak.dev/backlog/#/?ks=GDK-771
 [GDK-781]: https://gadak.dev/backlog/#/?ks=GDK-781
 [GDK-782]: https://gadak.dev/backlog/#/?ks=GDK-782
+[GDK-783]: https://gadak.dev/backlog/#/?ks=GDK-783
 [GDK-785]: https://gadak.dev/backlog/#/?ks=GDK-785
 [GDK-786]: https://gadak.dev/backlog/#/?ks=GDK-786
 [GDK-787]: https://gadak.dev/backlog/#/?ks=GDK-787
@@ -2341,6 +2359,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1399]: https://gadak.dev/backlog/#/?ks=GDK-1399
 [GDK-1400]: https://gadak.dev/backlog/#/?ks=GDK-1400
 [GDK-1401]: https://gadak.dev/backlog/#/?ks=GDK-1401
+[GDK-1407]: https://gadak.dev/backlog/#/?ks=GDK-1407
 [GDK-1413]: https://gadak.dev/backlog/#/?ks=GDK-1413
 [GDK-1427]: https://gadak.dev/backlog/#/?ks=GDK-1427
 [GDK-1428]: https://gadak.dev/backlog/#/?ks=GDK-1428
@@ -2487,3 +2506,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1758]: https://gadak.dev/backlog/#/?ks=GDK-1758
 [GDK-1759]: https://gadak.dev/backlog/#/?ks=GDK-1759
 [GDK-1760]: https://gadak.dev/backlog/#/?ks=GDK-1760
+[GDK-1761]: https://gadak.dev/backlog/#/?ks=GDK-1761
