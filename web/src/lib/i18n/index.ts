@@ -98,39 +98,6 @@ export function t(key: MessageKey, params?: MessageParams): string {
 
 /* ── Field / column / category / deploy label helpers ── */
 
-const FIELD_KEYS = [
-  'status_category',
-  'status',
-  'assignee_email',
-  'reporter_email',
-  'team_group',
-  'labels',
-  'priority',
-  'severity',
-  'issue_type',
-  'components',
-  'fix_versions',
-  'environment',
-  'browser',
-  'dev_project_number',
-  'found_version',
-  'occurrence',
-  'solution',
-  'critical_phenomenon',
-  'development_area',
-  'development_test_assignee_email',
-  'development_test_result',
-  'qa_run',
-  'qa_suite',
-  'qa_impact',
-  'deploy_state',
-  'cs',
-  'jira_project',
-  'source_project',
-] as const
-
-export type FieldLabelKey = (typeof FIELD_KEYS)[number]
-
 export function fieldLabel(field: string): string {
   const key = `field.${field}` as MessageKey
   if (key in en) return t(key)

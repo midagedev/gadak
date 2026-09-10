@@ -893,22 +893,6 @@ export interface FeedResponse {
   unread_counts: FeedUnreadCounts
 }
 
-export interface NotificationPreferences {
-  notify_mentions: boolean
-  notify_assigned: boolean
-  notify_watched: boolean
-  show_preview: boolean
-  // Quiet hours (KST "HH:MM"). null = unused.
-  quiet_start: string | null
-  quiet_end: string | null
-}
-
-export interface NotificationConfig {
-  enabled: boolean
-  vapid_public_key: string
-  preferences: NotificationPreferences
-}
-
 /**
  * Saved view (team-shared). `config` is opaque JSON the server does not interpret —
  *  front-end view state (filters/display); shape is defined by [explore].

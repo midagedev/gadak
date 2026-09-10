@@ -62,11 +62,17 @@ describe('GDK-1560 breakdown menu fits its labels', () => {
     expect(BAR, 'option buttons are nowrap + truncate').toMatch(/whitespace-nowrap truncate/)
   })
 
-  // A new axis in ALL_OPTIONS that is not listed above would be measured by
-  // nobody, so the count is asserted rather than assumed.
-  test('OPTION_KEYS covers every ALL_OPTIONS entry', () => {
-    const entries = BAR.slice(BAR.indexOf('ALL_OPTIONS'), BAR.indexOf('const OPTIONS'))
-    const count = (entries.match(/\{ key: '/g) ?? []).length
+  // A new axis in the menu that is not listed above would be measured by
+  // nobody, so the count is asserted rather than assumed. GDK-832 made
+  // MENU_ORDER the list the menu is built from (ALL_OPTIONS is now derived
+  // from it); the contract is unchanged, the shape it reads is not.
+  test('OPTION_KEYS covers every menu axis', () => {
+    const entries = BAR.slice(
+      BAR.indexOf('const MENU_ORDER = ['),
+      BAR.indexOf('] as const satisfies readonly GroupBy[]'),
+    )
+    const count = (entries.match(/^\s+'[a-z_]+',$/gm) ?? []).length
+    expect(count, 'the menu order list should still be parsed').toBeGreaterThan(0)
     expect(count, 'add the new axis to OPTION_KEYS').toBe(OPTION_KEYS.length)
   })
 })

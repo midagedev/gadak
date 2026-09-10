@@ -23,7 +23,7 @@
   import {
     config,
     feature,
-    hasServerVerb,
+    hasServer,
     isHostedDemo,
     jiraFilterUrl,
     originWritable,
@@ -255,7 +255,7 @@
    * path to that screen — hidden, the feature reads as absent.
    */
   const showSwitcher = $derived(
-    workspaceList.length > 1 || (workspaceList.length === 1 && hasServerVerb('settings')),
+    workspaceList.length > 1 || (workspaceList.length === 1 && hasServer()),
   )
   let switcherOpen = $state(false)
   function closeSwitcher() {
@@ -474,7 +474,7 @@
               {/if}
             </a>
           {/each}
-          {#if hasServerVerb('settings')}
+          {#if hasServer()}
             <div class="my-1 border-t border-border-subtle"></div>
             <!-- The one main-surface door to workspace management (GDK-1270):
                  deep-link into Settings → Workspaces, where create / pair /
@@ -985,7 +985,7 @@
        (settings/ → 404) is an error screen, so the errand it offers does
        not exist. -->
   <div class="flex flex-none items-center gap-1 border-t border-border-subtle px-2 py-1.5">
-    {#if hasServerVerb('settings')}
+    {#if hasServer()}
       <button
         type="button"
         class="flex h-7 w-7 flex-none items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"

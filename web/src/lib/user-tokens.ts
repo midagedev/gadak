@@ -269,15 +269,6 @@ export function parseUiDoc(raw: unknown): UiTokenDoc | null {
   return doc
 }
 
-/** Blocking-boot half: what index.html's hand-spelled script re-derives. */
-export function readCachedUserTokens(): UiTokenDoc | null {
-  try {
-    return parseUiDoc(JSON.parse(localStorage.getItem(userTokensStorageKey()) ?? 'null'))
-  } catch {
-    return null
-  }
-}
-
 function writeUserTokensCache(doc: UiTokenDoc | null): void {
   try {
     if (

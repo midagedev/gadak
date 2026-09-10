@@ -24,7 +24,7 @@
   import { bindParam, bindParams } from './lib/url-sync.svelte'
   import { createGlobalKeyHandler } from './lib/keymap.svelte'
   import { applyStartupView, demoStartupConfig, readLastViewKey } from './lib/startup-view'
-  import { feature, hasServerVerb, isHostedDemo, loadConfig } from './lib/config'
+  import { feature, hasServer, isHostedDemo, loadConfig } from './lib/config'
   import { pollUIFocus } from './lib/api'
   import {
     decideMirrorPull,
@@ -208,7 +208,7 @@
     if (focus !== null) me.openFeed(isFeedFocus(focus) ? focus : 'all')
   }
 
-  if (hasServerVerb('settings')) {
+  if (hasServer()) {
     const settingsTab = router.params.get(OTHER_PARAM.settings)
     if (settingsTab !== null) {
       serverSettingsOpen = true
@@ -701,7 +701,7 @@
   // History: opening pushes one entry, a tab switch rewrites it, and closing
   // is the same move as back — so back never lands on a dead press and
   // forward reopens what was closed (GDK-1296 rules 2 and 3).
-  if (hasServerVerb('settings')) {
+  if (hasServer()) {
     bindParam({
       param: 'settings',
       mode: (prev, next) => (prev === null ? 'push' : next === null ? 'back' : 'replace'),
@@ -960,7 +960,7 @@
 <!-- Second line of defense behind the absent entry point: even a keyboard
      shortcut or deep link cannot mount the server settings dialog where no
      server exists to edit (it 404s on load and renders an error screen). -->
-{#if serverSettingsOpen && hasServerVerb('settings')}
+{#if serverSettingsOpen && hasServer()}
   <SettingsDialog onclose={closeServerSettings} bind:tab={serverSettingsTab} />
 {/if}
 

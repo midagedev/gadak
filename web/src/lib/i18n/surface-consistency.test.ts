@@ -343,7 +343,10 @@ describe('GDK-1399 one field, one name: the breakdown axes read fieldLabel()', (
 
   test('no breakdown axis whose key is a field carries its own catalog label', () => {
     const src = readFileSync(BREAKDOWN, 'utf8')
-    const axes = [...src.matchAll(/\{ key: '([a-z_]+)', label: t\('([a-zA-Z.]+)'\) \}/g)]
+    // GDK-832 turned the option list into a Record<GroupBy, () => string>;
+    // the contract is unchanged — an axis keyed like a field must not carry
+    // its own catalog label — only the shape the axes are written in.
+    const axes = [...src.matchAll(/^\s*([a-z_]+): \(\) => t\('([a-zA-Z.]+)'\),$/gm)]
     expect(axes.length, 'the option list should still be parsed').toBeGreaterThan(0)
     const drift = axes
       .filter(([, key]) => `field.${key}` in en)

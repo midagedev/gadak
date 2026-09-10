@@ -21,7 +21,7 @@ const deps = vi.hoisted(() => ({
 
 vi.mock('../lib/config', () => ({
   config: () => ({ confluenceEnabled: deps.confluenceEnabled }),
-  hasServerVerb: (v: string) => (v === 'docs' ? deps.hasDocs : true),
+  hasServer: () => deps.hasDocs,
 }))
 
 vi.mock('../lib/mirror-status', () => ({

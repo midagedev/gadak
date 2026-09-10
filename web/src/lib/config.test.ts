@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
 /**
- * GDK-52: hasServerVerb is the single owner of "can this deployment answer
- * server verbs at all". Surfaces render server-backed entry points only after
- * asking here, so an absent verb is never discovered by failing at click time.
+ * GDK-52: hasServer is the single owner of "does this deployment have a server
+ * behind it at all". Surfaces render server-backed entry points only after
+ * asking here, so an absent server is never discovered by failing at click
+ * time. GDK-1482 collapsed the per-verb form (the answer never read the verb).
  *
  * State is set through the module's own public API (loadConfig) with fetch
  * stubbed — config.ts deliberately has no setter, the same seam
@@ -28,40 +29,23 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('hasServerVerb / serverVerbReport (GDK-52)', () => {
-  test('serve (config.json unreachable → defaults): every server verb is answerable', async () => {
+describe('hasServer (GDK-52, GDK-1482)', () => {
+  test('serve (config.json unreachable → defaults): there is a server', async () => {
     const mod = await loadConfigWith(null, false)
     expect(mod.surface()).toBe('serve')
-    for (const v of mod.SERVER_VERBS) {
-      expect(mod.hasServerVerb(v)).toBe(true)
-    }
-    expect(mod.serverVerbReport()).toEqual({
-      bodySearch: true,
-      docs: true,
-      settings: true,
-    })
+    expect(mod.hasServer()).toBe(true)
   })
 
-  test('hosted demo: a static snapshot has no server — none are answerable', async () => {
+  test('hosted demo: a static snapshot has no server', async () => {
     const mod = await loadConfigWith({ hostedDemo: true })
     expect(mod.surface()).toBe('hosted')
-    for (const v of mod.SERVER_VERBS) {
-      expect(mod.hasServerVerb(v)).toBe(false)
-    }
+    expect(mod.hasServer()).toBe(false)
   })
 
-  test('desktop: serves its own config.json — all answerable', async () => {
+  test('desktop: serves its own config.json — it has a server', async () => {
     const mod = await loadConfigWith({ desktop: true })
     expect(mod.surface()).toBe('desktop')
-    for (const v of mod.SERVER_VERBS) {
-      expect(mod.hasServerVerb(v)).toBe(true)
-    }
-  })
-
-  test('serverVerbReport covers exactly the known verbs', async () => {
-    const mod = await loadConfigWith({ hostedDemo: true })
-    const report = mod.serverVerbReport()
-    expect(report).toEqual({ bodySearch: false, docs: false, settings: false })
+    expect(mod.hasServer()).toBe(true)
   })
 })
 

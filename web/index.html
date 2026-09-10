@@ -46,6 +46,10 @@
       치수(dims)는 팔레트가 없는 하나의 :root 규칙으로만 들어가며, 아래
       부트 셸의 var(--layout-sidebar/--spacing-row) 폴백이 그 지오메트리를
       즉시 소비한다.
+      부팅 캐시를 읽는 구현은 이 스크립트 하나뿐이다(GDK-1483): TS 쪽에
+      쌍둥이(readCachedUserTokens)가 있었지만 index.html이 모듈을 import
+      하지 못해 호출자 없이 죽어 있었고, 그래서 지웠다. 읽기 규칙을 고칠
+      일이 생기면 고칠 곳은 여기다.
     -->
     <script>
       try {

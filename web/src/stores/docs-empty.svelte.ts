@@ -12,7 +12,7 @@
  */
 
 import { getSyncRuns } from '../lib/api'
-import { config, hasServerVerb } from '../lib/config'
+import { config, hasServer } from '../lib/config'
 import { isBuiltIn } from '../lib/workspace'
 import {
   docsEmptyCopy,
@@ -66,7 +66,7 @@ class DocsEmptyStore {
 
   get state(): DocsEmptyState {
     return docsEmptyState({
-      hasDocsServer: hasServerVerb('docs'),
+      hasDocsServer: hasServer(),
       confluenceEnabled: config().confluenceEnabled,
       fetchingDocuments: fetchingDocuments(),
       indexLoadFailed: pages.loadFailed,

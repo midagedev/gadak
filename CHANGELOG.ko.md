@@ -371,6 +371,16 @@ Jira Cloud 의 근사 개수를 근사로 읽어, origin 숫자의 1% 안이면 
 읽는 사람이 달라서 거절 문장은 각자 유지합니다 ([GDK-928]). migrate 패키지가
 따로 갖고 있던 키 정렬 헬퍼는 표준 라이브러리에 자리를 내줍니다 ([GDK-1320]).
 
+코드를 설명하던 목록 넷이 목록이기를 그만둡니다. 웹은 서버가 필요한 진입점을
+그리기 전에 `hasServerVerb(verb)` 를 물었는데, 그 답은 동사에 따라 달라진 적이
+함수가 태어난 이래 한 번도 없었습니다. 동사 표와 그 타입, 진단용 보고서가
+사라지고 질문은 `hasServer()` 가 됩니다 ([GDK-1482]). 묶기·정렬 메뉴는 축
+하나를 조용히 빠뜨릴 수 있는 손 배열에서 옵션을 만들었는데, 이제 컴파일러가
+검사하는 맵에서 나옵니다 — 라벨 없는 새 축은 빌드 에러입니다 ([GDK-832]).
+아무도 읽지 않으면서 정작 설명한다던 카탈로그와 이미 어긋나 있던 29개짜리
+필드 이름 목록은, 진짜 출처 둘에 묻는 테스트로 바뀌었습니다 ([GDK-921]).
+제거된 푸시 스택의 잔재 인터페이스 둘도 사라집니다 ([GDK-923], [GDK-1483]).
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -1912,3 +1922,8 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-927]: https://gadak.dev/backlog/#/?ks=GDK-927
 [GDK-928]: https://gadak.dev/backlog/#/?ks=GDK-928
 [GDK-1320]: https://gadak.dev/backlog/#/?ks=GDK-1320
+[GDK-1482]: https://gadak.dev/backlog/#/?ks=GDK-1482
+[GDK-832]: https://gadak.dev/backlog/#/?ks=GDK-832
+[GDK-921]: https://gadak.dev/backlog/#/?ks=GDK-921
+[GDK-923]: https://gadak.dev/backlog/#/?ks=GDK-923
+[GDK-1483]: https://gadak.dev/backlog/#/?ks=GDK-1483

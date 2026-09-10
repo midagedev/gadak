@@ -12,24 +12,53 @@
   // "Category" in the filter and "Progress" here read as missing to a user
   // looking for it (GDK-1399); one owner cannot drift. Only axes with no
   // field twin (product, epic, none) carry a label of their own.
-  const ALL_OPTIONS: { key: GroupBy; label: string }[] = [
-    { key: 'status_category', label: fieldLabel('status_category') },
-    // Right after the three-bucket axis: it is the same question asked finer,
-    // and last-but-one is where a reader stopped looking (GDK-1390).
-    { key: 'status', label: fieldLabel('status') },
-    { key: 'product', label: t('group.byProduct') },
-    { key: 'team_group', label: fieldLabel('team_group') },
-    { key: 'assignee', label: fieldLabel('assignee') },
-    { key: 'actor', label: fieldLabel('actor') },
-    { key: 'priority', label: fieldLabel('priority') },
-    { key: 'severity', label: fieldLabel('severity') },
-    { key: 'issue_type', label: fieldLabel('issue_type') },
-    { key: 'development_test_result', label: fieldLabel('development_test_result') },
-    { key: 'qa_impact', label: fieldLabel('qa_impact') },
-    { key: 'source_project', label: fieldLabel('source_project') },
-    { key: 'epic', label: t('group.byEpic') },
-    { key: 'none', label: t('group.sectionNone') },
-  ]
+  const GROUP_LABEL: Record<GroupBy, () => string> = {
+    status_category: () => fieldLabel('status_category'),
+    status: () => fieldLabel('status'),
+    product: () => t('group.byProduct'),
+    team_group: () => fieldLabel('team_group'),
+    assignee: () => fieldLabel('assignee'),
+    actor: () => fieldLabel('actor'),
+    priority: () => fieldLabel('priority'),
+    severity: () => fieldLabel('severity'),
+    issue_type: () => fieldLabel('issue_type'),
+    development_test_result: () => fieldLabel('development_test_result'),
+    qa_impact: () => fieldLabel('qa_impact'),
+    source_project: () => fieldLabel('source_project'),
+    epic: () => t('group.byEpic'),
+    none: () => t('group.sectionNone'),
+  }
+  // Menu order is editorial, not the declaration order of GROUP_BY_VALUES:
+  // 'status' sits right after the three-bucket axis (GDK-1390) and 'none' is
+  // last. GDK-832: the order is the only hand list left, and the exhaustiveness
+  // check below makes a missing axis a compile error, not a silent omission.
+  const MENU_ORDER = [
+    'status_category',
+    'status',
+    'product',
+    'team_group',
+    'assignee',
+    'actor',
+    'priority',
+    'severity',
+    'issue_type',
+    'development_test_result',
+    'qa_impact',
+    'source_project',
+    'epic',
+    'none',
+  ] as const satisfies readonly GroupBy[]
+  // Compile error naming the axis when GROUP_BY_VALUES grows and MENU_ORDER
+  // does not. `never` = every axis is placed.
+  type MissingFromMenu = Exclude<GroupBy, (typeof MENU_ORDER)[number]>
+  const _menuOrderCoversEveryAxis: [MissingFromMenu] extends [never] ? true : MissingFromMenu =
+    true
+  void _menuOrderCoversEveryAxis
+
+  const ALL_OPTIONS: { key: GroupBy; label: string }[] = MENU_ORDER.map((key) => ({
+    key,
+    label: GROUP_LABEL[key](),
+  }))
   // Disabled-feature axes (team/product/QA impact) are omitted from the options.
   const OPTIONS = ALL_OPTIONS.filter((o) => groupByEnabled(o.key))
 

@@ -57,7 +57,7 @@
   import { write } from '../../stores/write.svelte'
   import { favorites } from '../../stores/favorites.svelte'
   import { watches } from '../../stores/watches.svelte'
-  import { feature, hasServerVerb, isHostedDemo } from '../../lib/config'
+  import { feature, hasServer, isHostedDemo } from '../../lib/config'
   import { runSyncNow } from '../../lib/sync-now'
   import { openIssueOrigin, openOriginUrl } from '../../lib/desktop-links'
   import { paletteActionItems } from '../../lib/command-palette'
@@ -614,7 +614,7 @@ import type { SettingsTab } from '../../lib/settings-tabs'
       })
     }
     const newLabel = t('sidebar.workspaceNew')
-    if (hasServerVerb('settings') && matches(newLabel)) {
+    if (hasServer() && matches(newLabel)) {
       out.push({
         id: 'a:workspace-new',
         section: 'action',

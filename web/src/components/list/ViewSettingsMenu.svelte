@@ -13,7 +13,7 @@
   import { filters } from '../../stores/filters.svelte'
   import { views } from '../../stores/views.svelte'
   import { write } from '../../stores/write.svelte'
-  import { hasServerVerb } from '../../lib/config'
+  import { hasServer } from '../../lib/config'
   import { ESC_TIER, isEscapeKey, onEscape, onOutsideClick } from '../../lib/dom-actions'
   import {
     LAYOUT_VALUES,
@@ -30,19 +30,48 @@
   const LAYOUT_ICON: Record<Layout, IconName> = { list: 'list', board: 'kanban' }
   const layoutLabel = (l: Layout): string => (l === 'list' ? t('board.asList') : t('board.asBoard'))
 
-  const BASE_SORTS: { k: SortKey; l: string }[] = [
-    { k: 'updated', l: t('sort.updated') },
-    { k: 'created', l: t('sort.created') },
+  // GDK-832: one label per sort key, keyed by SortKey — a key added to
+  // SORT_KEY_VALUES without a label here is a compile error, not a menu that
+  // silently lacks the new sort.
+  const SORT_LABEL: Record<SortKey, string> = {
+    updated: t('sort.updated'),
+    created: t('sort.created'),
     // Aging axis (my-work pack): asc = longest in status first.
-    { k: 'status_changed', l: t('sort.statusChanged') },
+    status_changed: t('sort.statusChanged'),
     // Work item age (flow canon): asc = longest underway first.
-    { k: 'started', l: t('sort.started') },
-    { k: 'due', l: t('sort.due') },
-    { k: 'priority', l: t('sort.priority') },
-    { k: 'reopen_count', l: t('sort.reopenCount') },
-  ]
-  const RELEVANCE = { k: 'relevance' as SortKey, l: t('sort.relevance') }
-  const KEYS_SORT = { k: 'keys' as SortKey, l: t('sort.keys') }
+    started: t('sort.started'),
+    due: t('sort.due'),
+    priority: t('sort.priority'),
+    reopen_count: t('sort.reopenCount'),
+    relevance: t('sort.relevance'),
+    keys: t('sort.keys'),
+  }
+  // relevance and keys are auto-promoted labels, not pickable rows — they
+  // join the menu only while they apply (below), so the always-on list is
+  // every other key. The exhaustiveness check names any key that is neither
+  // listed here nor deliberately conditional.
+  const BASE_SORT_ORDER = [
+    'updated',
+    'created',
+    'status_changed',
+    'started',
+    'due',
+    'priority',
+    'reopen_count',
+  ] as const satisfies readonly SortKey[]
+  type ConditionalSort = 'relevance' | 'keys'
+  type MissingFromSortMenu = Exclude<SortKey, (typeof BASE_SORT_ORDER)[number] | ConditionalSort>
+  const _sortMenuCoversEveryKey: [MissingFromSortMenu] extends [never]
+    ? true
+    : MissingFromSortMenu = true
+  void _sortMenuCoversEveryKey
+
+  const BASE_SORTS: { k: SortKey; l: string }[] = BASE_SORT_ORDER.map((k) => ({
+    k,
+    l: SORT_LABEL[k],
+  }))
+  const RELEVANCE = { k: 'relevance' as SortKey, l: SORT_LABEL.relevance }
+  const KEYS_SORT = { k: 'keys' as SortKey, l: SORT_LABEL.keys }
 
   // Show relevance only while searching (or relevance is active) so auto-promote is visible.
   // keys-order is the same kind of auto label — not a picker unless it is already on.
@@ -74,7 +103,7 @@
   // GDK-437: the product picks the store. A server behind this bundle is
   // where a view belongs (it follows the user across devices). The hosted
   // demo has no server to write to, so it stays in this browser and says so.
-  const saveToServer = hasServerVerb('settings')
+  const saveToServer = hasServer()
 
   async function doSave() {
     const name = saveName.trim()

@@ -284,39 +284,27 @@ export function surface(): GadakSurface {
 }
 
 /**
- * Server verbs a deployment can actually answer. `feature()` says whether an
- * optional surface is switched on; this says whether the shell serving this
- * bundle has a server behind it at all. A static snapshot has none of them:
- * the in-page adapter serves issue JSON off disk and 404s every other path.
+ * Whether the shell serving this bundle has a server behind it at all.
+ * `feature()` says whether an optional surface is switched on; this says
+ * whether there is anything to ask. A static snapshot has no server: the
+ * in-page adapter serves issue JSON off disk and 404s every other path.
  *
- * Surfaces ask here BEFORE they render an entry point. A verb that cannot work
- * must not look like it can, and must not be discovered by failing at click
- * time — "the network is broken" is a lie when the deployment simply has no
- * server to ask. Adding a surface that needs the server? Ask here, not the
- * network.
+ * Surfaces ask here BEFORE they render a server-backed entry point. A verb
+ * that cannot work must not look like it can, and must not be discovered by
+ * failing at click time — "the network is broken" is a lie when the
+ * deployment simply has no server to ask. Adding a surface that needs the
+ * server? Ask here, not the network.
+ *
+ * GDK-1482: this was once `hasServerVerb(v)` over a three-verb table
+ * (bodySearch / docs / settings), and the answer never depended on `v` —
+ * born that way in e32c182d (GDK-52) and never once split. An extension
+ * point that never extended is a constant function. When a deployment does
+ * answer one verb and not another (a snapshot that searches but cannot save
+ * settings), reintroduce the verb axis together with the test that proves
+ * the split — FAIL-first, not in advance.
  */
-export const SERVER_VERBS = [
-  /** Full-text search over issue/page bodies (`GET api/v1/issues/search/`). */
-  'bodySearch',
-  /** Mirrored Confluence pages (the snapshot carries issues only). */
-  'docs',
-  /** The server settings document (`GET/PUT api/v1/issues/settings/`). */
-  'settings',
-] as const
-
-export type ServerVerb = (typeof SERVER_VERBS)[number]
-
-export function hasServerVerb(_v: ServerVerb): boolean {
+export function hasServer(): boolean {
   return surface() !== 'hosted'
-}
-
-/**
- * All server verbs and whether this deployment answers them. Diagnostics only.
- */
-export function serverVerbReport(): Record<ServerVerb, boolean> {
-  const report = {} as Record<ServerVerb, boolean>
-  for (const v of SERVER_VERBS) report[v] = hasServerVerb(v)
-  return report
 }
 
 /**

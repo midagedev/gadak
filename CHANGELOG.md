@@ -480,6 +480,18 @@ refusal sentence because they address different readers ([GDK-928]). And the
 migrate package's own sorted-keys helper gives way to the standard library
 ([GDK-1320]).
 
+Four lists that described the code stop being lists. The web asked
+`hasServerVerb(verb)` before rendering a server-backed entry point, but the
+answer never depended on the verb and never had since the function was born,
+so the verb table, its type and its diagnostic report are gone and the
+question is `hasServer()` ([GDK-1482]). The grouping and sorting menus
+derived their options from hand-kept arrays that could silently omit an axis;
+they now come from a map the compiler checks, so a new axis without a label
+is a build error ([GDK-832]). A 29-name field list nothing read, which had
+already drifted from the catalog it claimed to describe, is replaced by a
+test that asks the two real sources instead ([GDK-921]), and two interfaces
+left over from the removed push stack are gone ([GDK-923], [GDK-1483]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2087,3 +2099,8 @@ priority sorting keyed on `priority_rank`.
 [GDK-927]: https://gadak.dev/backlog/#/?ks=GDK-927
 [GDK-928]: https://gadak.dev/backlog/#/?ks=GDK-928
 [GDK-1320]: https://gadak.dev/backlog/#/?ks=GDK-1320
+[GDK-1482]: https://gadak.dev/backlog/#/?ks=GDK-1482
+[GDK-832]: https://gadak.dev/backlog/#/?ks=GDK-832
+[GDK-921]: https://gadak.dev/backlog/#/?ks=GDK-921
+[GDK-923]: https://gadak.dev/backlog/#/?ks=GDK-923
+[GDK-1483]: https://gadak.dev/backlog/#/?ks=GDK-1483

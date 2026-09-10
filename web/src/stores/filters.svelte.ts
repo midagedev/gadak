@@ -12,7 +12,7 @@
  * All derived values (visibleIssues/groups/facets) are local — no server round-trip.
  */
 
-import { config, hasServerVerb } from '../lib/config'
+import { config, hasServer } from '../lib/config'
 import { router, setParams } from '../lib/router.svelte'
 import { issues } from './issues.svelte'
 import { me } from './me.svelte'
@@ -591,7 +591,7 @@ class FiltersStore {
     // history): a snapshot with no server FTS never sends the request that
     // would 404. Client-side title/key matching is untouched — this is "not
     // applicable here", not "failed".
-    if (!hasServerVerb('bodySearch')) return { status: 'unavailable' }
+    if (!hasServer()) return { status: 'unavailable' }
     this.searching = true
     this.serverMatchQuery = q
     try {
