@@ -105,7 +105,7 @@ func viewsShow(args []string) error {
 		// FindView's refusal (internal/views) stays byte-identical for its own
 		// callers — the CLI layer appends the next step it knows.
 		if looksLikeIssueKey(name) {
-			return fmt.Errorf("%w (an issue? try: gadak issue %s)", err, normalizeKey(name))
+			return fmt.Errorf("%w (an issue? try: gadak issue %s)", err, fields.CanonicalKey(name))
 		}
 		return err
 	}
@@ -306,7 +306,7 @@ func issueOrExactView(name string) (hash, label string) {
 			return v.Hash, v.Name
 		}
 	}
-	k := normalizeKey(name)
+	k := fields.CanonicalKey(name)
 	return "issue=" + k, k
 }
 

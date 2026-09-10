@@ -804,7 +804,7 @@ func parseParentKey(raw, cmd string) (string, error) {
 	if !looksLikeIssueKey(raw) {
 		return "", fmt.Errorf("gadak %s --parent %q is not a Jira key (want ABC-123)", cmd, raw)
 	}
-	return normalizeKey(raw), nil
+	return fields.CanonicalKey(raw), nil
 }
 
 // withParentHint is the CLI adapter over internal/parenthint, the single

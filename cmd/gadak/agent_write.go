@@ -14,6 +14,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/midagedev/gadak/internal/fields"
 	"io"
 	"net/http"
 	"os"
@@ -306,7 +307,7 @@ func cmdComment(args []string) error {
 	if len(pos) == 0 {
 		return usageError("comment", commentUsage)
 	}
-	key := normalizeKey(pos[0])
+	key := fields.CanonicalKey(pos[0])
 	body := *text
 	// Trailing positional words are the body, like create's positional
 	// SUMMARY (GDK-315). With -m too it is ambiguous — refuse.
@@ -405,7 +406,7 @@ func cmdCommentEdit(args []string) error {
 	if len(pos) != 2 {
 		return usageError("comment", commentEditUsage)
 	}
-	key := normalizeKey(pos[0])
+	key := fields.CanonicalKey(pos[0])
 	id := commentOriginID(pos[1])
 	if id == "" {
 		return usageError("comment", commentEditUsage)
@@ -479,7 +480,7 @@ func cmdCommentRm(args []string) error {
 	if !*yes {
 		return usageError("comment", "comment rm deletes the comment at the origin — that is not recoverable, and on the built-in tracker it leaves the persist file (no trash); re-run with --yes to delete")
 	}
-	key := normalizeKey(pos[0])
+	key := fields.CanonicalKey(pos[0])
 	id := commentOriginID(pos[1])
 	if id == "" {
 		return usageError("comment", commentRmUsage)
@@ -713,7 +714,7 @@ func cmdTransition(args []string) error {
 	if len(pos) < 1 {
 		return usageError("transition", transitionUsage)
 	}
-	key := normalizeKey(pos[0])
+	key := fields.CanonicalKey(pos[0])
 	if len(pos) < 2 {
 		if strings.TrimSpace(*resolution) != "" || len(*fieldFlags) > 0 || *text != "" {
 			return usageError("transition", transitionUsage)
@@ -746,7 +747,7 @@ func cmdClose(args []string) error {
 	if len(pos) != 1 {
 		return usageError("close", closeUsage)
 	}
-	key := normalizeKey(pos[0])
+	key := fields.CanonicalKey(pos[0])
 	body, err := readTransitionComment(*text)
 	if err != nil {
 		return err
@@ -1027,7 +1028,7 @@ func cmdAssign(args []string) error {
 	if len(pos) < 2 {
 		return usageError("assign", assignUsage)
 	}
-	key, who := normalizeKey(pos[0]), strings.TrimSpace(strings.Join(pos[1:], " "))
+	key, who := fields.CanonicalKey(pos[0]), strings.TrimSpace(strings.Join(pos[1:], " "))
 
 	return foldDryRun(withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
 		if *dryRun {
@@ -1122,7 +1123,7 @@ func cmdClaim(args []string) error {
 	if len(pos) != 1 {
 		return usageError("claim", "usage: gadak claim <KEY> [--transition <id|name>] [--take-over] [--json]")
 	}
-	key := normalizeKey(pos[0])
+	key := fields.CanonicalKey(pos[0])
 
 	return foldDryRun(withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
 		o, ok := c.(claim.Origin)

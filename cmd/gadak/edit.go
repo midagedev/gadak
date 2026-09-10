@@ -118,7 +118,7 @@ func cmdEdit(args []string) error {
 	if len(pos) != 1 {
 		return usageError("edit", editUsage)
 	}
-	key := normalizeKey(pos[0])
+	key := fields.CanonicalKey(pos[0])
 
 	if !hasSummary && !hasM && !hasADF && !hasLabel && !hasComponent && !hasFixVersion && !hasType && !hasPriority && !hasParent && !hasDue && !hasField {
 		return usageError("edit", editUsage)

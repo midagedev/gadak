@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/midagedev/gadak/internal/fields"
 	"os"
 	"path/filepath"
 	"strings"
@@ -62,7 +63,7 @@ func cmdAttach(args []string) error {
 	if len(pos) < 2 {
 		return usageError("attach", attachUsage)
 	}
-	key := normalizeKey(pos[0])
+	key := fields.CanonicalKey(pos[0])
 	paths := pos[1:]
 	if err := validateAttachPaths(paths); err != nil {
 		return err

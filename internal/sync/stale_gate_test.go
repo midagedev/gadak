@@ -26,7 +26,7 @@ import (
 // 2026-08-23: one owner so a fourteenth write verb cannot hand-write a
 // failure for a write that already landed.
 var mirrorStaleSentenceOwner = map[string]string{
-	"cmd/gadak/agent.go": "writeAppliedMirrorStaleMessage authors the CLI warning",
+	"cmd/gadak/agent_write.go": "writeAppliedMirrorStaleMessage authors the CLI warning",
 }
 
 // mirrorStaleWireOwner is the only production file allowed to decide the

@@ -71,7 +71,7 @@ func cmdDevLink(args []string) error {
 	if len(rest) != 1 || *prURL == "" {
 		return usageError("dev", "usage: gadak dev link <KEY> --pr <url> [--status open|merged|declined] [--name N] [--author LOGIN] [--branch REF]")
 	}
-	key := normalizeKey(rest[0])
+	key := fields.CanonicalKey(rest[0])
 	st, ok := jira.ParseDevPRStatus(*status)
 	if !ok {
 		return fmt.Errorf("dev link: --status must be open, merged or declined (got %q)", *status)
@@ -164,7 +164,7 @@ func cmdDevDeploy(args []string) error {
 	if len(rest) != 1 || *env == "" || *state == "" {
 		return usageError("dev", "usage: gadak dev deploy <KEY> --env <name> --state <state> [--url <run url>]")
 	}
-	key := normalizeKey(rest[0])
+	key := fields.CanonicalKey(rest[0])
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -231,7 +231,7 @@ func cmdDevBuild(args []string) error {
 	if strings.TrimSpace(*number) == "" && strings.TrimSpace(*url) == "" {
 		return usageError("dev", "usage: gadak dev build <KEY> --state successful|failed|unknown (--number N | --url <build url>)")
 	}
-	key := normalizeKey(rest[0])
+	key := fields.CanonicalKey(rest[0])
 
 	cfg, err := config.Load()
 	if err != nil {

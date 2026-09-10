@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/midagedev/gadak/internal/fields"
 	"io"
 	"mime"
 	"net/http"
@@ -45,7 +46,7 @@ func cmdAttachGet(args []string) error {
 	if len(pos) != 2 {
 		return usageError("attach get", attachGetUsage)
 	}
-	key := normalizeKey(pos[0])
+	key := fields.CanonicalKey(pos[0])
 	want := pos[1]
 
 	cfg, err := config.Load()

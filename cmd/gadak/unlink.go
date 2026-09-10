@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/midagedev/gadak/internal/fields"
 	"os"
 	"strings"
 
@@ -35,7 +36,7 @@ func cmdUnlink(args []string) error {
 	if len(pos) != 2 || strings.TrimSpace(*typ) == "" {
 		return usageError("unlink", unlinkUsage)
 	}
-	a, b := normalizeKey(pos[0]), normalizeKey(pos[1])
+	a, b := fields.CanonicalKey(pos[0]), fields.CanonicalKey(pos[1])
 	if a == "" || b == "" {
 		return usageError("unlink", unlinkUsage)
 	}

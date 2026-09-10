@@ -35,7 +35,6 @@ var pendingCanonicalKeyFile = map[string]string{
 	// tracks of the same audit). Each migrates to CanonicalKey/IsIssueKey in
 	// its own round; when it does, this gate goes stale and forces the entry
 	// out — the ratchet cannot slip backwards.
-	"cmd/gadak/agent.go":         "normalizeKey is this exact function; fold to fields.CanonicalKey and delete it (GDK-1129 named it for immediate deletion)",
 	"cmd/gadak/views.go":         "looksLikeIssueKey = fields.IsIssueKey; fold (GDK-1129 named it for immediate deletion)",
 	"cmd/gadak/fields.go":        "project filter canonicalization, cmd track",
 	"cmd/gadak/create.go":        "issue-key positional canonicalization, cmd track",

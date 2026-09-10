@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/midagedev/gadak/internal/fields"
 	"net/url"
 	"os"
 	"os/exec"
@@ -255,9 +256,6 @@ func staleSourceWarning(id, syncedAt string, age time.Duration) string {
 	return formatSourceID(id) + " last synced " + age.Round(time.Minute).String() +
 		" ago (synced_at " + syncedAt + ") — run `gadak sync --if-stale 1h`"
 }
-
-// normalizeKey accepts a key in any case; Jira's are uppercase.
-func normalizeKey(s string) string { return strings.ToUpper(strings.TrimSpace(s)) }
 
 // lookup returns the IssueLite rows for the given keys, in the order asked, and
 // skips keys the mirror does not have. A keyed read: search/issue pay this per
@@ -552,7 +550,7 @@ func cmdOpen(args []string) error {
 	if err != nil {
 		return err
 	}
-	key := normalizeKey(pos[0])
+	key := fields.CanonicalKey(pos[0])
 	// Unconfigured (no origin at all) is not the built-in no-site case.
 	// Built-in HasCredential is true, so it still hits the lookup / live-
 	// serve / views-open path below and is not told to re-run init (GDK-454).

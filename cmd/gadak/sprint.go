@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/midagedev/gadak/internal/fields"
 	"os"
 	"strconv"
 	"strings"
@@ -227,7 +228,7 @@ func normalizeKeys(in []string) []string {
 	out := make([]string, 0, len(in))
 	for _, s := range in {
 		for _, part := range strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ' ' }) {
-			if k := normalizeKey(part); k != "" {
+			if k := fields.CanonicalKey(part); k != "" {
 				out = append(out, k)
 			}
 		}

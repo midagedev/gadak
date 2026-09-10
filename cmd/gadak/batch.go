@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/midagedev/gadak/internal/fields"
 	"os"
 	"sort"
 	"strconv"
@@ -215,14 +216,14 @@ func decodeBatchObject(raw string, accepted []string) (map[string]json.RawMessag
 func batchPeekKey(raw string, obj map[string]json.RawMessage) string {
 	if obj != nil {
 		if s, ok, err := jsonStringField(obj, "key"); err == nil && ok {
-			return normalizeKey(s)
+			return fields.CanonicalKey(s)
 		}
 	}
 	var peek struct {
 		Key string `json:"key"`
 	}
 	_ = json.Unmarshal([]byte(raw), &peek)
-	return normalizeKey(peek.Key)
+	return fields.CanonicalKey(peek.Key)
 }
 
 func jsonStringField(obj map[string]json.RawMessage, name string) (string, bool, error) {

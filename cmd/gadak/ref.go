@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/midagedev/gadak/internal/fields"
 	"net/http"
 	"os"
 	"sort"
@@ -49,7 +50,7 @@ func cmdRef(args []string) error {
 	if len(pos) == 0 {
 		return usageError("ref", refUsage)
 	}
-	key := normalizeKey(pos[0])
+	key := fields.CanonicalKey(pos[0])
 	rest := pos[1:]
 
 	switch {
@@ -81,7 +82,7 @@ func parseRefTarget(token string) (url, workspace, targetKey string, err error) 
 		// The URL keeps the caller's spelling; only the grammar is the
 		// owner package's (GDK-1316).
 		if ws, k, ok := reflink.Parse(token); ok {
-			return token, ws, normalizeKey(k), nil
+			return token, ws, fields.CanonicalKey(k), nil
 		}
 		if strings.HasPrefix(token, reflink.Scheme) {
 			return "", "", "", fmt.Errorf("%s is not <workspace>/<KEY>", token)
@@ -92,7 +93,7 @@ func parseRefTarget(token string) (url, workspace, targetKey string, err error) 
 	if !ok || ws == "" || k == "" {
 		return "", "", "", fmt.Errorf("point at <workspace>/<KEY> (e.g. work/NMA-9) or a URL — %q is neither", token)
 	}
-	k = normalizeKey(k)
+	k = fields.CanonicalKey(k)
 	return reflink.Compose(ws, k), ws, k, nil
 }
 
