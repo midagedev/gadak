@@ -64,6 +64,13 @@ hard-won 목록)와 `AGENTS.md`(기여 계약)·`docs/MIRROR.md`(스키마·SQL 
   구조로 따라가야 한다**(doc-checks #27이 절별 키 집합 일치를, #46이 주제 수를
   잰다). `GDK-nnn`을 공개 백로그(`…/gadak/backlog/#/?ks=<KEY>`)로 참조 스타일
   링크로 잇는 것은 여전히 기본값이다.
+- **Go 소스 게이트는 `bash tools/sourcelint.sh`다 — `go test ./...`가 아니다**
+  (2026-09-11, 런 34524504178). 소유자 표·정본 위치를 재는 트리 전체 파싱
+  게이트(`canonical_gate_test`·`stale_gate_test` 류)는 `sourcelint` 빌드
+  태그 뒤에 있어 태그 없는 `go test`는 그것을 아예 컴파일하지 않는다. CI의
+  Go-tests 스텝은 그 스크립트를 돌린다. 파일을 옮기거나 쪼갠 커밋(agent.go
+  5분할)이 로컬 전부 초록인 채 CI만 빨갰다 — 소유자 표가 옛 경로를 들고
+  있었다. Go를 건드렸으면 `go test ./...` 자리에 이 스크립트를 쓴다.
 - Go: `go build ./...` · `go test ./... -count=1` · `go vet ./...` ·
   **`gofmt -l` 빈 출력**(CI에 gofmt 잡이 있다 — 2026-08-24 tokencheck 정렬로
   로컬 전부 초록인데 CI만 빨간 사고. 신규 .go 파일이 있는 커밋은 필수)
