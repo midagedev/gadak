@@ -9,14 +9,20 @@ import { expect, test } from 'vitest'
  * rail as no-bare-timeout.unit.ts.
  *
  * Every .svelte under web/src that imports DialogShell.svelte must have a
- * DIALOGS row, and every row must have its importer.
+ * registry entry below, and every entry must have its importer.
+ *
+ * GDK-725: the browser spec is a representative pair (one commit-shaped row,
+ * one content-only row), so this file is where the full six-dialog registry
+ * lives. The two tests below keep the shrink honest from both ends: a
+ * seventh DialogShell importer cannot skip the registry, and the browser
+ * pair cannot stop being a pair.
  */
 
 const E2E_DIR = dirname(fileURLToPath(import.meta.url))
 const WEB_SRC = join(E2E_DIR, '../web/src')
 const SPEC = join(E2E_DIR, 'dialog-shell.spec.ts')
 
-/** Importer file name -> DIALOGS row id, for the two whose names disagree. */
+/** Importer file name -> registry id, for the two whose names disagree. */
 const IMPORTER_ROW: Record<string, string> = {
   'SettingsDialog.svelte': 'settings',
   'NewIssueDialog.svelte': 'new-issue',
@@ -42,24 +48,54 @@ function shellImporters(root: string): string[] {
   return out
 }
 
-function dialogIdsFromSpec(src: string): string[] {
+function specRows(src: string): { id: string; hasCommit: boolean }[] {
   const start = src.indexOf('const DIALOGS:')
   expect(start, 'e2e/dialog-shell.spec.ts must declare DIALOGS').toBeGreaterThanOrEqual(0)
   const end = src.indexOf('\n]', start)
   expect(end, 'DIALOGS array must close').toBeGreaterThan(start)
-  return [...src.slice(start, end).matchAll(/^\s*id: '([^']+)'/gm)].map((m) => m[1])
+  const body = src.slice(start, end)
+  const ids = [...body.matchAll(/^\s*id: '([^']+)',\s*$/gm)].map((m) => m[1])
+  const commits = [...body.matchAll(/^\s*hasCommit: (true|false),?\s*$/gm)].map(
+    (m) => m[1] === 'true',
+  )
+  expect(
+    ids.length,
+    'every DIALOGS row needs id: and hasCommit: on their own lines',
+  ).toBe(commits.length)
+  return ids.map((id, i) => ({ id, hasCommit: commits[i] }))
 }
 
-test('dialog-shell table covers every component that imports DialogShell', () => {
+test('the registry covers every component that imports DialogShell', () => {
   const importers = shellImporters(WEB_SRC)
   const unmapped = importers.filter((f) => !(f in IMPORTER_ROW))
   expect(
     unmapped,
-    `DialogShell importer(s) without a DIALOGS row — add the row and the IMPORTER_ROW entry: ${unmapped}`,
+    `DialogShell importer(s) without a registry entry — add the IMPORTER_ROW mapping: ${unmapped}`,
   ).toEqual([])
-  const specIds = dialogIdsFromSpec(readFileSync(SPEC, 'utf8'))
   expect(
-    specIds.sort(),
-    'every row keeps a real importer; every importer gets a row',
-  ).toEqual(importers.map((f) => IMPORTER_ROW[f]).sort())
+    Object.values(IMPORTER_ROW).sort(),
+    'every registry entry keeps a real importer; every importer gets an entry',
+  ).toHaveLength(importers.length)
+  expect(
+    new Set(Object.values(IMPORTER_ROW)).size,
+    'registry ids are unique — two importers must not share one id',
+  ).toBe(importers.length)
+})
+
+test('the browser smoke is a subset of the registry and keeps both shapes (GDK-725)', () => {
+  const rows = specRows(readFileSync(SPEC, 'utf8'))
+  const registry = new Set(Object.values(IMPORTER_ROW))
+  const unknown = rows.filter((r) => !registry.has(r.id))
+  expect(
+    unknown.map((r) => r.id),
+    'browser rows must be registry ids — a dialog outside the registry is the skip hole',
+  ).toEqual([])
+  expect(
+    rows.some((r) => r.hasCommit),
+    'the browser pair must keep a commit-shaped row (footer dismiss + primary)',
+  ).toBe(true)
+  expect(
+    rows.some((r) => !r.hasCommit),
+    'the browser pair must keep a content-only row (X + Esc, no footer buttons)',
+  ).toBe(true)
 })

@@ -13,6 +13,15 @@
  *
  * Every spec here drives the app from its own controls (not the address bar)
  * and then presses the browser's buttons — the URL alone is not the claim.
+ *
+ * GDK-1327: this file used to also carry the mechanism detail — view/layout
+ * entry counts, the person panel as a place, three-tab coalescing, the
+ * workspace door into Settings. The mechanism (same-task writes replace,
+ * setTimeout(0) re-arms the push, input events end the task, entry markers
+ * survive replaces) now lives in web/src/lib/router.test.ts on fake timers,
+ * where each rule is a table row instead of a browser round. What stays here
+ * is one smoke per rule family, each over real surfaces: places (list →
+ * issue → linked issue), dialogs (open/back/Esc/close), and arriving by link.
  */
 import { type Page } from '@playwright/test'
 import { test, expect } from './helpers'
@@ -25,10 +34,6 @@ const BLOCKER = 'NMA-26'
 const BLOCKED = 'NMS-7'
 
 const historyLength = (page: Page) => page.evaluate(() => history.length)
-
-/** The sidebar view rows lit as "the list you are on" (url-state.spec.ts). */
-const activeViews = (page: Page) =>
-  page.locator('aside nav button[aria-current="true"]:not([data-testid^="docs-"])').allInnerTexts()
 
 const row = (page: Page, key: string) =>
   page
@@ -86,86 +91,6 @@ test.describe('history: places push (rule 1)', () => {
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
-
-  test('a view change and a layout change each leave one entry', async ({ page }) => {
-    const errors = attachConsoleErrors(page)
-    await gotoApp(page)
-    // gotoApp lands on the open pool by its address (no sidebar row lit since
-    // the Epics built-in was cut, GDK-1493) — start from a view row so both
-    // "before" values are a view the sidebar owns.
-    await page.locator('aside').getByRole('button', { name: en['view.allOpen.name'] }).click()
-    await expect(page.locator('aside nav button[aria-current="true"]').first()).toBeVisible()
-    const allOpen = page.url()
-    const bootViews = await activeViews(page)
-    expect(bootViews.length).toBeGreaterThan(0)
-    const len0 = await historyLength(page)
-
-    await page.getByRole('button', { name: en['view.unassignedNew.name'] }).click()
-    await expect(page).not.toHaveURL(allOpen)
-    const unassigned = page.url()
-    expect(await activeViews(page)).not.toEqual(bootViews)
-    expect(await historyLength(page)).toBe(len0 + 1)
-
-    await page.getByTestId('view-settings').click()
-    await page.getByTestId('layout-board').click()
-    await expect(page.getByTestId('board')).toBeVisible()
-    await expect(page).not.toHaveURL(unassigned)
-    expect(await historyLength(page)).toBe(len0 + 2)
-
-    await page.goBack()
-    await expect(page).toHaveURL(unassigned)
-    await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
-    await expect(page.getByTestId('board')).toHaveCount(0)
-
-    await page.goBack()
-    await expect(page).toHaveURL(allOpen)
-    await expect.poll(() => activeViews(page)).toEqual(bootViews)
-
-    await page.goForward()
-    await expect(page).toHaveURL(unassigned)
-    await page.goForward()
-    await expect(page.getByTestId('board')).toBeVisible()
-
-    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
-  })
-
-  test('the right panel is one place: person → issue → back is the person again', async ({
-    page,
-  }) => {
-    const errors = attachConsoleErrors(page)
-    await gotoApp(page)
-
-    await page.keyboard.press('ControlOrMeta+k')
-    await page.keyboard.type('alex', { delay: 20 })
-    await page.keyboard.press('Enter')
-    await expect(page.getByTestId('person-panel')).toBeVisible()
-    await expect(page).toHaveURL(/person=/)
-    const withPerson = page.url()
-    const len0 = await historyLength(page)
-
-    // Opening an issue over the person moves two params in one flush
-    // (`person=` leaves, `issue=` arrives) — and is still one entry.
-    await searchInput(page).fill(BLOCKER)
-    // Let the query's own entry land first — otherwise its (debounced) push
-    // and the click's fall into one flush and the count below reads one short.
-    await expect(page).toHaveURL(/[?&]q=NMA-26(?![0-9])/)
-    await row(page, BLOCKER).click()
-    const panel = page.getByTestId('issue-detail-panel')
-    await expect(panel).toHaveClass(/is-open/)
-    await expect(page).toHaveURL(new RegExp(`issue=${BLOCKER}(?![0-9])`))
-    await expect(page).not.toHaveURL(/person=/)
-    await expect(page.getByTestId('person-panel')).toHaveCount(0)
-    // query + issue open = two entries, no more
-    expect(await historyLength(page)).toBe(len0 + 2)
-
-    await page.goBack()
-    await page.goBack()
-    await expect(page).toHaveURL(withPerson)
-    await expect(page.getByTestId('person-panel')).toBeVisible()
-    await expect(panel.getByRole('link', { name: BLOCKER, exact: true })).toHaveCount(0)
-
-    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
-  })
 })
 
 test.describe('history: dialogs (rules 2 and 3)', () => {
@@ -205,52 +130,6 @@ test.describe('history: dialogs (rules 2 and 3)', () => {
     await page.goBack()
     await expect(dialog).toHaveCount(0)
     await expect(page).not.toHaveURL(/settings=/)
-
-    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
-  })
-
-  test('three tab switches inside settings, one back: the dialog is closed', async ({ page }) => {
-    const errors = attachConsoleErrors(page)
-    await gotoApp(page)
-    const listUrl = page.url()
-    const len0 = await historyLength(page)
-    const dialog = page.getByTestId('settings-dialog')
-
-    await openServerSettings(page)
-    for (const key of ['settings.tabMembers', 'settings.tabFeatures', 'settings.tabAbout'] as const) {
-      await dialog.getByRole('tab', { name: en[key], exact: true }).click()
-    }
-    await expect(page).toHaveURL(/settings=about/)
-    // Tabs are continuous input: the entry the dialog opened on is rewritten.
-    expect(await historyLength(page)).toBe(len0 + 1)
-
-    await page.goBack()
-    await expect(dialog).toHaveCount(0)
-    await expect(page).toHaveURL(listUrl)
-
-    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
-  })
-
-  test('the sidebar door into Settings → Workspaces closes like the gear does', async ({
-    page,
-  }) => {
-    const errors = attachConsoleErrors(page)
-    await gotoApp(page)
-    const listUrl = page.url()
-    const dialog = page.getByTestId('settings-dialog')
-
-    // GDK-1335: the door is inside the workspace switcher's menu.
-    await page.getByTestId('workspace-switcher').click()
-    await page.getByTestId('workspace-new').click()
-    await expect(dialog).toBeVisible()
-    await expect(page).toHaveURL(/settings=workspaces/)
-
-    await page.keyboard.press('Escape')
-    await expect(dialog).toHaveCount(0)
-    await expect(page).toHaveURL(listUrl)
-    await page.goForward()
-    await expect(dialog).toBeVisible()
-    await expect(page).toHaveURL(/settings=workspaces/)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -291,11 +292,35 @@ func TestIntegrationsPOSTConflict(t *testing.T) {
 
 	h := integrationsMux()
 	first := make(chan *httptest.ResponseRecorder, 1)
+	returned := make(chan struct{})
 	go func() {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/desktop/integrations/skill/install", nil))
 		first <- rec
+		close(returned)
 	}()
+
+	// GDK-1502: installGate is package-global, so whatever fails below, this
+	// test must not leave its install wedged — a leaked in-flight "skill" is
+	// invisible here and turns the next test's POST into a 409. Releasing the
+	// fixture and draining the request is ownership of the shared gate, not
+	// best-effort tidying: t.Cleanup runs on every exit, including the
+	// timeouts that used to be the leak. `returned` (not `first`) is what
+	// cleanup waits on: the body below may already have drained the value.
+	t.Cleanup(func() {
+		_ = os.WriteFile(release, []byte("go\n"), 0o644)
+		select {
+		case <-returned:
+			// The handler returned, so its deferred endInstall ran too. If
+			// the key is still held the gate itself leaks — say so here,
+			// where the culprit is, not in a sibling's 409.
+			if held := activeInstalls(); len(held) != 0 {
+				t.Errorf("cleanup: install returned but the gate still holds %v", held)
+			}
+		case <-time.After(10 * time.Second):
+			t.Errorf("cleanup: install request never returned; gate holds %v", activeInstalls())
+		}
+	})
 
 	select {
 	case rec := <-first:
@@ -303,13 +328,17 @@ func TestIntegrationsPOSTConflict(t *testing.T) {
 	case <-time.After(50 * time.Millisecond):
 	}
 
-	deadline := time.Now().Add(3 * time.Second)
+	// Poll to a generous upper bound (GDK-1502): this wait covers a process
+	// spawn on a loaded machine. The old 3s was not an upper bound, it was a
+	// flake budget — the very timeout meant to detect a stuck spawn instead
+	// wedged the gate for good. Exceeding it now falls into cleanup.
+	deadline := time.Now().Add(10 * time.Second)
 	for {
 		if _, err := os.Stat(started); err == nil {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("first install never created the started file")
+			t.Fatalf("first install never created %s; gate holds %v", started, activeInstalls())
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
@@ -332,8 +361,28 @@ func TestIntegrationsPOSTConflict(t *testing.T) {
 	}
 }
 
+// activeInstalls copies the package-global install gate's keys: the
+// one-line answer to "is an install wedged?" that GDK-1502's under-load
+// failures had to be inferred from a sibling test's 409.
+func activeInstalls() []string {
+	installGate.mu.Lock()
+	defer installGate.mu.Unlock()
+	out := make([]string, 0, len(installGate.active))
+	for k := range installGate.active {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
 func TestIntegrationsPOSTMissingCLI(t *testing.T) {
 	t.Setenv("GADAK_DESKTOP_CLI", filepath.Join(t.TempDir(), "no-such-gadak"))
+	// GDK-1502: this test's old under-load failure was a 409 inherited from a
+	// sibling's leaked install, not anything about a missing CLI. Fail on the
+	// inheritance itself, naming the key that leaked.
+	if held := activeInstalls(); len(held) != 0 {
+		t.Fatalf("gate already holds %v before this test ran", held)
+	}
 	rec := httptest.NewRecorder()
 	integrationsMux().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/desktop/integrations/skill/install", nil))
 	if rec.Code != http.StatusOK {

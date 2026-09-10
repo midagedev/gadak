@@ -664,6 +664,27 @@ one owner ([GDK-1455]); and the history store's boundary is documented as
 the write path it is rather than moved into its one reader, because it has
 four callers ([GDK-1135]).
 
+The test pyramid moved some weight down. A held e2e port is named before the
+build starts — port, pid, worktree, and the `pkill` that frees it — and the
+serve stamp carries the pid, so a suite that inherits another worktree's
+server is refused by name rather than run against the wrong code
+([GDK-1757]); three fixed waits became signals (a database delete that
+rejects on `onblocked`, a focus poll counted through a wrapped `fetch`, a
+frozen digest instead of a spawned process) ([GDK-723]); the bench smoke
+seeds fifty rows instead of a thousand and the static export test carries
+its own one-row mirror instead of the whole demo ([GDK-724]). Six dialogs
+times two viewports in the browser became a registry unit test plus two
+representative shapes ([GDK-725]); the router's coalescing window is ten
+fake-timer cases in vitest with one smoke per rule family left in Playwright
+([GDK-1327]); a component renders under `svelte/server` with no new
+dependency, as a pilot whose limits are written in its header ([GDK-1328]);
+the desktop chrome spec asserts the relation to the traffic lights rather
+than exact pixels ([GDK-1147]); and the integrations tests poll to a deadline
+with the gate released in cleanup, so a sibling can no longer inherit a leak
+([GDK-1502]). Workers stay at one; a census gate now says which specs mutate
+and the design for per-worker isolation is written down with the measured
+worst files ([GDK-1758]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2327,3 +2348,12 @@ priority sorting keyed on `priority_rank`.
 [GDK-1101]: https://gadak.dev/backlog/#/?ks=GDK-1101
 [GDK-1455]: https://gadak.dev/backlog/#/?ks=GDK-1455
 [GDK-1135]: https://gadak.dev/backlog/#/?ks=GDK-1135
+[GDK-1757]: https://gadak.dev/backlog/#/?ks=GDK-1757
+[GDK-723]: https://gadak.dev/backlog/#/?ks=GDK-723
+[GDK-724]: https://gadak.dev/backlog/#/?ks=GDK-724
+[GDK-725]: https://gadak.dev/backlog/#/?ks=GDK-725
+[GDK-1327]: https://gadak.dev/backlog/#/?ks=GDK-1327
+[GDK-1328]: https://gadak.dev/backlog/#/?ks=GDK-1328
+[GDK-1147]: https://gadak.dev/backlog/#/?ks=GDK-1147
+[GDK-1502]: https://gadak.dev/backlog/#/?ks=GDK-1502
+[GDK-1758]: https://gadak.dev/backlog/#/?ks=GDK-1758

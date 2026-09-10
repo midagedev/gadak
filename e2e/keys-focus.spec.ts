@@ -47,33 +47,58 @@ async function showDocument(page: Page): Promise<void> {
 test.describe('keys view and ui-focus', () => {
   test('ui-focus poll sends no requests while the tab is hidden', async ({ page }) => {
     const errors = attachConsoleErrors(page)
+    // The clock is installed before boot so the app's timers are faked from
+    // the moment they are armed. A mid-test install cannot help: the 500 ms
+    // ui-focus interval created at boot holds a real native handle that a
+    // later fake clearInterval cannot stop — the old test paid 2.2 s of real
+    // waits (drain one period, then out-wait three more) to observe that
+    // interval instead (GDK-723). Frozen time lets the same contract run in
+    // milliseconds: fast-forward past whole poll periods and count.
+    await page.clock.install()
+    // Page-side counter: incremented synchronously where fetch is *called*,
+    // so no CDP delivery lag can move the count after a snapshot — the race
+    // the old 600 ms drain existed to cover.
+    await page.addInitScript(() => {
+      const hits: string[] = []
+      ;(window as unknown as { __uiFocusHits: string[] }).__uiFocusHits = hits
+      const orig = window.fetch.bind(window)
+      window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === 'string'
+            ? input
+            : input instanceof Request
+              ? input.url
+              : String(input)
+        if (url.includes('/ui-focus/')) hits.push(url)
+        return orig(input, init)
+      }
+    })
     await gotoApp(page)
 
-    const hits: number[] = []
-    page.on('request', (req) => {
-      if (req.url().includes('/ui-focus/')) hits.push(Date.now())
-    })
+    const hitCount = () =>
+      page.evaluate(() => (window as unknown as { __uiFocusHits: string[] }).__uiFocusHits.length)
 
-    await expect.poll(() => hits.length).toBeGreaterThan(0)
+    // Two poll periods of fake time while visible: the interval is armed.
+    await page.clock.fastForward(1200)
+    await expect.poll(hitCount, 'visible tab never polled ui-focus').toBeGreaterThan(0)
+
     await hideDocument(page)
-    // Snapshot AFTER the page has processed visibilitychange, past one full
-    // poll period so a tick dispatched before the transition has drained
-    // (GDK-175, 2026-08-17: snapshotting before hideDocument raced the
-    // 500 ms interval — a request sent while still visible landed after the
-    // snapshot and read as "polled while hidden"). The contract measured is
-    // unchanged: no NEW requests while hidden.
-    await page.waitForTimeout(600)
-    const before = hits.length
-    // 500ms poll × 3 plus slack: the contract is that the count stays put
-    // across an elapsed interval; there is no other "poll did not fire" state.
-    await page.waitForTimeout(1600)
-    expect(
-      hits.length,
-      `hidden tab kept polling ui-focus (${hits.length - before} extra GETs)`,
-    ).toBe(before)
+    // The app's own stop flag, not a duration: when this flips the interval
+    // is cleared, and any fetch a visible tick started is already in the
+    // page-side counter (it increments at call time). No drain wait needed.
+    await page.waitForFunction(() => document.documentElement.dataset.uiFocusPoll === 'off')
+    const before = await hitCount()
+    // 500 ms poll × 4 of fake time while hidden — the same "no NEW requests
+    // across elapsed periods" contract, without the wall clock.
+    await page.clock.fastForward(2000)
+    const after = await hitCount()
+    expect(after, `hidden tab kept polling ui-focus (${after - before} extra GETs)`).toBe(before)
 
     await showDocument(page)
-    await expect.poll(() => hits.length).toBeGreaterThan(before)
+    await page.clock.fastForward(600)
+    await expect.poll(hitCount, 'visible tab did not resume polling ui-focus').toBeGreaterThan(
+      before,
+    )
 
     expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
   })

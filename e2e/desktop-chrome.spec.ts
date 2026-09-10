@@ -9,9 +9,21 @@ import { attachConsoleErrors, gotoApp } from './helpers'
  * Both halves are asserted here because the flag is the only thing separating
  * them: one bundle serves `gadak serve` and the app.
  *
- * Geometry only. Whether the traffic lights sit where this reserves space is a
- * native question no browser can answer; the app itself is the check for that.
+ * Relational only (GDK-1147): the exact numbers (padding 90px/1rem, row 48px,
+ * centre line 26px) are the product's to choose and live in app.css's
+ * `.desktop-titlebar-row`; what a browser can and should hold is the relation —
+ * app content starts at or past where the native buttons end, and a browser
+ * tab reserves nothing. The vertical optics (centre line meeting the lights')
+ * are a native question measured in capture rounds, not here.
  */
+
+/**
+ * Where the native traffic lights end, read off the running window through the
+ * accessibility API — buttons at x=18/41/64 in 16px boxes, so 20…78 across;
+ * app.css's `.desktop-titlebar-row` comment records the measurement. If the
+ * native chrome ever moves, this const moves with it, and only it.
+ */
+const TRAFFIC_LIGHTS_END_X = 78
 
 /** Serve the config the desktop app serves: same document, plus `desktop`. */
 async function pretendDesktop(page: Page): Promise<void> {
@@ -34,11 +46,11 @@ test.describe('desktop title-bar row', () => {
     // Mark + wordmark. There are no window controls here to confuse it with.
     await expect(row.getByTestId('sidebar-mark')).toBeVisible()
     await expect(row.getByText('gadak', { exact: true })).toBeVisible()
-    // The wordmark starts where the nav below it does — nothing is reserved.
+    // Nothing is reserved: the wordmark starts before the lights' line even
+    // exists for a browser tab (16px pad + 18px mark + 8px gap ≈ 42px).
     const box = await row.getByText('gadak', { exact: true }).boundingBox()
     expect(box).not.toBeNull()
-    // 16px pad + 18px mark + 8px gap. Nothing reserved past that.
-    expect(box!.x).toBeLessThan(50)
+    expect(box!.x).toBeLessThan(TRAFFIC_LIGHTS_END_X)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
@@ -51,13 +63,16 @@ test.describe('desktop title-bar row', () => {
     await gotoApp(page)
 
     const row = page.getByTestId(LOGO_ROW)
-    // The window controls end at x=78 (measured off the running app through the
-    // accessibility API); 90 leaves a gap after them.
-    await expect(row).toHaveCSS('padding-left', '90px')
-    // px-4 is replaced, not overridden — the right side must survive it.
-    await expect(row).toHaveCSS('padding-right', '16px')
-    // Full row height stays: the reclaimed space is the title bar, not this.
-    await expect(row).toHaveCSS('height', '48px')
+    // The reserve is one corner, not a wholesale re-padding: the left padding
+    // clears the lights' line while the right keeps the compact gutter. A
+    // revert to plain px-4 fails the first half; a padding applied to both
+    // sides (px-4 replaced wholesale) fails the second.
+    const styles = await row.evaluate((el) => {
+      const s = getComputedStyle(el)
+      return { left: s.paddingLeft, right: s.paddingRight }
+    })
+    expect(parseFloat(styles.left)).toBeGreaterThanOrEqual(TRAFFIC_LIGHTS_END_X)
+    expect(parseFloat(styles.right)).toBeLessThan(TRAFFIC_LIGHTS_END_X)
 
     // Wails reads this custom property to decide what drags the window. With
     // no title bar left, a row that does not carry it strands the window.
@@ -70,11 +85,12 @@ test.describe('desktop title-bar row', () => {
     // fourth button, so the app omits it (the Dock already names the window).
     await expect(row.getByTestId('sidebar-mark')).toHaveCount(0)
 
+    // Content starts at or past where the third button ends — the contract
+    // the paddings exist to keep. (Row height and the 26px centre line are
+    // native optics, measured in capture rounds against the real lights.)
     const box = await row.getByText('gadak', { exact: true }).boundingBox()
     expect(box).not.toBeNull()
-    expect(box!.x).toBeGreaterThanOrEqual(90)
-    // Centre line at 26, matching the buttons' — 24 would be 2px high.
-    expect(box!.y + box!.height / 2).toBeCloseTo(26, 0)
+    expect(box!.x).toBeGreaterThanOrEqual(TRAFFIC_LIGHTS_END_X)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

@@ -54,6 +54,11 @@ export default defineConfig({
             // so these suites need the svelte plugin too (GDK-786).
             'web/src/lib/format.test.ts',
             'web/src/stores/ui-tokens.test.ts',
+            // router.svelte.ts is runes ($state) — the coalescing suite
+            // joins pages-store (GDK-1327).
+            'web/src/lib/router.test.ts',
+            // imports DialogShell.svelte — the GDK-1328 mount pilot.
+            'web/src/components/ui/DialogShell.render.test.ts',
           ],
           // Pin empty so a leftover VITE_HOSTED_DEMO=1 in the shell cannot
           // turn the adapter on for the production-default suite.
@@ -81,6 +86,8 @@ export default defineConfig({
             'web/src/stores/me.feed.test.ts',
             'web/src/lib/format.test.ts',
             'web/src/stores/ui-tokens.test.ts',
+            'web/src/lib/router.test.ts',
+            'web/src/components/ui/DialogShell.render.test.ts',
           ],
           env: { VITE_HOSTED_DEMO: '' },
         },

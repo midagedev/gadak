@@ -110,10 +110,16 @@ func seedBenchDB(tb testing.TB, n int, seed int64) (*store.DB, *config.Config) {
 	return db, cfg
 }
 
-// TestBenchSmoke1k is a short CI-friendly check that the bench fixture path
-// produces a working bootstrap and FTS hit. Not a latency gate.
-func TestBenchSmoke1k(t *testing.T) {
-	db, cfg := seedBenchDB(t, 1000, 42)
+// TestBenchSmoke is a short CI-friendly check that the bench fixture path
+// produces a working bootstrap and FTS hit. Not a latency gate, so scale is
+// not the contract — the benchmarks below own 10k (opt-in via -bench, never
+// in `go test ./...`). This used to seed 1000 rows anyway (GDK-724), paying
+// for volume the assertions never read: what they check is that bootstrap
+// returns everything seeded and FTS finds the needle, which 50 rows prove
+// with the same code path and one batch.
+func TestBenchSmoke(t *testing.T) {
+	const rows = 50
+	db, cfg := seedBenchDB(t, rows, 42)
 	h := New(db, cfg)
 
 	rec := get(t, h, apiBase+"bootstrap/", nil)
@@ -121,8 +127,8 @@ func TestBenchSmoke1k(t *testing.T) {
 		t.Fatalf("bootstrap status %d: %s", rec.Code, rec.Body.String())
 	}
 	body := decode[bootstrapResponse](t, rec)
-	if len(body.Issues) != 1000 {
-		t.Fatalf("bootstrap issues %d, want 1000", len(body.Issues))
+	if len(body.Issues) != rows {
+		t.Fatalf("bootstrap issues %d, want %d", len(body.Issues), rows)
 	}
 
 	got := decode[struct {

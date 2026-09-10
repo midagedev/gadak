@@ -80,6 +80,14 @@ export type AssertServedArtifactOpts = {
   /** Which serve's stamp to assert: the Linear port's (see linearServePort). */
   port?: string
   /**
+   * Tests: pin the digest instead of re-running e2e/served-digest.sh. The
+   * unit tests that assert message *shape* (what a mismatch names) do not
+   * care which digest mismatches, and each real digest spawn is several git
+   * commands plus a sha256 (GDK-723). The sensitivity tests — dirty tree,
+   * foreign worktree — still compute the real thing.
+   */
+  digest?: string
+  /**
    * The stamp's digest names the fixture that port serves (serve.sh folds
    * `seed=<basename>` in). The linear port's fixture is pinned by the
    * playwright config, not by this process's GADAK_SEED_DB — hence explicit.
@@ -215,7 +223,18 @@ function servedSourceDigest(root: string, seed: string): string {
   return `${digest} seed=${seed}`
 }
 
-function parseServedStamp(raw: string, stampPath: string): { worktree: string; digest: string } {
+export type ServedStamp = {
+  worktree: string
+  digest: string
+  /**
+   * The serve process's PID (serve.sh writes $$ before exec keeps it).
+   * Optional: stamps from before GDK-1757 carry no pid, and both the
+   * mismatch message and port-held.mjs degrade to pkill/lsof hints without it.
+   */
+  pid?: number
+}
+
+function parseServedStamp(raw: string, stampPath: string): ServedStamp {
   let value: unknown
   try {
     value = JSON.parse(raw) as unknown
@@ -236,7 +255,33 @@ function parseServedStamp(raw: string, stampPath: string): { worktree: string; d
       `stale e2e server: stamp ${stampPath} is not a {worktree, digest} object. reuseExistingServer picked up a process that was not started by this e2e/serve.sh. Stop it (pkill -f 'e2e/.tmp/gadak') and re-run.`,
     )
   }
-  return { worktree: (value as { worktree: string }).worktree, digest: (value as { digest: string }).digest }
+  const pid = (value as { pid?: unknown }).pid
+  return {
+    worktree: (value as { worktree: string }).worktree,
+    digest: (value as { digest: string }).digest,
+    ...(typeof pid === 'number' && Number.isInteger(pid) && pid > 0 ? { pid } : {}),
+  }
+}
+
+/**
+ * GDK-1757: name the holder when a stamp mismatch is reported. A stamped pid
+ * turns "stop it (pkill …)" into "kill N" when the process still runs, and
+ * into "the stamp's process is gone — something else answers healthz" when it
+ * does not — the two cases a parallel round actually hits, and the difference
+ * between a one-line fix and a hunt through lsof output.
+ */
+function stampHolderSentence(stamp: ServedStamp, port: string): string {
+  if (stamp.pid === undefined) return ''
+  let alive = true
+  try {
+    process.kill(stamp.pid, 0)
+  } catch (err) {
+    // EPERM means the process exists but belongs to another user — alive.
+    alive = (err as NodeJS.ErrnoException).code !== 'ESRCH'
+  }
+  return alive
+    ? ` The stamped server is pid ${stamp.pid} (running): kill ${stamp.pid}.`
+    : ` The stamped pid ${stamp.pid} is no longer running — a listener that wrote no matching stamp is answering on port ${port}; lsof -nP -iTCP:${port} -sTCP:LISTEN names it.`
 }
 
 /**
@@ -250,7 +295,7 @@ export function assertServedArtifact(opts: AssertServedArtifactOpts = {}): void 
   const seed = opts.linear
     ? basename(LINEAR_SEED_DB)
     : basename(process.env.GADAK_SEED_DB ?? 'examples/demo.db')
-  const digest = servedSourceDigest(root, seed)
+  const digest = opts.digest ?? servedSourceDigest(root, seed)
 
   if (!existsSync(stampPath)) {
     throw new Error(
@@ -261,7 +306,7 @@ export function assertServedArtifact(opts: AssertServedArtifactOpts = {}): void 
   const stamp = parseServedStamp(readFileSync(stampPath, 'utf8'), stampPath)
   if (stamp.worktree !== root || stamp.digest !== digest) {
     throw new Error(
-      `stale e2e server: stamp worktree ${stamp.worktree} digest ${stamp.digest}; this worktree ${root} digest ${digest}. reuseExistingServer reused that process. Stop it (pkill -f '${stamp.worktree}/e2e/.tmp/gadak') and re-run.`,
+      `stale e2e server: stamp worktree ${stamp.worktree} digest ${stamp.digest}; this worktree ${root} digest ${digest}. reuseExistingServer reused that process.${stampHolderSentence(stamp, port)} Stop it (pkill -f '${stamp.worktree}/e2e/.tmp/gadak') and re-run.`,
     )
   }
 }

@@ -42,15 +42,24 @@ async function seedV1(name: string): Promise<void> {
 
 async function deleteDb(name: string): Promise<void> {
   resetIssueCacheConnection()
-  await Promise.race([
-    new Promise<void>((resolve, reject) => {
-      const req = indexedDB.deleteDatabase(name)
-      req.onsuccess = () => resolve()
-      req.onerror = () => reject(req.error ?? new Error('indexeddb-delete-failed'))
-      req.onblocked = () => resolve()
-    }),
-    new Promise<void>((resolve) => setTimeout(resolve, 500)),
-  ])
+  // No timeout race (GDK-723): fake-indexeddb fires onsuccess promptly, so
+  // the 500 ms arm of the old Promise.race never won — it only existed as a
+  // hang guard. And onblocked is no longer a quiet pass: resetIssueCache-
+  // Connection() above closed the one connection this module owns, so a
+  // blocked delete means some *test* leaked a connection and the delete
+  // would silently no-op, leaving that test's rows for the next one. Fail
+  // there instead, naming the cause.
+  await new Promise<void>((resolve, reject) => {
+    const req = indexedDB.deleteDatabase(name)
+    req.onsuccess = () => resolve()
+    req.onerror = () => reject(req.error ?? new Error('indexeddb-delete-failed'))
+    req.onblocked = () =>
+      reject(
+        new Error(
+          `deleteDatabase(${name}) blocked: a connection is still open — the delete would no-op`,
+        ),
+      )
+  })
 }
 
 beforeEach(() => {

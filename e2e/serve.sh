@@ -18,6 +18,17 @@ if ! [[ "$PORT" =~ ^[1-9][0-9]*$ ]] || [ "$PORT" -gt 65535 ]; then
 fi
 # Already consumed as PORT. gadak serve/status log unknown GADAK_* names.
 unset GADAK_E2E_PORT
+
+# GDK-1757: fail before the build, not after it. A port held by another
+# worktree's serve (or any stray listener) used to surface only when
+# `gadak serve` hit EADDRINUSE minutes later, naming nobody — after the go
+# build, the UI build and the fixture seeding had all run. The healthy-reuse
+# case never reaches this script: playwright's reuseExistingServer adopts a
+# healthz-answering serve before running its command, and the stamp check in
+# e2e/helpers.ts globalSetup is that path's honesty gate. This probe owns the
+# other half — a listener reuseExistingServer refused — and names port, pid
+# and stamped worktree before any build starts.
+node "$ROOT/e2e/port-held.mjs" "$PORT"
 # The other two e2e knobs are read below and then dropped for the same
 # reason: the pane shells inherit the serve's env, and an unknown GADAK_*
 # name is a warning line in the first frame of a recording.
@@ -355,11 +366,16 @@ fi
 DIGEST="${DIGEST} seed=$(basename "$SEED_DB")"
 STAMP="${TMPDIR:-/tmp}/gadak-e2e-served-${PORT}.json"
 echo "[e2e] served worktree ${WORKTREE} digest ${DIGEST}"
-STAMP_PATH="$STAMP" STAMP_WORKTREE="$WORKTREE" STAMP_DIGEST="$DIGEST" node --input-type=module -e '
+STAMP_PATH="$STAMP" STAMP_WORKTREE="$WORKTREE" STAMP_DIGEST="$DIGEST" STAMP_PID="$$" node --input-type=module -e '
   import { writeFileSync } from "node:fs"
+  // pid is the serve process: the exec below keeps the same PID, so $$
+  // written before it stays the listener a later run must name and kill
+  // (GDK-1757). Older stamps without it keep working — the field is
+  // optional on the reading side (e2e/helpers.ts parseServedStamp).
   writeFileSync(process.env.STAMP_PATH, JSON.stringify({
     worktree: process.env.STAMP_WORKTREE,
     digest: process.env.STAMP_DIGEST,
+    pid: Number(process.env.STAMP_PID),
   }) + "\n")
 '
 echo "[e2e] serving on 127.0.0.1:${PORT} (GADAK_HOME=$GADAK_HOME)…"

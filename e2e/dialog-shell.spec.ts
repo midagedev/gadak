@@ -1,19 +1,21 @@
-import { type Locator, type Page, type Route } from '@playwright/test'
+import { type Locator, type Page } from '@playwright/test'
 import { expect, test } from './helpers'
 import { gotoApp, openServerSettings } from './helpers'
 import { en } from '../web/src/lib/i18n/en'
 
 /**
  * GDK-297: six same-class modal dialogs must share one shell contract.
- * Visual chrome lives in web/src/components/ui/DialogShell.svelte (GDK-316);
- * this table is still the contract a seventh row has to join.
+ * Visual chrome lives in web/src/components/ui/DialogShell.svelte (GDK-316).
  *
- * Driven from DIALOGS below so a seventh is one row — a test that only
- * asserted `role=dialog` exists would pass every inconsistency this
- * round is closing.
- *
- * GDK-649: importer ↔ row coverage lives in e2e/dialog-shell.unit.ts (file
- * walk, no browser). This file is the shell contract in a real dialog.
+ * GDK-725: the browser leg is now a representative pair, not all six × two
+ * viewports. The two rows below are the two shapes the shell contract has —
+ * a commit dialog (footer dismiss + primary) and a content-only dialog (X +
+ * Esc are the way out) — and geometry is measured once, at the tighter
+ * 720-height viewport where overflow actually shows. The full importer↔row
+ * registry (all six dialogs) lives in e2e/dialog-shell.unit.ts, which fails
+ * when a seventh DialogShell importer appears without a registry entry, so
+ * shrinking this file did not open a skip hole: a new dialog still has to
+ * register, and this smoke still walks both label contracts plus Esc-close.
  *
  * These assertions will not catch:
  * - Backdrop-click dismiss, focus-trap Tab cycling, or which control is
@@ -24,17 +26,13 @@ import { en } from '../web/src/lib/i18n/en'
  * - Visual language (colour, radius, type scale) and whether the X is
  *   optically in the header vs a sibling that still has an accessible name.
  * - Dialogs that carry role=dialog but are a different class (MediaViewer,
- *   BulkBar, CommandPalette, AssigneePicker) — they are not in the table.
+ *   BulkBar, CommandPalette, AssigneePicker) — they are not in the registry.
  * - Mid-list rows cut by overflow at the fold (only the last row of the
  *   scroller, at scroll-end, is measured).
  * - i18n of the labels (the suite forces en).
  */
 
 const CLOSE_ESC = en['common.closeEsc']
-const VIEWPORTS = [
-  { width: 1280, height: 900 },
-  { width: 1280, height: 720 },
-] as const
 
 type DialogRow = {
   id: string
@@ -45,64 +43,33 @@ type DialogRow = {
   locate: (page: Page) => Locator
 }
 
-const CREATE_PROJECTS = [
+// The representative pair — one row per shape. dialog-shell.unit.ts pins
+// that this set stays a subset of the registry AND keeps one of each shape,
+// so deleting the no-commit row "to save time" goes red there.
+const DIALOGS: DialogRow[] = [
   {
-    key: 'NMB',
-    name: 'Numbers',
-    issue_types: [
-      { id: '10001', name: 'Task' },
-      { id: '10004', name: 'Bug' },
-    ],
+    id: 'settings',
+    hasCommit: true,
+    dismissLabel: en['common.cancel'],
+    primaryLabel: en['common.save'],
+    open: async (page) => {
+      await gotoApp(page)
+      await openServerSettings(page)
+    },
+    locate: (page) => page.getByTestId('settings-dialog'),
+  },
+  {
+    id: 'shortcuts',
+    hasCommit: false,
+    dismissLabel: null,
+    primaryLabel: null,
+    open: async (page) => {
+      await gotoApp(page)
+      await page.keyboard.press('?')
+    },
+    locate: (page) => page.getByTestId('shortcuts-dialog'),
   },
 ]
-
-async function fulfillJSON(route: Route, json: unknown, status = 200): Promise<void> {
-  await route.fulfill({ status, contentType: 'application/json', json })
-}
-
-/** Same seed as e2e/duedate.spec.ts — fixture Jira never answers create-meta. */
-async function stubCreateMeta(page: Page): Promise<void> {
-  await page.route('**/api/v1/issues/meta/write/', async (route) => {
-    if (route.request().method() !== 'GET') return route.continue()
-    await fulfillJSON(route, {
-      transitions: {},
-      create_meta: { projects: CREATE_PROJECTS },
-      updated_at: '2026-08-18T00:00:00.000Z',
-    })
-  })
-  await page.route('**/api/v1/issues/create-meta/**', async (route) => {
-    if (route.request().method() !== 'GET') return route.continue()
-    if (route.request().url().includes('/create-meta/fields')) {
-      await fulfillJSON(route, { fields: [] })
-      return
-    }
-    await fulfillJSON(route, { projects: CREATE_PROJECTS })
-  })
-  await page.route('**/priorities/', async (route) => {
-    if (route.request().method() !== 'GET') return route.continue()
-    await fulfillJSON(route, { priorities: [{ id: '3', name: '보통' }] })
-  })
-}
-
-
-async function flushDelta(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    Object.defineProperty(document, 'visibilityState', {
-      configurable: true,
-      get: () => 'visible',
-    })
-    document.dispatchEvent(new Event('visibilitychange'))
-  })
-}
-
-async function pressUntilCursor(page: Page): Promise<void> {
-  await page.keyboard.press('j')
-  await expect
-    .poll(async () =>
-      page.evaluate(() => document.querySelector('[data-cursor="true"]')?.getAttribute('data-issue-key') ?? ''),
-    )
-    .not.toEqual('')
-}
 
 type ShellGeometry = {
   pinnedBelowBody: number
@@ -228,121 +195,11 @@ async function measureShell(dialog: Locator): Promise<ShellGeometry> {
   })
 }
 
-/** Same mocking discipline as stubCreateMeta: the workspaces-remove dialog's
- *  row must not create or destroy a real workspace in the e2e home. The list
- *  and the probe refusal are both fulfilled here, so the dialog opens on
- *  mock data and the suite's home stays exactly as serve.sh seeded it. */
-async function stubWorkspacesRemove(page: Page): Promise<void> {
-  await page.route('**/api/v1/workspaces', async (route) => {
-    if (route.request().method() === 'GET') {
-      await fulfillJSON(route, {
-        workspaces: [
-          { name: 'default', site: 'https://nimbus.example.com', projects: ['NMB'], active: true },
-          { name: 'shell-dialog-ws' },
-        ],
-      })
-      return
-    }
-    await route.continue()
-  })
-  await page.route('**/api/v1/workspaces/shell-dialog-ws', async (route) => {
-    await fulfillJSON(
-      route,
-      {
-        error: 'needs_destroy_origin',
-        detail:
-          'refusing: "shell-dialog-ws" is a built-in workspace and its persist is the only copy of that tracker anywhere\n  persist: /somewhere/profiles/shell-dialog-ws/origin.sqlite\n  to remove it anyway: gadak workspaces rm shell-dialog-ws --yes --destroy-origin',
-      },
-      400,
-    )
-  })
-}
-
-const DIALOGS: DialogRow[] = [
-  {
-    id: 'settings',
-    hasCommit: true,
-    dismissLabel: en['common.cancel'],
-    primaryLabel: en['common.save'],
-    open: async (page) => {
-      await gotoApp(page)
-      await openServerSettings(page)
-    },
-    locate: (page) => page.getByTestId('settings-dialog'),
-  },
-  {
-    id: 'new-issue',
-    hasCommit: true,
-    dismissLabel: en['common.cancel'],
-    primaryLabel: en['common.create'],
-    open: async (page) => {
-      await stubCreateMeta(page)
-      await gotoApp(page)
-      await page.getByRole('button', { name: en['write.newIssue'], exact: true }).click()
-      const dialog = page.getByTestId('new-issue-dialog')
-      await expect(dialog).toBeVisible()
-      await expect(dialog.getByPlaceholder(en['write.issueTitle'])).toBeVisible()
-    },
-    locate: (page) => page.getByTestId('new-issue-dialog'),
-  },
-  {
-    id: 'shortcuts',
-    hasCommit: false,
-    dismissLabel: null,
-    primaryLabel: null,
-    open: async (page) => {
-      await gotoApp(page)
-      await page.keyboard.press('?')
-    },
-    locate: (page) => page.getByTestId('shortcuts-dialog'),
-  },
-  {
-    id: 'jira-credentials',
-    hasCommit: true,
-    dismissLabel: en['common.cancel'],
-    primaryLabel: en['jiraSettings.replaceToken'],
-    open: async (page) => {
-      await gotoApp(page)
-      await page.getByRole('button', { name: en['sidebar.jiraCreds'], exact: true }).click()
-    },
-    locate: (page) => page.getByRole('dialog', { name: en['jiraSettings.title'] }),
-  },
-  {
-    id: 'quick-comment',
-    hasCommit: false,
-    dismissLabel: null,
-    primaryLabel: null,
-    open: async (page) => {
-      await gotoApp(page)
-      await pressUntilCursor(page)
-      await page.keyboard.press('c')
-    },
-    locate: (page) => page.getByTestId('quick-comment'),
-  },
-  {
-    id: 'workspaces-remove',
-    hasCommit: true,
-    dismissLabel: en['common.cancel'],
-    primaryLabel: en['settings.workspacesRemove'],
-    open: async (page) => {
-      await stubWorkspacesRemove(page)
-      await gotoApp(page)
-      await openServerSettings(page)
-      await page
-        .getByRole('dialog', { name: en['settings.title'] })
-        .getByRole('tab', { name: en['settings.tabWorkspaces'], exact: true })
-        .click()
-      await page.getByTestId('workspaces-remove-shell-dialog-ws').click()
-    },
-    // The nested confirm: opening it is two clicks deep, and Esc must close
-    // only this dialog — the settings dialog under it stays (the component's
-    // capture-phase guard), which is what the closing assertion below sees.
-    locate: (page) => page.getByTestId('workspaces-remove-dialog'),
-  },
-]
-
 test.describe('dialog shell contract', () => {
-  test.use({ viewport: { width: 1280, height: 900 } })
+  // The tighter of the two heights this used to run: if a footer clips or a
+  // body overflows, 720 is where it shows first. The 900 pass duplicated the
+  // same geometry assertions with more room to pass in (GDK-725).
+  test.use({ viewport: { width: 1280, height: 720 } })
 
   for (const row of DIALOGS) {
     test(`${row.id} matches the shell contract`, async ({ page }) => {
@@ -414,28 +271,25 @@ test.describe('dialog shell contract', () => {
           .toHaveCount(0)
       }
 
-      for (const vp of VIEWPORTS) {
-        await page.setViewportSize(vp)
-        const g = await measureShell(dialog)
-        expect
-          .soft(
-            g.pinnedBelowBody,
-            `${row.id} @${vp.width}x${vp.height}: at most one non-scrolling bottom-pinned region (pinnedBelowBody=${g.pinnedBelowBody} note=${g.note})`,
-          )
-          .toBeLessThanOrEqual(1)
-        expect
-          .soft(
-            g.overlap,
-            `${row.id} @${vp.width}x${vp.height}: body content must not paint over a pinned footer (overlap=${g.overlap.toFixed(2)}px)`,
-          )
-          .toBeLessThanOrEqual(1)
-        expect
-          .soft(
-            g.clipOverflow,
-            `${row.id} @${vp.width}x${vp.height}: last <${g.clipLastTag}> overflows scroller by ${g.clipOverflow.toFixed(2)}px (scrolls=${g.clipScrolls} note=${g.note})`,
-          )
-          .toBeLessThanOrEqual(1)
-      }
+      const g = await measureShell(dialog)
+      expect
+        .soft(
+          g.pinnedBelowBody,
+          `${row.id}: at most one non-scrolling bottom-pinned region (pinnedBelowBody=${g.pinnedBelowBody} note=${g.note})`,
+        )
+        .toBeLessThanOrEqual(1)
+      expect
+        .soft(
+          g.overlap,
+          `${row.id}: body content must not paint over a pinned footer (overlap=${g.overlap.toFixed(2)}px)`,
+        )
+        .toBeLessThanOrEqual(1)
+      expect
+        .soft(
+          g.clipOverflow,
+          `${row.id}: last <${g.clipLastTag}> overflows scroller by ${g.clipOverflow.toFixed(2)}px (scrolls=${g.clipScrolls} note=${g.note})`,
+        )
+        .toBeLessThanOrEqual(1)
 
       await page.keyboard.press('Escape')
       await expect(dialog, `${row.id}: Esc closes`).toHaveCount(0)

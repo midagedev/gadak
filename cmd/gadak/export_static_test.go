@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -11,15 +12,78 @@ import (
 	"testing"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/store"
 )
+
+// seedScrubMirror writes a one-issue mirror with every field the scrub walks:
+// identity (assignee/reporter emails would seed members if the scrub regressed
+// to passing them through), labels/components/fix versions for the bootstrap
+// whitelist, and comments/attachments/changelog for the detail scrub. One row
+// carries the same code path 534 demo rows did — the assertions read a field
+// set, not a volume — so the default `go test ./...` no longer exports the
+// whole committed fixture (GDK-724).
+func seedScrubMirror(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "scrub.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+	if err := db.UpsertSource(context.Background(), store.Source{
+		ID: "jira", Kind: "jira", BaseURL: "https://example.invalid",
+	}); err != nil {
+		t.Fatalf("source: %v", err)
+	}
+	emptyADF := json.RawMessage(`{"type":"doc","version":1,"content":[]}`)
+	at := "2026-08-01T00:00:00.000Z"
+	rec := store.IssueRecord{
+		Item: store.Item{
+			ID: "jira:10901", SourceID: "jira", Kind: "issue", ExternalID: "10901",
+			Key: "NMB-901", Title: "scrub fixture with a private body",
+			BodyText:  "a body that must not publish",
+			URL:       "https://example.invalid/browse/NMB-901",
+			CreatedAt: at, UpdatedAt: at,
+		},
+		Issue: store.Issue{
+			ProjectKey: "NMB", IssueType: "Bug", IssueTypeID: "10004",
+			Status: "To Do", StatusID: "1", StatusCategory: "new", Priority: "High",
+			Assignee: "Dana", AssigneeEmail: "dana@example.com",
+			Reporter: "Eve", ReporterEmail: "eve@example.com",
+			Labels: []string{"public"}, Components: []string{"api"},
+			FixVersions: []string{"0.9.0"}, DescriptionADF: emptyADF,
+		},
+		Comments: []store.Comment{{
+			ID: "jira:c-10901", ExternalID: "c-10901",
+			Author: "Dana", BodyADF: emptyADF, BodyText: "comment body", CreatedAt: at,
+		}},
+		Attachments: []store.Attachment{{
+			ID: "jira:10901-a1", ExternalID: "10901-a1",
+			Filename: "plan.pdf", MimeType: "application/pdf", Size: 1024, CreatedAt: at,
+		}},
+		Changelog: []store.ChangeEntry{{
+			ID: "jira:h-10901", At: at, Field: "status", FromValue: "Backlog", ToValue: "To Do",
+		}},
+	}
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Categories: map[string]string{"1": "new"},
+		Priorities: []string{"Highest", "High", "Medium", "Low", "Lowest"},
+		Records:    []store.IssueRecord{rec}, Force: true,
+	}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	return path
+}
 
 // GDK-389: the public-backlog scrub is whitelist-rebuild — anything the live
 // handlers add later must NOT leak into a published snapshot by default.
 func TestExportStaticScrubProducesWhitelistOnly(t *testing.T) {
 	out := t.TempDir()
 	err := cmdExportStatic([]string{
-		"--db", "../../examples/demo.db",
-		"--attachments", "../../examples/attachments",
+		"--db", seedScrubMirror(t),
+		// No attachments dir: importAttachmentsInto treats a missing
+		// manifest as "no images" — exactly what a temp mirror wants.
+		"--attachments", filepath.Join(t.TempDir(), "none"),
 		"--scrub",
 		"--projects", "NMB,NMA,NMS",
 		out,

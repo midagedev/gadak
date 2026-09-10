@@ -522,6 +522,22 @@ PRESERVED 인지 OVERWRITTEN 인지 말합니다 ([GDK-1546]). `adf-render.mjs` 
 스토어의 경계는 호출자가 넷이라 유일 독자 쪽으로 옮기지 않고 쓰기 경로라는 사실을
 문서화했습니다 ([GDK-1135]).
 
+테스트 피라미드가 무게를 아래로 옮겼습니다. 선점된 e2e 포트는 빌드가 시작되기 전에
+이름이 불립니다 — 포트, pid, 워크트리, 그리고 그것을 놓아주는 `pkill` — 스탬프가 pid 를
+실으므로 다른 워크트리의 서버를 물려받은 스위트는 틀린 코드 위에서 도는 대신 이름으로
+거절됩니다 ([GDK-1757]). 고정 대기 셋이 신호가 됐습니다(`onblocked` 에서 거절하는
+데이터베이스 삭제, 감싼 `fetch` 로 세는 포커스 폴, 프로세스를 띄우는 대신 고정된
+digest) ([GDK-723]). 벤치 스모크는 천 행이 아니라 쉰 행을 시드하고, 정적 export 테스트는
+데모 전체 대신 자기 한 행 미러를 갖습니다 ([GDK-724]). 브라우저의 다이얼로그 여섯 × 뷰포트
+둘은 레지스트리 유닛 테스트와 대표 형태 둘이 됐고 ([GDK-725]), 라우터의 병합 창은
+vitest 의 가짜 타이머 열 케이스로 내려가 규칙 가족마다 스모크 하나만 Playwright 에
+남았습니다 ([GDK-1327]). 컴포넌트 하나가 새 의존성 없이 `svelte/server` 로 렌더되는
+파일럿이 한계를 헤더에 적은 채 들어왔고 ([GDK-1328]), 데스크톱 크롬 스펙은 정확한 px
+대신 트래픽 라이트와의 관계를 단언하며 ([GDK-1147]), 통합 테스트는 데드라인까지 폴링하고
+게이트를 cleanup 에서 놓아 형제가 누수를 물려받을 수 없습니다 ([GDK-1502]). 워커는
+하나 그대로입니다. 어느 스펙이 변이를 일으키는지 인구조사 게이트가 말하고, 워커별 격리
+설계는 실측한 최악 파일 목록과 함께 적혀 있습니다 ([GDK-1758]).
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -2119,3 +2135,12 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1101]: https://gadak.dev/backlog/#/?ks=GDK-1101
 [GDK-1455]: https://gadak.dev/backlog/#/?ks=GDK-1455
 [GDK-1135]: https://gadak.dev/backlog/#/?ks=GDK-1135
+[GDK-1757]: https://gadak.dev/backlog/#/?ks=GDK-1757
+[GDK-723]: https://gadak.dev/backlog/#/?ks=GDK-723
+[GDK-724]: https://gadak.dev/backlog/#/?ks=GDK-724
+[GDK-725]: https://gadak.dev/backlog/#/?ks=GDK-725
+[GDK-1327]: https://gadak.dev/backlog/#/?ks=GDK-1327
+[GDK-1328]: https://gadak.dev/backlog/#/?ks=GDK-1328
+[GDK-1147]: https://gadak.dev/backlog/#/?ks=GDK-1147
+[GDK-1502]: https://gadak.dev/backlog/#/?ks=GDK-1502
+[GDK-1758]: https://gadak.dev/backlog/#/?ks=GDK-1758
