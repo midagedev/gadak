@@ -492,6 +492,14 @@ already drifted from the catalog it claimed to describe, is replaced by a
 test that asks the two real sources instead ([GDK-921]), and two interfaces
 left over from the removed push stack are gone ([GDK-923], [GDK-1483]).
 
+Three places the keyboard could not reach. A comment's Reply button appeared
+on hover alone, so tabbing to it moved nothing into view ([GDK-734]).
+Favourite rows could be reordered by dragging but not by typing; Alt+↑↓ now
+steps a row, and the gesture, its no-wrap edges and its step arithmetic are
+one owner shared with the sidebar sections, so the second list cannot drift
+into a different key ([GDK-733]). And the file paths in Settings broke
+mid-word rather than at their separators ([GDK-1093]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2104,3 +2112,6 @@ priority sorting keyed on `priority_rank`.
 [GDK-921]: https://gadak.dev/backlog/#/?ks=GDK-921
 [GDK-923]: https://gadak.dev/backlog/#/?ks=GDK-923
 [GDK-1483]: https://gadak.dev/backlog/#/?ks=GDK-1483
+[GDK-734]: https://gadak.dev/backlog/#/?ks=GDK-734
+[GDK-733]: https://gadak.dev/backlog/#/?ks=GDK-733
+[GDK-1093]: https://gadak.dev/backlog/#/?ks=GDK-1093

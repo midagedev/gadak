@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 
 import { type Page } from '@playwright/test'
 import { test, expect } from './helpers'
-import { attachConsoleErrors, gotoApp, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
+import { attachConsoleErrors, forceLocale, gotoApp, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 import { en } from '../web/src/lib/i18n/en'
 
 /**
@@ -361,6 +361,104 @@ test.describe('section affordances (GDK-483)', () => {
     await expect(
       feedRow.locator('xpath=ancestor::div[1]').getByTestId('sidebar-section-grip'),
     ).toHaveCount(0)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+})
+
+/*
+ * GDK-733: favorites could only be reordered by dragging, while the sidebar
+ * sections right below them answered Alt+ArrowUp / Alt+ArrowDown. The fix
+ * gives the favorite rows the same gesture (shared through lib/reorder), so
+ * this pins the three things a second implementation would have got wrong:
+ * the same keys, focus staying on the row that moved, and the order
+ * surviving a reload the way the drag order already did.
+ *
+ * FAIL-first: against the pre-change client the order is unchanged after
+ * Alt+ArrowDown (favorite rows had no keydown handler at all), so the order
+ * and the aria-keyshortcuts assertions both fail; the focus assertion is a
+ * regression pin for the keyed each block.
+ *
+ * Favorites are seeded through the product's own path — the star on a recent
+ * row — rather than by writing the store's storage key, so the test also
+ * fails if favoriting itself breaks. That makes them *server* state, shared
+ * by every spec on this port: the first run of this test leaked two favorite
+ * rows into triage.spec.ts, whose `getByRole('button', { name: /^NMB\b/ })`
+ * then matched three elements. The afterEach below is the seam — the rows
+ * are removed through the same API the star writes to, whatever the test did.
+ */
+function favoriteRow(page: Page, key: string) {
+  return page.getByTestId(`favorite-issue-${key}`)
+}
+
+/** Favorite keys in sidebar DOM order. */
+async function favoriteOrder(page: Page): Promise<string[]> {
+  return page
+    .locator('aside [data-favorite-key]')
+    .evaluateAll((els) => els.map((el) => el.getAttribute('data-favorite-key') ?? ''))
+}
+
+/** The favorite key owning the focused element, or '' when focus is elsewhere. */
+async function focusedFavorite(page: Page): Promise<string> {
+  return page.evaluate(
+    () =>
+      (document.activeElement?.closest('[data-favorite-key]') as HTMLElement | null)?.dataset
+        .favoriteKey ?? '',
+  )
+}
+
+async function starRecent(page: Page, key: string): Promise<void> {
+  const row = page.getByTestId(`recent-issue-${key}`)
+  await expect(row).toBeVisible()
+  await row.hover()
+  await row.getByRole('button', { name: new RegExp(`Favorite ${key}`, 'i') }).click()
+  await expect(favoriteRow(page, key)).toBeVisible()
+}
+
+test.describe('GDK-733 favorites reorder with the sections\' own keys', () => {
+  test.afterEach(async ({ request }) => {
+    for (const key of [RECENT_SEED_KEYS[0], RECENT_SEED_KEYS[1]]) {
+      await request.delete(`api/v1/issues/favorites/${key}/`).catch(() => undefined)
+    }
+  })
+
+  test('Alt+Arrow moves a favorite, keeps focus on it, and survives reload', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    seedRecents(page)
+    await forceLocale(page, 'en')
+    await gotoApp(page)
+    await waitRecentsMounted(page, 12)
+
+    await starRecent(page, RECENT_SEED_KEYS[0])
+    await starRecent(page, RECENT_SEED_KEYS[1])
+
+    const before = await favoriteOrder(page)
+    expect(before, 'two starred issues must both be favorite rows').toEqual([
+      RECENT_SEED_KEYS[0],
+      RECENT_SEED_KEYS[1],
+    ])
+
+    const first = favoriteRow(page, RECENT_SEED_KEYS[0]).getByRole('button').first()
+    await expect(first).toHaveAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown')
+    await first.focus()
+    await first.press('Alt+ArrowDown')
+
+    await expect
+      .poll(() => favoriteOrder(page), { message: 'Alt+ArrowDown must move the row down' })
+      .toEqual([RECENT_SEED_KEYS[1], RECENT_SEED_KEYS[0]])
+    expect(
+      await focusedFavorite(page),
+      'focus must follow the row that moved, not the position it left',
+    ).toBe(RECENT_SEED_KEYS[0])
+
+    // No wrap at the bottom edge — the sections behave the same way.
+    await first.press('Alt+ArrowDown')
+    expect(await favoriteOrder(page)).toEqual([RECENT_SEED_KEYS[1], RECENT_SEED_KEYS[0]])
+
+    await reloadSidebar(page)
+    await expect
+      .poll(() => favoriteOrder(page), { message: 'the keyboard order must persist' })
+      .toEqual([RECENT_SEED_KEYS[1], RECENT_SEED_KEYS[0]])
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

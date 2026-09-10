@@ -1,7 +1,7 @@
 <script lang="ts">
   /* Favorites and recent issues shown separately. Favorite rows are drag-reorder targets. */
   import { t, relativeSeenLabel, relativeTime } from '../../lib/i18n'
-  import { onMount } from 'svelte'
+  import { onMount, tick } from 'svelte'
   import type { IssueLite, PageLite } from '../../lib/types'
   import { absTime } from '../../lib/format'
   import { subscribeWallClock } from '../../lib/clock.svelte'
@@ -10,6 +10,7 @@
   import { selection } from '../../stores/selection.svelte'
   import { me, type RecentVisit } from '../../stores/me.svelte'
   import { favorites } from '../../stores/favorites.svelte'
+  import { altReorderDelta } from '../../lib/reorder'
   import Icon from '../ui/Icon.svelte'
 
   interface FavoriteItem {
@@ -93,6 +94,30 @@
 
   function selectPage(key: string): void {
     pages.select(key)
+  }
+
+  /**
+   * GDK-733: the keyboard half of the drag reorder, the same gesture the
+   * sidebar sections answer (altReorderDelta).
+   *
+   * Focus has to be put back by hand. The each block is keyed by issue_key,
+   * so Svelte moves the existing row node rather than rewriting the rows —
+   * but moving a subtree that holds the focused element blurs it, and
+   * the next Alt+Arrow would then go to the document instead of the row the
+   * user is still steering. SidebarSection needs none of this: its header
+   * node keeps its place in the sidebar and only the section bodies below it
+   * are reordered. Measured, not assumed: the e2e assertion for this read
+   * back an empty focus owner before the restore was added.
+   */
+  function onFavoriteKeydown(event: KeyboardEvent, key: string): void {
+    const delta = altReorderDelta(event)
+    if (delta === null) return
+    event.preventDefault()
+    const button = event.currentTarget as HTMLElement
+    favorites.move(key, delta)
+    // The button is the very node Svelte relocates, so refocusing it needs no
+    // lookup — GDK-645 forbids a component querying the document for its tree.
+    void tick().then(() => button.focus())
   }
 
   function beginFavoriteDrag(event: PointerEvent, key: string): void {
@@ -180,6 +205,8 @@
           type="button"
           class="flex h-full w-full min-w-0 items-center gap-2 text-left"
           onclick={(event) => selectIssue(event, item.issue.issue_key)}
+          onkeydown={(event) => onFavoriteKeydown(event, item.issue.issue_key)}
+          aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
           title={`${item.issue.issue_key} · ${item.issue.summary}${item.visit?.viewed_at ? ` · ${viewedTitle(item.visit.viewed_at)}` : ''}`}
         >
           {@render lead(item.issue.issue_key, true)}

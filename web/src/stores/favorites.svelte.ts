@@ -12,6 +12,7 @@
 
 import { SvelteSet } from 'svelte/reactivity'
 import * as api from '../lib/api'
+import { stepTarget } from '../lib/reorder'
 import { STORAGE_KEYS } from '../lib/storage'
 
 function favoritesKey(): string {
@@ -151,6 +152,17 @@ class FavoritesStore {
     // session-only drag order reshuffles on every refresh (regression).
     saveArray(favoritesOrderKey(), ordered)
     if (this.#local) saveArray(favoritesKey(), ordered)
+  }
+
+  /**
+   * Move one favorite a single step (GDK-733) — the keyboard half of the drag
+   * reorder above, sharing SidebarSection's Alt+Arrow gesture and its
+   * no-wrap edge rule via lib/reorder. Persistence is reorder()'s, unchanged.
+   */
+  move(key: string, delta: -1 | 1): void {
+    const target = stepTarget([...this.keys], key, delta)
+    if (target === null) return
+    this.reorder(key, target)
   }
 }
 

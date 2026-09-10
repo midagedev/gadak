@@ -6,6 +6,7 @@
    */
   import type { Snippet } from 'svelte'
   import { t } from '../../lib/i18n'
+  import { altReorderDelta } from '../../lib/reorder'
   import Icon from '../ui/Icon.svelte'
   import {
     isSectionId,
@@ -47,10 +48,10 @@
   }
 
   function onKeydown(e: KeyboardEvent) {
-    if (!e.altKey) return
-    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+    const delta = altReorderDelta(e)
+    if (delta === null) return
     e.preventDefault()
-    sidebarSections.move(id, e.key === 'ArrowDown' ? 1 : -1, visibleIds)
+    sidebarSections.move(id, delta, visibleIds)
   }
 
   function onDragStart(e: DragEvent) {

@@ -10,6 +10,7 @@
  * unscoped key while later saves used the site-partitioned one.
  */
 
+import { stepTarget } from '../lib/reorder'
 import { STORAGE_KEYS } from '../lib/storage'
 
 /** Default top-to-bottom order of SidebarNav-owned sections. */
@@ -134,11 +135,9 @@ class SidebarSectionsStore {
   /** Move one step among currently visible sections (hidden ones stay put). */
   move(id: SectionId, delta: -1 | 1, visible: readonly SectionId[]): void {
     this.hydrate()
-    const from = visible.indexOf(id)
-    if (from < 0) return
-    const to = from + delta
-    if (to < 0 || to >= visible.length) return
-    this.reorder(id, visible[to])
+    const target = stepTarget(visible, id, delta)
+    if (target === null) return
+    this.reorder(id, target)
   }
 }
 
