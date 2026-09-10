@@ -24,6 +24,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/originbind"
+	"github.com/midagedev/gadak/internal/retro"
 	"github.com/midagedev/gadak/internal/skillinstall"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
@@ -52,6 +53,11 @@ type doctorReport struct {
 	WorkspaceKind   string `json:"workspace_kind"`
 	Origin          string `json:"origin"`
 	OriginOwner     string `json:"origin_owner,omitempty"`
+	// PairingSkew is the paired-workspace version line (GDK-1273): the home
+	// serve's recorded gadak version against this client's. Versions only —
+	// the endpoint stays out of this paste-safe document (the rule the
+	// banner states). Empty on non-paired workspaces and same-version pairs.
+	PairingSkew string `json:"pairing_skew,omitempty"`
 	// Home is the directory the default profile lives in, and HomeReason says
 	// why it is that one when it is not ~/.gadak: "dev build" (GDK-1697) or
 	// "GADAK_HOME".
@@ -119,6 +125,47 @@ type doctorReport struct {
 	// zero rows there means "not synced", not "no pull requests" — and
 	// SQL alone cannot tell those apart.
 	DevLinks *doctorDevLinks `json:"dev_links,omitempty"`
+	// PriorityEntropy states the GDK-1413 census fact: one priority value
+	// holding store.DominantSharePct or more of the open issues ("80% of
+	// 10 open issues are priority rank 2"). Nil when the values are spread
+	// out or nothing is open — the healthy shapes; the line is a census
+	// sentence, not a verdict, and carries no keys.
+	PriorityEntropy *doctorPriorityEntropy `json:"priority_entropy,omitempty"`
+	// SessionBoundary is where the previous session ended — the same value
+	// the bootstrap probe header X-Gadak-Session-Boundary serves (read.go):
+	// the newest person read before a retro.SessionGap break, ISOMilli UTC.
+	// In doctor so "when did my last session end?" is answerable with the
+	// serve down (GDK-1549). Empty when there is no previous session.
+	SessionBoundary string `json:"session_boundary,omitempty"`
+	// LocalSchemaSkew is the standing detail behind the short local.db
+	// notice (GDK-596): a newer gadak migrated personal history further
+	// than this build reads, so every command logs one pointer line and
+	// this is where the pointer lands — versions, the file, and the
+	// remediation the notice dropped. Nil in the healthy shapes (current
+	// or older local.db, or none yet): no skew, nothing to say.
+	LocalSchemaSkew *doctorLocalSchema `json:"local_schema_skew,omitempty"`
+}
+
+// doctorPriorityEntropy is the one-fact view of the open-issue priority
+// census (GDK-1413): counts and a share, no judgment. Rank 0 is "unset" and
+// is a row of the census like any other — "72% unset" and "72% rank 1" are
+// the same fact about an axis carrying no information. The threshold's
+// attribution lives with the store's census (diagnostics.go).
+type doctorPriorityEntropy struct {
+	Rank  int `json:"rank"`
+	Count int `json:"count"`
+	Pct   int `json:"pct"`
+	Open  int `json:"open"`
+}
+
+// doctorLocalSchema carries the local.db half of the schema story doctor
+// already tells for the mirror (schema_version/schema_audit). Version is
+// PRAGMA user_version on local.db; Supported is this build's
+// store.LocalSchemaSkew want. Path is tilde-abbreviated, the banner's rule.
+type doctorLocalSchema struct {
+	Version   int    `json:"version"`
+	Supported int    `json:"supported"`
+	Path      string `json:"path"`
 }
 
 // doctorDevLinks is counts plus the one flag that explains them. No URLs,
@@ -284,6 +331,16 @@ type doctorMirror struct {
 	// timestamp: nothing here names a file, a person, or a key.
 	Version   string `json:"version,omitempty"`
 	ChangedAt string `json:"changed_at,omitempty"`
+	// WalBytes/ShmBytes are the -wal/-shm sidecar sizes beside the mirror
+	// (GDK-307): store.Open mints both and nothing caps the -wal, so a serve
+	// that never closes can starve checkpointing — the only visible symptom
+	// is a sidecar growing beside a mirror whose bytes barely moved. 0 means
+	// no sidecar right now, which is itself the answer ("checkpointed").
+	// Observed before anything in collectDoctor can open the mirror (see
+	// the stat site there): an open+close checkpoints and can remove the
+	// very -wal this reports, so the first opener owns the moment.
+	WalBytes *int64 `json:"wal_bytes,omitempty"`
+	ShmBytes *int64 `json:"shm_bytes,omitempty"`
 }
 
 // doctorMirrorHolders is the best-effort list of other processes that have
@@ -401,8 +458,19 @@ func collectDoctor() doctorReport {
 	} else {
 		rep.Home = "unknown"
 	}
+	// The sidecar sizes are observed here, before anything below can open
+	// the mirror (GDK-307): originbind.LocalData counts mirror tables
+	// through store.Open, and an open+close of a WAL database checkpoints —
+	// and on a clean close removes — the very -wal this line reports. The
+	// version/changed-at pair below reads file bytes only, so it keeps its
+	// later place; these are sizes, and the first opener owns the moment.
+	var mirrorWal, mirrorShm *int64
 	if path, err := config.DBPath(); err == nil {
 		rep.MirrorPath = tildeHome(path)
+		if _, serr := os.Stat(path); serr == nil {
+			wal, shm := store.MirrorSidecarBytes(path)
+			mirrorWal, mirrorShm = &wal, &shm
+		}
 	} else {
 		rep.MirrorPath = "unknown"
 	}
@@ -452,6 +520,9 @@ func collectDoctor() doctorReport {
 			} else {
 				rep.Origin = "paired gadak serve"
 			}
+			// The skew line (GDK-1273): versions only, so the paste-safe
+			// rule above holds for it too.
+			rep.PairingSkew = pairingSkewSentence(rem.ServerVersion, version)
 			hasTok = true
 			if cfg.Token == "" {
 				rep.Credential = "present"
@@ -506,7 +577,7 @@ func collectDoctor() doctorReport {
 		return rep
 	}
 	size := info.Size()
-	rep.Mirror = doctorMirror{Status: "present", Bytes: &size}
+	rep.Mirror = doctorMirror{Status: "present", Bytes: &size, WalBytes: mirrorWal, ShmBytes: mirrorShm}
 	// Read before store.Open below: opening mints -wal/-shm when they are
 	// absent, which is itself a move. This has to report what an open board's
 	// poll would have seen a moment ago, not what doctor just caused.
@@ -554,6 +625,18 @@ func collectDoctor() doctorReport {
 	}
 	rep.SchemaSinceSync = doctorSchemaSinceSync(db, sv)
 	rep.SchemaAudit = collectSchemaAudit(db)
+
+	// GDK-596: the detail the short local.db notice points at. The store
+	// owns the comparison (LocalSchemaSkew reads user_version read-only);
+	// doctor is the one surface that carries the remediation, so stderr
+	// keeps a pointer instead of the full sentence on every command.
+	if have, want, skewed := store.LocalSchemaSkew(path); skewed {
+		rep.LocalSchemaSkew = &doctorLocalSchema{
+			Version:   have,
+			Supported: want,
+			Path:      tildeHome(store.LocalPath(path)),
+		}
+	}
 
 	counts := &doctorCounts{}
 	if n, err := db.TableCount(context.Background(), "items"); err == nil {
@@ -633,6 +716,22 @@ func collectDoctor() doctorReport {
 
 	rep.Attachments = collectAttachments(db)
 	rep.DevLinks = collectDevLinks(db)
+
+	// GDK-1413: state the census fact when one priority value carries the
+	// axis. The store owns the query and the threshold; doctor only prints
+	// what Concentrated returns, so the two surfaces cannot disagree about
+	// what "concentrated" means.
+	if d, err := db.OpenPriorityDistribution(ctx); err == nil {
+		if row, pct, ok := d.Concentrated(); ok {
+			rep.PriorityEntropy = &doctorPriorityEntropy{Rank: row.Rank, Count: row.Count, Pct: pct, Open: d.Open}
+		}
+	}
+
+	// GDK-1549: the same boundary the bootstrap probe header serves, from
+	// the same reader with the same gap — answerable with the serve down.
+	if end, err := db.LastSessionEnd(ctx, time.Now(), retro.SessionGap); err == nil && end != nil {
+		rep.SessionBoundary = end.UTC().Format(config.ISOMilli)
+	}
 
 	// Only a built-in origin ever had the 8 MiB upload cap. The gate is the
 	// origin type the attachment proxy itself keys on (config.OriginGadak),
@@ -1059,6 +1158,9 @@ func formatDoctorText(r doctorReport) string {
 	if r.OriginOwner != "" {
 		line("origin owner", r.OriginOwner)
 	}
+	if r.PairingSkew != "" {
+		line("pairing skew", r.PairingSkew)
+	}
 	line("workspace", formatDoctorWorkspace(r.Workspace))
 	if r.HomeReason != "" {
 		line("home", r.Home+" ("+r.HomeReason+")")
@@ -1092,6 +1194,10 @@ func formatDoctorText(r doctorReport) string {
 	if r.Mirror.Version != "" {
 		line("mirror_version", formatDoctorMirrorVersion(r.Mirror))
 	}
+	if r.Mirror.WalBytes != nil && r.Mirror.ShmBytes != nil {
+		line("mirror_wal", fmt.Sprintf("%s wal + %s shm beside the mirror — a growing wal with a still mirror is a serve starving checkpointing (GDK-307)",
+			store.HumanBytes(*r.Mirror.WalBytes), store.HumanBytes(*r.Mirror.ShmBytes)))
+	}
 
 	if r.SchemaVersion != nil {
 		line("schema_version", strconv.Itoa(*r.SchemaVersion))
@@ -1100,6 +1206,10 @@ func formatDoctorText(r doctorReport) string {
 	}
 	if r.SchemaSinceSync != "" {
 		line("schema_since_sync", r.SchemaSinceSync)
+	}
+	if r.LocalSchemaSkew != nil {
+		line("local_schema_skew", fmt.Sprintf("local.db schema %d, this build supports %d (%s) — a newer gadak migrated personal history; left as-is; upgrade gadak, or use a different --workspace / GADAK_HOME (GDK-596)",
+			r.LocalSchemaSkew.Version, r.LocalSchemaSkew.Supported, r.LocalSchemaSkew.Path))
 	}
 	if r.SchemaAudit != nil {
 		line("schema_audit", formatDoctorSchemaAudit(*r.SchemaAudit))
@@ -1124,6 +1234,17 @@ func formatDoctorText(r doctorReport) string {
 		line("projects", "n/a")
 		line("status_categories", "n/a")
 		line("spaces", "n/a")
+	}
+	if r.PriorityEntropy != nil {
+		rank := strconv.Itoa(r.PriorityEntropy.Rank)
+		if r.PriorityEntropy.Rank == 0 {
+			rank = "0 (unset)"
+		}
+		line("priority", fmt.Sprintf("%d%% of %d open issues are priority rank %s (%d issues) — one value is carrying the axis (GDK-1413)",
+			r.PriorityEntropy.Pct, r.PriorityEntropy.Open, rank, r.PriorityEntropy.Count))
+	}
+	if r.SessionBoundary != "" {
+		line("session_boundary", r.SessionBoundary)
 	}
 
 	if r.ProjectsMismatch != nil {

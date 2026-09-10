@@ -140,6 +140,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// into constructors. Set before the guard so every response carries them.
 	w.Header().Set("X-Gadak", "1")
 	w.Header().Set("X-Gadak-Profile", h.s.profile)
+	// The serve's gadak version (GDK-1273): a paired client reads it off
+	// any round trip — the pair-time verify records it, and a 501 from a
+	// route this serve predates names it. Same spot as the markers above
+	// so gate rejections carry it too.
+	w.Header().Set("X-Gadak-Version", Version)
 	h.guarded.ServeHTTP(w, r)
 }
 
@@ -335,6 +340,10 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	// Origin passthrough: CLI writes on a built-in workspace go through
 	// the live serve's issuetap so persist has one owner (GDK-333).
 	mux.Handle(origin.RESTPrefix+"/", http.HandlerFunc(s.handleOriginREST))
+	// Seed-YAML export of the built-in origin (GDK-768): the REST twin of
+	// `gadak workspace export`. Literal beats `{key}/{action}/`, the same
+	// rule history/visited/ and views/absorb/ follow two lines up.
+	mux.HandleFunc("GET "+apiBase+"origin/export/{$}", s.handleOriginExport)
 	// The terminal (GDK-862): PTY sessions and their WebSocket. Outside
 	// apiBase/authBase/dashBase on purpose — see termBase in terminal.go.
 	s.registerTerminal(mux)

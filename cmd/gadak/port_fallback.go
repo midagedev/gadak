@@ -44,7 +44,8 @@ type listenFunc func(network, address string) (net.Listener, error)
 
 const (
 	portFallbackMax = 20
-	probeTimeout    = 700 * time.Millisecond
+	// No probeTimeout here: the probe budget's single owner is
+	// origin.ProbeTimeout (GDK-1004); this tree reads it at the call site.
 )
 
 // decidePortBusy classifies a busy preferred address without touching sockets.
@@ -128,7 +129,7 @@ func bindListenDetail(addr string, addrPinned bool, currentProfile string, probe
 		listen = net.Listen
 	}
 	if probe == nil {
-		probe = func(port string) gadakProbe { return probeGadakOnPort(port, probeTimeout) }
+		probe = func(port string) gadakProbe { return probeGadakOnPort(port, origin.ProbeTimeout) }
 	}
 
 	ln, err := listen("tcp", addr)

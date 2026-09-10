@@ -623,6 +623,21 @@ Replace は二度尋ね — 二度目のタップで武装したボタン — ar
 同時に共有できません — 今日の実測は 49/43/81 段落で、ダッシュの密度はいま立っている
 フロンティアに上限を置きました ([GDK-1604])。
 
+`doctor` はストアがすでに知っていたことを言い、ペアリングされた serve は自分のバージョンを
+言います。wal サイドカーの大きさ、優先度の集中、最後のセッション境界が `doctor` に届きます
+— サイドカーはミラーを開く前に測ります。開いた瞬間にチェックポイントがそのファイルを消す
+からです ([GDK-307], [GDK-1413], [GDK-1549])。ローカルスキーマのずれはストアに持ち主が
+ひとつで、`doctor` が対処を語り、stderr の行はパスごとに一度です ([GDK-596])。ペアリング
+されたワークスペースはペアリング時に serve のバージョンを記録し、serve のすべての応答に
+`X-Gadak-Version` が載り、`status` と `doctor` がずれを名指しし、古いホームからの 501 は
+ペアリングされた往復がすべて通る一点でアップグレードの案内に折り込まれます ([GDK-1273])。
+組み込みワークスペースは自分の種を書き出せます。`gadak workspaces export` と
+`GET /api/v1/origin/export` は、接続型・リモートの origin を名指しで拒むひとつのゲートを
+共有します ([GDK-768])。振り返りのテストは壁時計を読むのをやめました — 週の半ばに固定され、
+`TZ=Asia/Tokyo` でも `TZ=UTC` でも同じく緑です ([GDK-1760])。プローブ予算の二つ目の
+リテラルは消え ([GDK-1004])、`IssueLite` のフィールド名はリフレクションで照合され
+([GDK-722])、統合のプローブは runner の継ぎ目を通して exit 0 を読みます ([GDK-723])。
+
 ## v0.21.0 — 2026-09-08
 
 **離れていた間に何が起きたのかに、キャッシュから答えます。** ステータスの変更も
@@ -1869,6 +1884,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-592]: https://gadak.dev/backlog/#/?ks=GDK-592
 [GDK-593]: https://gadak.dev/backlog/#/?ks=GDK-593
 [GDK-594]: https://gadak.dev/backlog/#/?ks=GDK-594
+[GDK-596]: https://gadak.dev/backlog/#/?ks=GDK-596
 [GDK-597]: https://gadak.dev/backlog/#/?ks=GDK-597
 [GDK-598]: https://gadak.dev/backlog/#/?ks=GDK-598
 [GDK-599]: https://gadak.dev/backlog/#/?ks=GDK-599
@@ -1895,6 +1911,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-711]: https://gadak.dev/backlog/#/?ks=GDK-711
 [GDK-718]: https://gadak.dev/backlog/#/?ks=GDK-718
 [GDK-720]: https://gadak.dev/backlog/#/?ks=GDK-720
+[GDK-722]: https://gadak.dev/backlog/#/?ks=GDK-722
 [GDK-723]: https://gadak.dev/backlog/#/?ks=GDK-723
 [GDK-724]: https://gadak.dev/backlog/#/?ks=GDK-724
 [GDK-725]: https://gadak.dev/backlog/#/?ks=GDK-725
@@ -1918,6 +1935,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-757]: https://gadak.dev/backlog/#/?ks=GDK-757
 [GDK-758]: https://gadak.dev/backlog/#/?ks=GDK-758
 [GDK-766]: https://gadak.dev/backlog/#/?ks=GDK-766
+[GDK-768]: https://gadak.dev/backlog/#/?ks=GDK-768
 [GDK-770]: https://gadak.dev/backlog/#/?ks=GDK-770
 [GDK-771]: https://gadak.dev/backlog/#/?ks=GDK-771
 [GDK-781]: https://gadak.dev/backlog/#/?ks=GDK-781
@@ -2098,6 +2116,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1267]: https://gadak.dev/backlog/#/?ks=GDK-1267
 [GDK-1269]: https://gadak.dev/backlog/#/?ks=GDK-1269
 [GDK-1270]: https://gadak.dev/backlog/#/?ks=GDK-1270
+[GDK-1273]: https://gadak.dev/backlog/#/?ks=GDK-1273
 [GDK-1275]: https://gadak.dev/backlog/#/?ks=GDK-1275
 [GDK-1276]: https://gadak.dev/backlog/#/?ks=GDK-1276
 [GDK-1277]: https://gadak.dev/backlog/#/?ks=GDK-1277
@@ -2232,6 +2251,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1546]: https://gadak.dev/backlog/#/?ks=GDK-1546
 [GDK-1547]: https://gadak.dev/backlog/#/?ks=GDK-1547
 [GDK-1548]: https://gadak.dev/backlog/#/?ks=GDK-1548
+[GDK-1549]: https://gadak.dev/backlog/#/?ks=GDK-1549
 [GDK-1554]: https://gadak.dev/backlog/#/?ks=GDK-1554
 [GDK-1560]: https://gadak.dev/backlog/#/?ks=GDK-1560
 [GDK-1561]: https://gadak.dev/backlog/#/?ks=GDK-1561
@@ -2327,3 +2347,4 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1757]: https://gadak.dev/backlog/#/?ks=GDK-1757
 [GDK-1758]: https://gadak.dev/backlog/#/?ks=GDK-1758
 [GDK-1759]: https://gadak.dev/backlog/#/?ks=GDK-1759
+[GDK-1760]: https://gadak.dev/backlog/#/?ks=GDK-1760

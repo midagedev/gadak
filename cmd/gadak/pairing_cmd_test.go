@@ -1577,3 +1577,42 @@ func TestInitPairingCodeV2TerminalOnlyRefused(t *testing.T) {
 		t.Fatalf("terminal token must never be stored: %+v (%v)", rem, err)
 	}
 }
+
+// TestInitPairingCodeRecordsServeVersion is FAIL-first for GDK-1273's
+// pair-time record: the verify round trip every pairing already makes sees
+// the home serve's X-Gadak-Version and stores it in the pairing credential —
+// the fact `gadak status`/`doctor` read for the skew line. Read as a raw map
+// on purpose: the assertion is about what lands on disk, not the struct.
+func TestInitPairingCodeRecordsServeVersion(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Gadak-Version", "0.19.1")
+		if r.URL.Path != origin.RESTPrefix+"/rest/api/3/myself" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"displayName":"Home User","accountId":"acc-pair"}`))
+	}))
+	t.Cleanup(srv.Close)
+	offer := mustOffer(t, pairing.Offer{
+		V: pairing.OfferV1, Endpoint: srv.URL, Token: "pair-token-1", Label: "laptop",
+	})
+	dir := emptyHome(t)
+
+	if _, _, err := captureErr(t, func() error {
+		return cmdInit([]string{"--pairing-code", offer})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "remote-origin.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("decode %s: %v", raw, err)
+	}
+	if doc["serverVersion"] != "0.19.1" {
+		t.Fatalf("pairing credential serverVersion = %v, want 0.19.1 (raw %s)", doc["serverVersion"], raw)
+	}
+}

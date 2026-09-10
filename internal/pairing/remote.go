@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,6 +31,68 @@ type Remote struct {
 	Token    string `json:"token"`
 	Label    string `json:"label,omitempty"`
 	PairedAt string `json:"pairedAt,omitempty"`
+	// ServerVersion is the home serve's gadak version as its own response
+	// header stated it during the verify round trip (GDK-1273) — the
+	// pair-time record `gadak status` and `doctor` read for the skew line.
+	// Empty on credentials written before the header existed or served by
+	// a gadak that predates it.
+	ServerVersion string `json:"serverVersion,omitempty"`
+}
+
+// VersionSkew classifies the home serve's recorded version against this
+// client's (GDK-1273): "same", "home-older", "home-newer", or "unknown".
+// Comparison is component-wise over the leading dotted numbers, with a
+// `-suffix` ignored (a dev build rides its release line); a version with no
+// parseable number prefix can only be compared for equality, and either
+// side empty is "unknown" — an absent record must not read as "same".
+func VersionSkew(home, client string) string {
+	if home == "" || client == "" {
+		return "unknown"
+	}
+	if home == client {
+		return "same"
+	}
+	h, ok1 := parseVersionNumbers(home)
+	c, ok2 := parseVersionNumbers(client)
+	if !ok1 || !ok2 {
+		return "unknown"
+	}
+	n := len(h)
+	if len(c) > n {
+		n = len(c)
+	}
+	for i := 0; i < n; i++ {
+		var hv, cv int
+		if i < len(h) {
+			hv = h[i]
+		}
+		if i < len(c) {
+			cv = c[i]
+		}
+		if hv != cv {
+			if hv < cv {
+				return "home-older"
+			}
+			return "home-newer"
+		}
+	}
+	return "same"
+}
+
+// parseVersionNumbers reads the leading dot-separated numeric components,
+// stopping at the first non-numeric one ("0.22.0-dev" → [0 22 0]). ok is
+// false when not even one number is there.
+func parseVersionNumbers(v string) ([]int, bool) {
+	var nums []int
+	for _, part := range strings.Split(v, ".") {
+		n, err := strconv.Atoi(part)
+		if err != nil {
+			// A non-numeric component ends the numeric prefix.
+			break
+		}
+		nums = append(nums, n)
+	}
+	return nums, len(nums) > 0
 }
 
 // RemotePath is the absolute credential path inside a profile directory.

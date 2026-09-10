@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -832,29 +833,81 @@ func TestWebConfigHidesCredential(t *testing.T) {
 	}
 }
 
+// TestIssueLiteFieldNames is a reflect contract, not a runtime string list
+// (GDK-722; the sibling of teamconfig's TestExportWhitelistCoversAllConfigFields).
+// The client stores bootstrap rows verbatim in IndexedDB (contracts/api.md,
+// "IssueLite"), so the wire names are a contract a type can enforce:
+//
+//	A1 every exported field of the row type carries a json tag — a field
+//	   added without one never reaches the client and reads as undefined
+//	A2 every non-omitempty tag is present on every row — pointers/slices
+//	   marshal null but stay keys
+//	A3 every row key is owned: an issueLite json tag, the derived `key`
+//	   alias (marshal-time, IssueLite.MarshalJSON), or one of the custom
+//	   aliases this fixture spreads (severity, solution)
+//
+// Enrichment keys are policed by TestEnrichmentsMerge on its own fixture;
+// this one has no plugin rows. FAIL-first 2026-09-11: with
+// CarryoverCount's tag deleted from store.IssueLite, A1 fails ("no json
+// tag") and A3 fails (the field marshals under its Go name, unowned).
 func TestIssueLiteFieldNames(t *testing.T) {
 	db, cfg := fixture(t)
 	body := decode[struct {
 		Issues []map[string]json.RawMessage `json:"issues"`
 	}](t, get(t, New(db, cfg), apiBase+"bootstrap/", nil))
+
+	rowType := reflect.TypeOf(issueLite{})
+	owned := map[string]bool{}
+	optional := map[string]bool{}
+	for _, f := range reflect.VisibleFields(rowType) {
+		if !f.IsExported() || f.Anonymous {
+			continue
+		}
+		tag := f.Tag.Get("json")
+		name, opts, _ := strings.Cut(tag, ",")
+		if name == "-" {
+			continue
+		}
+		if name == "" {
+			t.Errorf("%s.%s carries no json tag name — the field never reaches the client (GDK-722 A1)", rowType, f.Name)
+			name = f.Name
+		}
+		owned[name] = true
+		if strings.Contains(opts, "omitempty") {
+			optional[name] = true
+		}
+	}
+	if len(owned) < 20 {
+		t.Fatalf("reflect sweep found only %d tagged fields on %s — the gate lost sight of the struct", len(owned), rowType)
+	}
+	// Derived at marshal time and the custom aliases this fixture spreads;
+	// aliases are per-row (only issues whose Custom carries them).
+	owned["key"] = true
+	// The people axis derivedView spreads per row (GDK-590, read.go
+	// actorsByIssue) — a wire key no struct field owns, registered here so
+	// adding another such key is a deliberate act. Present only on rows an
+	// actor actually touched, so optional.
+	owned["actor_ids"] = true
+	optional["actor_ids"] = true
+	for _, a := range []string{"severity", "solution"} {
+		owned[a] = true
+		optional[a] = true
+	}
+
 	rows := map[string]map[string]json.RawMessage{}
 	for _, row := range body.Issues {
 		var key string
 		_ = json.Unmarshal(row["issue_key"], &key)
 		rows[key] = row
-	}
-	// The client stores these rows verbatim in IndexedDB, so the names are a
-	// contract (contracts/api.md, "IssueLite").
-	for _, field := range []string{
-		"issue_key", "key", "summary", "project_key", "issue_type", "status", "status_id",
-		"status_category", "priority", "priority_rank", "assignee", "assignee_id", "assignee_email",
-		"reporter", "reporter_id", "reporter_email", "labels", "components", "fix_versions", "epic_key",
-		"parent_key", "hierarchy_level",
-		"created_at", "updated_at", "status_changed_at", "resolved_at", "reopen_count",
-		"comment_count", "team_group",
-	} {
-		if _, ok := rows["NMB-1"][field]; !ok {
-			t.Errorf("issue row is missing %q", field)
+		for name := range owned {
+			if _, ok := row[name]; !ok && !optional[name] {
+				t.Errorf("%s: row is missing %q", key, name)
+			}
+		}
+		for k := range row {
+			if !owned[k] {
+				t.Errorf("%s: row carries %q — no issueLite field or configured alias owns it (GDK-722 A3)", key, k)
+			}
 		}
 	}
 	var issueKey, keyAlias string
@@ -1137,5 +1190,24 @@ func TestSnapshotSyncMatchesProgressEndpoint(t *testing.T) {
 	snap := h.snapshotSync()
 	if snap != httpDoc {
 		t.Fatalf("snapshotSync %+v != GET sync/progress/ %+v", snap, httpDoc)
+	}
+}
+
+// TestServeAnnouncesVersionHeader is FAIL-first for GDK-1273's serve half:
+// every response carries the serve's gadak version as X-Gadak-Version, so a
+// paired client can tell which side is older from any round trip — the
+// verify-before-save call records it, a 501 names it. Set beside X-Gadak and
+// X-Gadak-Profile in ServeHTTP, before the guard, so gate rejections carry
+// it too.
+func TestServeAnnouncesVersionHeader(t *testing.T) {
+	prev := Version
+	Version = "9.9.9-skewtest"
+	t.Cleanup(func() { Version = prev })
+
+	db, cfg := fixture(t)
+	t.Cleanup(func() { _ = db.Close() })
+	rec := get(t, New(db, cfg), apiBase+"bootstrap/", nil)
+	if v := rec.Header().Get("X-Gadak-Version"); v != "9.9.9-skewtest" {
+		t.Fatalf("X-Gadak-Version = %q, want the serve's version on every response", v)
 	}
 }

@@ -200,7 +200,7 @@ Commands:
   demo             serve the bundled snapshot, no Jira account needed
   export-static    freeze demo.db into static JSON for hosted demo  <outdir>
   profiles         list workspaces (same as workspaces); rm <name> removes one  [--json]
-  workspace        show the active workspace and what selected it; use NAME stores a default  [--json]
+  workspace        show the active workspace and what selected it; use NAME stores a default; export writes the built-in origin as seed YAML  [--json]
   workspaces       list workspaces; rm <name> removes one  [--json]
   version          print version
 

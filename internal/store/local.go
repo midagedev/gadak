@@ -298,13 +298,43 @@ var localNewerSchemaWarnsSuppressed atomic.Uint64
 // warnLocalNewerSchema logs the downgrade notice once per local.db path.
 // The file is left as-is (reads of tables this build knows still work);
 // returning nil from migrateLocal is what keeps callers from re-logging.
+//
+// GDK-596: the notice is deliberately short — the versions and a pointer
+// at `gadak doctor`, whose local_schema_skew line carries the remediation.
+// The full sentence used to live here and repeated on every invocation
+// (each command is a new process, so the once-per-path map never gets to
+// suppress anything for CLI use), polluting every agent tool-result that
+// reads stderr — measured 50+ repeats in one session.
 func warnLocalNewerSchema(path string, have, want int) {
 	key := filepath.Clean(path)
 	if _, dup := localNewerSchemaWarned.LoadOrStore(key, struct{}{}); dup {
 		localNewerSchemaWarnsSuppressed.Add(1)
 		return
 	}
-	log.Printf("store: local.db: %s: schema version %d is newer than this build of gadak supports (%d); leaving personal history as-is; upgrade gadak, or use a different --workspace / GADAK_HOME", path, have, want)
+	log.Printf("store: local.db: %s: schema version %d is newer than this build supports (%d); personal history left as-is — gadak doctor has the detail", path, have, want)
+}
+
+// LocalSchemaSkew reports whether local.db beside the mirror carries a
+// schema newer than this build supports (GDK-596). It is the queryable
+// form of the notice migrateLocal logs: the notice is a short pointer, and
+// `gadak doctor` prints what this returns. Read-only by design — no
+// EnsureLocal, no migration — and a missing or unreadable file reads as
+// "no skew" rather than as a verdict doctor cannot stand behind.
+func LocalSchemaSkew(mirrorPath string) (have, want int, skewed bool) {
+	path := LocalPath(mirrorPath)
+	if _, err := os.Stat(path); err != nil {
+		return 0, 0, false
+	}
+	sqlDB, err := sql.Open("sqlite", "file:"+path+"?mode=ro")
+	if err != nil {
+		return 0, 0, false
+	}
+	defer sqlDB.Close()
+	var v int
+	if err := sqlDB.QueryRowContext(context.Background(), "PRAGMA user_version").Scan(&v); err != nil {
+		return 0, 0, false
+	}
+	return v, len(localMigrations), v > len(localMigrations)
 }
 
 func schemaAttached(conn sqlite.ExecQuerierContext, name string) bool {

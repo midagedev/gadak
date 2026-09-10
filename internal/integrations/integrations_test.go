@@ -2,6 +2,7 @@ package integrations
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -635,22 +636,17 @@ func TestRaycastPrerequisiteListsTriedNPM(t *testing.T) {
 	}
 }
 
-// answerProbeBudget gives the probe far more time than a `#!/bin/sh; exit N`
-// stub can possibly need. Tests that assert *which answer* the CLI gives must
-// not also be asserting that a busy machine can start a process inside 3s:
-// under `go test ./...` parallelism plus outside load, that spawn has exceeded
-// the production budget and turned "the CLI said not-registered" into a
-// timeout, i.e. a red build about the wrong thing (GDK-303). The test that
-// owns the timeout contract sets a short value instead.
-func answerProbeBudget(t *testing.T) {
+// fakeProbeRun installs one canned probeRun result (GDK-723): the answer
+// tests assert classification, not process scheduling, so they swap the
+// exec seam and the timeout contract stays with the one real-exec test.
+func fakeProbeRun(t *testing.T, res probeRunResult) {
 	t.Helper()
-	prev := mcpProbeTimeout
-	mcpProbeTimeout = 30 * time.Second
-	t.Cleanup(func() { mcpProbeTimeout = prev })
+	prev := probeRun
+	probeRun = func(string) probeRunResult { return res }
+	t.Cleanup(func() { probeRun = prev })
 }
 
 func TestMCPProbeUnknownWhenMissingOrFail(t *testing.T) {
-	answerProbeBudget(t)
 	old := lookPath
 	t.Cleanup(func() { lookPath = old })
 
@@ -663,17 +659,15 @@ func TestMCPProbeUnknownWhenMissingOrFail(t *testing.T) {
 		t.Fatalf("missing claude: prerequisite=%+v", item.Prerequisite)
 	}
 
-	dir := t.TempDir()
-	fail := filepath.Join(dir, "claude")
-	if err := os.WriteFile(fail, []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	// The get ran and failed without claude's not-registered wording:
+	// unknown, not a definitive false.
 	lookPath = func(name string) (string, error) {
 		if name == "claude" {
-			return fail, nil
+			return "/nonexistent/claude", nil
 		}
 		return old(name)
 	}
+	fakeProbeRun(t, probeRunResult{err: errors.New("exit status 1")})
 	item = mcpClaudeItem()
 	if item.Installed != nil {
 		t.Fatalf("failed get: installed=%v want null", item.Installed)
@@ -684,24 +678,21 @@ func TestMCPProbeUnknownWhenMissingOrFail(t *testing.T) {
 }
 
 func TestMCPProbeDefinitiveNotRegistered(t *testing.T) {
-	answerProbeBudget(t)
 	// claude's real wording for "not registered" (measured 2026-08-17):
 	// exit 1 + "No MCP server named ...". That is a definitive false, not
 	// an unknown — the UI should offer Install, not shrug.
-	dir := t.TempDir()
-	neg := filepath.Join(dir, "claude")
-	script := "#!/bin/sh\necho 'No MCP server named \"gadak\". Configured servers: x' \nexit 1\n"
-	if err := os.WriteFile(neg, []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
 	old := lookPath
 	lookPath = func(name string) (string, error) {
 		if name == "claude" {
-			return neg, nil
+			return "/nonexistent/claude", nil
 		}
 		return old(name)
 	}
 	t.Cleanup(func() { lookPath = old })
+	fakeProbeRun(t, probeRunResult{
+		out: `No MCP server named "gadak". Configured servers: x`,
+		err: errors.New("exit status 1"),
+	})
 
 	item := mcpClaudeItem()
 	if item.Installed == nil || *item.Installed {
@@ -713,20 +704,15 @@ func TestMCPProbeDefinitiveNotRegistered(t *testing.T) {
 }
 
 func TestMCPProbeTrueOnExitZero(t *testing.T) {
-	answerProbeBudget(t)
-	dir := t.TempDir()
-	okBin := filepath.Join(dir, "claude")
-	if err := os.WriteFile(okBin, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
 	old := lookPath
 	lookPath = func(name string) (string, error) {
 		if name == "claude" {
-			return okBin, nil
+			return "/nonexistent/claude", nil
 		}
 		return old(name)
 	}
 	t.Cleanup(func() { lookPath = old })
+	fakeProbeRun(t, probeRunResult{})
 
 	item := mcpClaudeItem()
 	if item.Installed == nil || !*item.Installed {
@@ -734,6 +720,40 @@ func TestMCPProbeTrueOnExitZero(t *testing.T) {
 	}
 }
 
+// TestMCPProbeAnswersSurviveStarvedBudget — GDK-723's standing contract: the
+// probe's answers are classification, not scheduling. Before the probeRun
+// seam these assertions ran `#!/bin/sh` stubs and needed a 30s budget to
+// stay green under load (GDK-303); FAIL-first on the pre-seam source: a 1ms
+// budget turned "exit 0 → true" into `installed=<nil> want true`
+// (/tmp/gdk723-failfirst.txt). With the fake runner the budget starves to
+// nothing and the answers do not move.
+func TestMCPProbeAnswersSurviveStarvedBudget(t *testing.T) {
+	prev := mcpProbeTimeout
+	mcpProbeTimeout = time.Nanosecond
+	t.Cleanup(func() { mcpProbeTimeout = prev })
+
+	old := lookPath
+	lookPath = func(string) (string, error) { return "/nonexistent/claude", nil }
+	t.Cleanup(func() { lookPath = old })
+
+	fakeProbeRun(t, probeRunResult{})
+	if got := probeClaudeMCP("/nonexistent/claude"); got == nil || !*got {
+		t.Fatalf("starved budget: exit-0 answer = %v, want true — the answer must not depend on the clock", got)
+	}
+	fakeProbeRun(t, probeRunResult{out: `No MCP server named "gadak"`, err: errors.New("exit status 1")})
+	if got := probeClaudeMCP("/nonexistent/claude"); got == nil || *got {
+		t.Fatalf("starved budget: not-registered answer = %v, want false", got)
+	}
+	fakeProbeRun(t, probeRunResult{err: errors.New("exit status 1")})
+	if got := probeClaudeMCP("/nonexistent/claude"); got != nil {
+		t.Fatalf("starved budget: bare failure = %v, want unknown", *got)
+	}
+}
+
+// TestMCPProbeTimeoutIsUnknown is the one test that still execs (GDK-723):
+// the timeout contract — kill, reap, unknown — only means something against
+// a real process. The absent-binary branch rides along because it is the
+// real implementation's other half and costs no spawn.
 func TestMCPProbeTimeoutIsUnknown(t *testing.T) {
 	prev := mcpProbeTimeout
 	mcpProbeTimeout = 50 * time.Millisecond // short value is owned by this test
@@ -753,38 +773,35 @@ func TestMCPProbeTimeoutIsUnknown(t *testing.T) {
 	if got != nil {
 		t.Fatalf("timeout should be unknown, got %v", *got)
 	}
+	if _, outcome := probeClaudeMCPOutcome(filepath.Join(dir, "does-not-exist")); outcome != probeNotStarted {
+		t.Fatalf("absent binary: outcome=%s want not-started", outcome)
+	}
 }
 
 // The two causes of "unknown" must be distinguishable. Without this, a starved
 // machine and a broken CLI produce the same nil, and the answer-asserting tests
-// above fail with a message about the wrong thing (GDK-303).
+// above fail with a message about the wrong thing (GDK-303). All branches run
+// through the fake runner: this test pins the classifier, and the real process
+// behaviour belongs to the one exec test above (GDK-723).
 func TestProbeOutcomeSeparatesTimeoutFromAnswer(t *testing.T) {
-	dir := t.TempDir()
-
-	slow := filepath.Join(dir, "slow")
-	if err := os.WriteFile(slow, []byte("#!/bin/sh\nsleep 10\nexit 0\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	prev := mcpProbeTimeout
-	mcpProbeTimeout = 50 * time.Millisecond
-	got, outcome := probeClaudeMCPOutcome(slow)
-	mcpProbeTimeout = prev
-	if got != nil || outcome != probeTimedOut {
-		t.Fatalf("slow stub: got=%v outcome=%s want nil/timed-out", got, outcome)
+	fakeProbeRun(t, probeRunResult{timedOut: true})
+	if got, outcome := probeClaudeMCPOutcome("claude"); got != nil || outcome != probeTimedOut {
+		t.Fatalf("timed out: got=%v outcome=%s want nil/timed-out", got, outcome)
 	}
 
-	answerProbeBudget(t)
-	okBin := filepath.Join(dir, "ok")
-	if err := os.WriteFile(okBin, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	got, outcome = probeClaudeMCPOutcome(okBin)
-	if got == nil || !*got || outcome != probeAnswered {
-		t.Fatalf("exit-0 stub: got=%v outcome=%s want true/answered", got, outcome)
+	fakeProbeRun(t, probeRunResult{err: errors.New("exit status 1")})
+	if got, outcome := probeClaudeMCPOutcome("claude"); got != nil || outcome != probeAnswered {
+		t.Fatalf("bare failure: got=%v outcome=%s want nil/answered", got, outcome)
 	}
 
-	if _, outcome = probeClaudeMCPOutcome(filepath.Join(dir, "does-not-exist")); outcome != probeNotStarted {
-		t.Fatalf("absent binary: outcome=%s want not-started", outcome)
+	fakeProbeRun(t, probeRunResult{startErr: errors.New("no such file")})
+	if got, outcome := probeClaudeMCPOutcome("claude"); got != nil || outcome != probeNotStarted {
+		t.Fatalf("not started: got=%v outcome=%s want nil/not-started", got, outcome)
+	}
+
+	fakeProbeRun(t, probeRunResult{})
+	if got, outcome := probeClaudeMCPOutcome("claude"); got == nil || !*got || outcome != probeAnswered {
+		t.Fatalf("exit 0: got=%v outcome=%s want true/answered", got, outcome)
 	}
 }
 

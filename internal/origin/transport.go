@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/pairing"
 )
@@ -246,9 +247,13 @@ func (t *serveOriginTransport) RoundTrip(req *http.Request) (*http.Response, err
 }
 
 // PairingError is the remote-device first line for a failed home-serve
-// round trip: cause and next action, no REST method/path.
+// round trip: cause and next action, no REST method/path. err, when set,
+// is the typed client error the folded response would have produced —
+// wrapped, not swallowed, so callers that classify on it (the sync pass's
+// 501 degrades, ref's upgrade hint) keep seeing what they classify on.
 type PairingError struct {
 	msg string
+	err error
 }
 
 func (e *PairingError) Error() string {
@@ -256,6 +261,13 @@ func (e *PairingError) Error() string {
 		return ""
 	}
 	return e.msg
+}
+
+func (e *PairingError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.err
 }
 
 func unreachableError(endpoint string) *PairingError {
@@ -300,6 +312,32 @@ func (t *serveOriginTransport) endpointURL() string {
 	return scheme + "://" + t.host
 }
 
+// pairedVersions remembers the gadak version each remote serve last
+// reported in X-Gadak-Version (GDK-1273). Keyed by endpoint — a process
+// can hold several paired workspaces, and one serve's version must not
+// answer for another's.
+var (
+	pairedVersionsMu sync.Mutex
+	pairedVersions   = map[string]string{}
+)
+
+func rememberPairedVersion(endpoint, version string) {
+	pairedVersionsMu.Lock()
+	pairedVersions[endpoint] = version
+	pairedVersionsMu.Unlock()
+}
+
+// PairedServerVersion is the gadak version the serve at endpoint last
+// reported on a response header, or "" when it never did. The pair-time
+// record reads this right after VerifyPaired — the one round trip every
+// pairing already makes — so the credential stores what the serve itself
+// said, not a guess.
+func PairedServerVersion(endpoint string) string {
+	pairedVersionsMu.Lock()
+	defer pairedVersionsMu.Unlock()
+	return pairedVersions[strings.TrimRight(strings.TrimSpace(endpoint), "/")]
+}
+
 func foldPairedRoundTrip(t *serveOriginTransport, resp *http.Response, err error) (*http.Response, error) {
 	ep := t.endpointURL()
 	if err != nil {
@@ -308,10 +346,79 @@ func foldPairedRoundTrip(t *serveOriginTransport, resp *http.Response, err error
 		}
 		return nil, err
 	}
-	if resp != nil && resp.StatusCode == http.StatusUnauthorized {
+	if resp == nil {
+		return resp, err
+	}
+	// GDK-1273: every paired response can carry the home serve's version;
+	// remember it so the pair-time record and the skew line read what the
+	// serve itself last said.
+	if v := strings.TrimSpace(resp.Header.Get("X-Gadak-Version")); v != "" {
+		rememberPairedVersion(ep, v)
+	}
+	if resp.StatusCode == http.StatusUnauthorized {
 		rememberPairedReject(ep, peekPairingReason(resp))
 	}
+	// GDK-1273's common 501 point, once for every verb: a client newer
+	// than its home serve dies on routes the serve predates with a bare
+	// "does not implement" (measured 2026-09-01 on a paired workspace) —
+	// true, and useless. The sentence names the serve and its version;
+	// the typed client error rides inside so the callers that classify on
+	// a 501 (the sync pass's degrade paths) are untouched. Local routing
+	// (scheme "") keeps the raw response: same machine, same binary.
+	if resp.StatusCode == http.StatusNotImplemented {
+		return nil, unimplementedPairedRoute(ep, resp)
+	}
 	return resp, nil
+}
+
+// unimplementedPairedRoute turns a paired 501 into the sentence that names
+// the fix, wrapping the typed error the response would have produced so
+// errors.As classifiers still find it.
+func unimplementedPairedRoute(endpoint string, resp *http.Response) *PairingError {
+	v := strings.TrimSpace(resp.Header.Get("X-Gadak-Version"))
+	if v == "" {
+		if vv := PairedServerVersion(endpoint); vv != "" {
+			v = vv
+		}
+	}
+	body := peekBody(resp)
+	msg := &PairingError{
+		msg: fmt.Sprintf("pairing: the home serve at %s does not implement this route — it may be older than this client (its gadak does not report a version); upgrade gadak on the home machine", endpoint),
+	}
+	if v != "" {
+		msg.msg = fmt.Sprintf("pairing: the home serve at %s (gadak %s) does not implement this route — it may be older than this client; upgrade gadak on the home machine", endpoint, v)
+	}
+	// The wiki and Jira clients each parse their own typed error out of a
+	// response; the transport cannot return one, so it synthesizes the
+	// right shape by the path the request carried.
+	path := ""
+	if resp.Request != nil && resp.Request.URL != nil {
+		path = resp.Request.URL.Path
+	}
+	var doc struct {
+		ErrorMessages []string `json:"errorMessages"`
+	}
+	_ = json.Unmarshal(body, &doc)
+	if strings.Contains(path, "/wiki/") {
+		msg.err = &confluence.APIError{Status: http.StatusNotImplemented, Body: strings.Join(doc.ErrorMessages, "; ")}
+		if msg.err.(*confluence.APIError).Body == "" {
+			msg.err.(*confluence.APIError).Body = string(body)
+		}
+		return msg
+	}
+	msg.err = &jira.APIError{Status: http.StatusNotImplemented, Messages: doc.ErrorMessages, Body: string(body)}
+	return msg
+}
+
+// peekBody drains and closes a response body the caller is replacing,
+// bounded, and hands the bytes back for one last look.
+func peekBody(resp *http.Response) []byte {
+	if resp.Body == nil {
+		return nil
+	}
+	data, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	_ = resp.Body.Close()
+	return data
 }
 
 func peekPairingReason(resp *http.Response) string {

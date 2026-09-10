@@ -742,6 +742,24 @@ serve ([GDK-1625]), and the three README editions may not share both a
 paragraph count and a heading sequence — measured 49/43/81 paragraphs today,
 with the em-dash density capped at the frontier it sits on ([GDK-1604]).
 
+`doctor` says what the store already knew, and a paired serve says which
+version it is. The wal-sidecar size, the priority concentration and the last
+session boundary reach `doctor` — the sidecar is measured before the mirror
+is opened, since opening it checkpoints the file away ([GDK-307], [GDK-1413],
+[GDK-1549]); the local schema skew has one owner in the store, `doctor`
+carries the remediation, and the stderr line fires once per path
+([GDK-596]). A paired workspace records the serve's version at pairing
+time, every serve response carries `X-Gadak-Version`, `status` and `doctor`
+name the skew, and a 501 from an older home is folded into an upgrade hint
+at the one choke point every paired round trip passes ([GDK-1273]). A
+built-in workspace can export its seed: `gadak workspaces export` and
+`GET /api/v1/origin/export` share one gate that refuses a connected or
+remote origin by name ([GDK-768]). The retro test stopped reading the wall
+clock — anchored mid-week, it is green under `TZ=Asia/Tokyo` and `TZ=UTC`
+alike ([GDK-1760]); the probe budget's second literal is gone ([GDK-1004]);
+`IssueLite`'s field names are checked by reflection ([GDK-722]); and the
+integrations probe reads exit 0 through a runner seam ([GDK-723]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -1976,6 +1994,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-592]: https://gadak.dev/backlog/#/?ks=GDK-592
 [GDK-593]: https://gadak.dev/backlog/#/?ks=GDK-593
 [GDK-594]: https://gadak.dev/backlog/#/?ks=GDK-594
+[GDK-596]: https://gadak.dev/backlog/#/?ks=GDK-596
 [GDK-597]: https://gadak.dev/backlog/#/?ks=GDK-597
 [GDK-598]: https://gadak.dev/backlog/#/?ks=GDK-598
 [GDK-599]: https://gadak.dev/backlog/#/?ks=GDK-599
@@ -2002,6 +2021,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-711]: https://gadak.dev/backlog/#/?ks=GDK-711
 [GDK-718]: https://gadak.dev/backlog/#/?ks=GDK-718
 [GDK-720]: https://gadak.dev/backlog/#/?ks=GDK-720
+[GDK-722]: https://gadak.dev/backlog/#/?ks=GDK-722
 [GDK-723]: https://gadak.dev/backlog/#/?ks=GDK-723
 [GDK-724]: https://gadak.dev/backlog/#/?ks=GDK-724
 [GDK-725]: https://gadak.dev/backlog/#/?ks=GDK-725
@@ -2025,6 +2045,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-757]: https://gadak.dev/backlog/#/?ks=GDK-757
 [GDK-758]: https://gadak.dev/backlog/#/?ks=GDK-758
 [GDK-766]: https://gadak.dev/backlog/#/?ks=GDK-766
+[GDK-768]: https://gadak.dev/backlog/#/?ks=GDK-768
 [GDK-770]: https://gadak.dev/backlog/#/?ks=GDK-770
 [GDK-771]: https://gadak.dev/backlog/#/?ks=GDK-771
 [GDK-781]: https://gadak.dev/backlog/#/?ks=GDK-781
@@ -2205,6 +2226,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1267]: https://gadak.dev/backlog/#/?ks=GDK-1267
 [GDK-1269]: https://gadak.dev/backlog/#/?ks=GDK-1269
 [GDK-1270]: https://gadak.dev/backlog/#/?ks=GDK-1270
+[GDK-1273]: https://gadak.dev/backlog/#/?ks=GDK-1273
 [GDK-1275]: https://gadak.dev/backlog/#/?ks=GDK-1275
 [GDK-1276]: https://gadak.dev/backlog/#/?ks=GDK-1276
 [GDK-1277]: https://gadak.dev/backlog/#/?ks=GDK-1277
@@ -2339,6 +2361,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1546]: https://gadak.dev/backlog/#/?ks=GDK-1546
 [GDK-1547]: https://gadak.dev/backlog/#/?ks=GDK-1547
 [GDK-1548]: https://gadak.dev/backlog/#/?ks=GDK-1548
+[GDK-1549]: https://gadak.dev/backlog/#/?ks=GDK-1549
 [GDK-1554]: https://gadak.dev/backlog/#/?ks=GDK-1554
 [GDK-1560]: https://gadak.dev/backlog/#/?ks=GDK-1560
 [GDK-1561]: https://gadak.dev/backlog/#/?ks=GDK-1561
@@ -2434,3 +2457,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1757]: https://gadak.dev/backlog/#/?ks=GDK-1757
 [GDK-1758]: https://gadak.dev/backlog/#/?ks=GDK-1758
 [GDK-1759]: https://gadak.dev/backlog/#/?ks=GDK-1759
+[GDK-1760]: https://gadak.dev/backlog/#/?ks=GDK-1760

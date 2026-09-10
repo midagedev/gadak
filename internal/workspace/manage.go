@@ -197,10 +197,13 @@ func createPaired(w http.ResponseWriter, in createWorkspaceDoc, dir string) {
 	// Verified. Same write order as initPaired: credential file, identity
 	// stamp, config save. SaveRemote creates the profile directory; the
 	// LoadFor contract is the built-in branch's (dir-bound empty Config).
+	// The verify round trip saw the serve's X-Gadak-Version — record it
+	// (GDK-1273), the same fact the CLI door stores.
 	if err := pairing.SaveRemote(dir, pairing.Remote{
-		Endpoint: offer.Endpoint,
-		Token:    token,
-		Label:    offer.Label,
+		Endpoint:      offer.Endpoint,
+		Token:         token,
+		Label:         offer.Label,
+		ServerVersion: origin.PairedServerVersion(offer.Endpoint),
 	}); err != nil {
 		log.Printf("workspaces: pair %s: save pairing: %v", in.Name, err)
 		manageFail(w, http.StatusInternalServerError, "create_failed")

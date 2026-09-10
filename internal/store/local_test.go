@@ -774,11 +774,20 @@ func TestNewerLocalDBWarnsOncePerPath(t *testing.T) {
 	if strings.Contains(got, "--db") {
 		t.Errorf("local.db advice must not mention --db (demo/export-static only); log=%q", got)
 	}
-	if !strings.Contains(got, "upgrade gadak") {
-		t.Errorf("message must say what to do (upgrade gadak), not only restate versions; log=%q", got)
+	// GDK-596 gate modification (2026-09-11; attribution + derivation +
+	// FAIL-first on record): the remediation the message used to carry
+	// ("upgrade gadak, or use a different --workspace / GADAK_HOME") moved
+	// to `gadak doctor`'s local_schema_skew line. Measured 2026-08-22: one
+	// lead session saw the full sentence 50+ times because every command is
+	// a new process — the once-per-path map never suppresses anything for
+	// CLI use — and agents read stderr inside tool results. FAIL-first for
+	// this rewrite ran red against the long sentence (it carries both
+	// flags and no doctor pointer): /tmp/gdk596-failfirst.txt.
+	if !strings.Contains(got, "gadak doctor") {
+		t.Errorf("message must point at the detail surface (gadak doctor), not only restate versions; log=%q", got)
 	}
-	if !strings.Contains(got, "--workspace") || !strings.Contains(got, "GADAK_HOME") {
-		t.Errorf("message must name --workspace / GADAK_HOME; log=%q", got)
+	if strings.Contains(got, "--workspace") || strings.Contains(got, "GADAK_HOME") {
+		t.Errorf("remediation belongs in gadak doctor's local_schema_skew line, not on every command's stderr (GDK-596); log=%q", got)
 	}
 	if gotn := localNewerSchemaWarnsSuppressed.Load(); gotn != before+1 {
 		t.Errorf("localNewerSchemaWarnsSuppressed %d → %d, want +1", before, gotn)
@@ -802,6 +811,31 @@ func TestNewerLocalDBWarnsSeparatelyPerPath(t *testing.T) {
 	}
 	if gotn := localNewerSchemaWarnsSuppressed.Load(); gotn != before {
 		t.Errorf("two distinct first-seen paths must not suppress; %d → %d", before, gotn)
+	}
+}
+
+// TestLocalSchemaSkewReport — GDK-596: the newer-local.db fact is queryable,
+// not log-only. `gadak doctor` prints what this returns; the stderr notice is
+// a short pointer at that line. Read-only: no EnsureLocal, no migration, and
+// a missing file is "no skew" (nothing to say — the healthy shape, so doctor
+// omits the section rather than minting a file to diagnose one).
+func TestLocalSchemaSkewReport(t *testing.T) {
+	older := newerLocalFixture(t, len(localMigrations)-1) // a file this build would migrate
+	have, want, skewed := LocalSchemaSkew(older)
+	if skewed || have != len(localMigrations)-1 || want != len(localMigrations) {
+		t.Fatalf("LocalSchemaSkew(older) = (%d, %d, %v), want (%d, %d, false)",
+			have, want, skewed, len(localMigrations)-1, len(localMigrations))
+	}
+
+	newer := newerLocalFixture(t, len(localMigrations)+2)
+	have, want, skewed = LocalSchemaSkew(newer)
+	if !skewed || have != len(localMigrations)+2 || want != len(localMigrations) {
+		t.Fatalf("LocalSchemaSkew(newer) = (%d, %d, %v), want (%d, %d, true)",
+			have, want, skewed, len(localMigrations)+2, len(localMigrations))
+	}
+
+	if _, _, skewed := LocalSchemaSkew(filepath.Join(t.TempDir(), "absent.db")); skewed {
+		t.Fatal("LocalSchemaSkew on a missing file must report no skew")
 	}
 }
 

@@ -534,6 +534,76 @@ func TestCmdWorkspaceHidesExportHintWhenAlone(t *testing.T) {
 	}
 }
 
+// TestWorkspaceExportSeedYAML is FAIL-first for GDK-768: `gadak workspace
+// export` writes the built-in origin as the seed YAML issuetap re-seeds from
+// (the format the legacy origin/issuetap.yaml always was). Before this verb
+// the format was import-only — issuetap's Snapshot had no caller, so a
+// standalone workspace could be created from YAML but never taken back out.
+func TestWorkspaceExportSeedYAML(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	clearCredentialEnv(t)
+	config.SetProfile("")
+	t.Cleanup(func() {
+		_ = origin.Close()
+		config.SetProfile("")
+	})
+
+	if _, err := capture(t, func() error { return cmdInit([]string{"--local", "--json"}) }); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdWorkspace([]string{"export"}) })
+	if err != nil {
+		t.Fatalf("workspace export: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "projects:") || !strings.Contains(out, origin.DefaultProjectKey) {
+		t.Fatalf("export stdout is not the seed YAML:\n%.300s", out)
+	}
+
+	dest := filepath.Join(home, "origin-copy.yaml")
+	out, err = capture(t, func() error { return cmdWorkspace([]string{"export", "--out", dest}) })
+	if err != nil {
+		t.Fatalf("workspace export --out: %v\n%s", err, out)
+	}
+	if strings.Contains(out, "projects:") {
+		t.Fatalf("--out must not also print the YAML to stdout:\n%.300s", out)
+	}
+	raw, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "projects:") {
+		t.Fatalf("%s is not the seed YAML:\n%.300s", dest, raw)
+	}
+	if fi, statErr := os.Stat(dest); statErr == nil && fi.Mode().Perm() != 0o600 {
+		t.Fatalf("--out mode = %04o, want 0600 (credential-bearing tracker data)", fi.Mode().Perm())
+	}
+}
+
+// The export gate is part of the verb's contract: a workspace whose origin is
+// not this process's embedded tracker (Jira, Linear, or a pairing) is refused
+// rather than handed an empty or wrong-format document, and a trailing
+// positional is the usage error every other subcommand here gives.
+func TestWorkspaceExportRefusesNonBuiltInAndBadArgs(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	clearCredentialEnv(t)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	_, err := capture(t, func() error { return cmdWorkspace([]string{"export"}) })
+	if err == nil || !strings.Contains(err.Error(), "built-in") {
+		t.Fatalf("export with no built-in origin: %v, want built-in refusal", err)
+	}
+
+	if err := cmdWorkspace([]string{"export", "junk"}); err == nil || !strings.Contains(err.Error(), "usage:") {
+		t.Fatalf("export with a positional: %v, want usage error", err)
+	}
+}
+
 func clearWorkspaceEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("GADAK_WORKSPACE", "")

@@ -479,6 +479,12 @@ func initPaired(cfg *config.Config, code string, fromStdin bool, jsonOut bool) e
 		Endpoint: offer.Endpoint,
 		Token:    token,
 		Label:    offer.Label,
+		// The verify round trip just saw the serve's X-Gadak-Version
+		// (GDK-1273): record what the home serve itself said, so
+		// status/doctor can name which side is older. Empty on a serve
+		// that predates the header — the skew line says unknown, not
+		// wrong.
+		ServerVersion: origin.PairedServerVersion(offer.Endpoint),
 	}); err != nil {
 		return err
 	}

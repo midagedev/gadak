@@ -397,6 +397,46 @@ func BuiltInHandler(cfg *config.Config) (http.Handler, error) {
 	return s.emb, nil
 }
 
+// ErrExportRefused is the export half's gate: the workspace's origin is not
+// the embedded tracker running in this process (Jira, Linear, or a pairing),
+// so there is nothing here in the built-in tracker's own format to hand out.
+// The CLI prints it; the serve maps it to 400 export_refused.
+var ErrExportRefused = errors.New("origin: export refused")
+
+// EmbeddedSnapshot returns this workspace's built-in origin as the seed YAML
+// — the format LegacyYAMLPath files and NewEmbedded re-seeds from, gaining
+// its export half here (GDK-768: the format was import-only; Snapshot had no
+// caller). Read-only, and through the live session, so a running serve
+// exports without a second opener of the persist file.
+//
+// Transport, not HasBuiltInOrigin, is the gate: a paired workspace is also
+// OriginGadak, but its origin is another machine's serve — constructing the
+// embedded origin here would mint a fresh empty persist on the wrong machine,
+// the quietly-wrong-origin class the pairing contract exists to prevent.
+func EmbeddedSnapshot(cfg *config.Config) ([]byte, error) {
+	if cfg == nil {
+		return nil, errors.New("origin: nil config")
+	}
+	if !cfg.HasBuiltInOrigin() {
+		return nil, fmt.Errorf("%w: the built-in workspace's YAML is this origin's own format; this workspace's origin is %s", ErrExportRefused, cfg.OriginType())
+	}
+	if cfg.Transport() != config.TransportLocal {
+		return nil, fmt.Errorf("%w: paired workspace — the origin runs on the home machine; run gadak workspace export there", ErrExportRefused)
+	}
+	s, err := builtInSession(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if s == nil || s.emb == nil {
+		return nil, errors.New("origin: built-in session is missing")
+	}
+	raw, err := s.emb.Snapshot()
+	if err != nil {
+		return nil, fmt.Errorf("origin: snapshot: %w", err)
+	}
+	return raw, nil
+}
+
 // LinearEndpoint, when non-empty, is the GraphQL URL Linear() installs on
 // the client. Tests point it at httptest; production leaves it empty so New
 // keeps linear.Endpoint. This is not a config.json field — an install

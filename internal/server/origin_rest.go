@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -96,6 +97,32 @@ func (s *server) handleOriginREST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.StripPrefix(origin.RESTPrefix, h).ServeHTTP(w, r)
+}
+
+// handleOriginExport serves the built-in origin's seed YAML (GDK-768) — the
+// same bytes `gadak workspace export` writes, from the same owner
+// (origin.EmbeddedSnapshot), so the two halves cannot disagree about who may
+// export or what the document is. A refusal is a client error
+// (400 export_refused): this serve has no built-in origin to export, which
+// is the caller asking the wrong host, not the server failing. The pairing
+// gate does not apply here — the route is under apiBase (mirror-REST
+// territory), not RESTPrefix.
+func (s *server) handleOriginExport(w http.ResponseWriter, r *http.Request) {
+	raw, err := origin.EmbeddedSnapshot(s.config())
+	if err != nil {
+		if errors.Is(err, origin.ErrExportRefused) {
+			fail(w, http.StatusBadRequest, "export_refused")
+			return
+		}
+		serverError(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/yaml; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(raw); err != nil {
+		log.Printf("server: origin export: write: %v", err)
+	}
 }
 
 // pairingGate is the GDK-433 authorization point for everything under

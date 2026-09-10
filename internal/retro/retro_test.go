@@ -348,17 +348,70 @@ func injectChange(t *testing.T, dir string, at time.Time, item, authorID string)
 	}
 }
 
+// midweekAnchor pins a write-anchor that no timezone can land on a week
+// bucket edge (GDK-1760): the most recent Wednesday 12:00 UTC. Wednesday
+// noon UTC reads as Wednesday 00:00 in UTC-12 and as Thursday 02:00 in
+// UTC+14, so in every local zone it sits mid-week — at least two full days
+// from the Monday-midnight boundary Buckets cuts on either side. A test
+// that spreads visits a0+30m and a0+60m1s from such an anchor keeps every
+// session start inside the bucket a0 itself lands in; a wall-clock a0
+// (now-4d) can fall on Sunday 23:00 local, and the session starting at
+// a0+60m1s then begins in the next week's bucket — bucketContaining(a0)
+// undercounts and the run flakes by wall clock and timezone, which is the
+// measured failure this helper pins away (sessions = 1, want 2, TZ=Asia/
+// Tokyo on a Thursday evening).
+func midweekAnchor(now time.Time) time.Time {
+	u := now.UTC()
+	noon := time.Date(u.Year(), u.Month(), u.Day(), 12, 0, 0, 0, time.UTC)
+	off := (int(u.Weekday()) - int(time.Wednesday) + 7) % 7
+	a := noon.AddDate(0, 0, -off)
+	if a.After(u) { // today is Wednesday before noon UTC
+		a = a.AddDate(0, 0, -7)
+	}
+	return a
+}
+
+// TestMidweekAnchorClearsBucketEdges — contract ↔ assertion map: for every
+// representative zone offset (UTC-12 … UTC+14, the full span of real local
+// zones) and every hour of a three-week sweep, the anchor is at least 24h
+// from the nearest Monday-00:00-local bucket edge in that zone. Tests that
+// spread visits within an hour of the anchor then cannot straddle a week
+// boundary, which is the class of the GDK-1760 flake.
+//
+// FAIL-first (2026-09-11): with midweekAnchor replaced by the old
+// now.Add(-4*24h) shape, the Sunday-23h cases report ~0-1h to the next
+// Monday edge and the gate fails; the anchor as shipped holds ≥48h on
+// both sides everywhere in the sweep.
+func TestMidweekAnchorClearsBucketEdges(t *testing.T) {
+	for _, off := range []int{-12, -11, -10, -7, -5, -3, 0, 1, 3, 5, 8, 9, 12, 13, 14} {
+		loc := time.FixedZone("probe", off*3600)
+		for d := 0; d < 21; d++ {
+			for h := 0; h < 24; h++ {
+				now := time.Date(2026, 9, 1, h, 17, 0, 0, loc).AddDate(0, 0, d)
+				a := midweekAnchor(now).In(loc)
+				lo, hi := monday(a), monday(a).AddDate(0, 0, 7)
+				if dlo, dhi := a.Sub(lo), hi.Sub(a); dlo < 24*time.Hour || dhi < 24*time.Hour {
+					t.Fatalf("offset %+dh: anchor %s sits %v before / %v after the Monday-00:00-local edges — a +61m visit spread can straddle a bucket edge (GDK-1760)", off, a.Format(time.RFC3339), dlo, dhi)
+				}
+			}
+		}
+	}
+}
+
 // pickItem returns a real fixture issue item id and its key.
 // pickItem returns an issue whose own history is quiet for the anchor
-// windows the tests inject into: no changelog row in the last five days.
+// windows the tests inject into: no changelog row in the five days before
+// rel — the anchor the caller will inject visits around, not the wall
+// clock, so a mid-week anchor up to a week old keeps the "nothing of its
+// own near the visits" premise by construction.
 // The premise used to be "the whole snapshot is older than four days",
 // which stopped being true when GDK-1739 gave the fixture's in-progress
 // issues a recent start and recent activity (that is the point of that
 // change — a live WIP has moved lately). Choosing the item by the data
 // keeps the premise true by construction instead of by luck of the fixture.
-func pickItem(t *testing.T, db *sql.DB) (item, key string) {
+func pickItem(t *testing.T, db *sql.DB, rel time.Time) (item, key string) {
 	t.Helper()
-	quietSince := time.Now().Add(-5 * 24 * time.Hour).UTC().Format(time.RFC3339)
+	quietSince := rel.Add(-5 * 24 * time.Hour).UTC().Format(time.RFC3339)
 	if err := db.QueryRow(`SELECT it.id, it.key FROM items it
 		JOIN issues i ON i.item_id = it.id
 		WHERE it.kind = 'issue' AND COALESCE(it.key,'') <> ''
@@ -393,17 +446,19 @@ func computePinned(t *testing.T, db *sql.DB, me store.FeedIdentity, since time.D
 }
 
 func TestRetroSessionsResumeOnFixture(t *testing.T) {
-	// Anchor: 4 days back. pickItem guarantees the chosen issue has no write
-	// of its own after five days back, so the only visits and writes inside
-	// the windows below are the injected ones.
+	// Anchor: mid-week (GDK-1760), so no timezone's Monday-midnight bucket
+	// edge can fall inside the visit spread below. pickItem guarantees the
+	// chosen issue has no write of its own in the five days before the
+	// anchor, so the only visits and writes inside the windows below are the
+	// injected ones.
 	now := time.Now().Truncate(time.Second)
-	a0 := now.Add(-4 * 24 * time.Hour)
+	a0 := midweekAnchor(now)
 
 	t.Run("sessions without any own write render as — (0 of n), not a bare dash", func(t *testing.T) {
 		// FAIL-first: before the cell carried the count, this bucket rendered
 		// "—", indistinguishable from a week with no sessions at all.
 		dir, db := demoFixture(t, false)
-		item, key := pickItem(t, db)
+		item, key := pickItem(t, db, a0)
 		injectVisit(t, dir, a0, store.VisitKindIssue, key, store.VisitSourceUI)
 		injectChange(t, dir, a0.Add(time.Minute), item, "someone-else") // not self
 
@@ -420,7 +475,7 @@ func TestRetroSessionsResumeOnFixture(t *testing.T) {
 
 	t.Run("own write, exact 30m boundary stays one session", func(t *testing.T) {
 		dir, db := demoFixture(t, false)
-		item, key := pickItem(t, db)
+		item, key := pickItem(t, db, a0)
 		injectVisit(t, dir, a0, store.VisitKindIssue, key, store.VisitSourceUI)
 		injectVisit(t, dir, a0.Add(30*time.Minute), store.VisitKindIssue, key, store.VisitSourceUI)             // exactly the gap: same session
 		injectVisit(t, dir, a0.Add(60*time.Minute+time.Second), store.VisitKindIssue, key, store.VisitSourceUI) // 30m1s after the previous visit: new session
@@ -431,7 +486,7 @@ func TestRetroSessionsResumeOnFixture(t *testing.T) {
 		rep := computePinned(t, db, me, 21*24*time.Hour, now)
 		b := bucketContaining(t, rep, a0)
 		if b.Sessions != 2 {
-			t.Fatalf("sessions = %d, want 2 (exactly 30m is the same session, 30m1s splits)", b.Sessions)
+			t.Fatalf("sessions = %d, want 2 (exactly 30m is the same session, 30m1s splits); anchor %s, bucket %s — a split across the bucket edge means the anchor straddled Monday midnight (GDK-1760)", b.Sessions, a0.Format(time.RFC3339), b.From.Format(time.RFC3339))
 		}
 		if b.ResumeN != 2 {
 			t.Fatalf("ResumeN = %d, want 2", b.ResumeN)
@@ -460,7 +515,7 @@ func TestRetroSessionsResumeOnFixture(t *testing.T) {
 
 	t.Run("cli-only fallback, unresolved self counts any author on visited issues", func(t *testing.T) {
 		dir, db := demoFixture(t, false)
-		visited, vkey := pickItem(t, db)
+		visited, vkey := pickItem(t, db, a0)
 		var other string
 		if err := db.QueryRow(`SELECT it.id FROM items it JOIN issues i ON i.item_id = it.id
 			WHERE it.kind = 'issue' AND it.id <> ? ORDER BY it.key LIMIT 1`, visited).Scan(&other); err != nil {
@@ -500,7 +555,7 @@ func TestRetroSessionsResumeOnFixture(t *testing.T) {
 
 	t.Run("unknown source counts with the person", func(t *testing.T) {
 		dir, db := demoFixture(t, false)
-		_, key := pickItem(t, db)
+		_, key := pickItem(t, db, a0)
 		injectVisit(t, dir, a0, store.VisitKindIssue, key, "")                                      // pre-V7 row: unknown, still the person
 		injectVisit(t, dir, a0.Add(31*time.Minute), store.VisitKindIssue, key, store.VisitSourceUI) // 31m gap: two sessions
 
@@ -551,10 +606,10 @@ func TestFormatGap(t *testing.T) {
 // unconditionally.
 func TestRetroSessionGapParameter(t *testing.T) {
 	now := time.Now().Truncate(time.Second)
-	a0 := now.Add(-4 * 24 * time.Hour)
+	a0 := midweekAnchor(now) // GDK-1760: the 40m visit spread stays in one bucket
 
 	dir, db := demoFixture(t, false)
-	_, key := pickItem(t, db)
+	_, key := pickItem(t, db, a0)
 	injectVisit(t, dir, a0, store.VisitKindIssue, key, store.VisitSourceUI)
 	injectVisit(t, dir, a0.Add(6*time.Minute), store.VisitKindIssue, key, store.VisitSourceUI)
 	injectVisit(t, dir, a0.Add(40*time.Minute), store.VisitKindIssue, key, store.VisitSourceUI)
@@ -1054,12 +1109,12 @@ func stripWireKinds(s string) string {
 // with "unresolved-self footer is still printed with an actor configured".
 func TestResumeCountsTheActorOnTheBuiltInTracker(t *testing.T) {
 	now := time.Now().Truncate(time.Second)
-	a0 := now.Add(-4 * 24 * time.Hour)
+	a0 := midweekAnchor(now) // GDK-1760: keep the injected minutes off bucket edges
 	const meSlug = "claude:354bff2b"
 
 	t.Run("only the configured actor's write starts the clock", func(t *testing.T) {
 		dir, db := demoFixture(t, false)
-		item, key := pickItem(t, db)
+		item, key := pickItem(t, db, a0)
 		injectVisit(t, dir, a0, store.VisitKindIssue, key, store.VisitSourceUI)
 		injectChange(t, dir, a0.Add(time.Minute), item, "claude:otheragent") // another agent on the same issue
 		injectChange(t, dir, a0.Add(5*time.Minute), item, meSlug)
@@ -1080,7 +1135,7 @@ func TestResumeCountsTheActorOnTheBuiltInTracker(t *testing.T) {
 
 	t.Run("a session with only another agent's write has no resume", func(t *testing.T) {
 		dir, db := demoFixture(t, false)
-		item, key := pickItem(t, db)
+		item, key := pickItem(t, db, a0)
 		injectVisit(t, dir, a0, store.VisitKindIssue, key, store.VisitSourceUI)
 		injectChange(t, dir, a0.Add(time.Minute), item, "claude:otheragent")
 
@@ -1093,7 +1148,7 @@ func TestResumeCountsTheActorOnTheBuiltInTracker(t *testing.T) {
 
 	t.Run("the footer names the identifier the match used", func(t *testing.T) {
 		dir, db := demoFixture(t, false)
-		item, key := pickItem(t, db)
+		item, key := pickItem(t, db, a0)
 		injectVisit(t, dir, a0, store.VisitKindIssue, key, store.VisitSourceUI)
 		injectChange(t, dir, a0.Add(5*time.Minute), item, meSlug)
 

@@ -667,3 +667,41 @@ func unreachableEndpoint(t *testing.T) string {
 	}()
 	return "http://" + ln.Addr().String()
 }
+
+// TestManageCreatePairedRecordsServeVersion is FAIL-first for GDK-1273's
+// pair-time record on the web door: the registry's verify round trip sees
+// the home serve's X-Gadak-Version and stores it in the new workspace's
+// pairing credential, the same fact the CLI door records. Read as a raw map
+// — the assertion is about what lands on disk.
+func TestManageCreatePairedRecordsServeVersion(t *testing.T) {
+	setupHome(t)
+	h := manageMux(New())
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Gadak-Version", "0.19.1")
+		if !strings.HasSuffix(r.URL.Path, "/rest/api/3/myself") {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"accountId":"acc-home","displayName":"Home Human"}`)
+	}))
+	t.Cleanup(ts.Close)
+
+	rec := manageSend(t, h, http.MethodPost, "/api/v1/workspaces",
+		`{"name":"tablet","kind":"paired","offer":"`+manageOffer(t, ts.URL)+`"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	raw, err := os.ReadFile(filepath.Join(manageDir(t, "tablet"), "remote-origin.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("decode %s: %v", raw, err)
+	}
+	if doc["serverVersion"] != "0.19.1" {
+		t.Fatalf("pairing credential serverVersion = %v, want 0.19.1 (raw %s)", doc["serverVersion"], raw)
+	}
+}

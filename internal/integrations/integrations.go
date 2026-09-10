@@ -464,19 +464,62 @@ func probeClaudeMCP(claudePath string) *bool {
 
 // probeClaudeMCPOutcome is probeClaudeMCP plus the reason. Production reads
 // only the answer; the outcome exists so a test can assert "the CLI said no"
-// rather than "the CLI said no, or we gave up waiting".
-//
-// The timer starts after Start so a starved test goroutine cannot expire the
-// budget before the process exists (CommandContext+WithTimeout before Start
-// returned unknown for an `exit 0` stub under go test ./... load).
+// rather than "the CLI said no, or we gave up waiting". Classification is a
+// pure function of the probeRunResult below — the process half lives behind
+// the probeRun seam, so answer-asserting tests fake the runner and only the
+// timeout tests pay a spawn (GDK-723).
 func probeClaudeMCPOutcome(claudePath string) (*bool, probeOutcome) {
+	res := probeRun(claudePath)
+	switch {
+	case res.startErr != nil:
+		return nil, probeNotStarted
+	case res.timedOut:
+		return nil, probeTimedOut
+	case res.err != nil:
+		if strings.Contains(res.out, mcpNotRegisteredMarker) {
+			return boolPtr(false), probeAnswered
+		}
+		return nil, probeAnswered
+	default:
+		return boolPtr(true), probeAnswered
+	}
+}
+
+// probeRunResult is what the process half of the probe can report. err is
+// the Wait error (nil = exit 0); startErr non-nil means the process never
+// came up; timedOut means the budget fired first. out is the combined
+// stdout+stderr the marker match reads.
+type probeRunResult struct {
+	out      string
+	err      error
+	startErr error
+	timedOut bool
+}
+
+// probeRunFunc is the exec seam of the Claude MCP probe (GDK-723): the
+// answer-asserting tests install a fake so their verdicts cannot depend on
+// process scheduling — measured as GDK-303, where a spawn under load blew
+// the production budget and turned "the CLI said not-registered" into a
+// red build about the wrong thing. Only the timeout tests leave the real
+// implementation in place.
+type probeRunFunc func(claudePath string) probeRunResult
+
+// probeRun is the seam; tests swap it. Default is the real spawn.
+var probeRun probeRunFunc = runProbeExec
+
+// runProbeExec is the production probeRun: spawn `claude mcp get gadak`,
+// capture combined output, and bound the wait by mcpProbeTimeout. The timer
+// starts after Start so a starved goroutine cannot expire the budget before
+// the process exists (CommandContext+WithTimeout before Start returned
+// unknown for an `exit 0` stub under go test ./... load).
+func runProbeExec(claudePath string) probeRunResult {
 	cmd := exec.Command(claudePath, "mcp", "get", "gadak")
 	var out limitedBuf
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 	setProbeProcAttr(cmd)
 	if err := cmd.Start(); err != nil {
-		return nil, probeNotStarted
+		return probeRunResult{startErr: err}
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
@@ -484,13 +527,7 @@ func probeClaudeMCPOutcome(claudePath string) (*bool, probeOutcome) {
 	defer timer.Stop()
 	select {
 	case err := <-done:
-		if err != nil {
-			if strings.Contains(out.String(), mcpNotRegisteredMarker) {
-				return boolPtr(false), probeAnswered
-			}
-			return nil, probeAnswered
-		}
-		return boolPtr(true), probeAnswered
+		return probeRunResult{out: out.String(), err: err}
 	case <-timer.C:
 		killProbe(cmd)
 		// Bound the reap: if Kill did not take, do not pin GET behind a child.
@@ -500,7 +537,7 @@ func probeClaudeMCPOutcome(claudePath string) (*bool, probeOutcome) {
 		case <-done:
 		case <-reap.C:
 		}
-		return nil, probeTimedOut
+		return probeRunResult{out: out.String(), timedOut: true}
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/pairing"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
@@ -120,6 +121,11 @@ func cmdStatus(args []string) error {
 		st["pairing"] = map[string]string{
 			"endpoint": rem.Endpoint,
 			"label":    rem.Label,
+			// The pair-time record (GDK-1273): what the home serve said
+			// it was, and which side is older. Empty record → "unknown";
+			// the sentence form is pairingSkewSentence.
+			"server_version": rem.ServerVersion,
+			"skew":           pairing.VersionSkew(rem.ServerVersion, version),
 		}
 	}
 	// Diagnostic only: status stays exit 0. The sentence is the same one
@@ -221,6 +227,9 @@ func cmdStatus(args []string) error {
 	}
 	if p, ok := st["pairing"].(map[string]string); ok {
 		fmt.Printf("paired with %q (%s)\n", p["label"], p["endpoint"])
+		if line := pairingSkewSentence(p["server_version"], version); line != "" {
+			fmt.Printf("%-18s %s\n", "pairing skew", line)
+		}
 	}
 	if line := formatWikiStatusLine(wiki); line != "" {
 		fmt.Printf("%-18s %s\n", "wiki", line)
@@ -455,4 +464,25 @@ func formatAPIUsageLine(u store.APIUsageSummary) string {
 		}
 	}
 	return line
+}
+
+// pairingSkewSentence is the one-line skew report `gadak status` and
+// `doctor` print for a paired workspace (GDK-1273): which side is older and
+// what that costs — home older means new verbs can 501, client older means
+// this machine lacks the home's new verbs. Empty when there is nothing to
+// say: no pair-time record, or both sides on the same release line.
+func pairingSkewSentence(serverVersion, clientVersion string) string {
+	if serverVersion == "" {
+		return ""
+	}
+	switch skew := pairing.VersionSkew(serverVersion, clientVersion); skew {
+	case "same":
+		return ""
+	case "home-older":
+		return fmt.Sprintf("home serve gadak %s, this client %s — the home serve is older; verbs it predates answer 501 until it is upgraded", serverVersion, clientVersion)
+	case "home-newer":
+		return fmt.Sprintf("home serve gadak %s, this client %s — the home serve is newer; this client may lack its new verbs", serverVersion, clientVersion)
+	default:
+		return fmt.Sprintf("home serve gadak %s, this client %s (versions not comparable)", serverVersion, clientVersion)
+	}
 }

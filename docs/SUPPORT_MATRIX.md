@@ -65,6 +65,7 @@ Markers:
 | **Read** · wiki page attachments (listing + byte proxy) | ✅[^147] | —[^126] | —[^45] | —[^148] |
 | **Read** · origin web URL — `gadak open`, web key anchor, copy link | ✅[^47] | ✅[^47] | ✅[^48] | ◐[^49] |
 | **Read** · view link — toolbar / palette "Copy link to this view" | ✅[^103] | ✅[^103] | ◐[^104] | ◐[^105] |
+| **Read** · workspace export — built-in origin as seed YAML (`gadak workspace export`) | —[^150] | —[^150] | —[^150] | ✅[^151] |
 | **Write** · create issue | ✅[^50] | ✅[^127] | ◐[^51] | ✅[^52] |
 | **Write** · comment — visibility / internal | ✅[^53] | ✅[^128] | ◐[^54] | ✅[^55] |
 | **Write** · comment edit / delete (`comment edit` / `comment rm`) | ✅[^114] | ✅[^137] | ✅[^115] | ✅[^116] |
@@ -827,3 +828,15 @@ this table from the code instead of maintaining it by hand is GDK-1301.
     degrade in one summary line while the pages themselves mirror normally
     (`internal/sync/confluence.go:1032`); the byte proxy needs no change when
     the origin grows the routes — that is an issuetap round.
+
+[^150]: The seed YAML is the built-in tracker's own format — a Jira, Server,
+    or Linear workspace has nothing to hand over in it, and the verb says so
+    instead of exporting an empty document (`internal/origin/origin.go:416`).
+
+[^151]: `gadak workspace export [--out FILE]` writes the persist file's
+    contents as the seed YAML `origin/issuetap.yaml` always was — the export
+    half of a format that until GDK-768 could only be imported. The REST twin
+    is `GET /api/v1/issues/origin/export/`, and the gate (built-in origin,
+    not paired — a paired client must not mint a fresh origin on the wrong
+    machine) is one owner for both halves
+    (`cmd/gadak/workspace_cmd.go:105`, `internal/server/origin_rest.go:110`).

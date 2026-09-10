@@ -11,8 +11,9 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 )
 
-// workspaceUsage is the forms cmdWorkspace accepts (GDK-490).
-const workspaceUsage = "usage: gadak workspace [--json] | gadak workspace use <name> | gadak workspace use --clear"
+// workspaceUsage is the forms cmdWorkspace accepts (GDK-490; export is
+// GDK-768).
+const workspaceUsage = "usage: gadak workspace [--json] | gadak workspace use <name> | gadak workspace use --clear | gadak workspace export [--out FILE]"
 
 // workspaceView is the `gadak workspace --json` document.
 type workspaceView struct {
@@ -37,6 +38,10 @@ func cmdWorkspace(args []string) error {
 	fs := newFlagSet("workspace")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	clear := fs.Bool("clear", false, "with use: unset the stored default workspace")
+	// Registered here rather than routed early like rm: export's only flag
+	// is --out, so this flagset can parse it (rm's --yes/--destroy-origin
+	// cannot live in a flagset the other subcommands share).
+	outPath := fs.String("out", "", "with export: write to this file instead of stdout")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("workspace", fs))
 		return nil
@@ -50,6 +55,12 @@ func cmdWorkspace(args []string) error {
 			return usageError("workspace", workspaceUsage)
 		}
 		return emitWorkspace(*asJSON)
+	}
+	if pos[0] == "export" {
+		if len(pos) != 1 {
+			return usageError("workspace export", workspaceUsage)
+		}
+		return exportWorkspace(*outPath)
 	}
 	if pos[0] != "use" {
 		return usageError("workspace", workspaceUsage)
@@ -82,6 +93,29 @@ func emitWorkspace(asJSON bool) error {
 	}
 	printWorkspaceText(doc)
 	return nil
+}
+
+// exportWorkspace writes the built-in origin as the seed YAML (GDK-768) —
+// the format `origin/issuetap.yaml` always was and NewEmbedded re-seeds
+// from, which until this verb could be imported but never taken back out.
+// The gate (built-in origin, not paired) lives in origin.EmbeddedSnapshot,
+// the same owner the serve route calls, so the CLI and REST halves cannot
+// disagree about who may export. File mode follows team export: the YAML is
+// the whole tracker's data, 0600 on disk, raw bytes on stdout.
+func exportWorkspace(outPath string) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	raw, err := origin.EmbeddedSnapshot(cfg)
+	if err != nil {
+		return err
+	}
+	if outPath == "" {
+		_, err := os.Stdout.Write(raw)
+		return err
+	}
+	return os.WriteFile(outPath, raw, 0o600)
 }
 
 func collectWorkspace() (workspaceView, error) {

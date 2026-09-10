@@ -664,3 +664,66 @@ func statusCustomFields(t *testing.T, doc map[string]any) map[string]any {
 	}
 	return cf
 }
+
+// TestStatusReportsPairingVersionSkew is FAIL-first for GDK-1273's report
+// half: a paired workspace's status names both gadak versions and which
+// side is older — the question the GDK-1032 dogfooding round could not
+// answer when a new verb 501'd against an older home serve. The credential
+// is planted raw (not via the struct) so the assertion is about the on-disk
+// contract an older pair already wrote.
+func TestStatusReportsPairingVersionSkew(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	cred := map[string]any{
+		"endpoint":      "http://192.0.2.10:7877",
+		"token":         "pair-token",
+		"label":         "laptop",
+		"serverVersion": "0.19.1",
+	}
+	b, err := json.Marshal(cred)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "remote-origin.json"), b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Confluence = &config.ConfluenceConfig{}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdStatus([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("status --json: %v", err)
+	}
+	var doc struct {
+		Pairing map[string]string `json:"pairing"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("decode %q: %v", out, err)
+	}
+	if doc.Pairing["server_version"] != "0.19.1" {
+		t.Fatalf("pairing.server_version = %q, want 0.19.1; body %s", doc.Pairing["server_version"], out)
+	}
+	// The test binary's version is 0.0.0-dev, so a 0.19.1 home serve is
+	// the newer side — deterministic, and exactly the direction the
+	// measured incident had.
+	if doc.Pairing["skew"] != "home-newer" {
+		t.Fatalf("pairing.skew = %q, want home-newer; body %s", doc.Pairing["skew"], out)
+	}
+
+	text, err := capture(t, func() error { return cmdStatus(nil) })
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if !strings.Contains(text, "0.19.1") || !strings.Contains(text, "home serve") {
+		t.Fatalf("text status must name the home serve's version, got:\n%s", text)
+	}
+}

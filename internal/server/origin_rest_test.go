@@ -95,3 +95,35 @@ func TestOriginRESTBuiltInPOSTWithoutOriginAllowed(t *testing.T) {
 		t.Fatalf("built-in POST must not 404: %s", rec.Body.String())
 	}
 }
+
+// TestOriginExportServesSeedYAML is FAIL-first for GDK-768's REST half: GET
+// /api/v1/issues/origin/export/ serves the same bytes `gadak workspace
+// export` writes. A connected serve answers 400 export_refused — a client
+// error, not a 500 — because this serve has no built-in origin to export.
+func TestOriginExportServesSeedYAML(t *testing.T) {
+	h, _ := builtInServer(t)
+	rec := get(t, h, apiBase+"origin/export/", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("built-in export: %d %s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "text/yaml; charset=utf-8" {
+		t.Fatalf("content-type = %q, want text/yaml", ct)
+	}
+	if !strings.Contains(rec.Body.String(), "projects:") {
+		t.Fatalf("body is not the seed YAML:\n%.300s", rec.Body.String())
+	}
+}
+
+func TestOriginExportConnectedIsRefused(t *testing.T) {
+	db, cfg := fixture(t)
+	if cfg.HasBuiltInOrigin() {
+		t.Fatal("fixture is built-in")
+	}
+	rec := get(t, New(db, cfg), apiBase+"origin/export/", nil)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("connected export: %d %s, want 400", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"export_refused"`) {
+		t.Fatalf("body %s, want export_refused", rec.Body.String())
+	}
+}

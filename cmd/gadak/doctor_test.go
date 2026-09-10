@@ -16,6 +16,7 @@ import (
 	"github.com/midagedev/gadak/internal/applog"
 	"github.com/midagedev/gadak/internal/clitool"
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/retro"
 	"github.com/midagedev/gadak/internal/skillinstall"
 	"github.com/midagedev/gadak/internal/store"
 )
@@ -1844,5 +1845,458 @@ func TestDoctorCountsSplitCommentsByMeaning(t *testing.T) {
 		if _, still := counts["comments"]; still {
 			t.Errorf("counts still carries the mixed \"comments\" key:\n%s", raw)
 		}
+	}
+}
+
+/* ── GDK-307 / GDK-1413 / GDK-1549: doctor as the consumer of the store
+   diagnostics the w11-server round landed (MirrorSidecarBytes,
+   OpenPriorityDistribution, LastSessionEnd). The tests decode into
+   anonymous structs so they compile against the unwired source and fail at
+   runtime — that output is the FAIL-first evidence for the wiring. ── */
+
+// seedDoctorMirror opens a throwaway home's mirror, registers the source a
+// sync would have left, and closes it — leaving gadak.db on disk with no
+// sidecars (a clean close checkpoints -wal away, which is the state a user
+// who just quit gadak is in).
+func seedDoctorMirror(t *testing.T, home string) {
+	t.Helper()
+	db, err := store.Open(filepath.Join(home, "gadak.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "jira", Kind: "jira", BaseURL: "https://example.atlassian.net"}); err != nil {
+		t.Fatalf("source: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestDoctorReportsWALSidecars — GDK-307: the -wal/-shm sizes beside the
+// mirror are a doctor line, not a shell incantation. store.Open mints both
+// sidecars and nothing caps the -wal, so a serve that never closes can
+// starve checkpointing; the visible symptom is a sidecar growing beside a
+// mirror whose bytes barely moved. doctor stats them before it opens the
+// mirror (the same ordering note collectDoctor carries for Version), so the
+// number is what an open board's filesystem showed a moment ago.
+//
+// FAIL-first: against the unwired source the JSON carries no wal_bytes and
+// the human form has no mirror_wal line.
+func TestDoctorReportsWALSidecars(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+	seedDoctorMirror(t, home)
+
+	// Sidecars with known lengths: this test pins the reporting, not
+	// SQLite's checkpoint policy.
+	const walLen, shmLen = 4096, 512
+	wal := make([]byte, walLen)
+	for i := range wal {
+		wal[i] = 'w'
+	}
+	if err := os.WriteFile(filepath.Join(home, "gadak.db-wal"), wal, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	shm := make([]byte, shmLen)
+	if err := os.WriteFile(filepath.Join(home, "gadak.db-shm"), shm, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v\n%s", err, raw)
+	}
+	var rep struct {
+		Mirror struct {
+			Wal *int64 `json:"wal_bytes"`
+			Shm *int64 `json:"shm_bytes"`
+		} `json:"mirror"`
+	}
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	if rep.Mirror.Wal == nil || *rep.Mirror.Wal != walLen {
+		t.Fatalf("wal_bytes = %v, want %d:\n%s", rep.Mirror.Wal, walLen, raw)
+	}
+	if rep.Mirror.Shm == nil || *rep.Mirror.Shm != shmLen {
+		t.Fatalf("shm_bytes = %v, want %d:\n%s", rep.Mirror.Shm, shmLen, raw)
+	}
+
+	human, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, human)
+	}
+	if got := doctorValue(t, human, "mirror_wal"); got == "" {
+		t.Fatalf("human form missing mirror_wal:\n%s", human)
+	} else if !strings.Contains(got, "shm") {
+		t.Fatalf("mirror_wal %q does not name the shm side too:\n%s", got, human)
+	}
+
+	// Control: sidecars gone (the clean-close state) reads as zero — "no
+	// -wal right now", which is itself the answer to "is checkpointing
+	// starved?".
+	for _, side := range []string{"gadak.db-wal", "gadak.db-shm"} {
+		// doctor's own opens above may already have checkpointed the fake
+		// sidecar away — absence is the state this control asserts.
+		if err := os.Remove(filepath.Join(home, side)); err != nil && !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+	}
+	raw, err = capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json (control): %v\n%s", err, raw)
+	}
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	if rep.Mirror.Wal == nil || *rep.Mirror.Wal != 0 {
+		t.Fatalf("wal_bytes = %v, want an explicit 0 when no sidecar exists:\n%s", rep.Mirror.Wal, raw)
+	}
+}
+
+// seedDoctorPriorities writes n open issues per priority display name; the
+// site list maps High→rank 2, Low→rank 4 (derive.go priorityRank, index+1).
+func seedDoctorPriorities(t *testing.T, home string, high, low int) {
+	t.Helper()
+	db, err := store.Open(filepath.Join(home, "gadak.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := db.UpsertSource(context.Background(), store.Source{ID: "jira", Kind: "jira", BaseURL: "https://example.atlassian.net"}); err != nil {
+		t.Fatalf("source: %v", err)
+	}
+	var recs []store.IssueRecord
+	n := 0
+	add := func(prio string, count int) {
+		for i := 0; i < count; i++ {
+			n++
+			recs = append(recs, store.IssueRecord{
+				Item: store.Item{
+					ID: "jira:" + strconv.Itoa(n), SourceID: "jira", Kind: "issue",
+					ExternalID: strconv.Itoa(n), Key: "STD-" + strconv.Itoa(n),
+					Title: "seed", CreatedAt: "2026-01-01T00:00:00.000Z", UpdatedAt: "2026-01-01T00:00:00.000Z",
+				},
+				Issue: store.Issue{
+					ProjectKey: "STD", IssueType: "Bug", IssueTypeID: "1",
+					Status: "Open", StatusID: "3", StatusCategory: "inprogress",
+					Priority: prio,
+				},
+			})
+		}
+	}
+	add("High", high)
+	add("Low", low)
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Categories: map[string]string{"3": "inprogress"},
+		Priorities: []string{"Highest", "High", "Medium", "Low"},
+		Records:    recs,
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestDoctorPriorityConcentrationLine — GDK-1413: the census sentence ("80%
+// of 10 open issues are priority rank 2") is a doctor line. The store owns
+// the query and the 70% threshold (diagnostics.go DominantSharePct,
+// attribution there); doctor states the fact Concentrated returns — counts
+// and a share, no verdict, no keys, the paste-safe rule every section
+// follows. Nil when the values are spread or nothing is open, the healthy
+// shapes both.
+//
+// FAIL-first: the unwired JSON carries no priority_entropy and the human
+// form has no priority line.
+func TestDoctorPriorityConcentrationLine(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+	seedDoctorPriorities(t, home, 8, 2) // 8 High (rank 2) of 10 open = 80%
+
+	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v\n%s", err, raw)
+	}
+	if strings.Contains(raw, "STD-") {
+		t.Fatalf("issue key leaked into the paste-safe document:\n%s", raw)
+	}
+	var rep struct {
+		PriorityEntropy *struct {
+			Rank  int `json:"rank"`
+			Count int `json:"count"`
+			Pct   int `json:"pct"`
+			Open  int `json:"open"`
+		} `json:"priority_entropy"`
+	}
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	if rep.PriorityEntropy == nil {
+		t.Fatalf("concentrated priorities (80%% of 10) missing priority_entropy:\n%s", raw)
+	}
+	if got := *rep.PriorityEntropy; got.Rank != 2 || got.Count != 8 || got.Pct != 80 || got.Open != 10 {
+		t.Fatalf("priority_entropy = %+v, want rank 2 count 8 pct 80 open 10", got)
+	}
+
+	human, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, human)
+	}
+	if !strings.Contains(human, "80% of 10 open issues") || !strings.Contains(human, "rank 2") {
+		t.Fatalf("human form missing the census sentence:\n%s", human)
+	}
+
+	// Control: values spread 5/5 — no line, the healthy shape.
+	spread := t.TempDir()
+	t.Setenv("GADAK_HOME", spread)
+	t.Setenv("HOME", spread)
+	seedDoctorPriorities(t, spread, 5, 5)
+	raw, err = capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json (control): %v\n%s", err, raw)
+	}
+	rep.PriorityEntropy = nil // Unmarshal keeps absent fields; reset before re-decoding
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	if rep.PriorityEntropy != nil {
+		t.Fatalf("spread priorities still carry priority_entropy: %+v", *rep.PriorityEntropy)
+	}
+}
+
+// TestDoctorLocalSchemaSkew — GDK-596: the standing detail behind the short
+// local.db notice. A newer gadak migrated personal history further than this
+// build reads; every command logs one short pointer line, and this is the
+// line the pointer names — the versions, the file, and the remediation the
+// notice dropped. Version 99 is a planted future stamp: the cmd package
+// cannot see store's localMigrations length, and the skew verdict is
+// "version ahead of supported", which holds for any supported value.
+//
+// FAIL-first: the unwired JSON carries no local_schema_skew.
+func TestDoctorLocalSchemaSkew(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+	seedDoctorMirror(t, home) // leaves local.db at this build's version
+
+	local, err := sql.Open("sqlite", "file:"+filepath.Join(home, "local.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := local.Exec("PRAGMA user_version = 99"); err != nil {
+		local.Close()
+		t.Fatal(err)
+	}
+	if err := local.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v\n%s", err, raw)
+	}
+	var rep struct {
+		LocalSchemaSkew *struct {
+			Version   int    `json:"version"`
+			Supported int    `json:"supported"`
+			Path      string `json:"path"`
+		} `json:"local_schema_skew"`
+	}
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	if rep.LocalSchemaSkew == nil {
+		t.Fatalf("a skewed local.db but no local_schema_skew:\n%s", raw)
+	}
+	if got := rep.LocalSchemaSkew; got.Version != 99 || got.Supported <= 0 || got.Version <= got.Supported {
+		t.Fatalf("local_schema_skew = %+v, want version 99 ahead of supported", got)
+	}
+	if !strings.Contains(rep.LocalSchemaSkew.Path, "local.db") {
+		t.Fatalf("local_schema_skew.path = %q, want the local.db path", rep.LocalSchemaSkew.Path)
+	}
+
+	human, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, human)
+	}
+	got := doctorValue(t, human, "local_schema_skew")
+	for _, want := range []string{"99", "upgrade gadak", "--workspace", "GADAK_HOME"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("local_schema_skew %q missing %q — the remediation the short notice dropped lives here", got, want)
+		}
+	}
+
+	// Control: this build's own local.db (seedDoctorMirror just left one at
+	// the current version) — no section, the healthy shape.
+	fresh := t.TempDir()
+	t.Setenv("GADAK_HOME", fresh)
+	t.Setenv("HOME", fresh)
+	seedDoctorMirror(t, fresh)
+	raw, err = capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json (control): %v\n%s", err, raw)
+	}
+	rep.LocalSchemaSkew = nil // Unmarshal keeps absent fields; reset before re-decoding
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	if rep.LocalSchemaSkew != nil {
+		t.Fatalf("a current local.db still carries local_schema_skew: %+v", *rep.LocalSchemaSkew)
+	}
+}
+
+// seedDoctorVisit rows one person read with an explicit stamp into home's
+// local.db — a third connection, no ATTACH, the road session_strip_test.go
+// takes (RecordVisit stamps Now() and cannot express "two hours ago").
+func seedDoctorVisit(t *testing.T, home string, at time.Time, source string) {
+	t.Helper()
+	local, err := sql.Open("sqlite", "file:"+filepath.Join(home, "local.db"))
+	if err != nil {
+		t.Fatalf("open local.db: %v", err)
+	}
+	defer local.Close()
+	if _, err := local.Exec(
+		`INSERT INTO visits (kind, key, viewed_at, source) VALUES (?,?,?,?)`,
+		store.VisitKindIssue, "NMB-1", at.UTC().Format(config.ISOMilli), source); err != nil {
+		t.Fatalf("seed visit at %s: %v", at, err)
+	}
+}
+
+// TestDoctorSessionBoundary — GDK-1549: the boundary the bootstrap probe
+// header serves (X-Gadak-Session-Boundary) is also a doctor line, so "when
+// did my last session end?" is answerable with the serve down. The owner is
+// db.LastSessionEnd with retro.SessionGap; doctor formats the same
+// ISOMilli-UTC string read.go serves, and this test cross-checks the two
+// readers against each other so they cannot drift.
+//
+// FAIL-first: the unwired JSON carries no session_boundary.
+func TestDoctorSessionBoundary(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+	seedDoctorMirror(t, home)
+	now := time.Now().UTC()
+	// Session 1 (2h back), a read in the current session (1m back): the
+	// boundary is session 1's read; the 1m read must not move it.
+	prev := now.Add(-2 * time.Hour)
+	seedDoctorVisit(t, home, prev, store.VisitSourceUI)
+	seedDoctorVisit(t, home, now.Add(-time.Minute), store.VisitSourceUI)
+
+	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v\n%s", err, raw)
+	}
+	var rep struct {
+		SessionBoundary string `json:"session_boundary"`
+	}
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	if rep.SessionBoundary == "" {
+		t.Fatalf("a previous session on record but no session_boundary:\n%s", raw)
+	}
+	if got, err := time.Parse(config.ISOMilli, rep.SessionBoundary); err != nil {
+		t.Fatalf("session_boundary %q is not ISOMilli: %v", rep.SessionBoundary, err)
+	} else if d := got.Sub(prev); d < -time.Second || d > time.Second {
+		t.Fatalf("session_boundary = %s, want the previous session's end %s", rep.SessionBoundary, prev.Format(config.ISOMilli))
+	}
+
+	// Cross-check: the same reader the probe header uses, on the same home.
+	db, err := store.Open(filepath.Join(home, "gadak.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer db.Close()
+	end, err := db.LastSessionEnd(context.Background(), time.Now(), retro.SessionGap)
+	if err != nil || end == nil {
+		t.Fatalf("LastSessionEnd: %v %v", end, err)
+	}
+	if want := end.UTC().Format(config.ISOMilli); rep.SessionBoundary != want {
+		t.Fatalf("doctor session_boundary %q != the header's own value %q", rep.SessionBoundary, want)
+	}
+
+	// Control: no visits at all — the key is absent, not empty-quoted.
+	quiet := t.TempDir()
+	t.Setenv("GADAK_HOME", quiet)
+	t.Setenv("HOME", quiet)
+	seedDoctorMirror(t, quiet)
+	raw, err = capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json (control): %v\n%s", err, raw)
+	}
+	rep.SessionBoundary = ""
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	if rep.SessionBoundary != "" {
+		t.Fatalf("session_boundary = %q with no visits on record", rep.SessionBoundary)
+	}
+
+	// The human form carries the line too.
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	human, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, human)
+	}
+	if !strings.Contains(human, "session_boundary:") {
+		t.Fatalf("human form missing session_boundary:\n%s", human)
+	}
+}
+
+// TestDoctorReportsPairingVersionSkew is FAIL-first for GDK-1273's doctor
+// half: the paste-into-a-bug-report document names both gadak versions of a
+// paired workspace, so a skew report is a copy of one line instead of an
+// archaeology dig. The credential is planted raw — the on-disk contract an
+// older pair already wrote.
+func TestDoctorReportsPairingVersionSkew(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	cred := map[string]any{
+		"endpoint":      "http://192.0.2.10:7877",
+		"token":         "pair-token",
+		"label":         "laptop",
+		"serverVersion": "0.19.1",
+	}
+	b, err := json.Marshal(cred)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "remote-origin.json"), b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v", err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	skew, _ := doc["pairing_skew"].(string)
+	if skew == "" {
+		t.Fatalf("doctor must report pairing_skew for a paired workspace, got %s", raw)
+	}
+	if !strings.Contains(skew, "0.19.1") {
+		t.Fatalf("pairing_skew must name the home serve's version, got %q", skew)
+	}
+
+	text, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v", err)
+	}
+	if !strings.Contains(text, "pairing skew") || !strings.Contains(text, "0.19.1") {
+		t.Fatalf("doctor text must carry a pairing skew line naming the version, got:\n%s", text)
 	}
 }
