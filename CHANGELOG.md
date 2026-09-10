@@ -367,6 +367,16 @@ opens with that key filled in ([GDK-1527]), and the bottom-sheet inset is
 measured again — the formula is one function, the stylesheet is pinned to
 it, and the viewport walk opens a sheet that really opens ([GDK-911]).
 
+The demo fixture has one content original and one artifact —
+`examples/demo-source.db` builds `examples/demo.db` with a pinned clock, and
+`make demo-fixture-check` fails when two builds differ or the committed file
+is not what the source builds ([GDK-1751]); the fixture's media nodes carry
+`alt` the way real Jira Cloud's do (measured: 24 of 24 on a live site), so
+Dana's comment attachments render as images instead of chips, and a gate
+keeps every media node joined to its attachment ([GDK-1517]); the sync
+fixture localizes priorities and issue types the way it already localized
+statuses, so keying on a display name goes red on all three axes ([GDK-47]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -1953,3 +1963,6 @@ priority sorting keyed on `priority_rank`.
 [GDK-1206]: https://gadak.dev/backlog/#/?ks=GDK-1206
 [GDK-1527]: https://gadak.dev/backlog/#/?ks=GDK-1527
 [GDK-911]: https://gadak.dev/backlog/#/?ks=GDK-911
+[GDK-1751]: https://gadak.dev/backlog/#/?ks=GDK-1751
+[GDK-1517]: https://gadak.dev/backlog/#/?ks=GDK-1517
+[GDK-47]: https://gadak.dev/backlog/#/?ks=GDK-47

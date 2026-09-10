@@ -1,6 +1,6 @@
 .PHONY: build test vet typecheck theme-check bench scan docker plugins-test \
 	media media-web media-search media-agent media-groupby media-scale media-sprint media-retro media-mcp media-prep media-deps \
-	media-fixture media-hero-sprint-retro brand \
+	media-fixture media-hero-sprint-retro brand demo-fixture demo-fixture-check \
 	hosted-demo hosted-demo-test
 
 build:
@@ -19,13 +19,17 @@ theme-check:
 	node tools/theme-check.mjs
 	node tools/token-catalog.mjs --check
 
-# demo-fixture is circular: snapshot --from examples/demo.db writes
-# examples/demo.db. Content is the committed file, not a seed; --spread
-# redistributes timestamps so this is not a schema-only migrate. A schema
-# bump that must keep issue/comment bytes stable should Open-migrate a copy
-# (`GADAK_HOME=<tmp> gadak status` after copying the file to <tmp>/gadak.db)
-# and run scripts/scrub-demo-db.py onto examples/demo.db — do not use this
-# target for that (GDK-671; seed→synthesis is a later round).
+# The demo fixture has one content original and one artifact (GDK-1751).
+# examples/demo-source.db is the original — edit fixture content there, never
+# in examples/demo.db, which scripts/demo-fixture.sh always regenerates from
+# it (the old recipe read examples/demo.db as its own build input, and the
+# second regeneration stacked: changelog grew 1757 → 1758). The build clock is
+# pinned in that script, so one source + one code state rebuild
+# byte-identically — make demo-fixture-check measures it.
+# A schema bump that must keep issue/comment bytes stable should Open-migrate
+# a copy (`GADAK_HOME=<tmp> gadak status` after copying the file to
+# <tmp>/gadak.db) and run scripts/scrub-demo-db.py onto examples/demo.db — do
+# not use this target for that (GDK-671; seed→synthesis is a later round).
 #
 # The committed file's PRAGMA user_version must equal this binary's
 # migration level. That gate is
@@ -33,14 +37,7 @@ theme-check:
 # this target does not claim to land "the current schema" by itself.
 # `bash scripts/demo-schema.sh` prints the stamp + row counts.
 demo-fixture:
-	go run ./cmd/gadak snapshot examples/demo.db.new --from examples/demo.db --spread 90d --seed 1 --derive-sprints
-	# The committed fixture is opened raw by Datasette Lite (GDK-101): the
-	# scrub re-checks fictional values and rebuilds items_fts without
-	# contentless_delete. Skipping it is exactly how a regen went red on CI
-	# (2026-08-21: Lite gate + empty FTS).
-	python3 scripts/scrub-demo-db.py examples/demo.db.new examples/demo.db
-	rm examples/demo.db.new
-	bash scripts/demo-schema.sh examples/demo.db
+	bash scripts/demo-fixture.sh
 	# The browsing history that accompanies the mirror (GDK-1720). local.db is
 	# personal state, so nothing in the snapshot pipeline writes it and `gadak
 	# retro` read an empty one in the demo, in every recording and in every e2e
@@ -53,6 +50,12 @@ demo-fixture:
 	fi
 	bash scripts/scan-internal.sh
 	bash tools/doc-checks.sh
+
+# GDK-1751 idempotency gate: two builds from examples/demo-source.db must be
+# byte-identical AND identical to the committed examples/demo.db — an edited
+# source without a regen, or a hand-edited artifact, fails here.
+demo-fixture-check:
+	bash scripts/demo-fixture.sh --check
 
 # Zero-install hosted demo (static UI + demo.db snapshot for GitHub Pages).
 # Output: dist/hosted/. Does not touch dist/app (go:embed).

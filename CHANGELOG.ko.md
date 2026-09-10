@@ -273,6 +273,15 @@ CSS 를 인용한 코멘트가 `@media` 가 누구냐고 origin 에 묻지 않�
 ([GDK-1527]), 하단 시트 인셋을 다시 잽니다 — 공식은 함수 하나, 스타일시트는
 거기에 고정, 뷰포트 walk 는 실제로 열리는 시트를 엽니다 ([GDK-911]).
 
+데모 픽스처는 원본 하나와 산출물 하나입니다. `examples/demo-source.db` 가 고정된
+시계로 `examples/demo.db` 를 만들고, 두 번 빌드가 다르거나 커밋된 파일이
+원본에서 나온 것이 아니면 `make demo-fixture-check` 가 실패합니다 ([GDK-1751]).
+픽스처의 media 노드는 실제 Jira Cloud 처럼 `alt` 를 답니다(라이브 실측 24개 중
+24개). 그래서 Dana 의 코멘트 첨부가 칩이 아니라 이미지로 그려지고, 모든 media
+노드가 첨부와 조인되는지 게이트가 잽니다 ([GDK-1517]). 동기화 픽스처는 상태를
+번역하던 방식 그대로 우선순위와 이슈 유형도 번역하니, display name 으로 키하면
+세 축 모두에서 빨갛습니다 ([GDK-47]).
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -1793,3 +1802,6 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1206]: https://gadak.dev/backlog/#/?ks=GDK-1206
 [GDK-1527]: https://gadak.dev/backlog/#/?ks=GDK-1527
 [GDK-911]: https://gadak.dev/backlog/#/?ks=GDK-911
+[GDK-1751]: https://gadak.dev/backlog/#/?ks=GDK-1751
+[GDK-1517]: https://gadak.dev/backlog/#/?ks=GDK-1517
+[GDK-47]: https://gadak.dev/backlog/#/?ks=GDK-47

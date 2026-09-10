@@ -32,8 +32,9 @@ playwright-report/
 blob-report/
 playwright/.cache/
 
-# Exception: the committed demo snapshot
+# Exception: the committed demo snapshot and its content original (GDK-1751)
 !examples/demo.db
+!examples/demo-source.db
 
 # Environment
 .env

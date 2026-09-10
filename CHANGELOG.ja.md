@@ -299,6 +299,16 @@ at-rule 名・コードスパン・パッケージパスはメンションの候
 式は関数一つ、スタイルシートはそれに固定、ビューポートの walk は実際に開くシートを
 開きます ([GDK-911])。
 
+デモフィクスチャは原本一つと成果物一つです。`examples/demo-source.db` が固定した
+時計で `examples/demo.db` を作り、二回のビルドが違うか、コミット済みのファイルが
+原本から作られたものでなければ `make demo-fixture-check` が失敗します
+([GDK-1751])。フィクスチャの media ノードは実際の Jira Cloud と同じく `alt` を
+持ちます(ライブ計測 24 件中 24 件)。そのため Dana のコメント添付はチップではなく
+画像として描かれ、すべての media ノードが添付と結合しているかをゲートが測ります
+([GDK-1517])。同期フィクスチャはステータスを翻訳していたのと同じやり方で優先度と
+課題種別も翻訳するので、表示名でキーにすると三つの軸すべてで赤になります
+([GDK-47])。
+
 ## v0.21.0 — 2026-09-08
 
 **離れていた間に何が起きたのかに、キャッシュから答えます。** ステータスの変更も
@@ -1897,3 +1907,6 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1206]: https://gadak.dev/backlog/#/?ks=GDK-1206
 [GDK-1527]: https://gadak.dev/backlog/#/?ks=GDK-1527
 [GDK-911]: https://gadak.dev/backlog/#/?ks=GDK-911
+[GDK-1751]: https://gadak.dev/backlog/#/?ks=GDK-1751
+[GDK-1517]: https://gadak.dev/backlog/#/?ks=GDK-1517
+[GDK-47]: https://gadak.dev/backlog/#/?ks=GDK-47

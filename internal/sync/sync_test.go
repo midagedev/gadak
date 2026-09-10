@@ -100,7 +100,7 @@ func (f *fakeSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Path == "/rest/api/3/status":
 		w.Write(statusesJSON(f.lang))
 	case r.URL.Path == "/rest/api/3/priority":
-		w.Write([]byte(`[{"id":"1","name":"Highest"},{"id":"2","name":"High"},{"id":"3","name":"Medium"},{"id":"4","name":"Low"}]`))
+		w.Write(prioritiesJSON(f.lang))
 	case r.URL.Path == "/rest/api/3/issueLinkType":
 		// v43: the paged pass fetches the link-type catalog once per run.
 		// The name localizes like the status catalog does; the outward phrase
@@ -272,6 +272,38 @@ func statusObj(id, lang string) map[string]any {
 	}
 }
 
+// prioritiesJSON is the site priority list, language-parameterized exactly
+// like statusesJSON: the four ids keep their positions and only the display
+// names move (GDK-47 — this handler used to answer `High` whatever the site
+// language, so a Korean sync could never produce 높음 to be missed).
+func prioritiesJSON(lang string) []byte {
+	out := []map[string]any{}
+	for _, id := range []string{"1", "2", "3", "4"} {
+		out = append(out, priorityObj(id, lang))
+	}
+	b, _ := json.Marshal(out)
+	return b
+}
+
+func priorityObj(id, lang string) map[string]any {
+	names := map[string]string{
+		"1en": "Highest", "2en": "High", "3en": "Medium", "4en": "Low",
+		"1ko": "가장 높음", "2ko": "높음", "3ko": "중간", "4ko": "낮음",
+	}
+	return map[string]any{"id": id, "name": names[id+lang]}
+}
+
+// issueTypeObj localizes the issue types the fixtures use, same contract as
+// statusObj/priorityObj: the id is the join, the name is display-only
+// (GDK-47; cf. the 2026-08-15 `gadak create --type Task` vs 작업 incident).
+func issueTypeObj(id, lang string) map[string]any {
+	names := map[string]string{
+		"10004en": "Bug", "10002en": "Task",
+		"10004ko": "버그", "10002ko": "작업",
+	}
+	return map[string]any{"id": id, "name": names[id+lang]}
+}
+
 func adfDoc(text string) map[string]any {
 	return map[string]any{"type": "doc", "version": 1, "content": []any{
 		map[string]any{"type": "paragraph", "content": []any{map[string]any{"type": "text", "text": text}}},
@@ -299,9 +331,9 @@ func fixtures(lang string) []json.RawMessage {
 			"description": adfDoc("the flangewidget panics when saving"),
 			"environment": adfDoc("macOS 15, build 4210"),
 			"project":     map[string]any{"key": "NMB"},
-			"issuetype":   map[string]any{"id": "10004", "name": "Bug"},
+			"issuetype":   issueTypeObj("10004", lang),
 			"status":      statusObj("3", lang),
-			"priority":    map[string]any{"id": "2", "name": "High"},
+			"priority":    priorityObj("2", lang),
 			"assignee":    user("acc-dana", "Dana"),
 			"reporter":    user("acc-sam", "Sam"),
 			"creator":     user("acc-sam", "Sam"),
@@ -344,7 +376,7 @@ func fixtures(lang string) []json.RawMessage {
 		"fields": map[string]any{
 			"summary":   "Add keyboard shortcut",
 			"project":   map[string]any{"key": "NMB"},
-			"issuetype": map[string]any{"id": "10002", "name": "Task"},
+			"issuetype": issueTypeObj("10002", lang),
 			"status":    statusObj("1", lang),
 			"reporter":  user("acc-sam", "Sam"),
 			"created":   "2026-07-05T10:00:00.000+0900",
@@ -357,9 +389,9 @@ func fixtures(lang string) []json.RawMessage {
 		"fields": map[string]any{
 			"summary":    "Crash on empty project",
 			"project":    map[string]any{"key": "NMB"},
-			"issuetype":  map[string]any{"id": "10004", "name": "Bug"},
+			"issuetype":  issueTypeObj("10004", lang),
 			"status":     statusObj("5", lang),
-			"priority":   map[string]any{"id": "1", "name": "Highest"},
+			"priority":   priorityObj("1", lang),
 			"resolution": map[string]any{"id": "10000", "name": "Done"},
 			"reporter":   user("acc-dana", "Dana"),
 			"created":    "2026-07-06T10:00:00.000+0900",
@@ -1622,6 +1654,61 @@ func TestLocalizedResolutionKeysOnID(t *testing.T) {
 	}
 	if got := db.column(t, "issues", "resolution", "NMB-RES"); got != "완료" {
 		t.Errorf("resolution display name = %q, want 완료", got)
+	}
+}
+
+// TestLocalizedFieldKeysOnID is FAIL-first for GDK-47: on a Korean account,
+// status, priority and issue type all arrive with Korean display names, and
+// every axis must answer by stable id while the English display name matches
+// nothing. The status axis was already language-parameterized
+// (statusesJSON); the priority and issuetype fixtures used to be hardcoded
+// English, so a Korean sync could never even produce 높음/버그 for a
+// name-keyed caller to miss — the fakes answered `High`/`Bug` whatever the
+// site language. priority_rank is name-keyed against the site's own catalog
+// order, so it must stay 2 when both sides localize together.
+func TestLocalizedFieldKeysOnID(t *testing.T) {
+	site := newSite(t, "ko")
+	db := newMirror(t)
+	if _, err := Run(context.Background(), testConfig(), db.DB, Options{Full: true, Client: site.start()}); err != nil {
+		t.Fatal(err)
+	}
+	conn := db.raw(t)
+	one := func(q string) int {
+		var n int
+		if err := conn.QueryRow(q).Scan(&n); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+		return n
+	}
+	for _, tc := range []struct {
+		q    string
+		want int
+		why  string
+	}{
+		// status axis — the pre-existing control (statusesJSON was already
+		// language-parameterized; if this fails the harness broke, not GDK-47).
+		{`SELECT COUNT(*) FROM issues_full WHERE status_id = '3'`, 1, "id keys the localized status"},
+		{`SELECT COUNT(*) FROM issues_full WHERE status = 'In Progress'`, 0, "English name must match nothing"},
+		{`SELECT COUNT(*) FROM issues_full WHERE status = '진행 중'`, 1, "Korean name is what landed"},
+		// priority axis (GDK-47).
+		{`SELECT COUNT(*) FROM issues_full WHERE priority_id = '2'`, 1, "id keys the localized priority"},
+		{`SELECT COUNT(*) FROM issues_full WHERE priority_rank = 2`, 1, "rank keys the site catalog, which localizes with the value"},
+		{`SELECT COUNT(*) FROM issues_full WHERE priority = 'High'`, 0, "English name must match nothing"},
+		{`SELECT COUNT(*) FROM issues_full WHERE priority = '높음'`, 1, "Korean name is what landed"},
+		// issue type axis (GDK-47) — NMB-1 and NMB-3 are both 10004.
+		{`SELECT COUNT(*) FROM issues_full WHERE issue_type_id = '10004'`, 2, "id keys the localized issue type"},
+		{`SELECT COUNT(*) FROM issues_full WHERE issue_type = 'Bug'`, 0, "English name must match nothing"},
+		{`SELECT COUNT(*) FROM issues_full WHERE issue_type = '버그'`, 2, "Korean name is what landed"},
+	} {
+		if got := one(tc.q); got != tc.want {
+			t.Errorf("%s → %d, want %d (%s)", tc.q, got, tc.want, tc.why)
+		}
+	}
+	if got := db.column(t, "issues", "priority", "NMB-1"); got != "높음" {
+		t.Errorf("priority display name = %q, want 높음", got)
+	}
+	if got := db.column(t, "issues", "issue_type", "NMB-1"); got != "버그" {
+		t.Errorf("issue_type display name = %q, want 버그", got)
 	}
 }
 

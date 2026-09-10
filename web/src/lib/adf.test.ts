@@ -234,3 +234,75 @@ describe('an unresolved media node with no alt (GDK-1505)', () => {
     }
   })
 })
+
+describe('an alt-carrying media node resolves through the filename (GDK-1517)', () => {
+  // Live Jira Cloud carries attrs.alt = the attachment's filename on every
+  // media node (24/24 across five issues, measured 2026-09-10), and the
+  // mirror's attachments have no media id — alt is the only join
+  // findAttachment has. The doc below is NMB-110's comment (examples/demo.db,
+  // comment jira:10612, Dana Whitfield) extracted verbatim; the attachment
+  // list mirrors the server's shape (media_id arrives as '').
+  const danaComment: AdfNode = {
+    type: 'doc',
+    version: 1,
+    content: [
+      {
+        type: 'paragraph',
+        content: [
+          {
+            type: 'text',
+            text: 'Reproduced on staging. The tier is cached without the workspace id — screenshot and sketch attached.',
+          },
+        ],
+      },
+      {
+        type: 'mediaSingle',
+        attrs: { layout: 'center' },
+        content: [
+          {
+            type: 'media',
+            attrs: { type: 'file', id: 'e1c32652-396f-4be3-bf65-e1094e9a7bc0', alt: 'nimbus-error.png', collection: '' },
+          },
+        ],
+      },
+      {
+        type: 'mediaSingle',
+        attrs: { layout: 'center' },
+        content: [
+          {
+            type: 'media',
+            attrs: { type: 'file', id: 'a144bb4a-4740-47c9-ba76-7ea1b5b1942a', alt: 'cache-key-sketch.png', collection: '' },
+          },
+        ],
+      },
+    ],
+  }
+  const image = (id: string, filename: string): DetailAttachment => ({
+    id,
+    filename,
+    mime_type: 'image/png',
+    size: 10,
+    media_id: '',
+    media_collection: '',
+    is_image: true,
+    is_video: false,
+    cache_status: 'ready',
+    created_at: null,
+    content_url: `/api/v1/issues/STD-1/attachments/${id}/content/`,
+  })
+  const attachments = [
+    image('10000', 'nimbus-error.png'),
+    image('10001', 'latency-before-after.png'),
+    image('10002', 'cache-key-sketch.png'),
+  ]
+
+  test('each media node of the comment renders its image, not a chip', () => {
+    const html = renderAdf(danaComment, { attachments, apiBase: '/api/v1/issues/' })
+    expect(html.match(/<img /g)?.length ?? 0).toBe(2)
+    expect(html).toContain('alt="nimbus-error.png"')
+    expect(html).toContain('alt="cache-key-sketch.png"')
+    // The unresolved chip/anchor is class="adf-media"; the resolved button is
+    // adf-media-image. The closing quote keeps this from matching the button.
+    expect(html).not.toContain('class="adf-media"')
+  })
+})
