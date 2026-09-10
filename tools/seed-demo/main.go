@@ -35,9 +35,18 @@ func run(args []string) int {
 	assigneesFlag := fs.String("assignees", "", "comma-separated accountIds for assignee slots")
 	repairStatesFlag := fs.Bool("repair-states", false, "re-drive workflow states matched by summary")
 	repairAssigneesFlag := fs.Bool("repair-assignees", false, "redistribute assignees across --assignees")
+	linearOut := fs.String("linear-out", "", "build a Linear-shaped mirror at this path instead of seeding Jira (offline: loopback stub + the real sync; see linear_seed.go)")
+	linearIssues := fs.Int("linear-issues", 100, "issue count for --linear-out")
 
 	if err := fs.Parse(args); err != nil {
 		return 2
+	}
+
+	// --linear-out mode: offline Linear fixture. Branches before the
+	// JIRA_* requirement — this mode touches nothing but loopback and the
+	// output path.
+	if *linearOut != "" {
+		return writeLinearFixture(*linearOut, *linearIssues, *seedFlag)
 	}
 
 	// --docs mode: Confluence wiki seed. dry-run never touches the network.

@@ -282,6 +282,12 @@ CSS 를 인용한 코멘트가 `@media` 가 누구냐고 origin 에 묻지 않�
 번역하던 방식 그대로 우선순위와 이슈 유형도 번역하니, display name 으로 키하면
 세 축 모두에서 빨갛습니다 ([GDK-47]).
 
+e2e 스위트가 Jira 미러 옆에 Linear 모양의 미러도 띄웁니다. `examples/demo-linear.db`
+는 결정적 데이터셋을 루프백 스텁에 대고 실제 Linear 동기화로 재생해 만들어, 파일
+안의 매핑이 커넥터 자신의 것입니다. `e2e/linear.spec.ts` 가 스위트의 두 번째
+포트에서 origin 딥링크·양방향 링크 라벨·쓰기 거절·신선도 칩을 그 위에서
+그립니다 ([GDK-1298]).
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -1805,3 +1811,4 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1751]: https://gadak.dev/backlog/#/?ks=GDK-1751
 [GDK-1517]: https://gadak.dev/backlog/#/?ks=GDK-1517
 [GDK-47]: https://gadak.dev/backlog/#/?ks=GDK-47
+[GDK-1298]: https://gadak.dev/backlog/#/?ks=GDK-1298

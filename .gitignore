@@ -35,6 +35,9 @@ playwright/.cache/
 # Exception: the committed demo snapshot and its content original (GDK-1751)
 !examples/demo.db
 !examples/demo-source.db
+# Exception: the committed demo snapshots
+!examples/demo.db
+!examples/demo-linear.db
 
 # Environment
 .env

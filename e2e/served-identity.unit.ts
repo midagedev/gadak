@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, test } from 'vitest'
 import { assertServedArtifact, e2eServePort, servedStampPath } from './helpers'
@@ -16,7 +16,12 @@ function worktreeRoot(): string {
 }
 
 function sourceDigest(): string {
-  return execFileSync('bash', [DIGEST_SH], { cwd: ROOT, encoding: 'utf8' }).trim()
+  const git = execFileSync('bash', [DIGEST_SH], { cwd: ROOT, encoding: 'utf8' }).trim()
+  // Mirrors e2e/serve.sh: the stamp digest is the git line plus the fixture
+  // being served (`seed=<basename>`; GADAK_SEED_DB defaults to demo.db). The
+  // suite's own GADAK_E2E_SHELL never set here, so no shell= suffix either.
+  const seed = basename(process.env.GADAK_SEED_DB ?? 'examples/demo.db')
+  return `${git} seed=${seed}`
 }
 
 function writeStamp(dir: string, stamp: { worktree: string; digest: string }): string {
@@ -44,7 +49,9 @@ describe('served-digest.sh', () => {
   })
 
   test('prints HEAD plus a sha256 of the working-tree delta', () => {
-    const line = sourceDigest()
+    // The script's own contract is the bare git line; the `seed=` suffix is
+    // serve.sh's composition, asserted through sourceDigest() below.
+    const line = execFileSync('bash', [DIGEST_SH], { cwd: ROOT, encoding: 'utf8' }).trim()
     const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim()
     expect(line).toMatch(new RegExp(`^${head} [0-9a-f]{64}$`))
   })

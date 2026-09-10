@@ -206,7 +206,7 @@ fi
   fi
 } | sort -u | while IFS= read -r f; do
   case "$f" in
-    examples/demo.db|*.png|*.jpg|*.jpeg|*.gif|*.webp|*.ico|*.woff|*.woff2|*.ttf|*.eot|*.mp4|*.webm|*.zip|*.gz|*.tgz)
+    examples/demo.db|examples/demo-linear.db|*.png|*.jpg|*.jpeg|*.gif|*.webp|*.ico|*.woff|*.woff2|*.ttf|*.eot|*.mp4|*.webm|*.zip|*.gz|*.tgz)
       continue
       ;;
   esac
@@ -249,20 +249,28 @@ if [[ -s "$text_list" ]]; then
       | filter_real_home_paths >>"$hits_file" || true
 fi
 
-if [[ -z "$SCAN_DIR" && -f examples/demo.db ]]; then
-  echo "==> scanning strings in examples/demo.db"
-  tmp_strings="$(mktemp)"
-  strings examples/demo.db >"$tmp_strings"
-  grep -nE "$PAT_TOKEN|$PAT_LINEAR" "$tmp_strings" 2>/dev/null \
-      | sed 's|^|examples/demo.db:strings:|' >>"$hits_file" || true
-  if [[ -n "$PAT_COMPANY" ]]; then
-    grep -niE "$PAT_COMPANY" "$tmp_strings" 2>/dev/null \
-        | sed 's|^|examples/demo.db:strings:|' >>"$hits_file" || true
-  fi
-  grep -niE "$PAT_HOST" "$tmp_strings" 2>/dev/null \
-      | filter_disallowed_hosts \
-      | sed 's|^|examples/demo.db:strings:|' >>"$hits_file" || true
-  rm -f "$tmp_strings"
+# Committed fixtures are binaries, so the text scan above skips them (the case
+# list feeds it) — this sweep runs the same patterns over their printable
+# strings. One loop per fixture file: the second committed mirror
+# (examples/demo-linear.db, GDK-1298) landed while the sweep was hardcoded to
+# demo.db, and a secret-shaped string in it would have sailed through.
+if [[ -z "$SCAN_DIR" ]]; then
+  for db in examples/demo.db examples/demo-linear.db; do
+    [[ -f "$db" ]] || continue
+    echo "==> scanning strings in $db"
+    tmp_strings="$(mktemp)"
+    strings "$db" >"$tmp_strings"
+    grep -nE "$PAT_TOKEN|$PAT_LINEAR" "$tmp_strings" 2>/dev/null \
+        | sed "s|^|$db:strings:|" >>"$hits_file" || true
+    if [[ -n "$PAT_COMPANY" ]]; then
+      grep -niE "$PAT_COMPANY" "$tmp_strings" 2>/dev/null \
+          | sed "s|^|$db:strings:|" >>"$hits_file" || true
+    fi
+    grep -niE "$PAT_HOST" "$tmp_strings" 2>/dev/null \
+        | filter_disallowed_hosts \
+        | sed "s|^|$db:strings:|" >>"$hits_file" || true
+    rm -f "$tmp_strings"
+  done
 fi
 
 if [[ -s "$hits_file" ]]; then

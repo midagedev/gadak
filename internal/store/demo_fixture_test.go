@@ -198,3 +198,62 @@ func TestCommittedDemoDBMediaNodesCarryAlt(t *testing.T) {
 func normalizeFilename(s string) string {
 	return strings.ToLower(strings.TrimSpace(s))
 }
+
+// TestCommittedLinearDemoDBMatchesCurrentSchema is the same lockstep gate for
+// the Linear fixture (GDK-1298): examples/demo-linear.db serves on the
+// suite's second port, and a schema bump that regenerates demo.db but not
+// this file would leave e2e/serve.sh refusing it only at serve time — this
+// test fails it in `go test ./...` where the round sees it. Same read-only
+// copy discipline: never Open, which migrates and hides the lag.
+//
+// Shape invariants here are only the ones the file exists to hold (a linear
+// source, the relation set, comments); the mapping contract itself lives in
+// tools/seed-demo/linear_seed_test.go, which runs the generator.
+func TestCommittedLinearDemoDBMatchesCurrentSchema(t *testing.T) {
+	src := filepath.Join("..", "..", "examples", "demo-linear.db")
+	in, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatalf("examples/demo-linear.db is part of the tree: %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "gadak.db")
+	if err := os.WriteFile(path, in, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := sql.Open("sqlite", "file:"+path+"?mode=ro")
+	if err != nil {
+		t.Fatalf("open linear demo copy read-only: %v", err)
+	}
+	defer raw.Close()
+
+	var have int
+	if err := raw.QueryRow(`PRAGMA user_version`).Scan(&have); err != nil {
+		t.Fatalf("PRAGMA user_version: %v", err)
+	}
+	fresh, err := Open(filepath.Join(t.TempDir(), "level.db"))
+	if err != nil {
+		t.Fatalf("open empty mirror for current schema: %v", err)
+	}
+	want := fresh.SchemaVersion()
+	_ = fresh.Close()
+
+	if have != want {
+		t.Errorf("examples/demo-linear.db PRAGMA user_version = %d, want %d — regenerate with `make demo-linear-fixture`", have, want)
+	}
+
+	for _, q := range []struct {
+		what string
+		sql  string
+	}{
+		{"one linear source", `SELECT count(*) FROM sources WHERE kind = 'linear'`},
+		{"the fixed relation set", `SELECT count(*) FROM links`},
+		{"mirrored comments", `SELECT count(*) FROM comments`},
+		{"the cycles boards", `SELECT count(*) FROM boards WHERE type = 'cycles'`},
+	} {
+		var n int
+		if err := raw.QueryRow(q.sql).Scan(&n); err != nil {
+			t.Errorf("%s: %v", q.what, err)
+		} else if n == 0 {
+			t.Errorf("%s: 0 rows on examples/demo-linear.db — the fixture was emptied or truncated", q.what)
+		}
+	}
+}

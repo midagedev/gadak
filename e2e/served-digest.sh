@@ -17,6 +17,7 @@ PATHS=(
   go.sum
   e2e/serve.sh
   examples/demo.db
+  examples/demo-linear.db
 )
 if [ -f package.json ]; then
   PATHS+=(package.json)

@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, unlinkSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test as base, type ConsoleMessage, type Locator, type Page } from '@playwright/test'
 import { en, ja, ko, type MessageKey } from '../web/src/lib/i18n/catalog'
@@ -62,11 +62,39 @@ export const DEMO_ISSUE_COUNT_JA = `${DEMO_ISSUE_COUNT}件`
 export const DEMO_ISSUE_COUNT_EN_RE = new RegExp(`${DEMO_ISSUE_COUNT} issues`)
 export const DEMO_ISSUE_COUNT_RE = new RegExp(String(DEMO_ISSUE_COUNT))
 
+/**
+ * The Linear counterpart fixture (GDK-1298): `make demo-linear-fixture`
+ * writes it and the playwright config's second serve seeds from it. Same
+ * single-owner rule as DEMO_ISSUE_COUNT — a regen that changes the count
+ * updates the constant, and linear.spec.ts's boot wait follows.
+ */
+export const LINEAR_SEED_DB = 'examples/demo-linear.db'
+export const LINEAR_ISSUE_COUNT = 100
+export const LINEAR_ISSUE_COUNT_RE = new RegExp(String(LINEAR_ISSUE_COUNT))
+
 export type AssertServedArtifactOpts = {
   /** Tests: isolate from the process-global ${TMPDIR}/gadak-e2e-served-<port>.json. */
   stampPath?: string
   /** Tests: override git rev-parse --show-toplevel. */
   root?: string
+  /** Which serve's stamp to assert: the Linear port's (see linearServePort). */
+  port?: string
+  /**
+   * The stamp's digest names the fixture that port serves (serve.sh folds
+   * `seed=<basename>` in). The linear port's fixture is pinned by the
+   * playwright config, not by this process's GADAK_SEED_DB — hence explicit.
+   */
+  linear?: boolean
+}
+
+function requirePort(envName: string, raw: string): string {
+  if (!/^[1-9][0-9]*$/.test(raw)) {
+    throw new Error(`${envName} must be an integer 1-65535, got ${JSON.stringify(raw)}`)
+  }
+  if (Number(raw) > 65535) {
+    throw new Error(`${envName} out of range: ${raw}`)
+  }
+  return raw
 }
 
 /**
@@ -76,20 +104,39 @@ export type AssertServedArtifactOpts = {
 export function e2eServePort(): string {
   const raw = process.env.GADAK_E2E_PORT
   if (raw === undefined || raw === '') return DEFAULT_E2E_PORT
-  if (!/^[1-9][0-9]*$/.test(raw)) {
-    throw new Error(`GADAK_E2E_PORT must be an integer 1-65535, got ${JSON.stringify(raw)}`)
+  return requirePort('GADAK_E2E_PORT', raw)
+}
+
+/**
+ * The suite's second serve: the Linear fixture's port (GDK-1298,
+ * e2e/linear.spec.ts). Defaults to two past e2eServePort() so a parallel
+ * round that moves the base port moves this one with it. One past is taken:
+ * built-in-attachments.spec.ts spawns its own serve on base+1, and this
+ * default sitting there meant its healthz poll adopted the Linear serve and
+ * every upload was refused by the linear origin — measured when linear.spec
+ * landed. GADAK_E2E_LINEAR_PORT overrides it (same integer rules, and never
+ * the base port — one listener per port, same contract as the base).
+ */
+export function linearServePort(): string {
+  const raw = process.env.GADAK_E2E_LINEAR_PORT
+  if (raw === undefined || raw === '') return String(Number(e2eServePort()) + 2)
+  const port = requirePort('GADAK_E2E_LINEAR_PORT', raw)
+  if (port === e2eServePort()) {
+    throw new Error(`GADAK_E2E_LINEAR_PORT must differ from GADAK_E2E_PORT (${port})`)
   }
-  const n = Number(raw)
-  if (n > 65535) {
-    throw new Error(`GADAK_E2E_PORT out of range: ${raw}`)
-  }
-  return raw
+  return port
 }
 
 /** Absolute URL on the e2e server. Empty path is origin with no trailing slash. */
 export function apiURL(path = ''): string {
   const p = !path ? '' : path.startsWith('/') ? path : `/${path}`
   return `http://127.0.0.1:${e2eServePort()}${p}`
+}
+
+/** Absolute URL on the Linear-fixture serve. Same shape as apiURL(). */
+export function linearApiURL(path = ''): string {
+  const p = !path ? '' : path.startsWith('/') ? path : `/${path}`
+  return `http://127.0.0.1:${linearServePort()}${p}`
 }
 
 /** GADAK_HOME for this suite: e2e/.tmp/home-<port>, so two ports do not share a db. */
@@ -135,9 +182,13 @@ export function hardcodedE2EHosts(root = E2E_DIR): string[] {
 }
 
 /** Port-keyed stamp outside any worktree. Matches e2e/serve.sh. */
-export function servedStampPath(): string {
+export function servedStampPathFor(port: string): string {
   const tmp = process.env.TMPDIR || '/tmp'
-  return join(tmp, `gadak-e2e-served-${e2eServePort()}.json`)
+  return join(tmp, `gadak-e2e-served-${port}.json`)
+}
+
+export function servedStampPath(): string {
+  return servedStampPathFor(e2eServePort())
 }
 
 function worktreeRoot(): string {
@@ -147,7 +198,7 @@ function worktreeRoot(): string {
   }).trim()
 }
 
-function servedSourceDigest(root: string): string {
+function servedSourceDigest(root: string, seed: string): string {
   const git = execFileSync('bash', [join(E2E_DIR, 'served-digest.sh')], {
     cwd: root,
     encoding: 'utf8',
@@ -155,8 +206,13 @@ function servedSourceDigest(root: string): string {
   // Mirrors e2e/serve.sh: GADAK_E2E_SHELL changes what the suite measures but
   // is not a git fact, so served-digest.sh cannot see it. Without this a
   // wide-prompt run would silently reuse the server a plain run left behind.
+  let digest = git
   const shell = process.env.GADAK_E2E_SHELL
-  return shell ? `${git} shell=${shell}` : git
+  if (shell) digest = `${digest} shell=${shell}`
+  // Also mirrors serve.sh: the stamp names the fixture being served
+  // (`seed=<basename>`), so a live server left by a run that served a
+  // different fixture is refused instead of reused.
+  return `${digest} seed=${seed}`
 }
 
 function parseServedStamp(raw: string, stampPath: string): { worktree: string; digest: string } {
@@ -189,8 +245,12 @@ function parseServedStamp(raw: string, stampPath: string): { worktree: string; d
  */
 export function assertServedArtifact(opts: AssertServedArtifactOpts = {}): void {
   const root = opts.root ?? worktreeRoot()
-  const stampPath = opts.stampPath ?? servedStampPath()
-  const digest = servedSourceDigest(root)
+  const port = opts.port ?? e2eServePort()
+  const stampPath = opts.stampPath ?? servedStampPathFor(port)
+  const seed = opts.linear
+    ? basename(LINEAR_SEED_DB)
+    : basename(process.env.GADAK_SEED_DB ?? 'examples/demo.db')
+  const digest = servedSourceDigest(root, seed)
 
   if (!existsSync(stampPath)) {
     throw new Error(
@@ -214,6 +274,9 @@ export default function globalSetup(): void {
     )
   }
   assertServedArtifact()
+  // The second serve (the Linear fixture, GDK-1298) gets the same honesty
+  // check: its stamp is port-keyed and its digest names its own fixture.
+  assertServedArtifact({ port: linearServePort(), linear: true })
   clearUIFocus()
 }
 

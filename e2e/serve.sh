@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Idempotent fixture + server for Playwright E2E.
-# Builds the binary and UI, seeds e2e/.tmp/home-${PORT} from examples/demo.db, injects
-# one deploy enrichment, then serves on 127.0.0.1:${PORT}.
+# Builds the binary and UI, seeds e2e/.tmp/home-${PORT} from the committed fixture
+# (examples/demo.db, or the Linear one when GADAK_SEED_DB points at it), injects
+# the Jira fixture's seed rows, then serves on 127.0.0.1:${PORT}.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -26,7 +27,16 @@ unset GADAK_E2E_SHELL GADAK_E2E_ORIGIN
 
 TMP="$ROOT/e2e/.tmp"
 HOME_DIR="$TMP/home-${PORT}"
-BIN="$TMP/gadak"
+# Port-keyed binary: one worktree runs two serves now (the suite's second
+# port serves the Linear fixture, e2e/linear.spec.ts), and `go build -o`
+# links in place — two linkers writing one name can hand a server a torn
+# binary, and rebuilding over a name a running server was exec'd from
+# truncates its text. The hardlink below keeps the classic e2e/.tmp/gadak
+# name alive for the scripts that execute it directly (tools/tapes/
+# prepare-promo.sh, e2e/demo/record-roundtrip.sh, record-hero-desk.sh);
+# each rebuild lands on a fresh inode, so the swap never disturbs a
+# running process.
+BIN="$TMP/gadak-${PORT}"
 DB="$HOME_DIR/gadak.db"
 CFG="$HOME_DIR/config.json"
 # Media recordings can scale the fixture up (e2e/demo/scale-demo.spec.ts
@@ -38,6 +48,7 @@ mkdir -p "$TMP" "$HOME_DIR"
 
 echo "[e2e] building gadak binary…"
 CGO_ENABLED=0 go build -o "$BIN" ./cmd/gadak
+ln -f "$BIN" "$TMP/gadak" 2>/dev/null || true
 
 echo "[e2e] building web UI…"
 npm run build
@@ -58,6 +69,14 @@ rm -f "${DB}-wal" "${DB}-shm"
 # scaled or translated take gets a history that names its own keys.
 rm -f "$HOME_DIR/local.db" "$HOME_DIR/local.db-wal" "$HOME_DIR/local.db-shm"
 
+# Which origin the seeded mirror speaks decides the config below and gates
+# the Jira-only seed rows further down (their keys, source ids and saved
+# queries are the Jira mirror's; on a Linear home they would render as dead
+# sidebar entries). The mirror's own sources row is the single owner of
+# that fact — not the file name — so a translated or scaled copy of either
+# fixture keeps behaving like its origin.
+SEED_KIND="$(sqlite3 "$DB" "SELECT kind FROM sources WHERE kind = 'linear' LIMIT 1" 2>/dev/null || true)"
+
 # Demo projects + deploy/teamGroups surfaces. The credential is fake — nothing
 # in the suite talks to Jira — but its presence must unlock the write UI
 # (me/ → email → identified), which is asserted in detail.spec.ts.
@@ -74,6 +93,26 @@ if [ -z "$E2E_ACCOUNT_ID" ]; then
   echo "[e2e] warning: the fixture has no account id for $E2E_EMAIL; the retro resume row will stay empty" >&2
 fi
 
+if [ "$SEED_KIND" = "linear" ]; then
+  # Linear home (the suite's second port, e2e/linear.spec.ts). `kind` drives
+  # OriginType and every tracker-naming surface; carrying a Jira site/token
+  # here would sneak the Jira surfaces back in (the crossover GDK-1308
+  # removed). The fake key plays the fake token's role above — a present
+  # credential, never used against any network. Note it flips
+  # HasCredential, not originWritable: that bool mirrors
+  # HasAtlassianCredential (the Jira-family predicate) and stays false
+  # here by design (internal/server/settings.go).
+  cat >"$CFG" <<EOF
+{
+  "kind": "linear",
+  "email": "$E2E_EMAIL",
+  "account_id": "$E2E_ACCOUNT_ID",
+  "linear": { "apiKey": "e2e-linear-key" },
+  "projects": ["LNX", "LNM"],
+  "staleThresholdHours": 72
+}
+EOF
+else
 cat >"$CFG" <<EOF
 {
   "site": "https://nimbus.example.com",
@@ -100,6 +139,7 @@ cat >"$CFG" <<EOF
   "staleThresholdHours": 72
 }
 EOF
+fi
 
 # GADAK_E2E_SHELL points every pane session at a chosen shell (settings block
 # terminal.shell, GDK-896). The suite never sets it, so a normal run still gets
@@ -139,11 +179,11 @@ fi
 # examples/demo.db and keep e2e green (GDK-671).
 echo "[e2e] opening fixture copy (FTS repair for writable e2e home)…"
 GADAK_HOME="$HOME_DIR" "$BIN" status >/dev/null
-have="$(sqlite3 "$ROOT/examples/demo.db" "PRAGMA user_version")"
+have="$(sqlite3 "$SEED_DB" "PRAGMA user_version")"
 want="$(sqlite3 "$DB" "PRAGMA user_version")"
 if [ "$have" != "$want" ]; then
-  echo "[e2e] examples/demo.db PRAGMA user_version=${have}; this binary's mirror is ${want}." >&2
-  echo "[e2e] Rebaseline the committed fixture (Open-migrate a copy, then scripts/scrub-demo-db.py). serve.sh does not migrate over a stale file." >&2
+  echo "[e2e] ${SEED_DB} PRAGMA user_version=${have}; this binary's mirror is ${want}." >&2
+  echo "[e2e] Rebaseline the committed fixture (make demo-fixture, or make demo-linear-fixture for the Linear one). serve.sh does not migrate over a stale file." >&2
   exit 1
 fi
 
@@ -157,6 +197,14 @@ fi
 echo "[e2e] seeding local.db browsing history…"
 python3 "$ROOT/tools/seed-local/seed.py" "$DB" "$HOME_DIR/local.db"
 
+# Everything from here to the end of the agent-bot block is the Jira
+# fixture's own seed: the saved query and deploy/teamGroups config above,
+# NMB-110/NMB-139 keys, jira:-prefixed ids. None of it exists in the Linear
+# mirror. The guard body is deliberately left at column 0 — the SQL heredoc
+# terminators must sit at line start, so re-indenting would change the SQL.
+if [ "$SEED_KIND" = "linear" ]; then
+  echo "[e2e] linear fixture: skipping the Jira-only seed rows (saved query, deploy enrichment, api_usage, agent bot)"
+else
 echo "[e2e] injecting deploy enrichment on NMB-110…"
 sqlite3 "$DB" <<'SQL'
 INSERT INTO source_queries
@@ -285,6 +333,7 @@ ON CONFLICT(item_id, url) DO UPDATE SET
 
 UPDATE sync_state SET version = version + 1;
 SQL
+fi
 
 export GADAK_HOME="$HOME_DIR"
 WORKTREE="$(git rev-parse --show-toplevel)"
@@ -299,6 +348,11 @@ fi
 if [ -n "$E2E_ORIGIN" ]; then
   DIGEST="${DIGEST} origin=${E2E_ORIGIN}"
 fi
+# The fixture being served is part of what the stamp promises: the port pins
+# which KIND of server answers, this pins WHAT it serves, so a stale reuse
+# across runs that served different fixtures fails assertServedArtifact
+# instead of quietly handing the suite the previous mirror.
+DIGEST="${DIGEST} seed=$(basename "$SEED_DB")"
 STAMP="${TMPDIR:-/tmp}/gadak-e2e-served-${PORT}.json"
 echo "[e2e] served worktree ${WORKTREE} digest ${DIGEST}"
 STAMP_PATH="$STAMP" STAMP_WORKTREE="$WORKTREE" STAMP_DIGEST="$DIGEST" node --input-type=module -e '

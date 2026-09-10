@@ -56,6 +56,23 @@ demo-fixture:
 # source without a regen, or a hand-edited artifact, fails here.
 demo-fixture-check:
 	bash scripts/demo-fixture.sh --check
+# demo-linear-fixture (GDK-1298): the Linear counterpart of demo-fixture —
+# a Linear-shaped mirror (sources.kind='linear', two teams, markdown bodies,
+# blocks/related/duplicate relations, cycles→sprints) that e2e/linear.spec.ts
+# serves on the suite's second port. Built offline: the seeder replays a
+# deterministic dataset through the production sync.RunLinear against a
+# loopback stub (tools/seed-demo/linear_seed.go), so the mapping in the file
+# is the connector's, not a hand-written copy. Then scrubbed and stamped the
+# same way demo.db is. Deliberately smaller (~100 issues, one source, no
+# wiki/attachments). Regenerate on a schema bump too — e2e/serve.sh refuses a
+# user_version behind the binary.
+demo-linear-fixture:
+	go run ./tools/seed-demo --linear-out examples/demo-linear.db.new --linear-issues 100 --seed 1
+	python3 scripts/scrub-demo-db.py examples/demo-linear.db.new examples/demo-linear.db
+	rm examples/demo-linear.db.new
+	bash scripts/demo-schema.sh examples/demo-linear.db
+	bash scripts/scan-internal.sh
+	bash tools/doc-checks.sh
 
 # Zero-install hosted demo (static UI + demo.db snapshot for GitHub Pages).
 # Output: dist/hosted/. Does not touch dist/app (go:embed).

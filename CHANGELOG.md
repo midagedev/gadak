@@ -377,6 +377,13 @@ keeps every media node joined to its attachment ([GDK-1517]); the sync
 fixture localizes priorities and issue types the way it already localized
 statuses, so keying on a display name goes red on all three axes ([GDK-47]).
 
+The e2e suite serves a Linear-shaped mirror beside the Jira one:
+`examples/demo-linear.db` is built by replaying a deterministic dataset
+through the production Linear sync against a loopback stub, so the mapping
+in the file is the connector's own, and `e2e/linear.spec.ts` renders origin
+deep links, link labels in both directions, the write refusal and the
+freshness chip against it on the suite's second port ([GDK-1298]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -1966,3 +1973,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1751]: https://gadak.dev/backlog/#/?ks=GDK-1751
 [GDK-1517]: https://gadak.dev/backlog/#/?ks=GDK-1517
 [GDK-47]: https://gadak.dev/backlog/#/?ks=GDK-47
+[GDK-1298]: https://gadak.dev/backlog/#/?ks=GDK-1298
