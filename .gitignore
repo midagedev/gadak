@@ -95,3 +95,7 @@ mobile/e2e/.shots/
 e2e/demo/test-results-sprint/
 e2e/demo/test-results-retro/
 e2e/demo/test-results-sprint-retro-hero/
+
+# outsource delegate session dirs — a relative --config-dir once landed them in desktop/ (2026-09-11, audit a13-shells)
+sc-w*/
+**/glm-cfg/
