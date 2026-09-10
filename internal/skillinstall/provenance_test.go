@@ -138,3 +138,23 @@ func TestReceiptFieldsAreOmittedWhenEmpty(t *testing.T) {
 		t.Errorf("source missing from the receipt:\n%s", raw)
 	}
 }
+
+// A checkout build often stamps the release version plus the branch state, and
+// that string used to read as a release: exact-match on "0.0.0-dev" let
+// "0.21.0-dev+<hash>" through, and the binary migrated a user mirror forward on
+// its first status (measured 2026-09-10, the GDK-1687 lockout arriving by the
+// one door left open). The pre-release part is the marker.
+func TestIsDevBuildReadsStampedCheckoutBuilds(t *testing.T) {
+	for _, v := range []string{
+		"0.21.0-dev+dee4bc6c", "0.21.0-DEV", "1.2.3+dev.4", "0.22.0-dev",
+	} {
+		if !IsDevBuild(v) {
+			t.Errorf("IsDevBuild(%q) = false, want true — a stamped checkout build is still a dev build", v)
+		}
+	}
+	for _, v := range []string{"0.21.0", "0.21.0-rc.1", "1.0.0+20260910"} {
+		if IsDevBuild(v) {
+			t.Errorf("IsDevBuild(%q) = true, want false — that is a cut release", v)
+		}
+	}
+}

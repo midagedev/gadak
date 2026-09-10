@@ -51,7 +51,22 @@ func IsDevBuild(version string) bool {
 	// "dev" is desktop/main.go's unstamped default (build-app.sh stamps
 	// -X main.appVersion on a cut release); without it a local desktop build
 	// counted as a release and skipped every dev-build rule (GDK-1697).
-	return v == "" || v == DevVersion || v == "dev"
+	if v == "" || v == DevVersion || v == "dev" {
+		return true
+	}
+	// A checkout build that stamps something more useful than the default is
+	// still a checkout build. Measured 2026-09-10: a local build stamped
+	// "0.21.0-dev+dee4bc6c" — the release version plus the branch state — was
+	// read as a release, so it migrated a user mirror 47→49 on the first
+	// `status` and locked the installed release out of that workspace, which
+	// is precisely GDK-1687 arriving through the one door the exact-match
+	// list left open. The marker is semver's own: anything in the pre-release
+	// or build-metadata part that says dev, and a bare commit hash appended
+	// with '+' says the same thing about provenance.
+	if i := strings.IndexAny(v, "-+"); i >= 0 {
+		return strings.Contains(strings.ToLower(v[i:]), "dev")
+	}
+	return false
 }
 
 // SourceFor is the receipt word for a version string.
