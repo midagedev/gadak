@@ -523,7 +523,7 @@ export const settings = {
   },
   'settings.featureFeedDesc': {
     en: 'Activity feed of mentions, watches, and assignee changes',
-    ko: '멘션·워치·담당자 변경을 모은 활동 피드',
+    ko: '멘션·지켜보기·담당자 변경을 모은 활동 피드',
     ja: 'メンション、ウォッチ、担当者変更のアクティビティフィード',
   },
   'settings.featureFeedDescDesktop': {
@@ -1670,7 +1670,7 @@ export const settings = {
   },
   'palette.actionHistory': {
     en: 'Open history',
-    ko: '히스토리 열기',
+    ko: '기록 열기',
     ja: '履歴を開く',
   },
   'palette.openRetro': {
@@ -1726,12 +1726,12 @@ export const settings = {
   },
   'palette.actionWatch': {
     en: 'Watch · {key}',
-    ko: '워치 · {key}',
+    ko: '지켜보기 · {key}',
     ja: 'ウォッチ · {key}',
   },
   'palette.actionUnwatch': {
     en: 'Unwatch · {key}',
-    ko: '워치 해제 · {key}',
+    ko: '지켜보기 해제 · {key}',
     ja: 'ウォッチを解除 · {key}',
   },
   'palette.actionToggleReopened': {

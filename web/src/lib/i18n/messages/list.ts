@@ -130,7 +130,7 @@ export const list = {
   'filter.keysCapped': {
     en: 'key list has {given} values; the limit is {limit}. Showing {shown} keys.',
     ko: '키 목록에 값이 {given}개입니다. 한도는 {limit}개입니다. {shown}개 키를 표시합니다.',
-    ja: 'キー一覧は {given} 件です。上限は {limit} 件です。{shown} 件のキーを表示しています。',
+    ja: 'キー一覧は {given}件です。上限は {limit}件です。{shown}件のキーを表示しています。',
   },
   // GDK-771: every visible axis excludes via the per-value ⊘ (tri-state
   // rows replaced the GDK-438 modal toggle and the GDK-474 "No exclude"
@@ -581,8 +581,8 @@ export const list = {
   // first thing the tab explains, previously hardcoded English.
   'list.searchIdleHint': {
     en: 'Keys and summaries answer instantly from the {n}-issue snapshot; the server adds comment matches.',
-    ko: '키와 요약은 {n}개 이슈 스냅샷에서 즉시 답하고, 코멘트 일치는 서버가 더합니다.',
-    ja: 'キーと要約は {n} 件の課題スナップショットから即座に答え、コメントの一致はサーバーが加えます。',
+    ko: '키와 요약은 이슈 {n}건의 스냅샷에서 즉시 답하고, 코멘트 일치는 서버가 더합니다.',
+    ja: 'キーと要約は {n}件の課題スナップショットから即座に答え、コメントの一致はサーバーが加えます。',
   },
   // A deployment with no server FTS (static snapshot). Not a failure: the
   // network is fine, and title/key search still ran.
@@ -721,7 +721,7 @@ export const list = {
   },
   'board.scopeActive': {
     en: 'Active sprint',
-    ko: '진행 중 스프린트',
+    ko: '진행 중인 스프린트',
     ja: '進行中のスプリント',
   },
   'board.scopeBacklog': {
@@ -780,8 +780,8 @@ export const list = {
   },
   'board.sprintProgress': {
     en: '{done} of {total} done',
-    ko: '{total}개 중 {done}개 완료',
-    ja: '{total} 件中 {done} 件が完了',
+    ko: '{total}건 중 {done}건 완료',
+    ja: '{total}件中 {done}件が完了',
   },
   'board.sprintPoints': {
     en: '{done} / {total} pt',

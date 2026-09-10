@@ -863,7 +863,10 @@ showed raw wire enums where a person expected "single select"; one toast key
 and four labels fix that, the phone's footer reads its version from the
 Tauri config, and the calendar formatter requires a locale ([GDK-1788]). The
 privacy page and the FAQ now count five outbound destinations, matching the
-security policy after the update check was removed ([GDK-1763]).
+security policy after the update check was removed ([GDK-1763]). The Korean catalog stopped
+forking its own vocabulary: one word for watching, one for the history view,
+one form of "active sprint", and issue counts in 건 throughout; the Japanese
+catalog sets its counters without a space before 件 ([GDK-1787]).
 
 Under 900 pixels there is one narrow regime. The sidebar's narrow width was
 redeclared in five places under a 760-pixel media query, so an 800-pixel
@@ -2631,4 +2634,5 @@ priority sorting keyed on `priority_rank`.
 [GDK-1783]: https://gadak.dev/backlog/#/?ks=GDK-1783
 [GDK-1785]: https://gadak.dev/backlog/#/?ks=GDK-1785
 [GDK-1786]: https://gadak.dev/backlog/#/?ks=GDK-1786
+[GDK-1787]: https://gadak.dev/backlog/#/?ks=GDK-1787
 [GDK-1788]: https://gadak.dev/backlog/#/?ks=GDK-1788

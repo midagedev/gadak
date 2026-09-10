@@ -233,7 +233,7 @@ export const common = {
   },
   'common.watching': {
     en: 'Watching',
-    ko: '워치 중',
+    ko: '지켜보는 중',
     ja: 'ウォッチ中',
   },
   'common.favorite': {

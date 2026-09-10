@@ -666,7 +666,7 @@ export const detail = {
   /* ── History (visits + searches from local.db) ── */
   'history.title': {
     en: 'History',
-    ko: '히스토리',
+    ko: '기록',
     ja: '履歴',
   },
   'history.tabAll': {
@@ -722,7 +722,7 @@ export const detail = {
   /* GDK-1054: the history request failed — not "nothing viewed yet". */
   'history.loadFailed': {
     en: 'Could not load history.',
-    ko: '히스토리를 불러오지 못했습니다.',
+    ko: '기록을 불러오지 못했습니다.',
     ja: '履歴を読み込めませんでした。',
   },
   'history.emptyHint': {
@@ -744,7 +744,7 @@ export const detail = {
   },
   'history.filterLabel': {
     en: 'Filter history',
-    ko: '히스토리 필터',
+    ko: '기록 필터',
     ja: '履歴を絞る',
   },
   'history.openAsList': {
@@ -956,7 +956,7 @@ export const detail = {
   'retro.def.resume': {
     en: 'time from a session start to its first write — a changelog entry or comment by the configured account — counted only before the next session starts; sessions without a write are excluded (the cell shows k of n)',
     ko: '세션이 시작된 뒤 첫 쓰기 — 설정된 계정의 변경 이력 항목이나 코멘트 — 까지 걸린 시간. 다음 세션이 시작되기 전까지만 세고, 쓰기가 없던 세션은 뺀다(칸에 n 중 k 로 표시)',
-    ja: 'セッション開始から最初の書き込み — 設定したアカウントによる変更履歴かコメント — までの時間。次のセッションが始まるまでのみ数え、書き込みのないセッションは除く (セルは n 件中 k 件を示す)',
+    ja: 'セッション開始から最初の書き込み — 設定したアカウントによる変更履歴かコメント — までの時間。次のセッションが始まるまでのみ数え、書き込みのないセッションは除く (セルは n件中 k件を示す)',
   },
   'retro.def.closed': {
     en: 'issues that entered a done status during the {bucket} (status ids resolved through status_catalog)',
@@ -991,7 +991,7 @@ export const detail = {
   'retro.empty': { en: 'No sessions in this range', ko: '이 기간에는 세션이 없습니다', ja: 'この期間にセッションはありません' },
   'retro.loadFailed': { en: 'Could not load the retro.', ko: '회고를 불러오지 못했습니다.', ja: 'ふりかえりを読み込めませんでした。' },
   'retro.openIssues': { en: 'Open these issues', ko: '이 이슈들 열기', ja: 'これらの課題を開く' },
-  'retro.truncated': { en: '(first 500)', ko: '(앞 500개)', ja: '(先頭 500 件)' },
+  'retro.truncated': { en: '(first 500)', ko: '(앞 500개)', ja: '(先頭 500件)' },
   // GDK-1712: the summary strip, the per-cell step, and the toggle that
   // unfolds the definitions the table used to print under every label.
   'retro.definitions': { en: 'Definitions', ko: '정의', ja: '定義' },
@@ -1065,10 +1065,10 @@ export const detail = {
   },
   'retro.actions.thenNow': { en: 'then {then} → now {now}', ko: '그때 {then} → 지금 {now}', ja: 'そのとき {then} → 今 {now}' },
   'retro.aging.title': { en: 'Aging work in progress', ko: '진행 중인 일의 나이', ja: '進行中の仕事の古さ' },
-  'retro.aging.more': { en: '{n} more', ko: '{n}개 더', ja: 'ほか {n} 件' },
+  'retro.aging.more': { en: '{n} more', ko: '{n}개 더', ja: 'ほか {n}件' },
   'retro.aging.empty': { en: 'Nothing in progress.', ko: '진행 중인 것이 없습니다.', ja: '進行中のものはありません。' },
   'retro.events.title': { en: 'What happened', ko: '이 구간에 있었던 일', ja: 'この区間に起きたこと' },
-  'retro.events.day': { en: '{date} · {n}', ko: '{date} · {n}건', ja: '{date} · {n} 件' },
+  'retro.events.day': { en: '{date} · {n}', ko: '{date} · {n}건', ja: '{date} · {n}件' },
   'retro.events.none': { en: 'Nothing recorded in this window.', ko: '이 구간에는 기록이 없습니다.', ja: 'この区間には記録がありません。' },
   'retro.surprises.title': { en: 'Surprises', ko: '놀라운 것', ja: '意外だったこと' },
   'retro.surprise.reopened': { en: 'came back', ko: '되돌아왔다', ja: '戻ってきた' },
@@ -1081,7 +1081,7 @@ export const detail = {
   'retro.closed.noEpic': { en: '(no epic)', ko: '(에픽 없음)', ja: '(エピックなし)' },
   'retro.closed.unplanned': { en: 'Unplanned {n}', ko: '계획 외 {n}', ja: '計画外 {n}' },
   'retro.closed.cycle': { en: 'Cycle time of each', ko: '하나하나의 사이클 타임', ja: '一件ごとのサイクルタイム' },
-  'retro.closed.clipped': { en: '{n} above the top', ko: '위쪽 밖 {n}개', ja: '上端の外に {n} 件' },
+  'retro.closed.clipped': { en: '{n} above the top', ko: '위쪽 밖 {n}개', ja: '上端の外に {n}件' },
   'retro.closed.none': { en: 'Nothing closed in this window.', ko: '이 구간에 닫힌 것이 없습니다.', ja: 'この区間に完了したものはありません。' },
   'retro.seen.title': { en: 'Seen and moved', ko: '본 것과 움직인 것', ja: '見たものと動いたもの' },
   'retro.seen.notMoved': { en: 'Opened, never moved {n}', ko: '열었지만 안 움직인 것 {n}', ja: '開いたが動かなかったもの {n}' },

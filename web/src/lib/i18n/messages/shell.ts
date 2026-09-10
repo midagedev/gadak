@@ -628,7 +628,7 @@ export const shell = {
   },
   'shortcuts.sectionColumnViews': {
     en: 'Documents, history, feed',
-    ko: '문서·히스토리·피드',
+    ko: '문서·기록·피드',
     ja: 'ドキュメント・履歴・フィード',
   },
   'shortcuts.sectionDetail': {
@@ -748,12 +748,12 @@ export const shell = {
   },
   'shortcuts.tabMoveRows': {
     en: 'Move through rows in documents, history, and feed',
-    ko: '문서·히스토리·피드 행 이동',
+    ko: '문서·기록·피드 행 이동',
     ja: 'ドキュメント・履歴・フィードの行を移動',
   },
   'shortcuts.closeColumnView': {
     en: 'Close documents, history, feed, or dashboard',
-    ko: '문서·히스토리·피드·대시보드 닫기',
+    ko: '문서·기록·피드·대시보드 닫기',
     ja: 'ドキュメント・履歴・フィード・ダッシュボードを閉じる',
   },
   // {tracker}: the origin's brand name (Jira/Linear), see detail.openJira.
@@ -1163,7 +1163,7 @@ export const shell = {
   'sidebar.scopeShowAll': {
     en: 'Show all {n}',
     ko: '{n}개 모두 보기',
-    ja: '{n} 件をすべて表示',
+    ja: '{n}件をすべて表示',
   },
   // GDK-1704: the hosted demo's About dialog name. The popover's marketing
   // copy (CLAIM, links) stays English on purpose — its file header says so —
@@ -1216,7 +1216,7 @@ export const shell = {
   'app.mirrorIssues': {
     en: '{n} issues',
     ko: '이슈 {n}건',
-    ja: '課題 {n} 件',
+    ja: '課題 {n}件',
   },
   'app.identitySection': {
     en: 'Identity',

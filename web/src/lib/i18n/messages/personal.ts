@@ -66,17 +66,17 @@ export const personal = {
   },
   'personal.watchOn': {
     en: 'Watching — status/comment/reopen alerts on',
-    ko: '워치 중 — 상태 변경/코멘트/재오픈 알림',
+    ko: '지켜보는 중 — 상태 변경/코멘트/재오픈 알림',
     ja: 'ウォッチ中 — ステータス / コメント / 再オープンの通知オン',
   },
   'personal.watchOff': {
     en: 'Watch — status/comment/reopen alerts',
-    ko: '워치 — 상태 변경/코멘트/재오픈 알림',
+    ko: '지켜보기 — 상태 변경/코멘트/재오픈 알림',
     ja: 'ウォッチ — ステータス / コメント / 再オープンの通知',
   },
   'personal.watchNeedCredentials': {
     en: 'Set credentials to watch',
-    ko: '자격증명을 설정하면 워치할 수 있습니다',
+    ko: '자격증명을 설정하면 지켜볼 수 있습니다',
     ja: 'ウォッチするには資格情報を設定してください',
   },
   /* ── Feed ── */
