@@ -33,6 +33,11 @@ func (r *Registry) ensureOrigin(name string, e *Entry) {
 		return
 	}
 	f := &originFlight{done: make(chan struct{})}
+	if r.owningOrigin == nil {
+		// Lazy like flights in open(): the zero Registry (GDK-689) reaches
+		// this acquisition with no constructor behind it and must not panic.
+		r.owningOrigin = map[string]*originFlight{}
+	}
 	r.owningOrigin[name] = f
 	logf := r.watchLogf
 	r.mu.Unlock()

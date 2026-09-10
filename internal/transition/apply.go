@@ -71,7 +71,7 @@ type issueStatusReader interface {
 type Refused struct {
 	Msg string
 	// Err is the refusal this was built from, when one exists — kept so a
-	// caller can still match the concrete kind (jira.AmbiguousTransitionError
+	// caller can still match the concrete kind (AmbiguousTransitionError
 	// under gadak claim, GDK-1174) through the type adapters map on.
 	Err error
 }
@@ -116,7 +116,8 @@ func Apply(ctx context.Context, o Origin, cfg *config.Config, req Request) (Resu
 		return Result{Changed: false}, nil
 	}
 	if pickErr != nil {
-		return Result{}, &Refused{Msg: pickErr.Error(), Err: pickErr}
+		// Pick misses are already *Refused (pick.go) — pass through verbatim.
+		return Result{}, pickErr
 	}
 	selected := byID(list, id)
 	assembled, err := assembleFields(ctx, o, cfg, selected, req.Resolution, req.Fields)
@@ -180,8 +181,8 @@ func Preview(ctx context.Context, o Origin, key, target string, statusUse func(s
 // never pay it. pickErr is non-nil only when the pick missed and the miss is
 // not a no-op; err is an origin failure.
 func resolveTransition(ctx context.Context, o Origin, key, target string, list []jira.Transition, statusUse func(string) int) (id string, noop bool, pickErr, err error) {
-	opt := jira.PickOptions{StatusUse: statusUse}
-	if token, isCategory := jira.StatusCategoryToken(target); isCategory {
+	opt := PickOptions{StatusUse: statusUse}
+	if token, isCategory := StatusCategoryToken(target); isCategory {
 		st, ok, nerr := currentStatus(ctx, o, key)
 		if nerr != nil {
 			return "", false, nil, nerr
@@ -193,7 +194,7 @@ func resolveTransition(ctx context.Context, o Origin, key, target string, list [
 			}
 		}
 	}
-	picked, perr := jira.PickTransitionWith(key, target, list, opt)
+	picked, perr := PickTransitionWith(key, target, list, opt)
 	if perr != nil {
 		return "", false, perr, nil
 	}
@@ -292,7 +293,7 @@ func resolveResolution(ctx context.Context, o Origin, selected jira.Transition, 
 	if want == "" {
 		return nil, &Refused{Msg: "empty resolution"}
 	}
-	if AllASCIIDigits(want) {
+	if fields.AllASCIIDigits(want) {
 		return map[string]string{"id": want}, nil
 	}
 	var catalog []jira.NamedID
@@ -349,20 +350,6 @@ func FormatNamedIDs(list []jira.NamedID) string {
 		}
 	}
 	return strings.Join(parts, ", ")
-}
-
-// AllASCIIDigits reports whether s is one or more ASCII digits — the "the
-// user typed a bare id, not a name" discriminator in catalog resolution.
-func AllASCIIDigits(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i := 0; i < len(s); i++ {
-		if s[i] < '0' || s[i] > '9' {
-			return false
-		}
-	}
-	return true
 }
 
 func missingRequired(t jira.Transition, provided map[string]any) []string {

@@ -744,6 +744,40 @@ func TestOpenJiraBuildsBrowseURLFromSite(t *testing.T) {
 	}
 }
 
+// GDK-1332: a Jira-origin workspace with no site configured must refuse
+// with the views-open hint, never build a /browse/ URL from an empty site
+// and never open a browser for it. Reachability note: a siteless Cloud
+// config fails HasCredential and answers NotConfigured earlier, so the one
+// shape that reaches this branch is an explicit jira Kind with a Linear
+// key — the fixture mirrors exactly that.
+func TestOpenJiraOriginWithoutSiteRefuses(t *testing.T) {
+	cfg := mirror(t, "")
+	cfg.Kind = config.OriginJira
+	cfg.Linear = &config.LinearConfig{APIKey: "lin-test-key"}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.OriginType() != config.OriginJira {
+		t.Fatalf("fixture must resolve to the Jira origin, got %q", cfg.OriginType())
+	}
+	opened := stubIssueOpen(t)
+	out, err := capture(t, func() error { return cmdOpen([]string{"NMB-1"}) })
+	if err == nil {
+		t.Fatal("open on a siteless Jira origin must refuse")
+	}
+	for _, want := range []string{"no Jira site to browse", "gadak views open NMB-1"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q missing %q", err.Error(), want)
+		}
+	}
+	if out != "" {
+		t.Errorf("a refusal must print nothing, got %q", out)
+	}
+	if *opened != "" {
+		t.Errorf("a refusal must not open a browser, opened %q", *opened)
+	}
+}
+
 func TestOpenLinearOpensStoredItemURL(t *testing.T) {
 	linearMirror(t)
 	db, err := store.Open(filepath.Join(os.Getenv("GADAK_HOME"), "gadak.db"))

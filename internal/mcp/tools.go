@@ -139,7 +139,7 @@ several (same document shape, wrapped as {"issues":[…], "missing"?:[…]}).
 Use when you need the whole conversation around a key.`
 
 const toolStatusDescription = `Return mirror freshness: watermark, version, last_error, last_full_sync_at,
-schema_version, row counts (issues, comments), origin_type (jira|jira-server|linear|gadak)
+schema_version, row counts (issues, issue_comments, page_comments), origin_type (jira|jira-server|linear|gadak)
 and transport (local|remote), the older workspace kind (connected|standalone)
 with its origin, and frozen (sync is paused when true). A paired workspace is
 origin_type gadak over transport remote — kind still calls it connected — plus
@@ -529,15 +529,19 @@ func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
 	if doc := syncer.FirstSync(ctx, s.db, cfg); doc != nil {
 		st["first_sync"] = doc
 	}
-	// Counts match `gadak status --json`.
-	for name, q := range map[string]string{
-		"issues":   "SELECT COUNT(*) FROM issues",
-		"comments": "SELECT COUNT(*) FROM comments",
-	} {
-		var n int
-		if err := countQuery(s.DBPath, q, &n); err == nil {
-			st[name] = n
-		}
+	// Counts match `gadak status --json`: issues raw, and the comments
+	// table split by meaning — the shared table mixes issue and wiki
+	// comments, and one "comments" figure would disagree with the settings
+	// runtime on every mirror with wiki comments (GDK-628, GDK-1113).
+	var issues int
+	if err := countQuery(s.DBPath, "SELECT COUNT(*) FROM issues", &issues); err == nil {
+		st["issues"] = issues
+	}
+	if n, err := s.db.IssueCommentCount(ctx); err == nil {
+		st["issue_comments"] = n
+	}
+	if n, err := s.db.PageCommentCount(ctx); err == nil {
+		st["page_comments"] = n
 	}
 	return s.marshalResult(st)
 }

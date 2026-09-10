@@ -10,12 +10,15 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"sort"
 	"strings"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/reflink"
 	"github.com/midagedev/gadak/internal/store"
@@ -158,10 +161,12 @@ func refRemove(key, id string, asJSON bool) error {
 // home serve older than this binary answers "does not implement
 // …/remotelink" — true, and useless: what the person needs to know is
 // which machine to upgrade (measured on a paired workspace the day the
-// verb landed).
+// verb landed). The discriminator is the typed status (GDK-1319): both
+// callers are the remotelink verbs, so the route the error names is not
+// evidence — only a *jira.APIError 501 is an unimplemented-origin answer.
 func refOriginTooOld(cfg *config.Config, err error) error {
-	if err == nil || !strings.Contains(err.Error(), "remotelink") ||
-		!strings.Contains(err.Error(), "501") {
+	var api *jira.APIError
+	if err == nil || !errors.As(err, &api) || api.Status != http.StatusNotImplemented {
 		return err
 	}
 	where := "this workspace's origin"

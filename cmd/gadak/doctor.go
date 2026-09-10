@@ -315,10 +315,15 @@ type doctorSchemaAudit struct {
 }
 
 type doctorCounts struct {
-	Items            int `json:"items"`
-	Issues           int `json:"issues"`
-	Pages            int `json:"pages"`
-	Comments         int `json:"comments"`
+	Items  int `json:"items"`
+	Issues int `json:"issues"`
+	Pages  int `json:"pages"`
+	// The comments table is shared by issue and wiki comments (GDK-628),
+	// so doctor labels each share by meaning instead of one "comments" row
+	// that disagrees with the settings runtime on every mirror with wiki
+	// comments. Same owners as `gadak status --json`.
+	IssueComments    int `json:"issue_comments"`
+	PageComments     int `json:"page_comments"`
 	Projects         int `json:"projects"`
 	StatusCategories int `json:"status_categories"`
 	Spaces           int `json:"spaces"`
@@ -560,8 +565,11 @@ func collectDoctor() doctorReport {
 	if n, err := db.TableCount(context.Background(), "pages"); err == nil {
 		counts.Pages = n
 	}
-	if n, err := db.TableCount(context.Background(), "comments"); err == nil {
-		counts.Comments = n
+	if n, err := db.IssueCommentCount(context.Background()); err == nil {
+		counts.IssueComments = n
+	}
+	if n, err := db.PageCommentCount(context.Background()); err == nil {
+		counts.PageComments = n
 	}
 	if n, err := db.DistinctCount(context.Background(), "issues", "project_key"); err == nil {
 		counts.Projects = n
@@ -1111,7 +1119,8 @@ func formatDoctorText(r doctorReport) string {
 		line("items", strconv.Itoa(r.Counts.Items))
 		line("issues", strconv.Itoa(r.Counts.Issues))
 		line("pages", strconv.Itoa(r.Counts.Pages))
-		line("comments", strconv.Itoa(r.Counts.Comments))
+		line("issue_comments", strconv.Itoa(r.Counts.IssueComments))
+		line("page_comments", strconv.Itoa(r.Counts.PageComments))
 		line("projects", strconv.Itoa(r.Counts.Projects))
 		line("status_categories", strconv.Itoa(r.Counts.StatusCategories))
 		line("spaces", strconv.Itoa(r.Counts.Spaces))
@@ -1119,7 +1128,8 @@ func formatDoctorText(r doctorReport) string {
 		line("items", "n/a")
 		line("issues", "n/a")
 		line("pages", "n/a")
-		line("comments", "n/a")
+		line("issue_comments", "n/a")
+		line("page_comments", "n/a")
 		line("projects", "n/a")
 		line("status_categories", "n/a")
 		line("spaces", "n/a")

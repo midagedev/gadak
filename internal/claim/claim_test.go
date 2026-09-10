@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/transition"
 )
 
 // fakeOrigin stands in for *jira.Client with enough state to answer the
@@ -122,7 +123,7 @@ func TestApplyCloudFallbackAmbiguousIsTyped(t *testing.T) {
 		claimErr:    &jira.APIError{Status: 404, Messages: []string{"no route"}},
 	}
 	_, err := Apply(context.Background(), f, nil, Request{Key: "NMB-1"})
-	var amb *jira.AmbiguousTransitionError
+	var amb *transition.AmbiguousTransitionError
 	if !errors.As(err, &amb) {
 		t.Fatalf("want AmbiguousTransitionError, got %v", err)
 	}

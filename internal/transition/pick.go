@@ -1,15 +1,19 @@
-package jira
+package transition
 
 // Transition-identifier resolution shared by the CLI (gadak transition) and
 // the REST write surface (GDK-341): transition id, then target status id,
 // then transition/status name, then a status category token — ambiguity is
 // refused with every candidate named, never resolved by picking the first.
+//
+// This is write vocabulary, so it lives here next to Apply (GDK-688): the
+// jira package owns REST shapes only. Misses return *Refused themselves —
+// Apply passes pick errors through verbatim.
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/statuscat"
 )
 
@@ -21,14 +25,14 @@ import (
 type AmbiguousTransitionError struct {
 	Key        string
 	Want       string
-	Candidates []Transition
+	Candidates []jira.Transition
 	// Folded are the candidates a Candidate stands in for: same destination
 	// name, same category, so naming one of them could not have told the two
 	// readings apart (GDK-1356). Empty unless a category token folded. They
 	// are still reachable by transition id or target status id, and the
 	// message says so — a reader who saw them in `gadak transition KEY` must
 	// not conclude gadak stopped seeing them.
-	Folded []Transition
+	Folded []jira.Transition
 }
 
 func (e *AmbiguousTransitionError) Error() string {
@@ -64,7 +68,7 @@ type PickOptions struct {
 
 // PickTransition resolves want with no mirror and no current-status read.
 // See PickTransitionWith for the resolution order.
-func PickTransition(key, want string, list []Transition) (string, error) {
+func PickTransition(key, want string, list []jira.Transition) (string, error) {
 	return PickTransitionWith(key, want, list, PickOptions{})
 }
 
@@ -75,9 +79,9 @@ func PickTransition(key, want string, list []Transition) (string, error) {
 // landings the reader cannot tell apart — same destination status name, same
 // category — are one landing and fold (GDK-1356). A token that is one
 // transition's id and a different transition's to.id is also refused.
-func PickTransitionWith(key, want string, list []Transition, opt PickOptions) (string, error) {
-	var idHit *Transition
-	var toHits []Transition
+func PickTransitionWith(key, want string, list []jira.Transition, opt PickOptions) (string, error) {
+	var idHit *jira.Transition
+	var toHits []jira.Transition
 	for i := range list {
 		t := &list[i]
 		if t.ID == want && idHit == nil {
@@ -88,7 +92,7 @@ func PickTransitionWith(key, want string, list []Transition, opt PickOptions) (s
 		}
 	}
 	if idHit != nil {
-		var others []Transition
+		var others []jira.Transition
 		for _, t := range toHits {
 			if t.ID != idHit.ID {
 				others = append(others, t)
@@ -101,8 +105,8 @@ func PickTransitionWith(key, want string, list []Transition, opt PickOptions) (s
 			// the transition id would move an issue whose user typed the
 			// status_id they read in SQL — but it names the two forms that
 			// cannot collide.
-			return "", fmt.Errorf("%q matches a transition id and a different target status id on %s — transition id: %s; target status id: %s\nsay it by name (%q) or by status category (%s) — a bare number is ambiguous when transition ids and status ids overlap",
-				want, key, FormatTransition(*idHit), JoinTransitions(others), idHit.Name, strings.Join(ReachableCategories(list), "|"))
+			return "", &Refused{Msg: fmt.Sprintf("%q matches a transition id and a different target status id on %s — transition id: %s; target status id: %s\nsay it by name (%q) or by status category (%s) — a bare number is ambiguous when transition ids and status ids overlap",
+				want, key, FormatTransition(*idHit), JoinTransitions(others), idHit.Name, strings.Join(ReachableCategories(list), "|"))}
 		}
 		return idHit.ID, nil
 	}
@@ -112,7 +116,8 @@ func PickTransitionWith(key, want string, list []Transition, opt PickOptions) (s
 	case 0:
 		// names, then category
 	default:
-		return "", &AmbiguousTransitionError{Key: key, Want: want, Candidates: toHits}
+		amb := &AmbiguousTransitionError{Key: key, Want: want, Candidates: toHits}
+		return "", &Refused{Msg: amb.Error(), Err: amb}
 	}
 	for _, t := range list {
 		if strings.EqualFold(t.Name, want) || strings.EqualFold(t.To.Name, want) {
@@ -120,7 +125,7 @@ func PickTransitionWith(key, want string, list []Transition, opt PickOptions) (s
 		}
 	}
 	if token, ok := StatusCategoryToken(want); ok {
-		var hits []Transition
+		var hits []jira.Transition
 		for _, t := range list {
 			if cat, ok := transitionCategory(t); ok && cat == token {
 				hits = append(hits, t)
@@ -131,7 +136,8 @@ func PickTransitionWith(key, want string, list []Transition, opt PickOptions) (s
 			if len(picks) == 1 {
 				return picks[0].ID, nil
 			}
-			return "", &AmbiguousTransitionError{Key: key, Want: want, Candidates: picks, Folded: folded}
+			amb := &AmbiguousTransitionError{Key: key, Want: want, Candidates: picks, Folded: folded}
+			return "", &Refused{Msg: amb.Error(), Err: amb}
 		}
 		// fall through to the shared miss error, which names reachable tokens
 	}
@@ -145,15 +151,15 @@ func PickTransitionWith(key, want string, list []Transition, opt PickOptions) (s
 // only case where picking for the user cannot land them somewhere they did
 // not ask for. A destination with no name never folds: matching empties are
 // a damaged payload, not a duplicate (GDK-1356).
-func foldSameNamed(hits []Transition, opt PickOptions) (picks, folded []Transition) {
-	type group struct{ members []Transition }
+func foldSameNamed(hits []jira.Transition, opt PickOptions) (picks, folded []jira.Transition) {
+	type group struct{ members []jira.Transition }
 	var groups []*group
 	index := map[string]*group{}
 	for _, t := range hits {
 		name := strings.TrimSpace(t.To.Name)
 		cat, _ := transitionCategory(t)
 		if name == "" {
-			groups = append(groups, &group{members: []Transition{t}})
+			groups = append(groups, &group{members: []jira.Transition{t}})
 			continue
 		}
 		k := strings.ToLower(name) + "\x00" + cat
@@ -182,11 +188,11 @@ func foldSameNamed(hits []Transition, opt PickOptions) (picks, folded []Transiti
 // leaves a lone candidate alone (see PickOptions.CurrentStatusID) and never
 // empties a group — a payload where every duplicate is the current status
 // still has to answer with one of them.
-func dropCurrent(members []Transition, currentStatusID string) []Transition {
+func dropCurrent(members []jira.Transition, currentStatusID string) []jira.Transition {
 	if currentStatusID == "" || len(members) < 2 {
 		return members
 	}
-	kept := make([]Transition, 0, len(members))
+	kept := make([]jira.Transition, 0, len(members))
 	for _, t := range members {
 		if t.To.ID != currentStatusID {
 			kept = append(kept, t)
@@ -201,7 +207,7 @@ func dropCurrent(members []Transition, currentStatusID string) []Transition {
 // preferInUse picks the member whose destination the project actually uses.
 // Ties and a nil hook keep the first in payload order, so the choice is
 // stable when nothing distinguishes the duplicates.
-func preferInUse(members []Transition, statusUse func(string) int) Transition {
+func preferInUse(members []jira.Transition, statusUse func(string) int) jira.Transition {
 	best := members[0]
 	if statusUse == nil || len(members) < 2 {
 		return best
@@ -232,18 +238,18 @@ func StatusCategoryToken(s string) (string, bool) {
 // transitionCategory maps a transition's Jira statusCategory key onto the
 // three documented tokens. Empty and unknown keys are refused: Category
 // folds those to "new", which would move the issue on a damaged payload.
-func transitionCategory(t Transition) (string, bool) {
+func transitionCategory(t jira.Transition) (string, bool) {
 	return statuscat.KnownCategory(t.To.StatusCategory.Key)
 }
 
-func FormatTransition(t Transition) string {
+func FormatTransition(t jira.Transition) string {
 	if t.To.ID == "" {
 		return fmt.Sprintf("%s (id %s, → %s)", t.Name, t.ID, t.To.Name)
 	}
 	return fmt.Sprintf("%s (id %s, → %s [status_id %s])", t.Name, t.ID, t.To.Name, t.To.ID)
 }
 
-func JoinTransitions(list []Transition) string {
+func JoinTransitions(list []jira.Transition) string {
 	parts := make([]string, 0, len(list))
 	for _, t := range list {
 		parts = append(parts, FormatTransition(t))
@@ -251,19 +257,19 @@ func JoinTransitions(list []Transition) string {
 	return strings.Join(parts, "; ")
 }
 
-func noTransitionMatch(key, want string, list []Transition) error {
+func noTransitionMatch(key, want string, list []jira.Transition) error {
 	if len(list) == 0 {
-		return fmt.Errorf("%s has no available transitions for this credential", key)
+		return &Refused{Msg: fmt.Sprintf("%s has no available transitions for this credential", key)}
 	}
 	msg := fmt.Sprintf("no transition matching %q on %s — available: %s",
 		want, key, JoinTransitions(list))
 	if cats := ReachableCategories(list); len(cats) > 0 {
 		msg += "\nalso accepts a status category: " + strings.Join(cats, ", ")
 	}
-	return errors.New(msg)
+	return &Refused{Msg: msg}
 }
 
-func ReachableCategories(list []Transition) []string {
+func ReachableCategories(list []jira.Transition) []string {
 	seen := map[string]bool{}
 	var out []string
 	for _, token := range []string{"new", "inprogress", "done"} {
@@ -284,9 +290,9 @@ func ReachableCategories(list []Transition) []string {
 // identical rows in `gadak transition KEY` needs named rather than inferred.
 // Groups are in payload order and always hold two or more members; a workflow
 // with no duplicates returns nothing.
-func DuplicateDestinations(list []Transition) [][]Transition {
+func DuplicateDestinations(list []jira.Transition) [][]jira.Transition {
 	order := make([]string, 0, len(list))
-	byKey := map[string][]Transition{}
+	byKey := map[string][]jira.Transition{}
 	for _, t := range list {
 		name := strings.TrimSpace(t.To.Name)
 		if name == "" {
@@ -302,7 +308,7 @@ func DuplicateDestinations(list []Transition) [][]Transition {
 		}
 		byKey[k] = append(byKey[k], t)
 	}
-	var out [][]Transition
+	var out [][]jira.Transition
 	for _, k := range order {
 		if g := byKey[k]; len(g) > 1 {
 			out = append(out, g)
@@ -313,7 +319,7 @@ func DuplicateDestinations(list []Transition) [][]Transition {
 
 // FormatDuplicateDestinations renders DuplicateDestinations as one line per
 // group, or "" when there are none.
-func FormatDuplicateDestinations(list []Transition) string {
+func FormatDuplicateDestinations(list []jira.Transition) string {
 	groups := DuplicateDestinations(list)
 	if len(groups) == 0 {
 		return ""

@@ -2401,3 +2401,55 @@ func TestCreateHelpListsFieldFlag(t *testing.T) {
 		t.Errorf("examples missing --field:\n%s", joined)
 	}
 }
+
+// TestCreateCommaLabelWarnsNotSplits is GDK-1245: `--label "a,b"` looks
+// like a two-label list to anyone coming from a comma-list tool, but Jira
+// accepts a comma inside one label name, so gadak must neither split nor
+// refuse — the value is legal. The warning says what will actually happen;
+// the body proves the single label went through as one.
+func TestCreateCommaLabelWarnsNotSplits(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	stdout, stderr, err := captureBoth(t, func() error {
+		return cmdCreate([]string{"comma label", "--project", "NMB", "--type", "Task", "--label", "frontend,urgent"})
+	})
+	if err != nil {
+		t.Fatalf("create: %v\n%s", err, stdout)
+	}
+	if !strings.Contains(stderr, `label "frontend,urgent" holds a comma`) {
+		t.Errorf("stderr missing the comma warning:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "one label") {
+		t.Errorf("warning must say Jira stores it as one label:\n%s", stderr)
+	}
+	if strings.Contains(stdout, "warning") {
+		t.Errorf("the warning belongs on stderr, stdout is the created row:\n%s", stdout)
+	}
+	sent := f.bodies["POST /issue"]
+	if !strings.Contains(sent, `"labels":["frontend,urgent"]`) {
+		t.Errorf("label must be sent as the single label it is (no split):\n%s", sent)
+	}
+}
+
+// TestCreateBatchCommaLabelWarns: a batch JSON line reaches the same
+// warning through the same owner (createOne), not a second copy of it.
+func TestCreateBatchCommaLabelWarns(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+	withStdin(t, `{"summary":"batch comma","labels":["ops,infra"]}`+"\n")
+
+	_, stderr, err := captureBoth(t, func() error {
+		return cmdCreate([]string{"--batch", "-", "--project", "NMB", "--type", "Task"})
+	})
+	if err != nil {
+		t.Fatalf("batch: %v", err)
+	}
+	if !strings.Contains(stderr, `label "ops,infra" holds a comma`) {
+		t.Errorf("batch line missing the comma warning:\n%s", stderr)
+	}
+	sent := f.bodies["POST /issue"]
+	if !strings.Contains(sent, `"labels":["ops,infra"]`) {
+		t.Errorf("batch label must be sent as one label:\n%s", sent)
+	}
+}

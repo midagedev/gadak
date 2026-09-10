@@ -630,8 +630,10 @@ func overlayEditJSON(base editChange, obj map[string]json.RawMessage) (editChang
 
 // labelUpdateOps turns --label +x / --label -y into Jira update verbs.
 // A value that does not start with + or - is refused so we never guess
-// add-vs-replace and wipe the existing set.
+// add-vs-replace and wipe the existing set. The comma warning rides here so
+// the flag path and the batch JSON path cannot drift (GDK-1245).
 func labelUpdateOps(labels []string) ([]any, error) {
+	warnCommaLabel(labels)
 	return signedUpdateOps("--label", labels, func(op, name string) any {
 		return map[string]string{op: name}
 	})
@@ -663,7 +665,7 @@ func fixVersionUpdateOps(ctx context.Context, c origin.Writer, issueKey string, 
 	}
 	needCatalog := false
 	for _, p := range parsed {
-		if !transition.AllASCIIDigits(p.(signedToken).token) {
+		if !fields.AllASCIIDigits(p.(signedToken).token) {
 			needCatalog = true
 			break
 		}
@@ -805,7 +807,7 @@ func projectKeyFromIssueKey(key string) string {
 // Catalog hits and all-digit ids stay {"id": …}. An unmatched add becomes
 // {"name": token} only when createByName is true (GDK-678).
 func resolveFixVersionRef(op, token string, catalog []jira.Version, createByName bool) (map[string]string, error) {
-	if transition.AllASCIIDigits(token) {
+	if fields.AllASCIIDigits(token) {
 		return map[string]string{"id": token}, nil
 	}
 	var hits []jira.Version

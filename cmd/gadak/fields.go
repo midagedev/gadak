@@ -11,9 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"os"
-	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -57,7 +55,12 @@ type fieldUsageRow struct {
 type fieldReport struct {
 	rows         []fieldUsageRow
 	unused       []fieldUsageRow
-	suggestedMap map[string]string // alias -> field id
+	suggestedMap map[string]string // alias -> field id (JSON: suggested_fieldMap, kept for parsers)
+	// suggestedSpecs carries the same suggestions as FieldSpec fragments —
+	// the shape `gadak config set fields` takes and `fields --apply` saves.
+	// The human report prints these; the legacy alias→id map above survived
+	// only as a JSON key (GDK-718).
+	suggestedSpecs []config.FieldSpec
 }
 
 func cmdFields(args []string) error {
@@ -534,6 +537,7 @@ func buildFieldReport(catalog []jira.FieldInfo, filled map[string]int, sampled i
 	}
 
 	var rows []fieldUsageRow
+	var suggestedSpecs []config.FieldSpec
 	for _, f := range catalog {
 		if !showAll && !f.Custom {
 			continue
@@ -554,8 +558,23 @@ func buildFieldReport(catalog []jira.FieldInfo, filled map[string]int, sampled i
 			Alias:   idToAlias[f.ID],
 		}
 		if f.Custom && row.Alias == "" && rate >= mapSuggestMinRate {
-			row.Suggested = fields.SuggestAlias(f.Name, f.ID, usedAliases)
-			usedAliases[row.Suggested] = true
+			// A suggestion must survive its own paste: the fragment the human
+			// report prints is a FieldSpec, and Classify refuses exactly the
+			// fields a spec cannot represent (JSM plumbing, charts, json
+			// blobs). Those are not suggested anywhere — map included — since
+			// suggesting them would hand the user a paste `fields --apply`
+			// itself drops (GDK-718).
+			if role, kind, ok := jirafields.Classify(f); ok {
+				row.Suggested = fields.SuggestAlias(f.Name, f.ID, usedAliases)
+				usedAliases[row.Suggested] = true
+				// Auto stays unset on purpose: a pasted spec is user-chosen,
+				// and discovery regenerates Auto entries on re-apply — an
+				// accepted suggestion must survive the next --apply.
+				suggestedSpecs = append(suggestedSpecs, config.FieldSpec{
+					Alias: row.Suggested, Label: f.Name, IDs: []string{f.ID},
+					Role: role, Kind: kind,
+				})
+			}
 		}
 		rows = append(rows, row)
 	}
@@ -585,7 +604,7 @@ func buildFieldReport(catalog []jira.FieldInfo, filled map[string]int, sampled i
 	}
 	// When showAll, unused is custom-only bloat; used holds the rest.
 	// When custom-only, used is non-zero custom fields.
-	return fieldReport{rows: used, unused: unused, suggestedMap: suggested}
+	return fieldReport{rows: used, unused: unused, suggestedMap: suggested, suggestedSpecs: suggestedSpecs}
 }
 
 func printFieldReport(report fieldReport, sampleN, mirrored, projects int) {
@@ -603,20 +622,18 @@ func printFieldReport(report fieldReport, sampleN, mirrored, projects int) {
 		}
 	}
 
-	if len(report.suggestedMap) > 0 {
+	if len(report.suggestedSpecs) > 0 {
 		fmt.Println()
-		fmt.Printf("Suggested fields (≥%.0f%% filled, not in config):\n", mapSuggestMinRate*100)
-		// Stable key order for paste-friendly output.
-		aliases := slices.Sorted(maps.Keys(report.suggestedMap))
-		fmt.Println("{")
-		for i, a := range aliases {
-			comma := ","
-			if i == len(aliases)-1 {
-				comma = ""
-			}
-			fmt.Printf("  %q: %q%s\n", a, report.suggestedMap[a], comma)
+		fmt.Printf("Suggested fields (≥%.0f%% filled, not in config) — FieldSpec fragments `gadak config set fields` takes:\n", mapSuggestMinRate*100)
+		fmt.Println("(merge with existing specs when pasting; `gadak fields --apply` adopts them all as discovery-owned)")
+		// The fragment is printed, not the map it replaces: the config surface
+		// has been FieldSpec[] since discovery landed, and an alias→id map was
+		// paste-ready for a shape no command accepts anymore (GDK-718).
+		frag, err := json.MarshalIndent(report.suggestedSpecs, "", "  ")
+		if err != nil {
+			return
 		}
-		fmt.Println("}")
+		fmt.Println(string(frag))
 	}
 }
 

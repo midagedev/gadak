@@ -246,3 +246,33 @@ func TestMountedBuiltInSkipsDoorAOwner(t *testing.T) {
 		t.Fatal("mounted entry claimed the primary's origin")
 	}
 }
+
+// GDK-689: the zero-value Registry must work — New is sugar, not a
+// precondition. A struct literal without New used to panic on its nil maps
+// (entries at publish, owningOrigin in ensureOrigin), which is exactly the
+// kind of hidden constructor dependency a later embedder trips over.
+// FAIL-first on the pre-fix source, which panics here.
+func TestZeroValueRegistryOpensAndBindsOrigin(t *testing.T) {
+	setupHome(t)
+	seedBuiltInProfile(t, "zero")
+	t.Cleanup(func() {
+		_ = origin.Close()
+		origin.ResetInProcess()
+	})
+	var reg Registry
+	// No deferred Close on purpose: the pre-fix panic happens under r.mu,
+	// and a Close in the unwind path would deadlock on that held mutex and
+	// turn the red into a hang. Success closes here; failure leaks one test
+	// handle until the process exits.
+	e, err := reg.Get("zero")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg.Close()
+	if e == nil {
+		t.Fatal("zero-value registry returned a nil entry")
+	}
+	if !e.ownsOrigin {
+		t.Fatal("zero-value registry did not bind the mounted origin")
+	}
+}

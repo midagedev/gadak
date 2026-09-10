@@ -453,6 +453,20 @@ exit 0 — 는 파서의 판결이고 `web/src/lib/integrations.test.ts` 가 이
 roving tabindex 는 진짜 버튼에 `-1` 을 세워 두는데, 트랩은 거기서도 멈췼습니다
 ([GDK-142]).
 
+Go 트리에서 자리가 틀린 코드가 제자리로 갔습니다. 이름으로 전환을 고르는 일은 HTTP 가
+아니라 유스케이스라서 Jira 클라이언트를 떠나 `internal/transition` 으로 갔고, origin
+패키지는 그것을 묻기 위해 클라이언트를 import 하지 않습니다 ([GDK-688]). Jira 라이터의
+동일 반환 래퍼 일곱 개가 함께 사라졌고, 값이 비어 있는 워크스페이스 레지스트리는 nil
+맵에 패닉하는 대신 origin 을 열어 묶습니다 ([GDK-689]). `gadak fields` 는 설정에 그대로
+붙일 조각 — `--apply` 가 버릴 별칭 맵이 아니라 `FieldSpec` — 을 찍고, 분류기가
+거절하는 필드는 제안하지 않습니다. `--json` 키는 바이트까지 같습니다 ([GDK-718]).
+`doctor` 와 MCP status 는 공유 코멘트 표를 숫자 하나로 세어 위키 코멘트가 있는 미러마다
+설정 화면과 어긋났는데, 이제 둘 다 `issue_comments` 와 `page_comments` 로 답합니다
+([GDK-1113]). 쉼표가 든 라벨은 create 와 edit, 플래그와 배치 어디서나 한 헬퍼가
+경고합니다 ([GDK-1245]). "origin 이 낡았다"는 안내는 문자열 조각이 아니라 타입 있는
+501 에 걸리고 ([GDK-1319]), 사이트 없는 Jira 워크스페이스의 거절에는 테스트가 생겼습니다
+([GDK-1332]).
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -2011,3 +2025,10 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1091]: https://gadak.dev/backlog/#/?ks=GDK-1091
 [GDK-1092]: https://gadak.dev/backlog/#/?ks=GDK-1092
 [GDK-142]: https://gadak.dev/backlog/#/?ks=GDK-142
+[GDK-688]: https://gadak.dev/backlog/#/?ks=GDK-688
+[GDK-689]: https://gadak.dev/backlog/#/?ks=GDK-689
+[GDK-718]: https://gadak.dev/backlog/#/?ks=GDK-718
+[GDK-1113]: https://gadak.dev/backlog/#/?ks=GDK-1113
+[GDK-1245]: https://gadak.dev/backlog/#/?ks=GDK-1245
+[GDK-1319]: https://gadak.dev/backlog/#/?ks=GDK-1319
+[GDK-1332]: https://gadak.dev/backlog/#/?ks=GDK-1332

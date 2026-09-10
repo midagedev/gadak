@@ -2810,7 +2810,7 @@ func emitTransitionResult(ctx context.Context, cfg *config.Config, db *store.DB,
 	if res.Changed {
 		return emitAfterWrite(ctx, cfg, db, src, key, asJSON, extra)
 	}
-	token, ok := jira.StatusCategoryToken(want)
+	token, ok := transition.StatusCategoryToken(want)
 	if !ok {
 		token = want
 	}
@@ -2869,22 +2869,22 @@ func listTransitions(key string, asJSON bool) error {
 			return json.NewEncoder(os.Stdout).Encode(map[string]any{
 				"key":         key,
 				"transitions": jsonList(list),
-				"categories":  jsonList(jira.ReachableCategories(list)),
+				"categories":  jsonList(transition.ReachableCategories(list)),
 				// duplicate_destinations names the groups a category token
 				// folds (GDK-1356), so a shell-less agent can see why two rows
 				// look identical without attempting a write to find out.
-				"duplicate_destinations": jsonList(jira.DuplicateDestinations(list)),
+				"duplicate_destinations": jsonList(transition.DuplicateDestinations(list)),
 			})
 		}
 		if len(list) == 0 {
 			fmt.Fprintf(os.Stdout, "%s has no available transitions for this credential\n", key)
 			return nil
 		}
-		fmt.Printf("available: %s\n", jira.JoinTransitions(list))
-		if cats := jira.ReachableCategories(list); len(cats) > 0 {
+		fmt.Printf("available: %s\n", transition.JoinTransitions(list))
+		if cats := transition.ReachableCategories(list); len(cats) > 0 {
 			fmt.Printf("also accepts a status category: %s\n", strings.Join(cats, ", "))
 		}
-		if dup := jira.FormatDuplicateDestinations(list); dup != "" {
+		if dup := transition.FormatDuplicateDestinations(list); dup != "" {
 			fmt.Printf("same destination name and category, so a category token folds them into one — say a transition id or a target status id to pick a particular one:\n%s\n", dup)
 		}
 		return nil
@@ -3081,7 +3081,7 @@ func cmdClaim(args []string) error {
 			// GDK-1174: a board with two in-progress statuses fails every
 			// bare claim — the candidates are already in the error; the
 			// flag that picks one is this command's, so it is named here.
-			var amb *jira.AmbiguousTransitionError
+			var amb *transition.AmbiguousTransitionError
 			if errors.As(err, &amb) && *trans == "" {
 				return fmt.Errorf("%w\npass --transition <id|name> to choose one", err)
 			}

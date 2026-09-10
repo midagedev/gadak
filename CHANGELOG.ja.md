@@ -487,6 +487,20 @@ e2e 三件がユニットの再証明をやめます。統合の出力が何を�
 フォーカストラップはブラウザがすでに知っていたことを学びました — roving tabindex
 は本物のボタンに `-1` を置きますが、トラップはそこでも止まっていました ([GDK-142])。
 
+Go のツリーで、置き場所を間違えていたコードが本来の部屋に戻りました。名前で遷移を
+選ぶのは HTTP の仕事ではなくユースケースなので、Jira クライアントを離れて
+`internal/transition` へ移り、origin パッケージはそれを尋ねるためにクライアントを
+import しなくなりました ([GDK-688])。Jira ライターの素通しラッパー七つも一緒に消え、
+ゼロ値のワークスペースレジストリは nil マップでパニックする代わりに origin を開いて
+結びます ([GDK-689])。`gadak fields` は設定にそのまま貼れる断片 — `--apply` が捨てる
+別名マップではなく `FieldSpec` — を出力し、分類器が拒む項目は提案しません。`--json`
+のキーはバイト単位で同じです ([GDK-718])。`doctor` と MCP の status は共有コメント表を
+ひとつの数字で数えていて、wiki コメントのあるミラーでは設定画面と食い違っていました。
+いまは両方が `issue_comments` と `page_comments` で答えます ([GDK-1113])。カンマを含む
+ラベルは create でも edit でも、フラグでもバッチでも、ひとつのヘルパーが警告します
+([GDK-1245])。「origin が古い」の案内は部分文字列ではなく型付きの 501 に反応し
+([GDK-1319])、サイトのない Jira ワークスペースの拒否にはテストが付きました ([GDK-1332])。
+
 ## v0.21.0 — 2026-09-08
 
 **離れていた間に何が起きたのかに、キャッシュから答えます。** ステータスの変更も
@@ -2123,3 +2137,10 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1091]: https://gadak.dev/backlog/#/?ks=GDK-1091
 [GDK-1092]: https://gadak.dev/backlog/#/?ks=GDK-1092
 [GDK-142]: https://gadak.dev/backlog/#/?ks=GDK-142
+[GDK-688]: https://gadak.dev/backlog/#/?ks=GDK-688
+[GDK-689]: https://gadak.dev/backlog/#/?ks=GDK-689
+[GDK-718]: https://gadak.dev/backlog/#/?ks=GDK-718
+[GDK-1113]: https://gadak.dev/backlog/#/?ks=GDK-1113
+[GDK-1245]: https://gadak.dev/backlog/#/?ks=GDK-1245
+[GDK-1319]: https://gadak.dev/backlog/#/?ks=GDK-1319
+[GDK-1332]: https://gadak.dev/backlog/#/?ks=GDK-1332

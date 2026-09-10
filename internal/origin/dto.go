@@ -11,8 +11,9 @@ import "github.com/midagedev/gadak/internal/jira"
 // round's whitelist forbids that, and the HTTP JSON those packages emit
 // must stay unchanged. Callers of each field are listed in the round report.
 //
-// jira.Client still unmarshals the HTTP payloads; jiraWriter converts
-// (today an identity) so the adapter frame is named in stack traces.
+// jira.Client unmarshals the HTTP payloads and its methods are the Writer
+// methods as-is (GDK-689 removed the identity-conversion frame that used to
+// sit between them — an alias needs no adapter).
 
 type (
 	Transition          = jira.Transition

@@ -577,6 +577,23 @@ constants that share no class, and nothing may spell either by hand. And the
 focus trap learned what the browser already knew — a roving tabindex parks
 `-1` on real buttons, and the trap stopped at them anyway ([GDK-142]).
 
+The Go tree lost some code that lived in the wrong room. Picking a transition
+by name is a use case, not an HTTP concern, so it left the Jira client for
+`internal/transition`, and the origin package no longer imports the client to
+ask it ([GDK-688]); seven identity wrappers on the Jira writer went with it,
+and a zero-value workspace registry opens and binds its origin instead of
+panicking on a nil map ([GDK-689]). `gadak fields` prints the fragment you
+would paste into the config — a `FieldSpec`, not the alias map `--apply`
+would then discard — and never proposes a field the classifier refuses; the
+`--json` key is byte-identical ([GDK-718]). `doctor` and the MCP status tool
+counted the shared comments table as one figure, which disagreed with the
+settings runtime on every mirror with wiki comments; both now report
+`issue_comments` and `page_comments` ([GDK-1113]). A label holding a comma is
+warned about on create and edit, flag or batch, from one helper ([GDK-1245]);
+the "origin too old" hint keys on a typed 501 instead of a substring
+([GDK-1319]); and the refusal a Jira workspace gives without a site has a
+test ([GDK-1332]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2201,3 +2218,10 @@ priority sorting keyed on `priority_rank`.
 [GDK-1091]: https://gadak.dev/backlog/#/?ks=GDK-1091
 [GDK-1092]: https://gadak.dev/backlog/#/?ks=GDK-1092
 [GDK-142]: https://gadak.dev/backlog/#/?ks=GDK-142
+[GDK-688]: https://gadak.dev/backlog/#/?ks=GDK-688
+[GDK-689]: https://gadak.dev/backlog/#/?ks=GDK-689
+[GDK-718]: https://gadak.dev/backlog/#/?ks=GDK-718
+[GDK-1113]: https://gadak.dev/backlog/#/?ks=GDK-1113
+[GDK-1245]: https://gadak.dev/backlog/#/?ks=GDK-1245
+[GDK-1319]: https://gadak.dev/backlog/#/?ks=GDK-1319
+[GDK-1332]: https://gadak.dev/backlog/#/?ks=GDK-1332

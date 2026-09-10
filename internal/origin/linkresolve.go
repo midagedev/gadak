@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
-	"github.com/midagedev/gadak/internal/transition"
 )
 
 // Resolving a link-type token is the IssueLinker face's own vocabulary, so it
@@ -45,7 +45,7 @@ func ResolveLinkType(token string, catalog []jira.IssueLinkType) (lt jira.IssueL
 	if token == "" {
 		return jira.IssueLinkType{}, false, fmt.Errorf("empty link type")
 	}
-	if transition.AllASCIIDigits(token) {
+	if fields.AllASCIIDigits(token) {
 		for _, t := range catalog {
 			if t.ID == token {
 				return t, false, nil

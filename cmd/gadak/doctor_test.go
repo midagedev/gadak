@@ -1737,3 +1737,112 @@ func TestCollectMCPStatusClaudeDesktopOnly(t *testing.T) {
 		t.Errorf("both registered = %+v, want scope user", got)
 	}
 }
+
+// TestDoctorCountsSplitCommentsByMeaning is GDK-1113 (same owners as
+// `gadak status --json`, GDK-628): the shared comments table mixes issue
+// and wiki comments, so doctor labels each share by meaning instead of one
+// "comments" row that disagrees with the settings runtime on every mirror
+// with wiki comments. Seeds 2 issue comments and 1 page comment — a mixed
+// figure of 3 would be wrong for both meanings.
+func TestDoctorCountsSplitCommentsByMeaning(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+	t.Cleanup(func() { config.SetProfile("") })
+
+	db, err := store.Open(filepath.Join(home, "gadak.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	ctx := context.Background()
+	if err := db.UpsertSource(ctx, store.Source{ID: "jira", Kind: "jira", BaseURL: "https://192.0.2.10"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertSource(ctx, store.Source{ID: "confluence", Kind: "confluence", BaseURL: "https://192.0.2.10/wiki"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertIssues(ctx, store.Batch{
+		Categories: map[string]string{"1": "new"},
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:1", SourceID: "jira", Kind: "issue", ExternalID: "1",
+				Key: "STD-1", Title: "seeding doctor counts",
+				CreatedAt: "2026-01-01T00:00:00.000Z", UpdatedAt: "2026-01-02T00:00:00.000Z",
+			},
+			Issue: store.Issue{
+				ProjectKey: "STD", IssueType: "Bug", IssueTypeID: "10004",
+				Status: "To Do", StatusID: "1", StatusCategory: "new",
+			},
+			Comments: []store.Comment{
+				{ID: "jira:c-1", Author: "Dana", BodyText: "repro", CreatedAt: "2026-01-02T00:00:00.000Z"},
+				{ID: "jira:c-2", Author: "Lee", BodyText: "confirmed", CreatedAt: "2026-01-03T00:00:00.000Z"},
+			},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertPages(ctx, []store.PageRecord{{
+		Item: store.Item{
+			ID: "confluence:100", SourceID: "confluence", Kind: "page", ExternalID: "100",
+			Key: "100", Title: "회의록", BodyText: "논의 사항",
+			CreatedAt: "2026-01-01T00:00:00.000Z", UpdatedAt: "2026-01-02T00:00:00.000Z",
+		},
+		Page: store.Page{SpaceKey: "ENG", Version: 1, Status: "current"},
+		Comments: []store.Comment{{
+			ID: "confluence:c-1", Author: "Kim", BodyText: "ok",
+			CreatedAt: "2026-01-02T00:00:00.000Z",
+		}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, out)
+	}
+	if got := doctorValue(t, out, "issue_comments"); got != "2" {
+		t.Errorf("issue_comments = %q, want 2 (the issue share of the shared table):\n%s", got, out)
+	}
+	if got := doctorValue(t, out, "page_comments"); got != "1" {
+		t.Errorf("page_comments = %q, want 1 (the wiki share):\n%s", got, out)
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "comments:") {
+			t.Errorf("a mixed comments row is back — it disagrees with the settings runtime on every mirror with wiki comments:\n%s", line)
+		}
+	}
+
+	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v\n%s", err, raw)
+	}
+	var rep struct {
+		Counts *struct {
+			IssueComments int `json:"issue_comments"`
+			PageComments  int `json:"page_comments"`
+		} `json:"counts"`
+	}
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	if rep.Counts == nil {
+		t.Fatalf("no counts in:\n%s", raw)
+	}
+	if rep.Counts.IssueComments != 2 || rep.Counts.PageComments != 1 {
+		t.Errorf("counts = issue_comments:%d page_comments:%d, want 2/1:\n%s",
+			rep.Counts.IssueComments, rep.Counts.PageComments, raw)
+	}
+	var mixed map[string]any
+	if err := json.Unmarshal([]byte(raw), &mixed); err != nil {
+		t.Fatal(err)
+	}
+	if counts, ok := mixed["counts"].(map[string]any); ok {
+		if _, still := counts["comments"]; still {
+			t.Errorf("counts still carries the mixed \"comments\" key:\n%s", raw)
+		}
+	}
+}

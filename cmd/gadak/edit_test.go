@@ -2218,3 +2218,25 @@ func TestCreateAndCommentRefuseStrayPlaceholders(t *testing.T) {
 		t.Fatalf("refused comment still reached Jira: %v", f.calls)
 	}
 }
+
+// TestEditCommaLabelWarns is GDK-1245 on edit's side: `--label +a,b` adds
+// the single label "a,b". The warning rides labelUpdateOps so the flag path
+// and the batch JSON path share one owner.
+func TestEditCommaLabelWarns(t *testing.T) {
+	f := newFakeJira(t)
+	mirror(t, f.URL)
+
+	_, stderr, err := captureBoth(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--label", "+ops,infra"})
+	})
+	if err != nil {
+		t.Fatalf("edit: %v", err)
+	}
+	if !strings.Contains(stderr, `label "+ops,infra" holds a comma`) {
+		t.Errorf("stderr missing the comma warning:\n%s", stderr)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	if !strings.Contains(body, `{"add":"ops,infra"}`) {
+		t.Errorf("edit must add the single label (no split):\n%s", body)
+	}
+}

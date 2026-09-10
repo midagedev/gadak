@@ -93,7 +93,10 @@ type originFlight struct {
 	done chan struct{}
 }
 
-// New returns an empty workspace registry.
+// New returns an empty workspace registry. Sugar: the zero Registry works
+// too — every map it owns is lazily initialised on first write (GDK-689),
+// so an embedder that builds one as a struct literal pays nothing for
+// skipping this constructor.
 func New() *Registry {
 	return &Registry{
 		entries:      make(map[string]*Entry),
@@ -235,6 +238,11 @@ func (r *Registry) open(name string) (*Entry, error) {
 		r.flights = map[string]*openFlight{}
 	}
 	r.flights[name] = f
+	if r.entries == nil {
+		// Lazy like flights above: the zero Registry (GDK-689) reaches this
+		// publish with no constructor behind it and must not panic.
+		r.entries = map[string]*Entry{}
+	}
 	r.mu.Unlock()
 
 	if testBeforeConstruct != nil {

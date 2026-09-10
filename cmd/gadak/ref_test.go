@@ -1,10 +1,14 @@
 package main
 
 import (
+	"errors"
+	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
 )
 
@@ -138,5 +142,41 @@ func TestRefUnhydratedTargetIsNotAnError(t *testing.T) {
 	// Garbage is refused before any write.
 	if _, err := capture(t, func() error { return cmdRef([]string{mine, "not-a-target"}) }); err == nil {
 		t.Fatal("a bare token that is neither <workspace>/<KEY> nor a URL must be refused")
+	}
+}
+
+// TestRefOriginTooOldKeysOnTyped501 is GDK-1319: the upgrade-hint
+// discriminator is the typed *jira.APIError status, not two substrings in
+// the message. FAIL-first on the pre-fix source both ways — prose that
+// happens to contain "501" and "remotelink" was rewritten into the upgrade
+// sentence, and a typed 501 whose path did not say "remotelink" was not
+// (the call sites are the remotelink verbs, so the path is not evidence).
+func TestRefOriginTooOldKeysOnTyped501(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	clearCredentialEnv(t)
+	t.Cleanup(func() { config.SetProfile("") })
+	cfg := &config.Config{}
+
+	// 1. Prose-only: no type, no rewrite.
+	prose := fmt.Errorf("search failed: 501 issues mention remotelink exports")
+	if got := refOriginTooOld(cfg, prose); !errors.Is(got, prose) {
+		t.Errorf("an untyped error must pass through unchanged, got: %v", got)
+	}
+
+	// 2. Typed 501 on any route: rewritten into the upgrade sentence.
+	typed := fmt.Errorf("POST /api/v1/origin/issue/STD-1/links: %w",
+		&jira.APIError{Status: http.StatusNotImplemented, Messages: []string{"does not implement this route"}})
+	got := refOriginTooOld(cfg, typed)
+	if !strings.Contains(got.Error(), "references need a newer origin") {
+		t.Errorf("a typed 501 must map to the upgrade hint, got: %v", got)
+	}
+
+	// 3. Typed non-501: passes through (404 is a key problem, not an old serve).
+	typed404 := fmt.Errorf("DELETE /api/v1/origin/issue/STD-1/remotelink/7: %w",
+		&jira.APIError{Status: http.StatusNotFound, Messages: []string{"no such link"}})
+	if got := refOriginTooOld(cfg, typed404); !errors.Is(got, typed404) {
+		t.Errorf("a typed non-501 must pass through unchanged, got: %v", got)
 	}
 }

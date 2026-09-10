@@ -200,7 +200,7 @@ func resolveExplicitTransition(ctx context.Context, o Origin, key, want string) 
 	if err != nil {
 		return "", err
 	}
-	id, err := jira.PickTransition(key, want, list)
+	id, err := transition.PickTransition(key, want, list)
 	if err != nil {
 		return "", err
 	}
@@ -210,7 +210,7 @@ func resolveExplicitTransition(ctx context.Context, o Origin, key, want string) 
 		}
 		if cat, ok := statuscat.KnownCategory(t.To.StatusCategory.Key); !ok || cat != categoryInProgress {
 			return "", fmt.Errorf("claim takes an issue into progress — %s lands on %s; use gadak transition for that move",
-				jira.FormatTransition(t), t.To.Name)
+				transition.FormatTransition(t), t.To.Name)
 		}
 	}
 	return id, nil

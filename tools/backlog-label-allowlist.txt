@@ -124,6 +124,7 @@ non-goal
 omarchy
 onboarding
 ops
+origin
 packaging
 pairing
 perf
@@ -140,6 +141,7 @@ public
 quality
 race
 raycast
+recipes
 refactor
 release
 release-0.19

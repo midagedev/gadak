@@ -327,6 +327,23 @@ func refuseSignedCreateLabels(labels []string) error {
 	return nil
 }
 
+// warnCommaLabel says on stderr when a --label value carries a comma
+// (GDK-1245): Jira accepts a comma inside one label name, so `--label
+// "a,b"` is the single label "a,b" — not two labels. A warning, not a split
+// or a refusal, because the value is legal and the comma may be exactly
+// what the user meant; the mistake this catches is shell habit from tools
+// that take comma lists. Not in labelFlags.Set: --attach and --field share
+// that flag type for values where a comma is ordinary. Create's owner is
+// createOne (every source — flag default and batch JSON line — funnels
+// there); edit's owner is labelUpdateOps.
+func warnCommaLabel(labels []string) {
+	for _, l := range labels {
+		if strings.Contains(l, ",") {
+			fmt.Fprintf(os.Stderr, "warning: label %q holds a comma — Jira stores it as one label; repeat --label for separate labels\n", l)
+		}
+	}
+}
+
 func createOn(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src, projectWant, typeWant, summary, body, priorityWant, parentWant, dueWant string, labels, attach []string, fieldRaws map[string]json.RawMessage, dryRun bool) (string, map[string]any, error) {
 	if projRes, err := create.Project(projectWant, cfg); err == nil {
 		if err := refuseUnmirroredProject(ctx, db, cfg, projRes.Value); err != nil {
@@ -493,6 +510,7 @@ func createOne(ctx context.Context, cfg *config.Config, db *store.DB, c origin.W
 	if err := refuseSignedCreateLabels(labels); err != nil {
 		return "", nil, err
 	}
+	warnCommaLabel(labels)
 	if len(attach) > 0 {
 		if err := validateAttachPaths(attach); err != nil {
 			return "", nil, err

@@ -1,9 +1,11 @@
-package jira
+package transition
 
 import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/midagedev/gadak/internal/jira"
 )
 
 // GDK-1356. The `gdk` workspace carries two statuses both displayed
@@ -20,8 +22,8 @@ import (
 // are not a choice, so they fold into one. Two candidates a reader *can* tell
 // apart still refuse — the rule folds duplicates, it never guesses.
 
-func tr(id, name, toID, toName, cat string) Transition {
-	t := Transition{ID: id, Name: name}
+func tr(id, name, toID, toName, cat string) jira.Transition {
+	t := jira.Transition{ID: id, Name: name}
 	t.To.ID = toID
 	t.To.Name = toName
 	t.To.StatusCategory.Key = cat
@@ -29,8 +31,8 @@ func tr(id, name, toID, toName, cat string) Transition {
 }
 
 // gdkWorkflow is the measured payload above.
-func gdkWorkflow() []Transition {
-	return []Transition{
+func gdkWorkflow() []jira.Transition {
+	return []jira.Transition{
 		tr("1", "In Progress", "10001", "In Progress", "indeterminate"),
 		tr("2", "In Review", "10002", "In Review", "indeterminate"),
 		tr("3", "Done", "10003", "Done", "done"),
@@ -42,7 +44,7 @@ func gdkWorkflow() []Transition {
 // the reader is concerned: fold, do not refuse. FAIL-first on the pre-fix
 // source, which answers AmbiguousTransitionError here.
 func TestPickCategoryFoldsSameNamedDuplicates(t *testing.T) {
-	list := []Transition{
+	list := []jira.Transition{
 		tr("1", "In Progress", "10001", "In Progress", "indeterminate"),
 		tr("3", "Done", "10003", "Done", "done"),
 		tr("4", "In Progress", "3", "In Progress", "indeterminate"),
@@ -60,7 +62,7 @@ func TestPickCategoryFoldsSameNamedDuplicates(t *testing.T) {
 // a workflow that labels the two moves differently still lands the reader on
 // one indistinguishable status.
 func TestPickCategoryFoldsOnDestinationName(t *testing.T) {
-	list := []Transition{
+	list := []jira.Transition{
 		tr("1", "Start work", "10001", "In Progress", "indeterminate"),
 		tr("4", "Resume", "3", "In Progress", "indeterminate"),
 	}
@@ -72,7 +74,7 @@ func TestPickCategoryFoldsOnDestinationName(t *testing.T) {
 // Distinct destination names still refuse. The rule must never silently pick
 // between two statuses the reader can tell apart.
 func TestPickCategoryDistinctNamesStillAmbiguous(t *testing.T) {
-	list := []Transition{
+	list := []jira.Transition{
 		tr("1", "In Progress", "10001", "In Progress", "indeterminate"),
 		tr("2", "In Review", "10002", "In Review", "indeterminate"),
 		tr("5", "Blocked", "10004", "Blocked", "indeterminate"),
@@ -123,7 +125,7 @@ func TestPickCategoryRefusalNamesFoldedDuplicates(t *testing.T) {
 // must land on 10001 even when the unused duplicate comes first in the
 // payload.
 func TestPickCategoryFoldPrefersStatusInMirrorUse(t *testing.T) {
-	list := []Transition{
+	list := []jira.Transition{
 		tr("4", "In Progress", "3", "In Progress", "indeterminate"),
 		tr("1", "In Progress", "10001", "In Progress", "indeterminate"),
 	}
@@ -142,7 +144,7 @@ func TestPickCategoryFoldPrefersStatusInMirrorUse(t *testing.T) {
 // Without a usage hook the fold is stable on payload order — it never
 // reorders on its own.
 func TestPickCategoryFoldWithoutUsageKeepsPayloadOrder(t *testing.T) {
-	list := []Transition{
+	list := []jira.Transition{
 		tr("4", "In Progress", "3", "In Progress", "indeterminate"),
 		tr("1", "In Progress", "10001", "In Progress", "indeterminate"),
 	}
@@ -158,7 +160,7 @@ func TestPickCategoryFoldWithoutUsageKeepsPayloadOrder(t *testing.T) {
 // The status the issue already sits in is not a candidate inside a folded
 // group: "move me to In Progress" cannot mean the In Progress it is in.
 func TestPickCategoryFoldDropsCurrentStatus(t *testing.T) {
-	list := []Transition{
+	list := []jira.Transition{
 		tr("1", "In Progress", "10001", "In Progress", "indeterminate"),
 		tr("4", "In Progress", "3", "In Progress", "indeterminate"),
 	}
@@ -175,7 +177,7 @@ func TestPickCategoryFoldDropsCurrentStatus(t *testing.T) {
 // happens to be the current status stays a candidate, so a self-loop
 // workflow cannot make `inprogress` mean some other in-progress status.
 func TestPickCategoryCurrentStatusAloneIsStillACandidate(t *testing.T) {
-	list := []Transition{
+	list := []jira.Transition{
 		tr("1", "In Progress", "10001", "In Progress", "indeterminate"),
 		tr("2", "In Review", "10002", "In Review", "indeterminate"),
 	}
@@ -189,7 +191,7 @@ func TestPickCategoryCurrentStatusAloneIsStillACandidate(t *testing.T) {
 // A payload with no destination name (a damaged or stale shape) must not
 // fold two unrelated statuses into one on the strength of matching empties.
 func TestPickCategoryEmptyDestinationNamesDoNotFold(t *testing.T) {
-	list := []Transition{
+	list := []jira.Transition{
 		tr("1", "A", "10001", "", "indeterminate"),
 		tr("2", "B", "10002", "", "indeterminate"),
 	}
@@ -205,8 +207,10 @@ func TestPickCategoryEmptyDestinationNamesDoNotFold(t *testing.T) {
 
 // Folding is scoped to the category branch. A bare status id that two
 // transitions reach still refuses: that pick is not about display names.
+// The refusal is a caller-side one — IsRefused — never an origin error:
+// a miss means nothing was written, whatever surface asked.
 func TestPickStatusIDWithTwoTransitionsStillAmbiguous(t *testing.T) {
-	list := []Transition{
+	list := []jira.Transition{
 		tr("1", "Start", "10001", "In Progress", "indeterminate"),
 		tr("9", "Resume", "10001", "In Progress", "indeterminate"),
 	}
@@ -214,6 +218,37 @@ func TestPickStatusIDWithTwoTransitionsStillAmbiguous(t *testing.T) {
 	var amb *AmbiguousTransitionError
 	if !errors.As(err, &amb) {
 		t.Fatalf("two transitions onto one status id must still refuse, got %v", err)
+	}
+	if !IsRefused(err) {
+		t.Fatalf("pick misses must be refusals (IsRefused), got %v", err)
+	}
+}
+
+// A plain miss is a Refused too — Apply returns pick errors verbatim (the
+// rewrap that used to live there is gone), so the pick itself owns the class.
+func TestPickMissIsRefused(t *testing.T) {
+	list := []jira.Transition{tr("1", "Start", "10001", "In Progress", "indeterminate")}
+	_, err := PickTransition("GDK-1", "nonexistent", list)
+	if err == nil {
+		t.Fatal("want a miss error")
+	}
+	if !IsRefused(err) {
+		t.Fatalf("miss must be a refusal (IsRefused), got %T %v", err, err)
+	}
+}
+
+// The id/to.id collision refusal (GDK-1305) is a caller-side refusal as well.
+func TestPickIDAndStatusIDCollisionIsRefused(t *testing.T) {
+	list := []jira.Transition{
+		tr("11", "Start", "10001", "In Progress", "indeterminate"),
+		tr("2", "Elsewhere", "11", "Blocked", "indeterminate"),
+	}
+	_, err := PickTransition("GDK-1", "11", list)
+	if err == nil {
+		t.Fatal("want the collision refusal")
+	}
+	if !IsRefused(err) {
+		t.Fatalf("collision must be a refusal (IsRefused), got %T %v", err, err)
 	}
 }
 

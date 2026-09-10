@@ -13,6 +13,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/fields"
+	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -290,4 +291,65 @@ func pad2(n int) string {
 		return "0" + strconv.Itoa(n)
 	}
 	return strconv.Itoa(n)
+}
+
+// TestSuggestedFieldsPrintFieldSpecFragment is GDK-718: the config surface
+// has been FieldSpec[] since discovery landed, but the human "Suggested
+// fields" block still printed an alias→id map — paste-ready for a shape no
+// command accepts anymore. The block must print fragments in the shape
+// `gadak config set fields` takes, and a field Classify refuses (JSM
+// plumbing) must not be suggested at all: a suggestion gadak cannot ingest
+// is a paste `fields --apply` itself would drop.
+func TestSuggestedFieldsPrintFieldSpecFragment(t *testing.T) {
+	catalogRaw := `[
+		{"id":"customfield_10016","name":"Story Points","custom":true,
+		 "schema":{"type":"number","custom":"com.atlassian.jira.plugin.system.customfieldtypes:float"}},
+		{"id":"customfield_10041","name":"Customer Request Type","custom":true,
+		 "schema":{"type":"sd-customerrequesttype"}}
+	]`
+	var catalog []jira.FieldInfo
+	if err := json.Unmarshal([]byte(catalogRaw), &catalog); err != nil {
+		t.Fatal(err)
+	}
+	filled := map[string]int{"customfield_10016": 12, "customfield_10041": 12}
+	report := buildFieldReport(catalog, filled, 20, nil, false)
+
+	if len(report.suggestedSpecs) != 1 {
+		t.Fatalf("suggestedSpecs = %+v, want exactly the classifiable field", report.suggestedSpecs)
+	}
+	spec := report.suggestedSpecs[0]
+	if spec.Alias != "story_points" || spec.Label != "Story Points" ||
+		len(spec.IDs) != 1 || spec.IDs[0] != "customfield_10016" {
+		t.Errorf("fragment = %+v, want alias story_points with the field id", spec)
+	}
+	if spec.Role != "plain" || spec.Kind != "number" {
+		t.Errorf("fragment role/kind = %q/%q, want plain/number (Classify's verdict)", spec.Role, spec.Kind)
+	}
+	if spec.Auto {
+		t.Error("fragment is Auto: discovery regenerates Auto entries on re-apply, so an accepted suggestion must be user-owned")
+	}
+	// The JSM field is refused by Classify → no suggestion on any surface.
+	if report.suggestedMap["customer_request_type"] != "" || len(report.suggestedMap) != 1 {
+		t.Errorf("suggested_fieldMap = %v — a Classify-refused field must not be suggested there either", report.suggestedMap)
+	}
+
+	out, err := capture(t, func() error { printFieldReport(report, 20, 20, 1); return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "config set fields") {
+		t.Errorf("human block does not name the command the fragment is for:\n%s", out)
+	}
+	if !strings.Contains(out, `"role": "plain"`) || !strings.Contains(out, `"kind": "number"`) {
+		t.Errorf("human block missing the FieldSpec fragment:\n%s", out)
+	}
+	if !strings.Contains(out, `"alias": "story_points"`) || !strings.Contains(out, `"ids": [`) {
+		t.Errorf("fragment not in config-set shape:\n%s", out)
+	}
+	if strings.Contains(out, `"story_points": "customfield_10016"`) {
+		t.Errorf("the legacy alias→id map shape is still printed — no command accepts it anymore:\n%s", out)
+	}
+	if strings.Contains(out, "customer_request_type") {
+		t.Errorf("a Classify-refused field leaked into the human suggestion block:\n%s", out)
+	}
 }
