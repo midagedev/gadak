@@ -129,7 +129,11 @@ hard-won 목록)와 `AGENTS.md`(기여 계약)·`docs/MIRROR.md`(스키마·SQL 
   소유자는 `GADAK_E2E_PORT`(기본 7877, `e2e/helpers.ts` `e2eServePort()`)다.
   홈은 포트별로 격리된다(`e2e/.tmp/home-<port>`) — GDK-672 랜딩으로 **서로
   다른 포트를 준 스위트 두 개는 병렬 가능**하다(병렬 라운드에는 스펙에
-  포트를 명시 배정). 같은 포트 위의 충돌·낡은 서버 재사용은 여전히 경쟁
+  포트를 명시 배정 — **포트는 둘 이상 띄어서**: `built-in-attachments.spec`이
+  자기 serve를 `GADAK_E2E_PORT+1`에 띄우므로 8043·8044 같은 이웃 배정은 그
+  스펙 넷을 결정적으로 죽인다. 2026-09-11 실측: healthz가 옆 스위트의
+  serve에 200을 받아 데모 픽스처를 열었고, 있지도 않은 회귀를 40분 추적했다.
+  구조적 봉쇄는 GDK-1789). 같은 포트 위의 충돌·낡은 서버 재사용은 여전히 경쟁
   신호이고(스탬프 불일치는 `assertServedArtifact`가 잡는다), 한 스위트
   안은 `workers: 1`이다.
 - **터미널 e2e(`e2e/terminal*.spec.ts`·`e2e/issue-command.spec.ts`)를
