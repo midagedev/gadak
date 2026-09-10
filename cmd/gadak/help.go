@@ -231,7 +231,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak sync", "gadak doctor"},
 	},
 	"export": {
-		summary: "dump saved views, watches, favorites, and recents as JSON (no credentials)",
+		summary: "dump personal state as JSON: views, watches, favorites, recents, recipes, dashboards, and visit/search history (no credentials)",
 		usage:   "gadak [--workspace <name>] export [--out FILE]",
 		options: []helpOption{
 			{name: "out", desc: "write to this file instead of stdout"},
@@ -243,7 +243,7 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak import", "gadak team export", "gadak export-static"},
 	},
 	"import": {
-		summary: "restore saved views, watches, favorites, and recents from a gadak export file (file wins on name/key conflict)",
+		summary: "restore views, watches, favorites, recents, recipes, and dashboards from a gadak export file (file wins on name/key conflict; history is carried but not yet restored)",
 		usage:   "gadak [--workspace <name>] import <FILE>",
 		examples: []string{
 			"gadak import gadak-personal.json",

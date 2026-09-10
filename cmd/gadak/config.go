@@ -26,25 +26,10 @@ func cmdConfig(args []string) error {
 		printHelp("config")
 		return nil
 	}
-	sub, rest := "list", args
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		switch args[0] {
-		case "list", "get", "set":
-			sub, rest = args[0], args[1:]
-		default:
-			return usageError("config", configUsage)
-		}
-	}
-	switch sub {
-	case "list":
-		return configList(rest)
-	case "get":
-		return configGet(rest)
-	case "set":
-		return configSet(rest)
-	default:
-		return usageError("config", configUsage)
-	}
+	return dispatchSub(args, "config", configUsage, false,
+		subcmd{"list", configList},
+		subcmd{"get", configGet},
+		subcmd{"set", configSet})
 }
 
 type configListDoc struct {

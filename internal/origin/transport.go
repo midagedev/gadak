@@ -251,9 +251,18 @@ func (t *serveOriginTransport) RoundTrip(req *http.Request) (*http.Response, err
 // is the typed client error the folded response would have produced —
 // wrapped, not swallowed, so callers that classify on it (the sync pass's
 // 501 degrades, ref's upgrade hint) keep seeing what they classify on.
+//
+// answer is set only by folds of a response (the 501 route-not-implemented
+// sentence): it marks the error as the origin's answer so the client's Do
+// loops skip the retry ladder (httppolicy.IsAnswer, GDK-1762) — the
+// measured defect was every new verb on a paired workspace waiting out
+// 1+2+4+8 s of backoff before the upgrade hint. Dial failures folded into
+// a PairingError leave answer false and keep their retries: a transport
+// error may heal; an answer will not change.
 type PairingError struct {
-	msg string
-	err error
+	msg    string
+	err    error
+	answer bool
 }
 
 func (e *PairingError) Error() string {
@@ -269,6 +278,10 @@ func (e *PairingError) Unwrap() error {
 	}
 	return e.err
 }
+
+// Answer implements httppolicy's folded-answer marker; see the struct
+// comment for which constructors set it.
+func (e *PairingError) Answer() bool { return e != nil && e.answer }
 
 func unreachableError(endpoint string) *PairingError {
 	return &PairingError{
@@ -383,7 +396,8 @@ func unimplementedPairedRoute(endpoint string, resp *http.Response) *PairingErro
 	}
 	body := peekBody(resp)
 	msg := &PairingError{
-		msg: fmt.Sprintf("pairing: the home serve at %s does not implement this route — it may be older than this client (its gadak does not report a version); upgrade gadak on the home machine", endpoint),
+		msg:    fmt.Sprintf("pairing: the home serve at %s does not implement this route — it may be older than this client (its gadak does not report a version); upgrade gadak on the home machine", endpoint),
+		answer: true,
 	}
 	if v != "" {
 		msg.msg = fmt.Sprintf("pairing: the home serve at %s (gadak %s) does not implement this route — it may be older than this client; upgrade gadak on the home machine", endpoint, v)

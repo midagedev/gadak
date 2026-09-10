@@ -50,7 +50,7 @@ func (rs CodeRegions) Cover(off int) bool {
 // code: fenced blocks (``` or ~~~ at line start) and inline code spans
 // (backtick runs closed by a run of the same length). It is the single owner
 // of that judgment for the two surfaces that must agree on it — mention
-// candidate extraction (cmd/gadak/agent.go) and the @Name substitution below:
+// candidate extraction (cmd/gadak/agent_mention.go) and the @Name substitution below:
 // code on one side and a person on the other is how a package name summons a
 // user (GDK-894).
 //

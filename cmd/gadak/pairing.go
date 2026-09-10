@@ -51,27 +51,10 @@ func cmdPairing(args []string) error {
 		printHelp("pairing")
 		return nil
 	}
-	// No args (and bare flags like --json) default to list, matching
-	// views.go / dashboards.go / recipes.go / config.go.
-	sub, rest := "list", args
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		switch args[0] {
-		case "mint", "list", "revoke":
-			sub, rest = args[0], args[1:]
-		default:
-			return usageError("pairing", pairingUsage)
-		}
-	}
-	switch sub {
-	case "mint":
-		return pairingMint(rest)
-	case "list":
-		return pairingList(rest)
-	case "revoke":
-		return pairingRevoke(rest)
-	default:
-		return usageError("pairing", pairingUsage)
-	}
+	return dispatchSub(args, "pairing", pairingUsage, false,
+		subcmd{"mint", pairingMint},
+		subcmd{"list", pairingList},
+		subcmd{"revoke", pairingRevoke})
 }
 
 // parseTTL moved to internal/pairflow.ParseTTL (one owner); this wrapper

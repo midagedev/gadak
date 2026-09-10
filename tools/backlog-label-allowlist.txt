@@ -32,6 +32,7 @@ audit-svelte
 audit-tests
 audit-ux
 audit-v018
+audit-v022
 audit-wails
 auth
 autoupdate

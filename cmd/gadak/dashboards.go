@@ -28,31 +28,13 @@ func cmdDashboards(args []string) error {
 		printHelp("dashboards")
 		return nil
 	}
-	sub, rest := "list", args
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		switch args[0] {
-		case "list", "show", "open", "save", "rm", "lib":
-			sub, rest = args[0], args[1:]
-		default:
-			sub, rest = "show", args
-		}
-	}
-	switch sub {
-	case "list":
-		return dashboardsList(rest)
-	case "show":
-		return dashboardsShow(rest)
-	case "open":
-		return dashboardsOpen(rest)
-	case "save":
-		return dashboardsSave(rest)
-	case "rm":
-		return dashboardsRm(rest)
-	case "lib":
-		return dashboardsLib(rest)
-	default:
-		return usageError("dashboards", `usage: gadak dashboards [list|show|open|save|rm|lib add|lib list|lib rm]`)
-	}
+	return dispatchSub(args, "dashboards", `usage: gadak dashboards [list|show|open|save|rm|lib add|lib list|lib rm]`, true,
+		subcmd{"list", dashboardsList},
+		subcmd{"show", dashboardsShow},
+		subcmd{"open", dashboardsOpen},
+		subcmd{"save", dashboardsSave},
+		subcmd{"rm", dashboardsRm},
+		subcmd{"lib", dashboardsLib})
 }
 
 // dashboardsLib is the library-cache verb set (GDK-808): `lib add <url>`
@@ -61,25 +43,10 @@ func cmdDashboards(args []string) error {
 // an entry. The cache lives under the profile directory, not local.db — it
 // is re-fetchable state, like the mirror.
 func dashboardsLib(args []string) error {
-	sub, rest := "list", args
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		switch args[0] {
-		case "add", "list", "rm":
-			sub, rest = args[0], args[1:]
-		default:
-			return usageError("dashboards lib", `usage: gadak dashboards lib [add <url> [--replace]|list|rm <id>]`)
-		}
-	}
-	switch sub {
-	case "add":
-		return dashboardsLibAdd(rest)
-	case "list":
-		return dashboardsLibList(rest)
-	case "rm":
-		return dashboardsLibRm(rest)
-	default:
-		return usageError("dashboards lib", `usage: gadak dashboards lib [add <url> [--replace]|list|rm <id>]`)
-	}
+	return dispatchSub(args, "dashboards lib", `usage: gadak dashboards lib [add <url> [--replace]|list|rm <id>]`, false,
+		subcmd{"add", dashboardsLibAdd},
+		subcmd{"list", dashboardsLibList},
+		subcmd{"rm", dashboardsLibRm})
 }
 
 // dashboardsLibAdd downloads one library into the cache and prints the

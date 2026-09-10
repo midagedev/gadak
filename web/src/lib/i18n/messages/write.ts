@@ -103,7 +103,7 @@ export const write = {
     ja: '変更は Jira に保存されましたが、ローカルコピーを更新できませんでした。再試行しないでください。',
   },
   // GDK-828: the CLI sibling carries the recovery ("check the key, or run
-  // `gadak sync`" — cmd/gadak/agent.go); the web write path owes the same
+  // `gadak sync`" — cmd/gadak/agent_issue.go); the web write path owes the same
   // next action, in the web's own verb (the freshness chip's sync).
   'write.notFound': {
     en: 'That issue was not found. Check the key, or sync now.',

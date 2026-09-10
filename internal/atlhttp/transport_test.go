@@ -370,6 +370,64 @@ func TestDoRawTransportErrorRetry(t *testing.T) {
 	})
 }
 
+// answerError stands in for the paired transport's folded PairingError:
+// an origin's answer (its serve said 501 — route not implemented) carried
+// as a RoundTrip error. atlhttp cannot import internal/origin to name the
+// real type — origin imports jira, jira imports this package — which is
+// exactly why the marker is an interface in httppolicy.
+type answerError struct{ error }
+
+func (answerError) Answer() bool { return true }
+
+// TestDoRawAnswerMarkedErrorIsNotRetried is FAIL-first for GDK-1762: the
+// error-retry path treats every RoundTrip error as a transient unless it
+// carries httppolicy's answer marker, and a folded 501 is an answer —
+// IsRetryable already says no to the status, but the fold bypassed that
+// check and walked the whole ladder (1+2+4+8 s) before the caller saw
+// the upgrade hint.
+func TestDoRawAnswerMarkedErrorIsNotRetried(t *testing.T) {
+	t.Run("read returns on first attempt", func(t *testing.T) {
+		cfg, meter := testCfg(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		var calls atomic.Int32
+		cfg.HTTP = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			calls.Add(1)
+			return nil, answerError{errors.New("pairing: the home serve does not implement this route")}
+		})}
+		cfg.Retries = 5
+		_, _, err := do(t, cfg, http.MethodGet, "/rest/api/3/myself", nil, false, false)
+		var ae answerError
+		if !errors.As(err, &ae) {
+			t.Fatalf("err = %v, want the folded answer to survive the wrap", err)
+		}
+		if n := calls.Load(); n != 1 {
+			t.Errorf("calls = %d, want 1", n)
+		}
+		if got := meter.Snapshot().Retries; got != 0 {
+			t.Errorf("Retries = %d, want 0", got)
+		}
+	})
+	t.Run("stream returns on first attempt", func(t *testing.T) {
+		cfg, _ := testCfg(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		var calls atomic.Int32
+		cfg.HTTP = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			calls.Add(1)
+			return nil, answerError{errors.New("pairing: the home serve does not implement this route")}
+		})}
+		cfg.Retries = 5
+		res, err := Stream(context.Background(), cfg, http.MethodGet, "/rest/api/3/myself", nil)
+		if err == nil || res != nil {
+			t.Fatalf("res=%v err=%v, want nil response and the folded answer", res, err)
+		}
+		var ae answerError
+		if !errors.As(err, &ae) {
+			t.Fatalf("err = %v, want the folded answer to survive the wrap", err)
+		}
+		if n := calls.Load(); n != 1 {
+			t.Errorf("calls = %d, want 1", n)
+		}
+	})
+}
+
 func TestDoRawRejectsOffSitePaths(t *testing.T) {
 	var calls int
 	cfg, meter := testCfg(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

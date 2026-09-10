@@ -57,7 +57,7 @@ var envSuffixes = map[string]struct{}{
 // envLiterals are GADAK_* names production reads via os.Getenv, not Env.
 // cmd/gadak/views.go (GADAK_NO_OPEN), desktop/integrations.go
 // (GADAK_DESKTOP_CLI), internal/config/actor.go (GADAK_ACTOR, GDK-586),
-// cmd/gadak/agent.go's claim reflection (GADAK_TERMINAL_SESSION,
+// cmd/gadak/agent_write.go's claim reflection (GADAK_TERMINAL_SESSION,
 // GDK-1158 — published by internal/term into every pane shell, so without
 // this entry warnUnknownGADAK would call every pane's own claim a ghost),
 // cmd/gadak/workspace_cmd.go's pane check (GADAK_TERMINAL, the flag

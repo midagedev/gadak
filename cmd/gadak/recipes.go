@@ -39,29 +39,12 @@ func cmdRecipes(args []string) error {
 		printHelp("recipes")
 		return nil
 	}
-	sub, rest := "list", args
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		switch args[0] {
-		case "list", "save", "run", "show", "rm":
-			sub, rest = args[0], args[1:]
-		default:
-			return usageError("recipes", recipesUsage)
-		}
-	}
-	switch sub {
-	case "list":
-		return recipesList(rest)
-	case "save":
-		return recipesSave(rest)
-	case "run":
-		return recipesRun(rest)
-	case "show":
-		return recipesShow(rest)
-	case "rm":
-		return recipesRm(rest)
-	default:
-		return usageError("recipes", recipesUsage)
-	}
+	return dispatchSub(args, "recipes", recipesUsage, false,
+		subcmd{"list", recipesList},
+		subcmd{"save", recipesSave},
+		subcmd{"run", recipesRun},
+		subcmd{"show", recipesShow},
+		subcmd{"rm", recipesRm})
 }
 
 func cmdNext(args []string) error {

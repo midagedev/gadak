@@ -12,6 +12,7 @@ package httppolicy
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -51,6 +52,19 @@ func IsRetryable(code int) bool {
 // IsRetryableWrite is the mutating retry set: 429 and 503 only.
 func IsRetryableWrite(code int) bool {
 	return code == 429 || code == 503
+}
+
+// IsAnswer reports whether err is an origin's answer folded into an error,
+// which the Do loops must return on the first attempt instead of walking
+// the backoff ladder. A RoundTripper that rewrites a response into an
+// error (the paired transport folds a 501 — a route the home serve
+// predates — into a PairingError, GDK-1762) bypasses the status check
+// above by construction; this marker puts the "answers are not
+// transients" rule back in force on the error path too. A folded dial
+// failure stays retryable by simply not implementing the marker.
+func IsAnswer(err error) bool {
+	var a interface{ Answer() bool }
+	return errors.As(err, &a) && a.Answer()
 }
 
 // Wait sleeps for the retry delay: backoff<<attempt, capped at MaxWait,

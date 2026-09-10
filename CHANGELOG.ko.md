@@ -627,6 +627,17 @@ Ubuntu 미러 장애에 런을 잃는 대신 캐시를 재생합니다 ([GDK-234
 `e2e` 의 클래스 단언은 이미 사라졌으며, 손으로 돌리는 진단 스크립트 하나는 사용자 판단으로
 남겼습니다 ([GDK-1232]).
 
+0.22 앞의 두 번째 감사는 첫 감사가 재기만 했던 것을 닫았습니다. 페어링한
+serve가 자기보다 새 경로에 501로 답하면 이제 그것을 일시 장애가 아니라
+답으로 읽습니다. 같은 말을 되풀이할 집에 대고 재시도 사다리를 끝까지 오르지
+않고 첫 시도에서 돌아옵니다 ([GDK-1762]). `gadak workspace export`는 버전
+2를 쓰고, 불변 조건이 면제해 주던 방문·검색 기록을 함께 내보내며, import는
+두 버전을 다 받습니다 ([GDK-1769]). 안쪽에서는 복합 명령 여섯 개가 각자
+들고 있던 switch 대신 디스패처 하나로 동사를 보내고, `agent.go`는 선언을
+하나도 잃지 않은 채 주제별 다섯 파일이 됐고, `doctor`는 이름 붙은 프로브
+아홉 개로 보고서를 모으며, `init`은 자격증명 해석을 자기 함수로 뺐습니다
+([GDK-1778], [GDK-1771], [GDK-1775], [GDK-1772]).
+
 900px 아래에는 좁은 레짐이 하나입니다. 사이드바의 좁은 폭이 760px 미디어 쿼리 아래 다섯
 자리에 재선언돼 있어서 800px 창은 272px 사이드바를 유지하고 리스트는 남는 만큼만 받았습니다.
 이제 좁은 값은 인라인 토큰 설치에 실리고, `app.css` 는 `--layout-sidebar` 를 어디에도 정의하지
@@ -2299,3 +2310,9 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1759]: https://gadak.dev/backlog/#/?ks=GDK-1759
 [GDK-1760]: https://gadak.dev/backlog/#/?ks=GDK-1760
 [GDK-1761]: https://gadak.dev/backlog/#/?ks=GDK-1761
+[GDK-1762]: https://gadak.dev/backlog/#/?ks=GDK-1762
+[GDK-1769]: https://gadak.dev/backlog/#/?ks=GDK-1769
+[GDK-1771]: https://gadak.dev/backlog/#/?ks=GDK-1771
+[GDK-1772]: https://gadak.dev/backlog/#/?ks=GDK-1772
+[GDK-1775]: https://gadak.dev/backlog/#/?ks=GDK-1775
+[GDK-1778]: https://gadak.dev/backlog/#/?ks=GDK-1778

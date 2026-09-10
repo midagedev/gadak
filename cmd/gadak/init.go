@@ -107,11 +107,6 @@ func initMissingError(missing []string, reason string) error {
 		strings.Join(missing, ", "), reason, config.ErrNotConfigured.Error())
 }
 
-// cmdInit writes site/email/token/projects to config after verifying against
-// /myself. Classic interactive mode (TTY, no supply flags/env, no --json)
-// re-prompts credentials (and optional projects) so a human can replace an
-// expired token. Any non-interactive supply turns prompting off entirely.
-// Projects are optional: blank means sync every project the account can see.
 // renameLegacyInitFlags rewrites the pre-GDK-1281 flag names to the ones
 // the FlagSet knows. A flag already sitting in someone's script is a
 // contract, so the old spellings never stop working — but they are
@@ -147,6 +142,11 @@ func renameLegacyInitFlags(args []string) []string {
 	return out
 }
 
+// cmdInit writes site/email/token/projects to config after verifying against
+// /myself. Classic interactive mode (TTY, no supply flags/env, no --json)
+// re-prompts credentials (and optional projects) so a human can replace an
+// expired token. Any non-interactive supply turns prompting off entirely.
+// Projects are optional: blank means sync every project the account can see.
 func cmdInit(args []string) error {
 	fs := newFlagSet("init")
 	siteFlag := fs.String("site", "", "Jira site URL (https://your-site.atlassian.net)")
@@ -270,128 +270,27 @@ func cmdInit(args []string) error {
 	suppliedEnv := envSite != "" || envEmail != "" || envToken != "" || envProjects != ""
 	classic := initIsTerminal() && !*jsonOut && !suppliedFlag && !suppliedEnv
 
-	var site, email, token string
-	var projects []string
 	prevToken := cfg.Token
-	expiresFromPrompt := ""
-
-	if classic {
-		// Start from saved values; empty answers keep them (token never echoed).
-		site = strings.TrimRight(cfg.Site, "/")
-		email = cfg.Email
-		token = cfg.Token
-		projects = append([]string(nil), cfg.Projects...)
-
-		in := bufio.NewReader(initStdin)
-		prompt := func(label, current string) string {
-			if current != "" {
-				fmt.Printf("%s [%s]: ", label, current)
-			} else {
-				fmt.Printf("%s: ", label)
-			}
-			line, _ := in.ReadString('\n')
-			line = strings.TrimSpace(line)
-			if line == "" {
-				return current
-			}
-			return line
-		}
-		site = strings.TrimRight(prompt("Jira site URL (https://your-site.atlassian.net)", site), "/")
-		email = prompt("Account email", email)
-		// Two of the three things Atlassian's token page offers 401 against a
-		// site URL, and it recommends one of those two first. Say so before the
-		// paste, not after the rejection — after the 401 there is nothing left
-		// to do but explain it (GDK-98). The web onboarding form carries the
-		// same three facts; tools/doc-checks.sh pins the two together.
-		fmt.Println(tokenTrapHint)
-		// Token: keep-hint in the label only — never print the secret as [current].
-		tokenLabel := "API token (id.atlassian.com/manage-profile/security/api-tokens)"
-		if token != "" {
-			tokenLabel += " [configured; enter to keep]"
-		}
-		if v := prompt(tokenLabel, ""); v != "" {
-			token = v
-		}
-		// Ask when the token is new or this profile has no stored date yet
-		// (upgrade from a pre-expiry config). Keep an existing date when the
-		// token is unchanged.
-		if token != prevToken || cfg.TokenExpiresAt == "" {
-			expiresFromPrompt = prompt("Token expiry date (YYYY-MM-DD, from Atlassian's create dialog; blank assumes 1 year)", "")
-		}
-		projects = parseProjectKeys(prompt("Project keys, comma-separated (optional — blank syncs every project you can see)", strings.Join(projects, ",")))
-	} else {
-		// flag > env > saved; never prompt.
-		site = strings.TrimRight(cfg.Site, "/")
-		if envSite != "" {
-			site = strings.TrimRight(envSite, "/")
-		}
-		if *siteFlag != "" {
-			site = strings.TrimRight(*siteFlag, "/")
-		}
-
-		email = cfg.Email
-		if envEmail != "" {
-			email = envEmail
-		}
-		if *emailFlag != "" {
-			email = *emailFlag
-		}
-
-		token = cfg.Token
-		if envToken != "" {
-			token = envToken
-		}
-		switch {
-		case *tokenStdin:
-			b, err := io.ReadAll(initStdin)
-			if err != nil {
-				return fmt.Errorf("reading token from stdin: %w", err)
-			}
-			token = strings.TrimSpace(string(b))
-		case *tokenFile != "":
-			b, err := os.ReadFile(*tokenFile)
-			if err != nil {
-				return fmt.Errorf("reading --token-file: %w", err)
-			}
-			token = strings.TrimSpace(string(b))
-		}
-
-		projects = append([]string(nil), cfg.Projects...)
-		if envProjects != "" {
-			projects = parseProjectKeys(envProjects)
-		}
-		if *projectsFlag != "" {
-			projects = parseProjectKeys(*projectsFlag)
-		}
-
-		var missing []string
-		if site == "" {
-			missing = append(missing, "site")
-		}
-		if email == "" && !*serverFlag {
-			// --server authenticates with a PAT alone; there is no email.
-			missing = append(missing, "email")
-		}
-		if token == "" {
-			missing = append(missing, "token")
-		}
-		// projects is optional: empty means every project the account can see.
-		if len(missing) > 0 {
-			reason := "stdin is not a terminal, so init cannot prompt"
-			switch {
-			case *jsonOut:
-				reason = "--json forbids interactive prompts"
-			case *tokenStdin:
-				reason = "--token-stdin consumes stdin, so init cannot prompt"
-			case suppliedFlag || suppliedEnv:
-				// TTY but non-classic: flags/env opted into non-interactive fill.
-				if initIsTerminal() {
-					reason = "non-interactive supply was used, so init cannot prompt"
-				}
-			}
-			return initMissingError(missing, reason)
-		}
+	creds, err := resolveCredentials(cfg, initSupply{
+		classic:    classic,
+		jsonOut:    *jsonOut,
+		server:     *serverFlag,
+		siteFlag:   *siteFlag,
+		emailFlag:  *emailFlag,
+		projFlag:   *projectsFlag,
+		tokenFile:  *tokenFile,
+		tokenStdin: *tokenStdin,
+		envSite:    envSite,
+		envEmail:   envEmail,
+		envToken:   envToken,
+		envProj:    envProjects,
+		supplied:   suppliedFlag || suppliedEnv,
+	})
+	if err != nil {
+		return err
 	}
+	site, email, token := creds.site, creds.email, creds.token
+	projects := creds.projects
 
 	if err := originbind.RefuseSiteRebind(cfg, site); err != nil {
 		return err
@@ -483,7 +382,7 @@ func cmdInit(args []string) error {
 	}
 	userExpires := *tokenExpires
 	if classic {
-		userExpires = expiresFromPrompt
+		userExpires = creds.expiresFromPrompt
 	}
 	if err := cfg.ApplyTokenExpiryIfNeeded(userExpires, cfg.TokenVerifiedAt, token != prevToken); err != nil {
 		return fmt.Errorf("token expiry: %w", err)
@@ -515,6 +414,162 @@ func cmdInit(args []string) error {
 	printSkillAutoResult(skill)
 	printInitNextSteps(cfg.WorkspaceKind())
 	return nil
+}
+
+// initSupply is every credential source cmdInit resolved before prompting:
+// the parsed flags, the environment, and whether the classic interactive
+// prompt applies. resolveCredentials owns the precedence between them.
+type initSupply struct {
+	classic    bool
+	jsonOut    bool
+	server     bool
+	siteFlag   string
+	emailFlag  string
+	projFlag   string
+	tokenFile  string
+	tokenStdin bool
+	envSite    string
+	envEmail   string
+	envToken   string
+	envProj    string
+	// supplied reports that a flag or environment value opted a TTY run
+	// into non-interactive fill — it names the reason in the missing error.
+	supplied bool
+}
+
+// initCredentials is the resolved credential set both init modes produce:
+// the effective site/email/token/projects, plus the expiry date the
+// interactive prompt collected (empty when the token is unchanged).
+type initCredentials struct {
+	site, email, token string
+	projects           []string
+	expiresFromPrompt  string
+}
+
+// resolveCredentials is the single owner of init's two credential modes
+// (GDK-1772). Classic prompts from saved values — an empty answer keeps
+// each one, and the token is never echoed; every non-classic run resolves
+// flag > env > saved and never prompts, failing with the no-prompt reason
+// when something required is still empty. Interactive and non-interactive
+// fill are the two shapes of one decision, so they live here instead of
+// one of them being inlined in cmdInit.
+func resolveCredentials(cfg *config.Config, in initSupply) (initCredentials, error) {
+	var c initCredentials
+	c.site = strings.TrimRight(cfg.Site, "/")
+	c.email = cfg.Email
+	c.token = cfg.Token
+	c.projects = append([]string(nil), cfg.Projects...)
+	prevToken := cfg.Token
+
+	if in.classic {
+		rd := bufio.NewReader(initStdin)
+		prompt := func(label, current string) string {
+			if current != "" {
+				fmt.Printf("%s [%s]: ", label, current)
+			} else {
+				fmt.Printf("%s: ", label)
+			}
+			line, _ := rd.ReadString('\n')
+			line = strings.TrimSpace(line)
+			if line == "" {
+				return current
+			}
+			return line
+		}
+		c.site = strings.TrimRight(prompt("Jira site URL (https://your-site.atlassian.net)", c.site), "/")
+		c.email = prompt("Account email", c.email)
+		// Two of the three things Atlassian's token page offers 401 against a
+		// site URL, and it recommends one of those two first. Say so before the
+		// paste, not after the rejection — after the 401 there is nothing left
+		// to do but explain it (GDK-98). The web onboarding form carries the
+		// same three facts; tools/doc-checks.sh pins the two together.
+		fmt.Println(tokenTrapHint)
+		// Token: keep-hint in the label only — never print the secret as [current].
+		tokenLabel := "API token (id.atlassian.com/manage-profile/security/api-tokens)"
+		if c.token != "" {
+			tokenLabel += " [configured; enter to keep]"
+		}
+		if v := prompt(tokenLabel, ""); v != "" {
+			c.token = v
+		}
+		// Ask when the token is new or this profile has no stored date yet
+		// (upgrade from a pre-expiry config). Keep an existing date when the
+		// token is unchanged.
+		if c.token != prevToken || cfg.TokenExpiresAt == "" {
+			c.expiresFromPrompt = prompt("Token expiry date (YYYY-MM-DD, from Atlassian's create dialog; blank assumes 1 year)", "")
+		}
+		c.projects = parseProjectKeys(prompt("Project keys, comma-separated (optional — blank syncs every project you can see)", strings.Join(c.projects, ",")))
+		return c, nil
+	}
+
+	// flag > env > saved; never prompt.
+	if in.envSite != "" {
+		c.site = strings.TrimRight(in.envSite, "/")
+	}
+	if in.siteFlag != "" {
+		c.site = strings.TrimRight(in.siteFlag, "/")
+	}
+
+	if in.envEmail != "" {
+		c.email = in.envEmail
+	}
+	if in.emailFlag != "" {
+		c.email = in.emailFlag
+	}
+
+	if in.envToken != "" {
+		c.token = in.envToken
+	}
+	switch {
+	case in.tokenStdin:
+		b, err := io.ReadAll(initStdin)
+		if err != nil {
+			return c, fmt.Errorf("reading token from stdin: %w", err)
+		}
+		c.token = strings.TrimSpace(string(b))
+	case in.tokenFile != "":
+		b, err := os.ReadFile(in.tokenFile)
+		if err != nil {
+			return c, fmt.Errorf("reading --token-file: %w", err)
+		}
+		c.token = strings.TrimSpace(string(b))
+	}
+
+	if in.envProj != "" {
+		c.projects = parseProjectKeys(in.envProj)
+	}
+	if in.projFlag != "" {
+		c.projects = parseProjectKeys(in.projFlag)
+	}
+
+	var missing []string
+	if c.site == "" {
+		missing = append(missing, "site")
+	}
+	if c.email == "" && !in.server {
+		// --server authenticates with a PAT alone; there is no email.
+		missing = append(missing, "email")
+	}
+	if c.token == "" {
+		missing = append(missing, "token")
+	}
+	// projects is optional: empty means every project the account can see.
+	if len(missing) > 0 {
+		reason := "stdin is not a terminal, so init cannot prompt"
+		switch {
+		case in.jsonOut:
+			reason = "--json forbids interactive prompts"
+		case in.tokenStdin:
+			reason = "--token-stdin consumes stdin, so init cannot prompt"
+		case in.supplied:
+			// TTY but non-classic: flags/env opted into non-interactive fill.
+			if initIsTerminal() {
+				reason = "non-interactive supply was used, so init cannot prompt"
+			}
+		}
+		return c, initMissingError(missing, reason)
+	}
+	return c, nil
 }
 
 // initBuiltIn is the CLI shell of a built-in init: the seeding core

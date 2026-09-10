@@ -224,7 +224,7 @@ Reading the mirror (no network; see docs/MIRROR.md):
                                        [list|show|open|save|rm]
   snapshot   shareable copy of the mirror <out.db> [--from db] [--spread 90d] [--scale N]
   backup     one consistent copy of the built-in tracker's persist file (the record; not the mirror)  [--to <dir|file>] [--json]
-  export     dump saved views, watches, favorites as JSON  [--out FILE]
+  export     dump personal state as JSON (views, watches, favorites, recents, history, recipes, dashboards)  [--out FILE]
   import     restore them from a gadak export file         <FILE>
   mcp        MCP server on stdio; mcp install <client> pins the workspace (docs/MCP.md)
   skill      install Claude Code skill (schema + queries; no MCP process)

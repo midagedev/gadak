@@ -207,6 +207,12 @@ that pass `--profile` keep working. `gadak profiles` is the same command as
 needs `--destroy-origin` (its persist is the only copy of that tracker; the
 refusal names the file to copy out first).
 
+`gadak workspace export [--out FILE]` is the built-in tracker's moving-out
+form: it writes the persist file's contents as the same seed YAML
+`origin/issuetap.yaml` always was (GDK-768). Jira, Server, and Linear
+workspaces have nothing to hand over in that format, and a paired client is
+refused too — it must not mint a fresh origin on the wrong machine.
+
 Three rules follow, and they are the point of the design:
 
 - **Name the workspace in every command that matters.** Never rely on the
@@ -603,6 +609,12 @@ Do not combine `--pairing-code-stdin` with `--local` or a site token.
 `_home` is this machine's routing token, not a device — `revoke` refuses it;
 `gadak pairing mint --label _home` rotates it. If a command fails with a
 `pairing:` prefix, show that error to the user. Do not invent a retry.
+
+Version skew shows before any verb fails: `gadak status` and
+`gadak doctor` both carry a pairing skew line (`pairing_skew` in `--json`,
+GDK-1273) naming the home serve's gadak against this client's. A home serve
+older than the client means verbs it predates answer 501 with the upgrade
+sentence — read that as skew, not as a route you mistyped.
 
 ## Writing as yourself: the actor
 
@@ -1104,6 +1116,18 @@ order:
   move and losing the mirror costs nothing. Do that before anything drastic.
 - `skill: stale` means this file and the binary disagree — `gadak skill
   install`.
+
+Four `gadak doctor` fields are diagnostics, not failures — same names in
+`--json`. `mirror.wal_bytes` is read before doctor opens the mirror, so the
+number is what was on disk, not something doctor's own open caused
+(GDK-307). `session_boundary` is where the previous reading session ended
+(a read more than 30 minutes after the last starts a new one); visits newer
+than it are the current session (GDK-1549). `priority_entropy` (the human
+`priority` line) says one priority value is carrying the whole axis
+(GDK-1413) — do not build work-ranking answers on priority until it
+spreads. `local_schema_skew` says a newer gadak already migrated this
+home's `local.db`: upgrade gadak or point at another `--workspace` /
+`GADAK_HOME` rather than reporting the workspace broken (GDK-596).
 
 ## Report the friction; do not route around it
 

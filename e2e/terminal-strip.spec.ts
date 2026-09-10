@@ -728,7 +728,7 @@ test.describe('terminal strip shots', () => {
 
     // The headline the strip exists for: a row named after its ticket. The
     // binding is the loopback POST `gadak claim` already makes when a claim
-    // lands (cmd/gadak/agent.go, postTerminalIssueBinding) — the capture
+    // lands (cmd/gadak/agent_write.go, postTerminalIssueBinding) — the capture
     // stands in for the CLI, not for the mechanism.
     const claimed = (await sessionIds(page))[0]
     await page.request.post(apiURL(`/api/v1/terminal/sessions/${claimed}/issue/`), {

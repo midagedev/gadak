@@ -42,8 +42,18 @@ func cmdImport(args []string) error {
 	if err := applyPersonalExport(db, doc); err != nil {
 		return err
 	}
-	fmt.Printf("imported %d views, %d watches, %d favorites, %d recents\n",
-		len(doc.Views), len(doc.Watches), len(doc.Favorites), len(doc.Recents))
+	fmt.Printf("imported %d views, %d watches, %d favorites, %d recents, %d recipes, %d dashboards\n",
+		len(doc.Views), len(doc.Watches), len(doc.Favorites), len(doc.Recents), len(doc.Recipes), len(doc.Dashboards))
+	// History is carried, not restored (GDK-1769): a faithful import needs a
+	// store-level writer that preserves viewed_at/searched_at, and the only
+	// writers that exist re-stamp rows as if they happened now — importing a
+	// year of reads as one blob at import time would corrupt the timeline it
+	// claims to restore. Say so instead of half-doing it; export keeps every
+	// row readable for the version that gains the writer.
+	if len(doc.Visits) > 0 || len(doc.Searches) > 0 {
+		fmt.Fprintf(os.Stderr, "note: the file carries %d visits and %d searches; this build does not restore history yet\n",
+			len(doc.Visits), len(doc.Searches))
+	}
 	return nil
 }
 
@@ -59,6 +69,10 @@ func parsePersonalExport(raw []byte) (personalExport, []string, error) {
 		"watches":      true,
 		"favorites":    true,
 		"recents":      true,
+		"visits":       true,
+		"searches":     true,
+		"recipes":      true,
+		"dashboards":   true,
 	}
 	var unknown []string
 	for k := range top {
@@ -75,14 +89,19 @@ func parsePersonalExport(raw []byte) (personalExport, []string, error) {
 	if doc.Version == 0 {
 		return personalExport{}, unknown, fmt.Errorf("missing required field gadak_export (version)")
 	}
-	if doc.Version != personalExportVersion {
-		return personalExport{}, unknown, fmt.Errorf("unsupported gadak_export version %d (this gadak understands %d)", doc.Version, personalExportVersion)
+	if doc.Version < minPersonalExportVersion || doc.Version > personalExportVersion {
+		return personalExport{}, unknown, fmt.Errorf("unsupported gadak_export version %d (this gadak understands %d through %d)", doc.Version, minPersonalExportVersion, personalExportVersion)
 	}
 	return doc, unknown, nil
 }
 
 // applyPersonalExport upserts file rows. A same-named view or same-key
 // watch/favorite is replaced by the file (file wins). Local-only rows stay.
+// Recipes follow the file-wins rule too (PutRecipe upserts by name); a
+// dashboard keeps its rule from the merge helper it rides — AbsorbDashboards
+// was written for exactly this adoption shape and lets a stored name win, so
+// a dashboard being viewed on this machine is never silently reconfigured.
+// Visits and searches are deliberately absent: see cmdImport's note.
 func applyPersonalExport(db *store.DB, doc personalExport) error {
 	ctx := context.Background()
 	existing, err := db.SavedViews(ctx)
@@ -128,7 +147,17 @@ func applyPersonalExport(db *store.DB, doc personalExport) error {
 			return err
 		}
 	}
-	return db.ImportRecents(ctx, doc.Recents)
+	if err := db.ImportRecents(ctx, doc.Recents); err != nil {
+		return err
+	}
+	for i, r := range doc.Recipes {
+		// Same failure contract as views above: one bad row names itself and
+		// stops the import rather than half-applying a person's file.
+		if _, err := db.PutRecipe(ctx, r.Name, r.SQL); err != nil {
+			return fmt.Errorf("recipes[%d] (%s): %w", i, r.Name, err)
+		}
+	}
+	return db.AbsorbDashboards(ctx, doc.Dashboards)
 }
 
 func newPersonalViewID() string {

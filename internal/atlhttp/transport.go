@@ -111,7 +111,11 @@ func DoRawWithHeaders(ctx context.Context, cfg Config, method, path string, payl
 			// The breakdown's wall is what the caller waited per attempt —
 			// transport failures wait too.
 			cfg.Breakdown.Note(method, path, time.Since(attemptStart))
-			if attempt < cfg.Retries-1 && !mutating {
+			// An answer folded into an error is not a transport failure
+			// (GDK-1762): the paired transport's 501 is the serve's "route
+			// not implemented", and IsRetryable already said no to the
+			// status — the ladder would only delay the upgrade hint.
+			if attempt < cfg.Retries-1 && !mutating && !httppolicy.IsAnswer(err) {
 				if werr := httppolicy.Wait(ctx, cfg.Backoff, attempt, "", cfg.Usage); werr != nil {
 					return 0, nil, nil, werr
 				}
@@ -250,7 +254,9 @@ func Stream(ctx context.Context, cfg Config, method, path string, hdr http.Heade
 		// Headers only: the body streams after return, outside this loop.
 		cfg.Breakdown.Note(method, path, time.Since(attemptStart))
 		if err != nil {
-			if attempt < cfg.Retries-1 {
+			// Same answer rule as DoRawWithHeaders above: a folded response
+			// must not stream-retry either (GDK-1762).
+			if attempt < cfg.Retries-1 && !httppolicy.IsAnswer(err) {
 				if werr := httppolicy.Wait(ctx, cfg.Backoff, attempt, "", cfg.Usage); werr != nil {
 					return nil, werr
 				}

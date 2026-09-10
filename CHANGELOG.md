@@ -805,6 +805,19 @@ calendar instrumentation has consumers, the `e2e` class assertions were
 already gone, and one hand-run diagnostic script is left to the user
 ([GDK-1232]).
 
+The second audit pass before 0.22 closed what its first pass had only
+measured. A paired serve that answers 501 to a route it predates is now read
+as an answer, not a transient: the retry ladder returns on the first attempt
+instead of walking every rung against a home that will say the same thing
+([GDK-1762]). `gadak workspace export` writes version 2 and carries the
+visit and search history the invariants had excused it from, and import
+accepts both versions ([GDK-1769]). Under the hood, six compound commands
+route their verbs through one dispatcher where each used to keep a switch of
+its own, `agent.go` is five files by topic with every declaration kept, and
+`doctor` collects its report through nine named probes; `init` gives its
+credential resolution a function of its own ([GDK-1778], [GDK-1771],
+[GDK-1775], [GDK-1772]).
+
 Under 900 pixels there is one narrow regime. The sidebar's narrow width was
 redeclared in five places under a 760-pixel media query, so an 800-pixel
 window kept a 272-pixel sidebar and squeezed the list into what was left;
@@ -2549,3 +2562,9 @@ priority sorting keyed on `priority_rank`.
 [GDK-1759]: https://gadak.dev/backlog/#/?ks=GDK-1759
 [GDK-1760]: https://gadak.dev/backlog/#/?ks=GDK-1760
 [GDK-1761]: https://gadak.dev/backlog/#/?ks=GDK-1761
+[GDK-1762]: https://gadak.dev/backlog/#/?ks=GDK-1762
+[GDK-1769]: https://gadak.dev/backlog/#/?ks=GDK-1769
+[GDK-1771]: https://gadak.dev/backlog/#/?ks=GDK-1771
+[GDK-1772]: https://gadak.dev/backlog/#/?ks=GDK-1772
+[GDK-1775]: https://gadak.dev/backlog/#/?ks=GDK-1775
+[GDK-1778]: https://gadak.dev/backlog/#/?ks=GDK-1778

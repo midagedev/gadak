@@ -29,27 +29,11 @@ func cmdViews(args []string) error {
 		printHelp("views")
 		return nil
 	}
-	sub, rest := "list", args
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		switch args[0] {
-		case "list", "show", "open", "save":
-			sub, rest = args[0], args[1:]
-		default:
-			sub, rest = "show", args
-		}
-	}
-	switch sub {
-	case "list":
-		return viewsList(rest)
-	case "show":
-		return viewsShow(rest)
-	case "open":
-		return viewsOpen(rest)
-	case "save":
-		return viewsSave(rest)
-	default:
-		return usageError("views", `usage: gadak views [list|show|open|save]`)
-	}
+	return dispatchSub(args, "views", `usage: gadak views [list|show|open|save]`, true,
+		subcmd{"list", viewsList},
+		subcmd{"show", viewsShow},
+		subcmd{"open", viewsOpen},
+		subcmd{"save", viewsSave})
 }
 
 func viewsList(args []string) error {

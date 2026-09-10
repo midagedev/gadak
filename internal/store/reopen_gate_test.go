@@ -42,7 +42,7 @@ import (
  *       comparisons — its path to the verdict is the derived column, and a
  *       direct comparison there would be a second rule being born.
  *
- * FAIL-first: against the pre-fix tree this flagged cmd/gadak/agent.go and
+ * FAIL-first: against the pre-fix tree this flagged the printReopenReason site (now cmd/gadak/agent_print.go) and
  * internal/retro/materials.go (twice) — the copies this gate exists to
  * keep from coming back.
  */

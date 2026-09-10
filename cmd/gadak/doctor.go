@@ -447,105 +447,8 @@ func collectDoctor() doctorReport {
 		},
 	}
 
-	if home, err := config.HomeRoot(); err == nil {
-		rep.Home = tildeHome(home)
-		switch {
-		case config.Env("HOME") != "":
-			rep.HomeReason = "GADAK_HOME"
-		case config.DevHome():
-			rep.HomeReason = "dev build"
-		}
-	} else {
-		rep.Home = "unknown"
-	}
-	// The sidecar sizes are observed here, before anything below can open
-	// the mirror (GDK-307): originbind.LocalData counts mirror tables
-	// through store.Open, and an open+close of a WAL database checkpoints —
-	// and on a clean close removes — the very -wal this line reports. The
-	// version/changed-at pair below reads file bytes only, so it keeps its
-	// later place; these are sizes, and the first opener owns the moment.
-	var mirrorWal, mirrorShm *int64
-	if path, err := config.DBPath(); err == nil {
-		rep.MirrorPath = tildeHome(path)
-		if _, serr := os.Stat(path); serr == nil {
-			wal, shm := store.MirrorSidecarBytes(path)
-			mirrorWal, mirrorShm = &wal, &shm
-		}
-	} else {
-		rep.MirrorPath = "unknown"
-	}
-	if prev := config.DualHomeLeftover(); prev != "" {
-		rep.HomeLeftover = tildeHome(prev)
-	}
-
-	if cfg, err := config.Load(); err == nil && cfg != nil {
-		if cfg.Token != "" {
-			rep.Credential = "present"
-			if sampleTokenLiterals[cfg.Token] {
-				// The placeholder config.json carried the doc
-				// example "secret-token" and doctor passed it as present.
-				rep.Credential = "sample placeholder"
-			}
-		}
-		rep.Site = siteReport(cfg.Site)
-		if cfg.Email != "" {
-			rep.Email = "configured"
-			if sampleEmailLiterals[strings.ToLower(cfg.Email)] {
-				rep.Email = "sample placeholder"
-			}
-		}
-		rep.CustomFields.Mapped = len(cfg.FieldSpecs())
-		rep.CustomFields.AppliedAt = cfg.FieldsAppliedAt
-		if cfg.Confluence != nil {
-			rep.Confluence = "active"
-		}
-		kind, src := origin.Describe(cfg)
-		rep.WorkspaceKind = kind
-		if kind == config.KindStandalone {
-			// Persist path is the origin; tilde so the account username
-			// does not appear (same rule as mirror_path).
-			rep.Origin = tildeHome(src)
-			rep.OriginOwner = origin.OwnerStatus(cfg)
-		} else {
-			rep.Origin = src
-		}
-		n, persist, _ := originbind.LocalData(cfg)
-		hasTok := cfg.Token != ""
-		if rem, err := origin.PairedStatus(cfg); err == nil && rem != nil {
-			// No endpoint here, unlike the site line (which shows only
-			// the configured site host): a pairing label is the identity
-			// doctor can name without leaking the serve endpoint.
-			if rem.Label != "" {
-				rep.Origin = fmt.Sprintf("paired gadak serve (label %q)", rem.Label)
-			} else {
-				rep.Origin = "paired gadak serve"
-			}
-			// The skew line (GDK-1273): versions only, so the paste-safe
-			// rule above holds for it too.
-			rep.PairingSkew = pairingSkewSentence(rem.ServerVersion, version)
-			hasTok = true
-			if cfg.Token == "" {
-				rep.Credential = "present"
-			}
-		}
-		rep.Workspace = doctorWorkspace{
-			Name:         workspaceJSONName(),
-			Kind:         cfg.WorkspaceKind(),
-			OriginType:   cfg.OriginType(),
-			Transport:    cfg.Transport(),
-			HasSiteToken: hasTok,
-			Persist:      tildeHome(persist),
-			LocalIssues:  n,
-			Inconsistent: cfg.HasBuiltInOrigin() && hasTok,
-			Frozen:       cfg.SyncFrozen(),
-		}
-		if persist != "" {
-			if fi, err := os.Stat(persist + ".pre-v2.bak"); err == nil {
-				rep.Workspace.PreUpgradeCopy = tildeHome(persist + ".pre-v2.bak")
-				rep.Workspace.PreUpgradeCopyBytes = fi.Size()
-			}
-		}
-	}
+	mirrorWal, mirrorShm := probeDoctorHome(&rep)
+	probeDoctorConfig(&rep)
 
 	// Agent wiring is independent of the mirror, and the mirror branch below
 	// returns early — collect it first so a user with no mirror still gets the
@@ -623,9 +526,146 @@ func collectDoctor() doctorReport {
 	} else {
 		rep.Migrations = "none"
 	}
+	probeDoctorSchema(&rep, db, path, sv)
+	probeDoctorCounts(&rep, db)
+	probeDoctorSync(&rep, db)
+	probeDoctorCustomFields(&rep, db)
+
+	if cs := collectConfluenceSpaces(db); cs != nil {
+		rep.ConfluenceSpaces = cs
+	}
+
+	if ms := collectMirrorShort(db); ms != nil {
+		rep.MirrorShort = ms
+	}
+
+	probeDoctorLinkFacts(&rep, db)
+	rep.Attachments = collectAttachments(db)
+	rep.DevLinks = collectDevLinks(db)
+	probeDoctorRetroFacts(&rep, db)
+	probeDoctorAttachmentCap(&rep, db)
+
+	return rep
+}
+
+// probeDoctorHome is the filesystem half of the report: home root, mirror
+// path, the dual-home leftover, and the WAL/SHM sidecar sizes. It returns
+// the sidecar pointers because rep.Mirror needs them only on the present
+// branch, after the stat succeeds.
+func probeDoctorHome(rep *doctorReport) (mirrorWal, mirrorShm *int64) {
+	if home, err := config.HomeRoot(); err == nil {
+		rep.Home = tildeHome(home)
+		switch {
+		case config.Env("HOME") != "":
+			rep.HomeReason = "GADAK_HOME"
+		case config.DevHome():
+			rep.HomeReason = "dev build"
+		}
+	} else {
+		rep.Home = "unknown"
+	}
+	// The sidecar sizes are observed here, before anything below can open
+	// the mirror (GDK-307): originbind.LocalData counts mirror tables
+	// through store.Open, and an open+close of a WAL database checkpoints —
+	// and on a clean close removes — the very -wal this line reports. The
+	// version/changed-at pair below reads file bytes only, so it keeps its
+	// later place; these are sizes, and the first opener owns the moment.
+	var wal, shm int64
+	if path, err := config.DBPath(); err == nil {
+		rep.MirrorPath = tildeHome(path)
+		if _, serr := os.Stat(path); serr == nil {
+			wal, shm = store.MirrorSidecarBytes(path)
+			mirrorWal, mirrorShm = &wal, &shm
+		}
+	} else {
+		rep.MirrorPath = "unknown"
+	}
+	if prev := config.DualHomeLeftover(); prev != "" {
+		rep.HomeLeftover = tildeHome(prev)
+	}
+	return mirrorWal, mirrorShm
+}
+
+// probeDoctorConfig is the config.json half: credential presence (with the
+// sample-placeholder catch), site/email, custom-field mapping, the origin
+// and workspace identity, and the paired-serve skew line.
+func probeDoctorConfig(rep *doctorReport) {
+	if cfg, err := config.Load(); err == nil && cfg != nil {
+		if cfg.Token != "" {
+			rep.Credential = "present"
+			if sampleTokenLiterals[cfg.Token] {
+				// The placeholder config.json carried the doc
+				// example "secret-token" and doctor passed it as present.
+				rep.Credential = "sample placeholder"
+			}
+		}
+		rep.Site = siteReport(cfg.Site)
+		if cfg.Email != "" {
+			rep.Email = "configured"
+			if sampleEmailLiterals[strings.ToLower(cfg.Email)] {
+				rep.Email = "sample placeholder"
+			}
+		}
+		rep.CustomFields.Mapped = len(cfg.FieldSpecs())
+		rep.CustomFields.AppliedAt = cfg.FieldsAppliedAt
+		if cfg.Confluence != nil {
+			rep.Confluence = "active"
+		}
+		kind, src := origin.Describe(cfg)
+		rep.WorkspaceKind = kind
+		if kind == config.KindStandalone {
+			// Persist path is the origin; tilde so the account username
+			// does not appear (same rule as mirror_path).
+			rep.Origin = tildeHome(src)
+			rep.OriginOwner = origin.OwnerStatus(cfg)
+		} else {
+			rep.Origin = src
+		}
+		n, persist, _ := originbind.LocalData(cfg)
+		hasTok := cfg.Token != ""
+		if rem, err := origin.PairedStatus(cfg); err == nil && rem != nil {
+			// No endpoint here, unlike the site line (which shows only
+			// the configured site host): a pairing label is the identity
+			// doctor can name without leaking the serve endpoint.
+			if rem.Label != "" {
+				rep.Origin = fmt.Sprintf("paired gadak serve (label %q)", rem.Label)
+			} else {
+				rep.Origin = "paired gadak serve"
+			}
+			// The skew line (GDK-1273): versions only, so the paste-safe
+			// rule above holds for it too.
+			rep.PairingSkew = pairingSkewSentence(rem.ServerVersion, version)
+			hasTok = true
+			if cfg.Token == "" {
+				rep.Credential = "present"
+			}
+		}
+		rep.Workspace = doctorWorkspace{
+			Name:         workspaceJSONName(),
+			Kind:         cfg.WorkspaceKind(),
+			OriginType:   cfg.OriginType(),
+			Transport:    cfg.Transport(),
+			HasSiteToken: hasTok,
+			Persist:      tildeHome(persist),
+			LocalIssues:  n,
+			Inconsistent: cfg.HasBuiltInOrigin() && hasTok,
+			Frozen:       cfg.SyncFrozen(),
+		}
+		if persist != "" {
+			if fi, err := os.Stat(persist + ".pre-v2.bak"); err == nil {
+				rep.Workspace.PreUpgradeCopy = tildeHome(persist + ".pre-v2.bak")
+				rep.Workspace.PreUpgradeCopyBytes = fi.Size()
+			}
+		}
+	}
+}
+
+// probeDoctorSchema is the schema-health group: how long the schema has
+// been ahead of the last sync, the audit of unseen tables, and the
+// local.db skew (GDK-596).
+func probeDoctorSchema(rep *doctorReport, db *store.DB, path string, sv int) {
 	rep.SchemaSinceSync = doctorSchemaSinceSync(db, sv)
 	rep.SchemaAudit = collectSchemaAudit(db)
-
 	// GDK-596: the detail the short local.db notice points at. The store
 	// owns the comparison (LocalSchemaSkew reads user_version read-only);
 	// doctor is the one surface that carries the remediation, so stderr
@@ -637,7 +677,11 @@ func collectDoctor() doctorReport {
 			Path:      tildeHome(store.LocalPath(path)),
 		}
 	}
+}
 
+// probeDoctorCounts is the table census. Every read is best-effort: a
+// failed query leaves its count at zero rather than failing the report.
+func probeDoctorCounts(rep *doctorReport, db *store.DB) {
 	counts := &doctorCounts{}
 	if n, err := db.TableCount(context.Background(), "items"); err == nil {
 		counts.Items = n
@@ -668,7 +712,11 @@ func collectDoctor() doctorReport {
 		counts.Spaces = n
 	}
 	rep.Counts = counts
+}
 
+// probeDoctorSync is the sync-axis group: the config↔mirror project scope
+// verdict, the per-source sync stamps, and today's origin API usage.
+func probeDoctorSync(rep *doctorReport, db *store.DB) {
 	if pm := collectProjectsMismatch(db); pm != nil {
 		rep.ProjectsMismatch = pm
 	}
@@ -685,7 +733,12 @@ func collectDoctor() doctorReport {
 			Retries:   usage.Today.Retries,
 		}
 	}
+}
 
+// probeDoctorCustomFields fills the custom-field usage hint: how many
+// usage rows exist, and — only when nothing is mapped — whether a sampled
+// raw probe sees custom keys at all.
+func probeDoctorCustomFields(rep *doctorReport, db *store.DB) {
 	ctx := context.Background()
 	if rows, err := db.FieldUsage(ctx); err == nil {
 		rep.CustomFields.UsageRows = len(rows)
@@ -701,22 +754,20 @@ func collectDoctor() doctorReport {
 			rep.CustomFields.rawScanned = true
 		}
 	}
+}
 
-	if cs := collectConfluenceSpaces(db); cs != nil {
-		rep.ConfluenceSpaces = cs
-	}
-
-	if ms := collectMirrorShort(db); ms != nil {
-		rep.MirrorShort = ms
-	}
-
-	if n, err := db.CountOneSidedLinks(ctx); err == nil && n > 0 {
+// probeDoctorLinkFacts is the one-sided link count — the cross-link debt
+// the web view surfaces per row, stated once here for the whole mirror.
+func probeDoctorLinkFacts(rep *doctorReport, db *store.DB) {
+	if n, err := db.CountOneSidedLinks(context.Background()); err == nil && n > 0 {
 		rep.LinksOneSided = &n
 	}
+}
 
-	rep.Attachments = collectAttachments(db)
-	rep.DevLinks = collectDevLinks(db)
-
+// probeDoctorRetroFacts is the history-axis group: the priority
+// concentration census (GDK-1413) and the session boundary (GDK-1549).
+func probeDoctorRetroFacts(rep *doctorReport, db *store.DB) {
+	ctx := context.Background()
 	// GDK-1413: state the census fact when one priority value carries the
 	// axis. The store owns the query and the threshold; doctor only prints
 	// what Concentrated returns, so the two surfaces cannot disagree about
@@ -732,17 +783,18 @@ func collectDoctor() doctorReport {
 	if end, err := db.LastSessionEnd(ctx, time.Now(), retro.SessionGap); err == nil && end != nil {
 		rep.SessionBoundary = end.UTC().Format(config.ISOMilli)
 	}
+}
 
-	// Only a built-in origin ever had the 8 MiB upload cap. The gate is the
-	// origin type the attachment proxy itself keys on (config.OriginGadak),
-	// not the presence of the count.
+// probeDoctorAttachmentCap states the 8 MiB truncation count, but only for
+// a workspace whose origin ever had that cap — the gate is the origin type
+// the attachment proxy itself keys on (config.OriginGadak), not the
+// presence of the count.
+func probeDoctorAttachmentCap(rep *doctorReport, db *store.DB) {
 	if cfg, err := config.Load(); err == nil && cfg.OriginType() == config.OriginGadak {
-		if n, err := db.CountAttachmentsOfSize(ctx, attachaudit.TruncatedSize); err == nil && n > 0 {
+		if n, err := db.CountAttachmentsOfSize(context.Background(), attachaudit.TruncatedSize); err == nil && n > 0 {
 			rep.AttachmentsMaybeTruncated = &n
 		}
 	}
-
-	return rep
 }
 
 // collectSkillStatus reuses the installer's own classifier (skillDestStatus in

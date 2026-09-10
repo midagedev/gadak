@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/midagedev/gadak/internal/jira"
 )
@@ -14,10 +16,14 @@ import (
 // skewServe answers the paired transport's myself path the way a home
 // serve does since GDK-1273: X-Gadak-Version on every response. status
 // selects between the 200 myself document and a 501 unimplemented-route
-// answer (the shape an older serve gives a verb it predates).
-func skewServe(t *testing.T, status int, serveVersion string) *httptest.Server {
+// answer (the shape an older serve gives a verb it predates). The
+// returned counter is every request the serve saw — the answer-once
+// gate below reads it.
+func skewServe(t *testing.T, status int, serveVersion string) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
+	var hits atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
 		if serveVersion != "" {
 			w.Header().Set("X-Gadak-Version", serveVersion)
 		}
@@ -34,7 +40,7 @@ func skewServe(t *testing.T, status int, serveVersion string) *httptest.Server {
 		_, _ = w.Write([]byte(`{"displayName":"Home User","accountId":"acc-pair"}`))
 	}))
 	t.Cleanup(srv.Close)
-	return srv
+	return srv, &hits
 }
 
 // TestPairedVerifyLearnsServeVersion is FAIL-first for GDK-1273's capture
@@ -44,7 +50,7 @@ func skewServe(t *testing.T, status int, serveVersion string) *httptest.Server {
 // record. Keyed by endpoint — a second workspace's serve must not answer
 // for the first.
 func TestPairedVerifyLearnsServeVersion(t *testing.T) {
-	srv := skewServe(t, http.StatusOK, "0.19.1")
+	srv, _ := skewServe(t, http.StatusOK, "0.19.1")
 	if _, err := VerifyPaired(context.Background(), srv.URL, "pair-token"); err != nil {
 		t.Fatalf("verify: %v", err)
 	}
@@ -65,7 +71,7 @@ func TestPairedVerifyLearnsServeVersion(t *testing.T) {
 // It must stay a PairingError so callers that classify pairing failures
 // keep working.
 func TestPaired501FoldsIntoUpgradeHint(t *testing.T) {
-	srv := skewServe(t, http.StatusNotImplemented, "0.19.1")
+	srv, _ := skewServe(t, http.StatusNotImplemented, "0.19.1")
 	_, err := VerifyPaired(context.Background(), srv.URL, "pair-token")
 	if err == nil {
 		t.Fatal("501 verify must fail")
@@ -84,7 +90,7 @@ func TestPaired501FoldsIntoUpgradeHint(t *testing.T) {
 // A serve with no version header (a gadak older than the header itself)
 // still gets the fold — the sentence just cannot name a version.
 func TestPaired501WithoutVersionStillFolds(t *testing.T) {
-	srv := skewServe(t, http.StatusNotImplemented, "")
+	srv, _ := skewServe(t, http.StatusNotImplemented, "")
 	_, err := VerifyPaired(context.Background(), srv.URL, "pair-token")
 	if err == nil {
 		t.Fatal("501 verify must fail")
@@ -103,7 +109,7 @@ func TestPaired501WithoutVersionStillFolds(t *testing.T) {
 // instead of hard-failing — errors.As must find both shapes through the
 // PairingError.
 func TestPaired501KeepsTypedErrorForClassifiers(t *testing.T) {
-	srv := skewServe(t, http.StatusNotImplemented, "0.19.1")
+	srv, _ := skewServe(t, http.StatusNotImplemented, "0.19.1")
 	_, err := VerifyPaired(context.Background(), srv.URL, "pair-token")
 	if err == nil {
 		t.Fatal("501 verify must fail")
@@ -111,5 +117,27 @@ func TestPaired501KeepsTypedErrorForClassifiers(t *testing.T) {
 	var je *jira.APIError
 	if !errors.As(err, &je) || je.Status != http.StatusNotImplemented {
 		t.Fatalf("errors.As must find *jira.APIError 501 through the fold, got %T: %v", err, err)
+	}
+}
+
+// TestPaired501AnswersOnce is FAIL-first for GDK-1762: the fold turns the
+// serve's 501 into an error at RoundTrip level, and the client's retry
+// ladder read that as a transport failure — five attempts and 1+2+4+8 s
+// of backoff before the upgrade hint appeared (measured 15.01 s per verb,
+// base 4c076f72). The folded error carries httppolicy's answer marker, so
+// the ladder must return it on the first attempt. The backoff override is
+// the documented jira seam: a regression's red run stays milliseconds
+// instead of re-walking the very ladder this test exists to ban.
+func TestPaired501AnswersOnce(t *testing.T) {
+	orig := jira.DefaultBackoff
+	jira.DefaultBackoff = time.Millisecond
+	t.Cleanup(func() { jira.DefaultBackoff = orig })
+	srv, hits := skewServe(t, http.StatusNotImplemented, "0.19.1")
+	_, err := VerifyPaired(context.Background(), srv.URL, "pair-token")
+	if err == nil {
+		t.Fatal("501 verify must fail")
+	}
+	if got := hits.Load(); got != 1 {
+		t.Fatalf("paired 501 is an answer, not a transient — want 1 attempt, got %d", got)
 	}
 }

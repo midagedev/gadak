@@ -169,6 +169,114 @@ func TestExportImportRoundTripDemoDB(t *testing.T) {
 	}
 }
 
+// TestExportCarriesInvariantsExceptions is FAIL-first for GDK-1769: the
+// product invariant names local.db's visit and search history (and the
+// authored recipes/dashboards) as data gadak must be able to export, and
+// the v1 document carried none of them. Visits keep their source and
+// seen stamp — the columns retro sessions and changed-since-seen read.
+func TestExportCarriesInvariantsExceptions(t *testing.T) {
+	sqlDemoHome(t)
+	db, err := openStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.RecordVisit(context.Background(), "issue", "NMB-1", "cli"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.RecordSearch(context.Background(), "payment edge cases", 3, "issue", "NMB-2"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.PutRecipe(context.Background(), "night-report", "select key from issues_full limit 5"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.SaveDashboard(context.Background(), "wall", `{"html":"<p>hi</p>","datasources":{}}`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	outPath := filepath.Join(t.TempDir(), "personal.json")
+	if _, err := capture(t, func() error {
+		return cmdExport([]string{"--out", outPath})
+	}); err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	raw, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	for _, want := range []string{
+		`"gadak_export": 2`,
+		`"visits"`, `"searches"`, `"recipes"`, `"dashboards"`,
+		"NMB-1", "payment edge cases", "night-report", "wall",
+		`"source": "cli"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("export v2 missing %q:\n%s", want, body)
+		}
+	}
+}
+
+// TestImportRestoresRecipesAndDashboards is the import half of GDK-1769
+// for the sections with typed writers: recipes ride PutRecipe (file wins
+// on name, same rule as views), dashboards ride AbsorbDashboards (the
+// documented export-file merge: a stored name wins, an id collision gets
+// a fresh id).
+func TestImportRestoresRecipesAndDashboards(t *testing.T) {
+	sqlDemoHome(t)
+	p := filepath.Join(t.TempDir(), "v2.json")
+	body := `{"gadak_export":2,"exported_at":"2026-09-11T00:00:00Z",
+		"views":[],"watches":[],"favorites":[],"recents":[],
+		"recipes":[{"name":"night-report","sql":"select key from issues_full limit 5","created_at":"2026-09-01T00:00:00Z","updated_at":"2026-09-01T00:00:00Z"}],
+		"dashboards":[{"id":"imp-1","name":"wall","config":{"html":"<p>hi</p>"},"created_at":"2026-09-01T00:00:00Z"}]}`
+	if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := capture(t, func() error { return cmdImport([]string{p}) }); err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	db, err := openStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	r, err := db.Recipe(context.Background(), "night-report")
+	if err != nil || r.SQL != "select key from issues_full limit 5" {
+		t.Fatalf("recipe not restored: %+v err=%v", r, err)
+	}
+	dashboards, err := db.Dashboards(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, d := range dashboards {
+		if d.Name == "wall" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("dashboard not restored: %+v", dashboards)
+	}
+}
+
+// TestImportStillAcceptsV1 guards the bump to gadak_export 2: a v1 file
+// (pre-GDK-1769 backup, no history/recipes/dashboards sections) must keep
+// importing — refusing it would strand every export written before the
+// format grew.
+func TestImportStillAcceptsV1(t *testing.T) {
+	sqlDemoHome(t)
+	p := filepath.Join(t.TempDir(), "v1.json")
+	body := `{"gadak_export":1,"exported_at":"2026-08-15T00:00:00Z","views":[],"watches":[],"favorites":[],"recents":[]}`
+	if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := capture(t, func() error { return cmdImport([]string{p}) }); err != nil {
+		t.Fatalf("v1 export must still import: %v", err)
+	}
+}
+
 func TestImportRejectsVersionMismatch(t *testing.T) {
 	sqlDemoHome(t)
 	p := filepath.Join(t.TempDir(), "bad.json")
