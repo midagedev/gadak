@@ -251,6 +251,13 @@ type IssueRecord struct {
 	// they re-arrive with every batch that carries the row.
 	StartedAtHint  string
 	ResolvedAtHint string
+	// LinksPartial says the origin answer for Links was cut short, so an
+	// absent link proves nothing. The store still replaces this issue's own
+	// rows (it always has), but skips the far-end deletion links.go would
+	// otherwise do — a truncated list must not delete another issue's rows
+	// (GDK-1507). Only the Linear pass can set it: relations arrive over a
+	// paged connection there, while a Jira issuelinks payload is whole.
+	LinksPartial bool
 }
 
 // Page is the document projection (one row in the pages table). Field names
@@ -324,6 +331,17 @@ type Batch struct {
 	// Force rewrites rows whose updated_at is unchanged. Off, an unchanged row
 	// is skipped entirely, which is what keeps an incremental re-run from
 	// bumping sync_state.version.
+	//
+	// A full pass sets it (GDK-1457). The skip is defined on the origin's
+	// `updated`, but the mirror's derived columns are defined on gadak's own
+	// rules — and those change when gadak does. A row whose `updated` has not
+	// moved since a rule was added therefore keeps a column derived under the
+	// old rule until someone edits the issue, which for Linear's started_at /
+	// cycle_hours is forever: the flow stamps ride the payload as hints
+	// (IssueRecord.StartedAtHint) and the mirror stores no raw copy, so no
+	// backfill over mirrored rows can reconstruct them. A full pass has the
+	// payload in hand and is the one pass that promises the mirror is rebuilt
+	// from it.
 	Force bool
 }
 

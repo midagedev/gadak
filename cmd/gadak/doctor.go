@@ -102,6 +102,12 @@ type doctorReport struct {
 	// workspace never went through that cap, so the line would be a false
 	// statement about intact files.
 	AttachmentsMaybeTruncated *int `json:"attachments_maybe_truncated,omitempty"`
+	// LinksOneSided counts stored relationships whose far end does not hold
+	// the counterpart row (GDK-1507): the standing symptom of an incremental
+	// window that carried one end of a link and not the other. Counts only,
+	// no keys — the paste-safe rule. Nil when the mirror is consistent; a
+	// non-zero number is repaired by one full sync.
+	LinksOneSided *int `json:"links_one_sided,omitempty"`
 	// Attachments is the state of this workspace's attachment bytes: how
 	// many rows the mirror holds, and how much of it is local. It exists so
 	// "what shape are the attachments in here?" is one command rather than
@@ -611,6 +617,10 @@ func collectDoctor() doctorReport {
 
 	if ms := collectMirrorShort(db); ms != nil {
 		rep.MirrorShort = ms
+	}
+
+	if n, err := db.CountOneSidedLinks(ctx); err == nil && n > 0 {
+		rep.LinksOneSided = &n
 	}
 
 	rep.Attachments = collectAttachments(db)
@@ -1132,6 +1142,9 @@ func formatDoctorText(r doctorReport) string {
 	}
 	if r.AttachmentsMaybeTruncated != nil {
 		line("attachments_maybe_truncated", attachaudit.Summary(*r.AttachmentsMaybeTruncated))
+	}
+	if r.LinksOneSided != nil {
+		line("links_one_sided", fmt.Sprintf("%d link rows whose far end has no counterpart row — an incremental window carried one end only; one `gadak sync --full` levels it (GDK-1507)", *r.LinksOneSided))
 	}
 	if r.ConfluenceSpaces != nil {
 		line("confluence_spaces", formatDoctorConfluenceSpaces(*r.ConfluenceSpaces))

@@ -156,12 +156,19 @@ func runLinearPass(ctx context.Context, c *linear.Client, cfg *config.Config, db
 		}
 		for _, gk := range order {
 			g := groups[gk]
+			// Force on a full pass (GDK-1457): the flow hints
+			// (startedAt / completedAt) ride the payload and the mirror keeps
+			// no raw copy, so a row whose updatedAt has not moved since the
+			// flow columns were added can be filled from the payload in hand
+			// and from nowhere else. Measured: an Options{Full:true} pass over
+			// hint-less rows reported fetched=1 changed=0 started_at="".
 			changed, err := db.UpsertIssues(ctx, store.Batch{
 				Categories: cats,
 				Priorities: linearRankList(g.id, g.label),
 				LinkTypes:  linearLinkTypeCatalog,
 				NoHistory:  true,
 				Records:    g.recs,
+				Force:      res.Full,
 			})
 			if err != nil {
 				return err
@@ -425,6 +432,11 @@ func buildLinearRecord(iss linear.Issue, cat string, now time.Time) store.IssueR
 			rec.Links = append(rec.Links, store.Link{Type: linearLinkType(rel.Type), Direction: "inward", TargetKey: k})
 		}
 	}
+	// Both relation connections are paged, so a cut-short answer cannot prove
+	// a relation gone. The store replaces this issue's own rows either way
+	// (it always has), and skips reconciling the far ends from a list that
+	// may be missing entries (GDK-1507).
+	rec.LinksPartial = iss.Relations.PageInfo.HasNextPage || iss.InverseRelations.PageInfo.HasNextPage
 	for _, cm := range iss.Comments.Nodes {
 		sc := store.Comment{
 			ID:         LinearSourceID + ":" + cm.ID,

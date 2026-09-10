@@ -659,13 +659,31 @@ func TestUnchangedUpsertIsANoOp(t *testing.T) {
 	}
 
 	// Force is the repair path: a full sync must be able to rewrite everything.
+	//
+	// The returned number is the changed count, not the written count, and
+	// since GDK-1457 those are different questions on a forced batch: a full
+	// pass sets Force to refill derived columns, and "3 fetched, 3 changed"
+	// on a level mirror would be a restatement rather than an answer. So the
+	// rewrite is asserted where it actually shows — the version counter an
+	// ETag holder watches, and synced_at on the rows themselves — and the
+	// count is asserted to stay 0, which is the contract that used to be
+	// implied by "want 3" and is now the thing worth pinning. (Rewritten
+	// 2026-09-10 for GDK-1457; the old form read the same call for both
+	// facts and could not tell them apart.)
 	forced := fixture()
 	forced.Force = true
-	if n, err := db.UpsertIssues(context.Background(), forced); err != nil || n != 3 {
-		t.Errorf("forced upsert wrote %d rows (%v), want 3", n, err)
+	if n, err := db.UpsertIssues(context.Background(), forced); err != nil || n != 0 {
+		t.Errorf("forced upsert reported %d changed rows (%v), want 0 — nothing upstream moved", n, err)
 	}
 	if forcedState, _ := db.SyncState(context.Background(), "jira"); forcedState.Version <= before.Version {
 		t.Errorf("version %d did not move after a forced rewrite", forcedState.Version)
+	}
+	var syncedForced string
+	if err := db.QueryRow(`SELECT synced_at FROM items WHERE id = ?`, fixture().Records[0].Item.ID).Scan(&syncedForced); err != nil {
+		t.Fatal(err)
+	}
+	if syncedForced == syncedBefore {
+		t.Errorf("synced_at unchanged after a forced rewrite — the row was not rewritten")
 	}
 }
 

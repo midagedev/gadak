@@ -69,13 +69,26 @@ func (db *DB) UpsertIssues(ctx context.Context, b Batch) (int, error) {
 			derive.Categories = cats
 		}
 		sources := map[string]bool{}
+		// Keys of issues outside this batch whose own link rows the batch
+		// moved (GDK-1507). They must join the open_blockers recompute below:
+		// a counterpart row deleted here is gone by then, so the "issues
+		// holding an inward link at a batch key" clause can no longer find
+		// the issue whose count it just invalidated.
+		var linkTouched []string
 		for _, r := range b.Records {
-			ok, err := upsertRecord(tx, derive, r)
+			u, err := upsertRecord(tx, derive, r)
 			if err != nil {
 				return nil, fmt.Errorf("%s: %w", r.Item.Key, err)
 			}
-			if ok {
+			linkTouched = append(linkTouched, u.linkTouched...)
+			if u.changed {
 				changed++
+			}
+			if u.wrote {
+				// The version counter and the Force last_error clear key on
+				// "the row was rewritten", not on "its content differs": a
+				// full pass that only refills derived columns still moves
+				// what an ETag holder is caching.
 				sources[r.Item.SourceID] = true
 			}
 		}
@@ -118,7 +131,11 @@ func (db *DB) UpsertIssues(ctx context.Context, b Batch) (int, error) {
 		// still move the blocked row's open_blockers (C4). The full sweep at
 		// the end of a full sync (RecomputeOpenBlockers) covers the rest.
 		if len(b.Records) > 0 {
-			if err := recomputeOpenBlockers(tx, b.Records[0].Item.SourceID, batchKeys); err != nil {
+			blockerKeys := batchKeys
+			if len(linkTouched) > 0 && len(batchKeys) > 0 {
+				blockerKeys = append(append([]string{}, batchKeys...), linkTouched...)
+			}
+			if err := recomputeOpenBlockers(tx, b.Records[0].Item.SourceID, blockerKeys); err != nil {
 				return nil, err
 			}
 		}
@@ -274,15 +291,49 @@ func cacheUserCatalog(tx *sql.Tx, b Batch) error {
 	return nil
 }
 
-func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
+// upsertResult separates the two questions the caller has about one record.
+// wrote says the row was rewritten — the version counter, the FTS index and
+// every child list moved, so an ETag holder must be told. changed says the
+// origin's row differs from what the mirror held, which is the number the
+// sync line reports and the only one Force must not inflate (GDK-1457).
+// Without Force the two are the same answer.
+type upsertResult struct {
+	wrote   bool
+	changed bool
+	// linkTouched are the far-end keys whose link rows this record moved
+	// (GDK-1507); they join the caller's open_blockers recompute.
+	linkTouched []string
+}
+
+func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (upsertResult, error) {
 	it := r.Item
 	if it.ID == "" || it.SourceID == "" {
-		return false, errors.New("item id and source_id are required")
+		return upsertResult{}, errors.New("item id and source_id are required")
 	}
 	if it.Kind == "" {
 		it.Kind = "issue"
 	}
 	syncedAt := Now()
+
+	// Force writes the row whatever the stamp says, which would otherwise
+	// make the returned count read "every row changed" on a full pass — and
+	// "N fetched, N changed" is not an answer, it is a restatement (GDK-1457).
+	// So when Force is on, ask what the mirror held first and keep `changed`
+	// meaning what it has always meant: the origin's row differs from the
+	// mirror's. One indexed lookup, only on the paths that set Force (a full
+	// pass, a locale rebuild, a write-through) — each of which already paid a
+	// network fetch for this row.
+	stampMoved := true
+	if b.Force {
+		var prev sql.NullString
+		switch err := tx.QueryRow(`SELECT updated_at FROM items WHERE id = ?`, it.ID).Scan(&prev); {
+		case errors.Is(err, sql.ErrNoRows):
+		case err != nil:
+			return upsertResult{}, err
+		default:
+			stampMoved = prev.Valid != (it.UpdatedAt != "") || prev.String != it.UpdatedAt
+		}
+	}
 
 	// The conditional DO UPDATE is the change detector: no RETURNING row means
 	// the source reported no new `updated`, so nothing below needs to run.
@@ -306,10 +357,10 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 		b.Force,
 	).Scan(&rowid)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
+		return upsertResult{}, nil
 	}
 	if err != nil {
-		return false, err
+		return upsertResult{}, err
 	}
 
 	d := Derive(DeriveInput{
@@ -329,7 +380,7 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 
 	is := r.Issue
 	if _, err := tx.Exec(`DELETE FROM issues_raw WHERE item_id = ?`, it.ID); err != nil {
-		return false, err
+		return upsertResult{}, err
 	}
 	if _, err := tx.Exec(`
 		INSERT INTO issues_raw (item_id, key, project_key, issue_type, issue_type_id,
@@ -359,7 +410,7 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 		d.StartedAt, d.CycleHours, d.LastActivityAt, 0,
 		d.CarryoverCount, d.FirstSprintID, d.FirstSprintAt,
 	); err != nil {
-		return false, err
+		return upsertResult{}, err
 	}
 
 	// Child lists arrive complete, so replacing them is both correct and the
@@ -371,26 +422,34 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 	// pullrequest rows and leaves the deployment/build rows `gadak dev
 	// deploy`/`dev build` wrote (GDK-592; their detail vocabulary is
 	// uncaptured, so no origin answer can enumerate them yet).
+	// Read before the replacement below wipes them: the rows this issue held
+	// a moment ago are the evidence links.go needs to tell "the origin
+	// removed this relationship" from "the far end simply never reported it"
+	// (GDK-1507).
+	oldLinks, err := storedLinks(tx, it.ID)
+	if err != nil {
+		return upsertResult{}, err
+	}
 	childTables := []string{"comments", "attachments", "changelog", "links"}
 	if r.DevLinks != nil {
 		if _, err := tx.Exec(`DELETE FROM dev_links WHERE item_id = ? AND kind = 'pullrequest'`, it.ID); err != nil {
-			return false, err
+			return upsertResult{}, err
 		}
 	}
 	if r.RemoteLinks != nil {
 		if _, err := tx.Exec(`DELETE FROM remote_links WHERE item_id = ?`, it.ID); err != nil {
-			return false, err
+			return upsertResult{}, err
 		}
 	}
 	for _, t := range childTables {
 		if _, err := tx.Exec(`DELETE FROM `+t+` WHERE item_id = ?`, it.ID); err != nil {
-			return false, err
+			return upsertResult{}, err
 		}
 	}
 	bodies := make([]string, 0, len(r.Comments))
 	for _, c := range r.Comments {
 		if err := insertComment(tx, it.ID, c); err != nil {
-			return false, err
+			return upsertResult{}, err
 		}
 		if c.BodyText != "" {
 			bodies = append(bodies, c.BodyText)
@@ -398,7 +457,7 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 	}
 	for _, a := range r.Attachments {
 		if err := insertAttachment(tx, it.ID, a); err != nil {
-			return false, err
+			return upsertResult{}, err
 		}
 	}
 	for i, e := range r.Changelog {
@@ -412,17 +471,17 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 			id, it.ID, nz(e.At), nz(e.Author), nz(e.AuthorID), nz(e.Field),
 			nz(e.FromValue), nz(e.FromID), nz(e.ToValue), nz(e.ToID),
 		); err != nil {
-			return false, err
+			return upsertResult{}, err
 		}
 	}
 	if r.DevLinks != nil {
 		if err := insertDevLinks(tx, it.ID, r.DevLinks.Links); err != nil {
-			return false, err
+			return upsertResult{}, err
 		}
 	}
 	if r.RemoteLinks != nil {
 		if err := insertRemoteLinks(tx, it.ID, r.RemoteLinks.Links); err != nil {
-			return false, err
+			return upsertResult{}, err
 		}
 	}
 	for _, l := range r.Links {
@@ -430,12 +489,18 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 			INSERT OR IGNORE INTO links (item_id, type, direction, target_key) VALUES (?,?,?,?)`,
 			it.ID, l.Type, l.Direction, l.TargetKey,
 		); err != nil {
-			return false, err
+			return upsertResult{}, err
 		}
+	}
+	// A link is stored on both ends, and the replacement above touched only
+	// this one. links.go is the single owner of the far end (GDK-1507).
+	linkTouched, err := reconcileLinkCounterparts(tx, it.SourceID, it.ID, it.Key, oldLinks, r.Links, r.LinksPartial)
+	if err != nil {
+		return upsertResult{}, err
 	}
 
 	if err := writeFTS(tx, rowid, it.Title, it.BodyText, strings.Join(bodies, "\n")); err != nil {
-		return false, err
+		return upsertResult{}, err
 	}
 
 	// Text-derived page refs from raw ADF + flattened text (after comments written).
@@ -450,12 +515,12 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 	}
 	pageRefs := filterSelfRef(ExtractPageRefsFromIssue(string(is.DescriptionADF), it.BodyText, commentBlobs), it.Key)
 	if err := replaceItemRefs(tx, it.ID, pageRefs); err != nil {
-		return false, err
+		return upsertResult{}, err
 	}
 
 	// An item that came back is no longer deleted.
 	_, err = tx.Exec(`DELETE FROM deleted_items WHERE source_id = ? AND key = ?`, it.SourceID, it.Key)
-	return true, err
+	return upsertResult{wrote: true, changed: stampMoved, linkTouched: linkTouched}, err
 }
 
 // ReplaceProjectVersions upserts one project's version catalog and deletes

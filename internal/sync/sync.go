@@ -339,7 +339,12 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 		// only our language did), but every display-name column did. Force is
 		// the existing "the origin row is fresher than updated_at claims"
 		// signal (single-issue write-through uses it for the same reason).
-		if localeRebuild {
+		//
+		// A full pass forces for a second reason (GDK-1457): it is the pass
+		// that promises the mirror is rebuilt from the payload, and a derived
+		// column whose rule changed since the row's last edit is only
+		// recomputed if the row is rewritten.
+		if localeRebuild || res.Full {
 			batch.Force = true
 		}
 		for _, iss := range issues {
@@ -695,12 +700,53 @@ func approxCount(ctx context.Context, c *jira.Client, jql string) (int, bool) {
 	return n, true
 }
 
+// countTolerance is the band inside which the origin's count and the
+// mirror's are treated as agreeing (GDK-1490).
+//
+// The number the probe compares against is an estimate on Jira Cloud, not a
+// tally: the endpoint is POST /rest/api/3/search/approximate-count
+// (internal/jira/client.go:327) and Atlassian documents it as an
+// *approximate* count of the issues matching a JQL — it is answered from the
+// search index, which is what makes it one cheap request instead of a scan.
+// On a large site whose estimate sits a few issues off the truth, an exact
+// comparison never agrees with a level mirror, so every incremental tick
+// escalated to a reconcile: a full key scan, per tick, on exactly the sites
+// where the key scan costs the most.
+//
+// The band is one percent of the origin's own number, and nothing else. It is
+// deliberately relative with no absolute floor, because the error being
+// absorbed is relative: a site of a few dozen issues gets an exact answer in
+// practice and keeps an exact comparison (band 0), while a site of twenty
+// thousand — where a full key scan per tick is the real cost — gets two
+// hundred. A fixed floor would have been the wrong shape: three issues out of
+// four is not approximation, it is the GDK-1400 defect, and the band must
+// never swallow it.
+//
+// Nothing goes permanently unseen either way. Escalating is only ever a
+// decision to bring the hourly reconcile forward, so a disagreement inside the
+// band is still repaired by the next hourly reconcile — the backstop that
+// existed before the probe did.
+//
+// (Jira Server has no such route and answers the search total, and issuetap
+// answers exactly; on those the band costs at most that hour, and only on a
+// site big enough for one percent to be a whole issue.)
+func countTolerance(upstream int) int {
+	if upstream < 0 {
+		return 0
+	}
+	return upstream / 100
+}
+
 // diverged asks whether the origin and the mirror disagree about how many
 // issues the configured scope holds. It is the incremental pass's cheap
 // standing question (GDK-1400): the counts match on a level mirror, and no
 // other symptom of a row hidden behind the watermark is visible from this
 // side. A count the origin will not answer is not a divergence — the probe
 // stays silent and the hourly reconcile remains the backstop.
+//
+// The comparison is a band, not an equality (GDK-1490): the origin's number
+// is an approximation and an approximation must be read as one. See
+// countTolerance.
 func diverged(ctx context.Context, c *jira.Client, db *store.DB, cfg *config.Config, opts Options) bool {
 	upstream, ok := approxCount(ctx, c, reconcileJQL(cfg.Projects))
 	if !ok {
@@ -711,7 +757,11 @@ func diverged(ctx context.Context, c *jira.Client, db *store.DB, cfg *config.Con
 		opts.logf("divergence probe: mirror count unavailable: %v", err)
 		return false
 	}
-	if upstream == have {
+	gap := upstream - have
+	if gap < 0 {
+		gap = -gap
+	}
+	if gap <= countTolerance(upstream) {
 		return false
 	}
 	opts.logf("divergence probe: the origin reports %s issues in scope, the mirror holds %s — reconciling now (GDK-1400)",

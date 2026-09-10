@@ -434,6 +434,20 @@ is set by one transition into the same category (never by name), and a re-run
 is idempotent through the same footer. Change history, wiki pages,
 authorship and assignees stay behind, and the report says so ([GDK-378]).
 
+Three sync corrections. A link is stored on both ends, and an incremental
+window that carried only one of them used to leave the far end's row behind
+forever, so `open_blockers` stayed high and `gadak ready` hid an issue nothing
+blocks; the store now deletes the counterpart of every link an issue just lost
+and recomputes the touched rows, `gadak doctor` counts one-sided links, and a
+Linear relation list the origin paged deletes nothing ([GDK-1507]). A full
+pass rewrites every row again, so a derived column whose rule changed since
+the issue's last edit is recomputed instead of waiting for someone to touch
+the issue, without the reported changed count inflating to the fetched count
+([GDK-1457]). The divergence probe reads Jira Cloud's approximate count as an
+approximation, agreeing inside one percent of the origin's own number instead
+of escalating to a full key scan every tick on the sites where that scan
+costs the most ([GDK-1490]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2031,3 +2045,6 @@ priority sorting keyed on `priority_rank`.
 [GDK-1731]: https://gadak.dev/backlog/#/?ks=GDK-1731
 [GDK-1618]: https://gadak.dev/backlog/#/?ks=GDK-1618
 [GDK-378]: https://gadak.dev/backlog/#/?ks=GDK-378
+[GDK-1507]: https://gadak.dev/backlog/#/?ks=GDK-1507
+[GDK-1457]: https://gadak.dev/backlog/#/?ks=GDK-1457
+[GDK-1490]: https://gadak.dev/backlog/#/?ks=GDK-1490

@@ -1178,3 +1178,165 @@ func TestRunLinearRelationRemovalClearsLinks(t *testing.T) {
 		t.Fatalf("FIX-32 open_blockers = %d after its blocker link was removed, want 0", blocked)
 	}
 }
+
+// TestRunLinearOneEndedRelationRemovalClearsCounterpart (GDK-1507) is the
+// asymmetric half of TestRunLinearRelationRemovalClearsLinks: only the
+// blocker comes back in the incremental window, and the blocked issue's
+// updatedAt never moves. Its inward row is on a row nobody rewrote, so the
+// child-list replacement in internal/store/write.go cannot reach it — the
+// mirror kept believing a link the origin no longer has, issues_raw.
+// open_blockers stayed at 1, and `gadak ready` (list.go: `open_blockers = 0`)
+// dropped FIX-42 until a full sync healed it.
+//
+// FAIL-first: reverting reconcileLinkCounterparts (internal/store/links.go)
+// reports the measured probe output — one surviving row "FIX-42 inward
+// Blocks -> FIX-41" and open_blockers = 1 on FIX-42.
+func TestRunLinearOneEndedRelationRemovalClearsCounterpart(t *testing.T) {
+	conn := func(nodes ...map[string]any) map[string]any {
+		if nodes == nil {
+			nodes = []map[string]any{}
+		}
+		return map[string]any{
+			"pageInfo": map[string]any{"hasNextPage": false, "endCursor": nil},
+			"nodes":    nodes,
+		}
+	}
+	blocks := map[string]any{
+		"id": "r1", "type": "blocks",
+		"issue":        map[string]any{"id": "i-FIX-41", "identifier": "FIX-41"},
+		"relatedIssue": map[string]any{"id": "i-FIX-42", "identifier": "FIX-42"},
+	}
+	linkRows := func(db *mirror) []string {
+		t.Helper()
+		rows, err := db.Query(`
+			SELECT it.key, l.direction, l.type, l.target_key
+			FROM links l JOIN items it ON it.id = l.item_id
+			ORDER BY it.key, l.direction`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var out []string
+		for rows.Next() {
+			var key, dir, typ, target string
+			if err := rows.Scan(&key, &dir, &typ, &target); err != nil {
+				t.Fatal(err)
+			}
+			out = append(out, key+" "+dir+" "+typ+" -> "+target)
+		}
+		return out
+	}
+	blockers := func(db *mirror, key string) int {
+		t.Helper()
+		var n int
+		if err := db.QueryRow(`SELECT open_blockers FROM issues_raw WHERE key = ?`, key).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+
+	// Pass 1: FIX-41 blocks FIX-42, both ends reporting it.
+	withRelation := []map[string]any{
+		linearNode("FIX-41", "1", "unstarted", "Todo", 0, "No priority", map[string]any{
+			"relations":        conn(blocks),
+			"inverseRelations": conn(),
+		}),
+		linearNode("FIX-42", "2", "unstarted", "Todo", 0, "No priority", map[string]any{
+			"relations":        conn(),
+			"inverseRelations": conn(blocks),
+		}),
+	}
+	srv1 := linearGraphQL(t, map[string]string{"": linearIssuesResponse(t, withRelation)})
+	t.Cleanup(srv1.Close)
+	db := newMirror(t)
+	if _, err := RunLinear(context.Background(), linearTestConfig(), db.DB, Options{LinearClient: testLinearClient(t, srv1)}); err != nil {
+		t.Fatal(err)
+	}
+	if got := linkRows(db); len(got) != 2 {
+		t.Fatalf("after the first sync links = %q, want the pair on FIX-41 and FIX-42", got)
+	}
+	if n := blockers(db, "FIX-42"); n != 1 {
+		t.Fatalf("FIX-42 open_blockers = %d after the first sync, want 1 (the premise of this test)", n)
+	}
+
+	// Pass 2: someone deletes the relation in Linear. Only FIX-41's
+	// updatedAt moves, so the incremental window carries FIX-41 alone —
+	// nothing rewrites FIX-42's rows.
+	onlyBlocker := []map[string]any{
+		linearNode("FIX-41", "1", "unstarted", "Todo", 0, "No priority", map[string]any{
+			"relations":        conn(),
+			"inverseRelations": conn(),
+			"updatedAt":        "2026-08-19T01:00:00.000Z",
+		}),
+	}
+	srv2 := linearGraphQL(t, map[string]string{"": linearIssuesResponse(t, onlyBlocker)})
+	t.Cleanup(srv2.Close)
+	res, err := RunLinear(context.Background(), linearTestConfig(), db.DB, Options{LinearClient: testLinearClient(t, srv2)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Full {
+		t.Fatal("second pass must be incremental — a full pass rewrites both ends and hides the defect")
+	}
+	if got := linkRows(db); len(got) != 0 {
+		t.Fatalf("links = %q after the relation was removed upstream and only FIX-41 came back, want none", got)
+	}
+	if n := blockers(db, "FIX-42"); n != 0 {
+		t.Fatalf("FIX-42 open_blockers = %d, want 0 — `gadak ready` filters on this column and FIX-42 is no longer blocked", n)
+	}
+}
+
+// TestRunLinearFullRederivesUnchangedRows (GDK-1457): `gadak sync --full`
+// must recompute the derived columns of rows whose updated_at never moved.
+// The skip in internal/store/write.go is defined on the origin's `updated`,
+// but started_at / cycle_hours are defined on gadak's own rules — and the
+// Linear flow stamps ride the payload as hints with no raw copy in the
+// mirror, so no backfill over mirrored rows can reconstruct them. A full
+// pass is the only place the payload and the row meet again.
+//
+// The measured symptom is imitated the way the issue describes: blank the
+// columns, then ask for a full pass over the same unchanged payload.
+// FAIL-first: with Force off in the Linear pass this reports
+// started_at="" cycle_hours=<nil> — the overlay probe's fetched=1 changed=0.
+func TestRunLinearFullRederivesUnchangedRows(t *testing.T) {
+	nodes := []map[string]any{
+		linearNode("FIX-61", "1", "started", "In Progress", 0, "No priority", map[string]any{
+			"startedAt": "2026-08-02T00:00:00.000Z",
+		}),
+	}
+	srv := linearGraphQL(t, map[string]string{"": linearIssuesResponse(t, nodes)})
+	t.Cleanup(srv.Close)
+	db := newMirror(t)
+	if _, err := RunLinear(context.Background(), linearTestConfig(), db.DB, Options{LinearClient: testLinearClient(t, srv)}); err != nil {
+		t.Fatal(err)
+	}
+	var seeded string
+	if err := db.QueryRow(`SELECT COALESCE(started_at,'') FROM issues_raw WHERE key = 'FIX-61'`).Scan(&seeded); err != nil {
+		t.Fatal(err)
+	}
+	if seeded == "" {
+		t.Fatal("the first pass stored no started_at — the premise of this test is that the payload carries the hint")
+	}
+
+	// Stand in for "the derive rule did not exist when this row last moved":
+	// the columns are empty and the origin's updatedAt has not changed.
+	if _, err := db.raw(t).Exec(`UPDATE issues_raw SET started_at = NULL, cycle_hours = NULL WHERE key = 'FIX-61'`); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := RunLinear(context.Background(), linearTestConfig(), db.DB, Options{Full: true, LinearClient: testLinearClient(t, srv)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Full {
+		t.Fatal("the second pass must be full — that is the pass under test")
+	}
+	var got string
+	if err := db.QueryRow(`SELECT COALESCE(started_at,'') FROM issues_raw WHERE key = 'FIX-61'`).Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got != seeded {
+		t.Fatalf("started_at = %q after a full pass over an unchanged row, want %q — a full sync must rebuild the mirror from the payload it fetched (fetched=%d changed=%d)",
+			got, seeded, res.Fetched, res.Changed)
+	}
+}

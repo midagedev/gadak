@@ -60,6 +60,11 @@ type honestSite struct {
 	// keyBatches records the size of each `key in (…)` clause the site was
 	// asked, so a test can assert the keyed fetch is actually batched.
 	keyBatches []int
+	// countDrift, when non-empty, is added to the answered approximate-count
+	// one entry per call, cycling: a Cloud estimate that wobbles around the
+	// truth while the mirror is level (GDK-1490).
+	countDrift []int
+	countCalls int
 }
 
 func newHonestSite(t *testing.T) *honestSite {
@@ -191,7 +196,12 @@ func (s *honestSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			JQL string `json:"jql"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
-		_ = json.NewEncoder(w).Encode(map[string]int{"count": len(s.matching(body.JQL))})
+		n := len(s.matching(body.JQL))
+		if len(s.countDrift) > 0 {
+			n += s.countDrift[s.countCalls%len(s.countDrift)]
+		}
+		s.countCalls++
+		_ = json.NewEncoder(w).Encode(map[string]int{"count": n})
 	case r.URL.Path == "/rest/api/3/status":
 		w.Write([]byte(`[{"id":"1","name":"To Do","statusCategory":{"key":"new"}}]`))
 	case r.URL.Path == "/rest/api/3/priority":
@@ -636,5 +646,104 @@ func TestLinearScopeChangeForcesAFullPass(t *testing.T) {
 	}
 	if state.ScopeHash != "team-1,team-2" {
 		t.Errorf("scope signature = %q, want %q", state.ScopeHash, "team-1,team-2")
+	}
+}
+
+// keyScans counts the reconcile key scans this origin was asked for: the
+// reconcile pass is the only caller that orders by created (reconcileJQL),
+// and it is the cost GDK-1490 is about.
+func (s *honestSite) keyScans() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for _, jql := range s.searchJQLs {
+		if strings.Contains(jql, "ORDER BY created ASC") {
+			n++
+		}
+	}
+	return n
+}
+
+// seedHonestSite fills the origin with n issues at descending stamps and
+// returns a mirror already level with it.
+func seedHonestSite(t *testing.T, n int) (*honestSite, *mirror, *jira.Client) {
+	t.Helper()
+	site := newHonestSite(t)
+	base := time.Now().Add(-24 * time.Hour).Truncate(time.Second)
+	for i := 0; i < n; i++ {
+		site.put(fmt.Sprintf("GDK-%d", 1000+i), base.Add(time.Duration(i)*time.Second))
+	}
+	db := newMirror(t)
+	client := site.start()
+	if _, err := Run(context.Background(), gdkConfig(), db.DB, Options{Full: true, Client: client}); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(mirrorKeys(t, db)); got != n {
+		t.Fatalf("mirror holds %d issues after the seeding full pass, want %d", got, n)
+	}
+	return site, db, client
+}
+
+// TestDivergenceProbeToleratesApproximation (GDK-1490): the origin's count is
+// an estimate (POST /rest/api/3/search/approximate-count, answered from the
+// search index), so on a large site it sits a few issues off a level mirror
+// and stays there. Compared for equality, that made every incremental tick
+// escalate to a reconcile — a full key scan per tick, on exactly the sites
+// where the key scan is most expensive.
+//
+// Here the origin holds 400 issues, the mirror is level, and the count
+// wobbles by ±2 — well inside one percent. No tick may run the key scan.
+// FAIL-first: with the equality comparison this reports one key scan per
+// tick.
+//
+// The band is not a blind spot. Escalating only ever brings the hourly
+// reconcile forward, so a sub-band disagreement is still repaired within the
+// hour by the pass TestReconcileDeletesVanishedKeys covers.
+func TestDivergenceProbeToleratesApproximation(t *testing.T) {
+	site, db, client := seedHonestSite(t, 400)
+	site.countDrift = []int{2, -2, 1}
+	before := site.keyScans()
+
+	for tick := 1; tick <= 3; tick++ {
+		res, err := Run(context.Background(), gdkConfig(), db.DB, Options{Client: client})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Full {
+			t.Fatalf("tick %d ran a full pass; the incremental tick is what is under test", tick)
+		}
+	}
+	if got := site.keyScans() - before; got != 0 {
+		t.Fatalf("%d reconcile key scans over 3 quiet ticks whose count wobbled by ±2 on 400 issues, want 0 — an approximation must be read as one (GDK-1490)", got)
+	}
+}
+
+// TestDivergenceProbeStillEscalatesBeyondTheBand (GDK-1490 keeps GDK-1400): a
+// gap wider than one percent is still a divergence and still escalates on the
+// tick that sees it. Without this the band would be a way to turn the probe
+// off. The small-site half of the same guarantee is
+// TestIncrementalSeesRowsWrittenBehindTheWatermark, where four upstream issues
+// against one mirrored still escalate because one percent of four is zero.
+func TestDivergenceProbeStillEscalatesBeyondTheBand(t *testing.T) {
+	site, db, client := seedHonestSite(t, 400)
+	site.countDrift = []int{9} // the origin reports nine issues the mirror does not hold
+	before := site.keyScans()
+	if _, err := Run(context.Background(), gdkConfig(), db.DB, Options{Client: client}); err != nil {
+		t.Fatal(err)
+	}
+	if got := site.keyScans() - before; got == 0 {
+		t.Fatal("a gap of 9 on 400 issues ran no reconcile key scan — the probe must still escalate outside the band (GDK-1400)")
+	}
+}
+
+// TestCountToleranceBand pins the band itself, the number the two tests above
+// straddle: exact on a small site, one percent on a large one.
+func TestCountToleranceBand(t *testing.T) {
+	for _, tc := range []struct{ upstream, want int }{
+		{0, 0}, {4, 0}, {99, 0}, {100, 1}, {400, 4}, {20000, 200},
+	} {
+		if got := countTolerance(tc.upstream); got != tc.want {
+			t.Errorf("countTolerance(%d) = %d, want %d", tc.upstream, got, tc.want)
+		}
 	}
 }
