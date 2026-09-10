@@ -205,13 +205,15 @@ func TestDeepLinkNavigator(t *testing.T) {
 	}
 }
 
-// TestBundleRegistersTheScheme is the cross-artifact check. The handler above
-// and the bundle's Info.plist are the two halves of the feature, they live in
-// a .go and a .sh file that nothing else connects, and a disagreement between
-// them produces no error anywhere: macOS simply never delivers the URL, and
-// the link does nothing. Reading the script is crude but it is where the
-// truth is — the plist is generated, so there is no checked-in plist to read.
-func TestBundleRegistersTheScheme(t *testing.T) {
+// TestBuildScriptWritesTheSchemeIntoThePlist reads the script, not the
+// bundle: it is the fast unit that runs with no pack, and it fails the moment
+// someone deletes the heredoc's URL types. It is deliberately not named after
+// the bundle — LaunchServices never reads build-app.sh, so this test cannot
+// say the shipped app registers anything. TestPackedBundleRegistersTheScheme
+// (bundleplist_test.go) parses the Info.plist inside the packed Gadak.app and
+// is the assertion that speaks for the artifact; this one only says the
+// generator still intends to write it.
+func TestBuildScriptWritesTheSchemeIntoThePlist(t *testing.T) {
 	body, err := os.ReadFile("build-app.sh")
 	if err != nil {
 		t.Fatal(err)

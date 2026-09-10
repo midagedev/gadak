@@ -500,6 +500,13 @@ one owner shared with the sidebar sections, so the second list cannot drift
 into a different key ([GDK-733]). And the file paths in Settings broke
 mid-word rather than at their separators ([GDK-1093]).
 
+The scheme test asks the artifact. `TestBundleRegistersTheScheme` read
+`build-app.sh`, and LaunchServices never reads `build-app.sh` — it reads
+`Contents/Info.plist` out of the packed app, so a plist the script no longer
+produces was invisible. A new test parses that plist inside the bundle and
+the release workflow mounts the dmg to run it; the script check keeps its
+place under a name that says what it actually measures ([GDK-919]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2115,3 +2122,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-734]: https://gadak.dev/backlog/#/?ks=GDK-734
 [GDK-733]: https://gadak.dev/backlog/#/?ks=GDK-733
 [GDK-1093]: https://gadak.dev/backlog/#/?ks=GDK-1093
+[GDK-919]: https://gadak.dev/backlog/#/?ks=GDK-919

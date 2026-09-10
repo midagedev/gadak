@@ -103,6 +103,33 @@ jobs:
       - name: Build Gadak.app + dmg
         run: desktop/build-app.sh --dmg
 
+      # GDK-919: assert the artifact, not the script that writes it.
+      # LaunchServices reads Contents/Info.plist out of the mounted bundle and
+      # never reads build-app.sh, so the deep-link scheme is checked here on
+      # the dmg that ships. GADAK_BUNDLE_REQUIRED=1 turns the test's
+      # developer-friendly skip into a failure: this is the one place a bundle
+      # is guaranteed, so a skip here would be a silent hole.
+      - name: Deep-link scheme is registered in the shipped bundle
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          dmgs=(desktop/build/Gadak-*.dmg)
+          if [[ ${#dmgs[@]} -eq 0 ]]; then
+            echo "no dmg produced — nothing to verify" >&2
+            exit 1
+          fi
+          mount=$(mktemp -d)
+          hdiutil attach "${dmgs[0]}" -nobrowse -readonly -mountpoint "$mount"
+          trap 'hdiutil detach "$mount" -quiet || true' EXIT
+          apps=("$mount"/*.app)
+          if [[ ${#apps[@]} -eq 0 ]]; then
+            echo "no .app inside ${dmgs[0]}" >&2
+            exit 1
+          fi
+          cd desktop
+          GADAK_BUNDLE="${apps[0]}" GADAK_BUNDLE_REQUIRED=1 \
+            go test -run TestPackedBundleRegistersTheScheme -count=1 -v .
+
       # Recurrence gate (notify-only decision 2026-08-15, GDK-58/59/60/61/64):
       # v0.14.0 apps match gadak-desktop-darwin-<arch>.zip exactly and would
       # self-swap if that name reappears. The dmg is the only install path.

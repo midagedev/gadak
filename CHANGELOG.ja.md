@@ -419,6 +419,13 @@ porter で語幹を合わせつつ CJK の 2 文字契約はそのままなの�
 所有者ひとつにあり、二つ目のリストが別のキーへ漂うことはありません ([GDK-733])。
 設定のファイルパスは区切り文字ではなく単語の途中で折れていました ([GDK-1093])。
 
+スキームのテストが成果物に尋ねます。`TestBundleRegistersTheScheme` は
+`build-app.sh` を読んでいましたが、LaunchServices はそのスクリプトを読みません —
+パックされたアプリの `Contents/Info.plist` を読むので、スクリプトがもう生成しない
+plist は誰にも見えませんでした。新しいテストがバンドル内のその plist を解析し、
+リリースワークフローが dmg をマウントして実行します。スクリプトの検査は自分が実際に
+測るものを名乗る名前で残ります ([GDK-919])。
+
 ## v0.21.0 — 2026-09-08
 
 **離れていた間に何が起きたのかに、キャッシュから答えます。** ステータスの変更も
@@ -2046,3 +2053,4 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-734]: https://gadak.dev/backlog/#/?ks=GDK-734
 [GDK-733]: https://gadak.dev/backlog/#/?ks=GDK-733
 [GDK-1093]: https://gadak.dev/backlog/#/?ks=GDK-1093
+[GDK-919]: https://gadak.dev/backlog/#/?ks=GDK-919

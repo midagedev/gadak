@@ -388,6 +388,13 @@ Jira Cloud 의 근사 개수를 근사로 읽어, origin 숫자의 1% 안이면 
 있어서 둘째 목록이 다른 키로 표류할 수 없습니다 ([GDK-733]). 설정의 파일 경로는
 구분자가 아니라 단어 중간에서 잘려 나갔습니다 ([GDK-1093]).
 
+스킴 테스트가 출하물에게 묻습니다. `TestBundleRegistersTheScheme` 이 `build-app.sh`
+를 읽고 있었는데, LaunchServices 는 그 스크립트를 읽지 않습니다 — 팩된 앱 안의
+`Contents/Info.plist` 를 읽으므로, 스크립트가 더 이상 만들지 않는 plist 는 아무에게도
+보이지 않았습니다. 새 테스트가 번들 안의 그 plist 를 파싱하고 릴리스 워크플로가
+dmg 를 마운트해 돌립니다. 스크립트 검사는 자기가 실제로 재는 것을 말하는 이름으로
+남았습니다 ([GDK-919]).
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -1937,3 +1944,4 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-734]: https://gadak.dev/backlog/#/?ks=GDK-734
 [GDK-733]: https://gadak.dev/backlog/#/?ks=GDK-733
 [GDK-1093]: https://gadak.dev/backlog/#/?ks=GDK-1093
+[GDK-919]: https://gadak.dev/backlog/#/?ks=GDK-919
