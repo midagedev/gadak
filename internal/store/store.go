@@ -163,7 +163,7 @@ func Now() string { return time.Now().UTC().Format(config.ISOMilli) }
 // any -wal/-shm sidecars are set to 0600. Chmod failures are logged and
 // ignored so unsupported filesystems (or Windows) still work.
 func Open(path string) (*DB, error) {
-	return OpenWith(path, DefaultOpenOptions())
+	return OpenWith(path, defaultOpenOptions())
 }
 
 // defaultOpen is the process-wide policy Open applies. The zero value is
@@ -185,8 +185,8 @@ func SetDefaultOpenOptions(opts OpenOptions) {
 	defaultOpen = opts
 }
 
-// DefaultOpenOptions is the policy Open currently applies.
-func DefaultOpenOptions() OpenOptions {
+// defaultOpenOptions is the policy Open currently applies.
+func defaultOpenOptions() OpenOptions {
 	defaultOpenMu.RLock()
 	defer defaultOpenMu.RUnlock()
 	return defaultOpen

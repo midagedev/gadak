@@ -20,10 +20,10 @@ import (
 // JSON document and behind `--open aging`.
 const agingTop = 10
 
-// Explanations are the --explain paragraphs: three sentences per section —
+// explanations are the --explain paragraphs: three sentences per section —
 // what it is, why it is here, how to read it. Keyed by the section heading
 // the sections print, so the flag adds prose without moving anything.
-func (r Report) Explanations() map[string]string {
+func (r Report) explanations() map[string]string {
 	b := r.BucketNoun()
 	return map[string]string{
 		"aging": "What: every issue in progress right now, oldest first, aged from its last status change. " +
@@ -42,7 +42,7 @@ func (r Report) Explanations() map[string]string {
 // then the one-line summary. explain adds the paragraph under each heading.
 func (r Report) Sections(explain bool) string {
 	var b strings.Builder
-	ex := r.Explanations()
+	ex := r.explanations()
 	head := func(name string) {
 		b.WriteString("\n" + name + ":\n")
 		if explain {

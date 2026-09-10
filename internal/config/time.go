@@ -19,9 +19,9 @@ const ISOMilli = "2006-01-02T15:04:05.000Z"
 // and the packages that stamp it cannot drift (GDK-1130).
 const TimeMilli = "2006-01-02T15:04:05.000-0700"
 
-// TimeNoFrac is TimeMilli without the fraction — the whole-second spelling
+// timeNoFrac is TimeMilli without the fraction — the whole-second spelling
 // some Jira surfaces and fixtures carry.
-const TimeNoFrac = "2006-01-02T15:04:05-0700"
+const timeNoFrac = "2006-01-02T15:04:05-0700"
 
 // ParseTimestamp parses every timestamp spelling a mirror column or an
 // origin payload carries, and is the single owner of that layout table
@@ -43,7 +43,7 @@ func ParseTimestamp(s string) (time.Time, bool) {
 	if s == "" {
 		return time.Time{}, false
 	}
-	for _, layout := range []string{TimeMilli, TimeNoFrac, time.RFC3339Nano} {
+	for _, layout := range []string{TimeMilli, timeNoFrac, time.RFC3339Nano} {
 		if t, err := time.Parse(layout, s); err == nil {
 			return t.UTC(), true
 		}

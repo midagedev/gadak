@@ -186,7 +186,7 @@ export function keyContext(over: Partial<KeyContext> = {}): KeyContext {
 }
 
 /** List cursor the resolver actually sees — null unless the list is active. */
-export function listCursor(ctx: KeyContext): string | null {
+function listCursor(ctx: KeyContext): string | null {
   return ctx.listActive ? ctx.cursorKey : null
 }
 
@@ -206,13 +206,13 @@ export function narrowFieldTestId(ctx: {
   return NARROW_FIELD_TESTID.issues
 }
 
-export type KeyPhase = 'always' | 'shortcuts-open' | 'default'
+type KeyPhase = 'always' | 'shortcuts-open' | 'default'
 
 /**
  * Same-chord commands may coexist when their scopes differ (c in detail vs
  * list vs global). Duplicate (phase, scope, chord) is the integrity failure.
  */
-export type KeyScope =
+type KeyScope =
   | 'always'
   | 'shortcuts-open'
   | 'global'
@@ -230,7 +230,7 @@ export type KeyScope =
   | 'overlay-retro'
   | 'overlay-docs'
 
-export interface Chord {
+interface Chord {
   /** ev.key — the printed character. Omitted on a code chord. The 'Escape'
    *  spelling below is binding data, not a keydown guard: keymap compares it
    *  against ctx.key, and the handler-side counterpart is isEscapeKey in
@@ -248,7 +248,7 @@ export interface Chord {
   shift?: boolean
 }
 
-export type HelpGroupId =
+type HelpGroupId =
   | 'global'
   | 'list'
   | 'columnViews'
@@ -257,7 +257,7 @@ export type HelpGroupId =
   | 'palette'
   | 'compose'
 
-export interface HelpRow {
+interface HelpRow {
   group: HelpGroupId
   /** Sheet glyphs. `{mod}` is replaced with ⌘ or Ctrl. */
   kbd: string
@@ -273,7 +273,7 @@ export interface HelpRow {
   when?: (ctx: KeyContext) => boolean
 }
 
-export type PaletteKind =
+type PaletteKind =
   | 'triage-menu'
   | 'triage-comment'
   | 'triage-select'
@@ -324,7 +324,7 @@ export interface CommandDef {
   help?: HelpRow | readonly HelpRow[]
 }
 
-export const HELP_GROUPS: readonly { id: HelpGroupId; titleKey: MessageKey }[] = [
+const HELP_GROUPS: readonly { id: HelpGroupId; titleKey: MessageKey }[] = [
   { id: 'global', titleKey: 'shortcuts.sectionGlobal' },
   { id: 'list', titleKey: 'shortcuts.sectionList' },
   { id: 'columnViews', titleKey: 'shortcuts.sectionColumnViews' },
@@ -1189,7 +1189,7 @@ export function isBootHoldKey(key: string): boolean {
   )
 }
 
-export function chordMatches(ctx: KeyContext, chords: readonly Chord[]): boolean {
+function chordMatches(ctx: KeyContext, chords: readonly Chord[]): boolean {
   return chords.some((ch) => {
     // Code chords (GDK-1250): the physical key decides, and Shift is part
     // of the chord or explicitly absent — the shiftless form of these keys
@@ -1256,16 +1256,16 @@ export function resolveGlobalKey(ctx: KeyContext): KeyCommand {
   return hit?.dispatch ? hit.dispatch(ctx) : { type: 'ignore' }
 }
 
-export function helpRowsOf(cmd: CommandDef): readonly HelpRow[] {
+function helpRowsOf(cmd: CommandDef): readonly HelpRow[] {
   if (!cmd.help) return []
   return Array.isArray(cmd.help) ? cmd.help : ([cmd.help] as HelpRow[])
 }
 
-export function formatHelpKbd(template: string, mod: string): string {
+function formatHelpKbd(template: string, mod: string): string {
   return template.replaceAll('{mod}', mod)
 }
 
-export interface HelpSectionView {
+interface HelpSectionView {
   titleKey: MessageKey
   rows: { kbd: string; labelKey: MessageKey }[]
 }

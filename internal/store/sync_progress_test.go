@@ -95,7 +95,7 @@ func TestSyncProgressStaleRowReadsAbsent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conn.Close()
-	stale := time.Now().UTC().Add(-(SyncProgressLiveWindow + time.Second)).Format(config.ISOMilli)
+	stale := time.Now().UTC().Add(-(syncProgressLiveWindow + time.Second)).Format(config.ISOMilli)
 	if _, err := conn.Exec(`UPDATE sync_progress SET updated_at = ?`, stale); err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestSyncProgressFirstFlagRoundTrip(t *testing.T) {
 func TestSyncProgressCutoffShape(t *testing.T) {
 	now := time.Date(2026, 9, 9, 12, 0, 30, 0, time.UTC)
 	got := SyncProgressCutoff(now)
-	if want := now.Add(-SyncProgressLiveWindow).Format(config.ISOMilli); got != want {
+	if want := now.Add(-syncProgressLiveWindow).Format(config.ISOMilli); got != want {
 		t.Fatalf("cutoff = %q, want %q", got, want)
 	}
 	if _, err := time.Parse(config.ISOMilli, got); err != nil {

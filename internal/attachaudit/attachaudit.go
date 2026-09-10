@@ -37,14 +37,14 @@ func Summary(n int) string {
 	if n == 1 {
 		files = "attachment"
 	}
-	return plural(n, files) + " of exactly 8 MiB — the size the built-in origin's old upload cap produced, so the bytes may have been cut short on the way in, and what is missing cannot be recovered; re-attach the originals if you still have them. Which ones: " + SampleQuery
+	return plural(n, files) + " of exactly 8 MiB — the size the built-in origin's old upload cap produced, so the bytes may have been cut short on the way in, and what is missing cannot be recovered; re-attach the originals if you still have them. Which ones: " + sampleQuery
 }
 
 func plural(n int, noun string) string {
 	return strconv.Itoa(n) + " " + noun
 }
 
-// SampleQuery names the suspect attachments. doctor prints it rather than the
+// sampleQuery names the suspect attachments. doctor prints it rather than the
 // names themselves: the document is meant to be paste-safe, and issue keys
 // and filenames are the user's material.
-const SampleQuery = `gadak sql "SELECT i.key, a.filename FROM attachments a JOIN items i ON i.id = a.item_id WHERE a.size = 8388608"`
+const sampleQuery = `gadak sql "SELECT i.key, a.filename FROM attachments a JOIN items i ON i.id = a.item_id WHERE a.size = 8388608"`

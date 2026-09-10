@@ -56,8 +56,8 @@ func TestClassifyRequestDialects(t *testing.T) {
 		{"POST", "/rest/agile/1.0/board/7/sprint", KindAgile},
 	}
 	for _, tc := range cases {
-		if got := ClassifyRequest(tc.method, tc.path); got != tc.want {
-			t.Errorf("ClassifyRequest(%s, %q) = %q, want %q", tc.method, tc.path, got, tc.want)
+		if got := classifyRequest(tc.method, tc.path); got != tc.want {
+			t.Errorf("classifyRequest(%s, %q) = %q, want %q", tc.method, tc.path, got, tc.want)
 		}
 	}
 }

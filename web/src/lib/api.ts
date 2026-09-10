@@ -193,7 +193,7 @@ function sessionBoundaryOf(res: Response): string | null {
 
 /* ── bootstrap (ETag / 304) ── */
 
-export type BootstrapResult =
+type BootstrapResult =
   | { status: 'ok'; data: BootstrapResponse; etag: string | null; sessionBoundary: string | null }
   | { status: 'not_modified'; sessionBoundary: string | null }
 
@@ -217,7 +217,7 @@ export async function getBootstrap(etag?: string | null): Promise<BootstrapResul
 
 /* ── delta ── */
 
-export interface DeltaResult {
+interface DeltaResult {
   data: DeltaResponse
   /** The session boundary header, which the delta body never carries. */
   sessionBoundary: string | null
@@ -337,7 +337,7 @@ export function getBoards(): Promise<import('./types').BoardsResponse> {
 }
 
 /** JQL / Jira-URL → ViewFilters. Unsupported clauses are listed, never dropped. */
-export interface JqlParseResult {
+interface JqlParseResult {
   input?: string
   jql: string
   filters: import('./view-config').ViewFilters
@@ -358,7 +358,7 @@ export function parseJql(input: string, email?: string | null): Promise<JqlParse
 }
 
 /** What the 500ms ui-focus poll carries back (GDK-791). */
-export interface UIFocusPoll {
+interface UIFocusPoll {
   /** View hash left by `gadak views open`. null when nothing is still fresh. */
   hash: string | null
   /**
@@ -817,7 +817,7 @@ export async function connectJira(
 }
 
 /** What POST onboarding/standalone answers: the seeded workspace facts. */
-export type BuiltInInit = {
+type BuiltInInit = {
   workspace_kind: 'standalone'
   default_project: string
 }
@@ -1097,7 +1097,7 @@ export function searchUsersFor(issueKey: string, q: string): Promise<UsersRespon
  * Any field may be absent in the response, so everything is optional.
  */
 
-export interface SettingsMember {
+interface SettingsMember {
   email: string
   name?: string
   display_name?: string
@@ -1109,7 +1109,7 @@ export interface SettingsMember {
 }
 
 /** Group-assignment rule. First match wins top-to-bottom; conditions AND, list values OR; empty condition always true. */
-export interface SettingsGroupRule {
+interface SettingsGroupRule {
   group: string
   projects?: string[]
   labels?: string[]
@@ -1156,7 +1156,7 @@ export interface SettingsRuntime {
   apiUsage?: ApiUsageSummary
 }
 
-export interface ApiUsageDay {
+interface ApiUsageDay {
   day: string
   requests: number
   throttled: number
@@ -1166,7 +1166,7 @@ export interface ApiUsageDay {
   last_throttled_at?: string | null
 }
 
-export interface ApiUsageSummary {
+interface ApiUsageSummary {
   today: ApiUsageDay
   last_7_days: ApiUsageDay
 }
@@ -1185,7 +1185,7 @@ export interface SettingsFieldSpec {
 /** Confluence slice of settings. Present in the GET response only while the
  *  source is configured — absence is how the UI knows to hide the scope picker,
  *  and PUTting the key with the source off is a 400. */
-export interface SettingsConfluence {
+interface SettingsConfluence {
   /**
    * Turn the source on or off. Absent on the way in (the server omits the whole
    * block while off); sent on the way out, because a bare `spaces` is rejected
@@ -1276,7 +1276,7 @@ export interface SyncRun {
 }
 
 /** GET sync/runs/ document. last_checked_at is sources.synced_at for `source`. */
-export interface SyncRunsDoc {
+interface SyncRunsDoc {
   runs: SyncRun[]
   source?: string
   /** Same origin as sync_health.sources[].synced_at. Absent on older servers. */
@@ -1373,7 +1373,7 @@ export class WorkspaceManageError extends Error {
 }
 
 /** POST /api/v1/workspaces 201 document (internal/workspace/manage.go). */
-export interface CreatedWorkspace {
+interface CreatedWorkspace {
   name: string
   kind: string
   /** Absolute path of the new built-in persist — informational. */
@@ -1382,7 +1382,7 @@ export interface CreatedWorkspace {
 
 /** DELETE /api/v1/workspaces/{name} 200 document. `advisories` is server
  *  wording, rendered as-is (pairing hint, stored-default cleanup, …). */
-export interface RemovedWorkspace {
+interface RemovedWorkspace {
   removed: string
   kind: string
   origin_destroyed: boolean
@@ -1440,7 +1440,7 @@ export async function createWorkspace(name: string, projects = ''): Promise<Crea
 /** POST /api/v1/workspaces kind:"paired" 201 document (createPaired). The
  *  new workspace reports kind connected — the same listing semantics the
  *  CLI pairing flow produces. */
-export interface PairedWorkspace {
+interface PairedWorkspace {
   name: string
   kind: string
   endpoint: string
@@ -1497,7 +1497,7 @@ export function getSettings(): Promise<GadakSettings> {
 }
 
 /** One Confluence space offered by the scope picker. */
-export interface SettingsSpace {
+interface SettingsSpace {
   key: string
   name: string
   /** global | personal. Personal spaces are noise for most mirrors. */

@@ -21,11 +21,11 @@ import (
 // same key back into parent_key (internal/sync/sprint.go).
 const GhEpicLinkCustom = "com.pyxis.greenhopper.jira:gh-epic-link"
 
-// ErrNoEpicLinkField is the refusal when a Server has no Epic Link field at
+// errNoEpicLinkField is the refusal when a Server has no Epic Link field at
 // all — a Jira Core site (no Jira Software) — and a standard issue is given
 // a parent. Sending fields.parent there would be the silent 204 this file
 // exists to stop.
-var ErrNoEpicLinkField = errors.New("jira: this Jira Server has no Epic Link field, so a standard issue cannot be given a parent here (Jira Software is what adds it; a sub-task's parent still works)")
+var errNoEpicLinkField = errors.New("jira: this Jira Server has no Epic Link field, so a standard issue cannot be given a parent here (Jira Software is what adds it; a sub-task's parent still works)")
 
 // epicLinkField resolves the Epic Link custom field id once per client from
 // the field catalog. An empty id with a nil error means the site has none.
@@ -112,7 +112,7 @@ func (c *Client) serverParent(ctx context.Context, fields map[string]any, subtas
 		return err
 	}
 	if id == "" {
-		return ErrNoEpicLinkField
+		return errNoEpicLinkField
 	}
 	delete(fields, "parent")
 	if raw == nil {

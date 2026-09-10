@@ -390,8 +390,8 @@ func TestBucketEventsCarryEveryKind(t *testing.T) {
 	for _, e := range b.Events {
 		seen[e.Kind] = true
 	}
-	for _, want := range []string{EventCreated, EventStarted, EventResolved, EventReopened,
-		EventSprintIn, EventSprintOut, EventComment} {
+	for _, want := range []string{eventCreated, eventStarted, eventResolved, eventReopened,
+		eventSprintIn, eventSprintOut, eventComment} {
 		if !seen[want] {
 			t.Errorf("no %q event in the full week: %v", want, b.Events)
 		}
@@ -412,11 +412,11 @@ func TestBucketEventsCarryEveryKind(t *testing.T) {
 	// move its sprint name.
 	for _, e := range b.Events {
 		switch e.Kind {
-		case EventComment:
+		case eventComment:
 			if e.Detail != "Ada" {
 				t.Errorf("comment event detail = %q, want the author", e.Detail)
 			}
-		case EventSprintIn, EventSprintOut:
+		case eventSprintIn, eventSprintOut:
 			if e.Detail != "Sprint 7" {
 				t.Errorf("%s detail = %q, want the sprint name", e.Kind, e.Detail)
 			}

@@ -117,7 +117,7 @@ func TestReopenVerdictHasOneOwner(t *testing.T) {
 }
 
 // categoryConstNames are the tokens the predicate can be spelled with.
-var categoryConstNames = map[string]bool{"CategoryDone": true, "CategoryInProgress": true, "CategoryNew": true}
+var categoryConstNames = map[string]bool{"CategoryDone": true, "CategoryInProgress": true, "categoryNew": true}
 
 // categoryNameOf names the category constant n references, or "".
 func categoryNameOf(n ast.Node) string {
@@ -203,5 +203,5 @@ func isReopenFingerprint(a, b ast.Expr) bool {
 	if sa.cat == "CategoryDone" && sb.cat == "CategoryDone" && sa.eq && !sb.eq {
 		return true
 	}
-	return sa.cat == "CategoryInProgress" && sb.cat == "CategoryNew" && sa.eq && sb.eq
+	return sa.cat == "CategoryInProgress" && sb.cat == "categoryNew" && sa.eq && sb.eq
 }

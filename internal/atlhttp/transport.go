@@ -264,7 +264,7 @@ func Stream(ctx context.Context, cfg Config, method, path string, hdr http.Heade
 	}
 }
 
-// ErrNotAPI is a response that is a web page rather than an API answer
+// errNotAPI is a response that is a web page rather than an API answer
 // (GDK-1648). Every call through DoRaw asks for JSON; a 2xx of HTML means
 // the request was answered by something else — in the measured case a
 // login page, reached because Go follows redirects and Jira Server sends a
@@ -273,7 +273,7 @@ func Stream(ctx context.Context, cfg Config, method, path string, hdr http.Heade
 // Without this the page's bytes are the API's answer: `gadak api` printed
 // the login page's HTML, and a JSON decode failed with "invalid character
 // '<'", which names the symptom and not the cause.
-var ErrNotAPI = errors.New("the origin answered with a web page, not the API — the request was probably redirected to a login page; check the credential and the base URL")
+var errNotAPI = errors.New("the origin answered with a web page, not the API — the request was probably redirected to a login page; check the credential and the base URL")
 
 // refuseHTML rejects a successful response whose body is a web page. Only
 // 2xx: an origin is free to render an error page for a 4xx or 5xx, and the
@@ -296,5 +296,5 @@ func refuseHTML(res *http.Response, body []byte) error {
 	if err != nil || ct != "text/html" {
 		return nil
 	}
-	return ErrNotAPI
+	return errNotAPI
 }

@@ -794,6 +794,17 @@ Windows executable declares PerMonitorV2 DPI awareness through a committed
 manifest and `.syso` pair, with a regenerator and a byte check in the pack
 script ([GDK-1407]).
 
+Thirty-three Go identifiers that nothing outside their package ever used
+went lowercase, and three web modules dropped exports nothing imports; the
+census the previous round promoted is what named them, and it now reports
+eleven where it reported thirty-seven — the rest are either a migration
+another issue has already promised or a symbol whose real fate is deletion,
+which this round did not decide ([GDK-1141]). The simplification bucket was
+re-measured item by item: the CI-status test is wired after all, the
+calendar instrumentation has consumers, the `e2e` class assertions were
+already gone, and one hand-run diagnostic script is left to the user
+([GDK-1232]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2219,6 +2230,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1133]: https://gadak.dev/backlog/#/?ks=GDK-1133
 [GDK-1134]: https://gadak.dev/backlog/#/?ks=GDK-1134
 [GDK-1135]: https://gadak.dev/backlog/#/?ks=GDK-1135
+[GDK-1141]: https://gadak.dev/backlog/#/?ks=GDK-1141
 [GDK-1147]: https://gadak.dev/backlog/#/?ks=GDK-1147
 [GDK-1149]: https://gadak.dev/backlog/#/?ks=GDK-1149
 [GDK-1150]: https://gadak.dev/backlog/#/?ks=GDK-1150
@@ -2245,6 +2257,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1215]: https://gadak.dev/backlog/#/?ks=GDK-1215
 [GDK-1216]: https://gadak.dev/backlog/#/?ks=GDK-1216
 [GDK-1227]: https://gadak.dev/backlog/#/?ks=GDK-1227
+[GDK-1232]: https://gadak.dev/backlog/#/?ks=GDK-1232
 [GDK-1233]: https://gadak.dev/backlog/#/?ks=GDK-1233
 [GDK-1234]: https://gadak.dev/backlog/#/?ks=GDK-1234
 [GDK-1235]: https://gadak.dev/backlog/#/?ks=GDK-1235

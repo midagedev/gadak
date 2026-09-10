@@ -75,12 +75,12 @@ func kindIndexOf(kind string) int {
 	return len(kindOrder) - 1
 }
 
-// ClassifyRequest maps one outbound request onto a request kind. path is
+// classifyRequest maps one outbound request onto a request kind. path is
 // the site-relative path exactly as DoRaw receives it; query is ignored,
 // and a leading /wiki mount prefix is tolerated for callers that pass the
 // routed path (the Confluence client carries /wiki in its base, not its
 // paths).
-func ClassifyRequest(method, path string) string {
+func classifyRequest(method, path string) string {
 	p := path
 	if i := strings.IndexByte(p, '?'); i >= 0 {
 		p = p[:i]
@@ -131,7 +131,7 @@ func (b *Breakdown) Note(method, path string, d time.Duration) {
 	if b == nil {
 		return
 	}
-	i := kindIndexOf(ClassifyRequest(method, path))
+	i := kindIndexOf(classifyRequest(method, path))
 	b.counts[i].Add(1)
 	if d > 0 {
 		b.wallNS[i].Add(int64(d))

@@ -132,8 +132,8 @@ func TestServerCreateMetaWithoutScopeRefuses(t *testing.T) {
 		t.Errorf("refusal must not leave the process: %s %s", r.Method, r.URL.Path)
 	}))
 	_, err := c.CreateMeta(context.Background(), nil)
-	if !errors.Is(err, ErrServerCreateMetaScope) {
-		t.Fatalf("err = %v, want ErrServerCreateMetaScope", err)
+	if !errors.Is(err, errServerCreateMetaScope) {
+		t.Fatalf("err = %v, want errServerCreateMetaScope", err)
 	}
 	if u := c.Usage(); u.Requests != 0 {
 		t.Errorf("Requests = %d, want 0", u.Requests)
@@ -280,8 +280,8 @@ func TestServerMediaRefRefusedBeforeRequest(t *testing.T) {
 		t.Errorf("refusal must not leave the process: %s %s", r.Method, r.URL.Path)
 	}))
 	_, _, err := c.MediaRef(context.Background(), "101")
-	if !errors.Is(err, ErrServerNoMediaRef) {
-		t.Fatalf("err = %v, want ErrServerNoMediaRef", err)
+	if !errors.Is(err, errServerNoMediaRef) {
+		t.Fatalf("err = %v, want errServerNoMediaRef", err)
 	}
 }
 
@@ -478,8 +478,8 @@ func TestServerParentRefusedWithoutEpicLinkField(t *testing.T) {
 		}
 	}))
 	err := c.EditIssue(context.Background(), "DCT-2", map[string]any{"parent": map[string]string{"key": "DCT-1"}}, nil)
-	if !errors.Is(err, ErrNoEpicLinkField) {
-		t.Fatalf("err = %v, want ErrNoEpicLinkField", err)
+	if !errors.Is(err, errNoEpicLinkField) {
+		t.Fatalf("err = %v, want errNoEpicLinkField", err)
 	}
 }
 

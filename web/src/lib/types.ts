@@ -8,7 +8,7 @@
 /** Effective status buckets. Server `status_category` is Jira's raw value; UI colors by these 3. */
 export type StatusCategory = 'new' | 'inprogress' | 'done'
 
-export type QaImpactState = 'blocking' | 'retest' | 'verified' | 'linked' | ''
+type QaImpactState = 'blocking' | 'retest' | 'verified' | 'linked' | ''
 
 /**
  * Per-issue deploy stage (precomputed). Progression: merged → dev (release) →
@@ -18,13 +18,13 @@ export type QaImpactState = 'blocking' | 'retest' | 'verified' | 'linked' | ''
 export type DeployState = 'none' | 'merged' | 'dev' | 'qa_preview' | 'qa' | 'prod'
 
 /** Release that carried the issue fix (tag + timestamp). */
-export interface DeployReleaseRef {
+interface DeployReleaseRef {
   tag: string
   at: string
 }
 
 /** Lightweight deploy status embedded on IssueLite (precomputed). */
-export interface DeployStatus {
+interface DeployStatus {
   state: DeployState
   merged_prs: number
   total_prs: number
@@ -34,7 +34,7 @@ export interface DeployStatus {
   prod_at: string | null
 }
 
-export interface QaRef {
+interface QaRef {
   key: string
   label: string
 }
@@ -184,7 +184,7 @@ export interface Member {
   is_bot?: boolean
 }
 
-export type SyncSourceStatus =
+type SyncSourceStatus =
   | 'healthy'
   | 'running'
   | 'paused'
@@ -201,7 +201,7 @@ export interface SyncSourceHealth {
   message: string
 }
 
-export interface TokenExpiry {
+interface TokenExpiry {
   state: 'ok' | 'expiring' | 'expired' | 'unknown'
   days_left?: number
   expires_at?: string
@@ -310,7 +310,7 @@ export interface DetailAttachment {
   content_url: string
 }
 
-export interface QaLinkedCase {
+interface QaLinkedCase {
   qase_case_id: number
   case_id: string
   title: string
@@ -345,7 +345,7 @@ export interface QaIssueContext {
 }
 
 /** Deploy evidence detail — one included release (tag + link + time + channel). All optional. */
-export interface DeployReleaseEvidence {
+interface DeployReleaseEvidence {
   tag: string
   html_url?: string | null
   at?: string | null
@@ -354,7 +354,7 @@ export interface DeployReleaseEvidence {
 }
 
 /** Deploy evidence detail — one PR inclusion row. */
-export interface DeployPrInclusion {
+interface DeployPrInclusion {
   number: number
   title?: string | null
   url?: string | null
@@ -614,7 +614,7 @@ export interface RetroBucket {
 }
 
 /** A kind of thing that happened to an issue inside a bucket (GDK-1722). */
-export type RetroEventKind =
+type RetroEventKind =
   | 'created'
   | 'started'
   | 'resolved'
@@ -634,7 +634,7 @@ export interface RetroEvent {
 /** The four shapes a bucket can surprise you with. */
 export type RetroSurpriseKind = 'reopened' | 'reversal' | 'added_after_start' | 'carried'
 
-export interface RetroSurprise {
+interface RetroSurprise {
   kind: RetroSurpriseKind
   key: string
   /** The issue's title, beside the key (GDK-1737). Absent on an older server. */
@@ -653,7 +653,7 @@ export interface RetroClosedGroup {
 }
 
 /** A count that is a door: the number, and the issues behind it. */
-export interface RetroKeySet {
+interface RetroKeySet {
   count?: number
   keys: string[]
 }
@@ -982,7 +982,7 @@ export interface JiraCredential {
 }
 
 /** One required screen field on a transition (GET <key>/transitions/). */
-export interface TransitionField {
+interface TransitionField {
   id: string
   name: string
   type: string
@@ -1049,7 +1049,7 @@ export interface EditMetaResponse {
 }
 
 /** Issue type (create-meta entry). */
-export interface CreateMetaIssueType {
+interface CreateMetaIssueType {
   id: string
   name: string
   /** True when this type requires a parent. Omitted when false. */
@@ -1083,7 +1083,7 @@ export interface CreateFieldsResponse {
 }
 
 /** New comment returned by POST <key>/comment/ (no raw_body — plain text body). */
-export interface CreatedComment {
+interface CreatedComment {
   comment_id: string
   author: string | null
   body: string

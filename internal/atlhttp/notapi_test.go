@@ -24,7 +24,7 @@ func TestAWebPageIsNotAnAPIAnswer(t *testing.T) {
 
 	cfg := Config{Base: srv.URL, HTTP: srv.Client(), Retries: 1, ErrPrefix: "jira"}
 	_, _, err := DoRaw(context.Background(), cfg, http.MethodGet, "/rest/api/3/serverInfo", nil, false, false)
-	if !errors.Is(err, ErrNotAPI) {
+	if !errors.Is(err, errNotAPI) {
 		t.Fatalf("a login page was accepted as the API's answer: %v", err)
 	}
 }

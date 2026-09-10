@@ -27,21 +27,21 @@ import (
 var citeRe = regexp.MustCompile(
 	`(?:^|[^A-Za-z0-9_./-])((?:cmd|internal|web/src)/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9]+)*(?:/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9]+)*)*)`)
 
-// Citation is one repo-path citation with the line it sat on.
-type Citation struct {
+// citation is one repo-path citation with the line it sat on.
+type citation struct {
 	Path string
 	Line int    // 1-based line of Text within the file
 	Text string // the comment line, for the failure message
 }
 
-// Citations extracts the citations from comment text, which may span
+// citations extracts the citations from comment text, which may span
 // lines. start is the 1-based line of text's first line.
-func Citations(text string, start int) []Citation {
-	var out []Citation
+func citations(text string, start int) []citation {
+	var out []citation
 	line := start
 	for _, l := range strings.Split(text, "\n") {
 		for _, m := range citeRe.FindAllStringSubmatch(l, -1) {
-			out = append(out, Citation{Path: m[1], Line: line, Text: strings.TrimRight(l, " \t\r")})
+			out = append(out, citation{Path: m[1], Line: line, Text: strings.TrimRight(l, " \t\r")})
 		}
 		line++
 	}

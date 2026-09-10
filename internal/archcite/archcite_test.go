@@ -28,20 +28,20 @@ func TestCitations(t *testing.T) {
 		{"root alone", "in internal/store", []string{"internal/store"}},
 	}
 	for _, tc := range cases {
-		got := Citations(tc.text, 1)
+		got := citations(tc.text, 1)
 		var paths []string
 		for _, c := range got {
 			paths = append(paths, c.Path)
 		}
 		if strings.Join(paths, ",") != strings.Join(tc.want, ",") {
-			t.Errorf("%s: Citations(%q) = %v; want %v", tc.name, tc.text, paths, tc.want)
+			t.Errorf("%s: citations(%q) = %v; want %v", tc.name, tc.text, paths, tc.want)
 		}
 	}
 }
 
 func TestCitationsLineNumbers(t *testing.T) {
 	text := "first line cites internal/retro/retro.go\nsecond line cites nothing\nthird cites internal/store/flow.go"
-	got := Citations(text, 10)
+	got := citations(text, 10)
 	if len(got) != 2 {
 		t.Fatalf("got %d citations; want 2", len(got))
 	}
@@ -164,7 +164,7 @@ func TestCitedRepoPathsExist(t *testing.T) {
 	}
 	var missing []string
 	visit := func(path string, line int, text string) {
-		for _, c := range Citations(text, line) {
+		for _, c := range citations(text, line) {
 			if citedExists(root, c.Path) {
 				continue
 			}

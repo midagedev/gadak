@@ -8,13 +8,13 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 )
 
-// SyncProgressLiveWindow is how long a sync_progress row stays readable after
+// syncProgressLiveWindow is how long a sync_progress row stays readable after
 // its last heartbeat. It must comfortably cover the gap between committed
 // pages: a single search page is ≤3s, a Confluence body batch ≤10s, so two
 // minutes tolerates a slow origin and a GC pause without ever reading a live
 // pass as dead. A process that crashed mid-pass leaves a row that goes stale
 // after this window and reads as absent — the next full pass overwrites it.
-const SyncProgressLiveWindow = 120 * time.Second
+const syncProgressLiveWindow = 120 * time.Second
 
 // SyncProgressCutoff is the updated_at floor below which a row is stale. The
 // single owner of the comparison stamp, so the SQL reader here and the plain-
@@ -22,7 +22,7 @@ const SyncProgressLiveWindow = 120 * time.Second
 // fixed-width UTC layout Now() writes, which is what makes a lexicographic
 // >= in SQL a time comparison (and a foreign-format row safely stale).
 func SyncProgressCutoff(now time.Time) string {
-	return now.UTC().Add(-SyncProgressLiveWindow).Format(config.ISOMilli)
+	return now.UTC().Add(-syncProgressLiveWindow).Format(config.ISOMilli)
 }
 
 // SyncProgressRow is one live pass's heartbeat.

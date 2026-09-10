@@ -619,6 +619,14 @@ Ubuntu 미러 장애에 런을 잃는 대신 캐시를 재생합니다 ([GDK-234
 매니페스트와 `.syso` 쌍으로 PerMonitorV2 DPI 인식을 선언하고, 재생성기와 팩 스크립트의 바이트
 검사가 붙었습니다 ([GDK-1407]).
 
+패키지 밖에서 아무도 쓰지 않던 Go 식별자 서른셋이 소문자가 되고, 웹 모듈 셋이 아무도 import
+하지 않는 export 를 내렸습니다. 이름을 짚은 것은 직전 라운드가 승격한 인구조사이고, 그 도구는
+서른일곱 대신 열하나를 보고합니다 — 남은 것은 다른 이슈가 이미 약속한 마이그레이션이거나
+진짜 운명이 삭제인 심볼이라 이 라운드가 정하지 않았습니다 ([GDK-1141]). 단순화 의심 버킷은
+항목마다 다시 재었습니다. CI-status 테스트는 배선돼 있었고, 캘린더 계측에는 소비자가 있고,
+`e2e` 의 클래스 단언은 이미 사라졌으며, 손으로 돌리는 진단 스크립트 하나는 사용자 판단으로
+남겼습니다 ([GDK-1232]).
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -1978,6 +1986,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1133]: https://gadak.dev/backlog/#/?ks=GDK-1133
 [GDK-1134]: https://gadak.dev/backlog/#/?ks=GDK-1134
 [GDK-1135]: https://gadak.dev/backlog/#/?ks=GDK-1135
+[GDK-1141]: https://gadak.dev/backlog/#/?ks=GDK-1141
 [GDK-1147]: https://gadak.dev/backlog/#/?ks=GDK-1147
 [GDK-1149]: https://gadak.dev/backlog/#/?ks=GDK-1149
 [GDK-1150]: https://gadak.dev/backlog/#/?ks=GDK-1150
@@ -2004,6 +2013,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1215]: https://gadak.dev/backlog/#/?ks=GDK-1215
 [GDK-1216]: https://gadak.dev/backlog/#/?ks=GDK-1216
 [GDK-1227]: https://gadak.dev/backlog/#/?ks=GDK-1227
+[GDK-1232]: https://gadak.dev/backlog/#/?ks=GDK-1232
 [GDK-1233]: https://gadak.dev/backlog/#/?ks=GDK-1233
 [GDK-1234]: https://gadak.dev/backlog/#/?ks=GDK-1234
 [GDK-1235]: https://gadak.dev/backlog/#/?ks=GDK-1235

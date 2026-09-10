@@ -37,9 +37,9 @@ import (
 // person reads and the reader wants the table above it instead.
 const MaxEvents = 300
 
-// MaxActions caps the retro-action list: fifty is more open action items
+// maxActions caps the retro-action list: fifty is more open action items
 // than a retrospective practice survives, so the cap is a guard, not a page.
-const MaxActions = 50
+const maxActions = 50
 
 // reversalTransitions is how many status moves inside one bucket make an
 // issue a "reversal": four is two round trips' worth of churn, past the
@@ -92,13 +92,13 @@ type Event struct {
 
 // Event kinds, the closed vocabulary Event.Kind uses.
 const (
-	EventCreated   = "created"
-	EventStarted   = "started"
-	EventResolved  = "resolved"
-	EventReopened  = "reopened"
-	EventSprintIn  = "sprint_in"
-	EventSprintOut = "sprint_out"
-	EventComment   = "comment"
+	eventCreated   = "created"
+	eventStarted   = "started"
+	eventResolved  = "resolved"
+	eventReopened  = "reopened"
+	eventSprintIn  = "sprint_in"
+	eventSprintOut = "sprint_out"
+	eventComment   = "comment"
 )
 
 // Surprise is an event the plan did not have: work that came back, work that
@@ -427,7 +427,7 @@ func bucketEvents(b *Bucket, meta map[string]issueMeta, in materialsInput, sprin
 	}
 	for _, m := range meta {
 		if t, ok := parseTime(m.created); ok && inBucket(b, t) {
-			add(t, m.key, EventCreated, "")
+			add(t, m.key, eventCreated, "")
 		}
 	}
 	for itemID, rows := range in.statusByItem {
@@ -443,11 +443,11 @@ func bucketEvents(b *Bucket, meta map[string]issueMeta, in materialsInput, sprin
 			from := in.cat[it.sourceID+"\x00"+r.fromID]
 			switch {
 			case to == store.CategoryDone && from != store.CategoryDone:
-				add(r.at, it.key, EventResolved, "")
+				add(r.at, it.key, eventResolved, "")
 			case store.ReopenTransition(from, to):
-				add(r.at, it.key, EventReopened, "")
+				add(r.at, it.key, eventReopened, "")
 			case to == store.CategoryInProgress && from != store.CategoryInProgress:
-				add(r.at, it.key, EventStarted, "")
+				add(r.at, it.key, eventStarted, "")
 			}
 		}
 	}
@@ -460,10 +460,10 @@ func bucketEvents(b *Bucket, meta map[string]issueMeta, in materialsInput, sprin
 			continue
 		}
 		if s.fromID != "" {
-			add(s.at, it.key, EventSprintOut, s.from)
+			add(s.at, it.key, eventSprintOut, s.from)
 		}
 		if s.toID != "" {
-			add(s.at, it.key, EventSprintIn, s.to)
+			add(s.at, it.key, eventSprintIn, s.to)
 		}
 	}
 	for _, c := range in.comments {
@@ -471,7 +471,7 @@ func bucketEvents(b *Bucket, meta map[string]issueMeta, in materialsInput, sprin
 			continue
 		}
 		if it, ok := in.itemByID[c.item]; ok {
-			add(c.at, it.key, EventComment, c.author)
+			add(c.at, it.key, eventComment, c.author)
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool {
@@ -769,7 +769,7 @@ func bucketMetric(b Bucket, name string) *float64 {
 func resolveActions(rows []actionRow, buckets []Bucket) []Action {
 	out := make([]Action, 0, len(rows))
 	for _, r := range rows {
-		if len(out) >= MaxActions {
+		if len(out) >= maxActions {
 			break
 		}
 		a := Action{

@@ -665,6 +665,14 @@ cask のバージョン以上になるのを待ち、タグごとに出るミラ
 コミットされたマニフェストと `.syso` の組で PerMonitorV2 の DPI 認識を宣言し、再生成器と
 パックスクリプトのバイト検査が付きました ([GDK-1407])。
 
+パッケージの外で誰も使っていなかった Go の識別子三十三が小文字になり、三つの web
+モジュールが誰も import しない export を下ろしました。名指ししたのは前のラウンドが昇格させた
+国勢調査で、その道具はいま三十七ではなく十一を報告します — 残りは別のイシューがすでに
+約束した移行か、本当の行き先が削除である記号で、このラウンドは決めませんでした
+([GDK-1141])。単純化の疑いのバケツは項目ごとに測り直しました。CI-status のテストは配線されて
+おり、カレンダーの計測には消費者があり、`e2e` のクラス主張はすでに消えていて、手で回す診断
+スクリプトひとつはユーザーの判断に残しました ([GDK-1232])。
+
 ## v0.21.0 — 2026-09-08
 
 **離れていた間に何が起きたのかに、キャッシュから答えます。** ステータスの変更も
@@ -2102,6 +2110,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1133]: https://gadak.dev/backlog/#/?ks=GDK-1133
 [GDK-1134]: https://gadak.dev/backlog/#/?ks=GDK-1134
 [GDK-1135]: https://gadak.dev/backlog/#/?ks=GDK-1135
+[GDK-1141]: https://gadak.dev/backlog/#/?ks=GDK-1141
 [GDK-1147]: https://gadak.dev/backlog/#/?ks=GDK-1147
 [GDK-1149]: https://gadak.dev/backlog/#/?ks=GDK-1149
 [GDK-1150]: https://gadak.dev/backlog/#/?ks=GDK-1150
@@ -2128,6 +2137,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1215]: https://gadak.dev/backlog/#/?ks=GDK-1215
 [GDK-1216]: https://gadak.dev/backlog/#/?ks=GDK-1216
 [GDK-1227]: https://gadak.dev/backlog/#/?ks=GDK-1227
+[GDK-1232]: https://gadak.dev/backlog/#/?ks=GDK-1232
 [GDK-1233]: https://gadak.dev/backlog/#/?ks=GDK-1233
 [GDK-1234]: https://gadak.dev/backlog/#/?ks=GDK-1234
 [GDK-1235]: https://gadak.dev/backlog/#/?ks=GDK-1235

@@ -13,10 +13,10 @@ import (
 // site or account language (contracts/sync.md, "Localization hazard").
 const CategoryDone = "done"
 
-// CategoryNew names the remaining status category; CategoryInProgress lives
+// categoryNew names the remaining status category; CategoryInProgress lives
 // in durations.go, where the lifecycle spans first needed it. The reopen rule
 // below reasons about all three as categories, never status names.
-const CategoryNew = "new"
+const categoryNew = "new"
 
 // DeriveInput is everything the derived-field rules need. Changelog entries
 // carry only status ids, so the id -> category map has to come from the site's
@@ -275,7 +275,7 @@ func ReopenTransition(from, to string) bool {
 	if from == CategoryDone {
 		return to != CategoryDone
 	}
-	return from == CategoryInProgress && to == CategoryNew
+	return from == CategoryInProgress && to == categoryNew
 }
 
 // reopenReason is the body of the earliest comment written at or after the

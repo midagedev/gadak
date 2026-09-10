@@ -413,12 +413,12 @@ func (p CreateMetaProject) NamedTypes() []NamedID {
 	return out
 }
 
-// ErrServerCreateMetaScope is the named refusal when a Jira Server / Data
+// errServerCreateMetaScope is the named refusal when a Jira Server / Data
 // Center client is asked for create metadata without a project scope
 // (GDK-1636): the bulk createmeta Cloud serves is gone there, and the
 // per-project route has nothing to ask without a key. A Cloud client with
 // no scope still gets the site-wide list.
-var ErrServerCreateMetaScope = errors.New("jira: Jira Server lists create metadata per project only — configure this workspace's projects")
+var errServerCreateMetaScope = errors.New("jira: Jira Server lists create metadata per project only — configure this workspace's projects")
 
 // CreateMeta lists what can be created. Restricted to the configured projects:
 // the site-wide answer is large and most of it is unreachable from this UI.
@@ -444,7 +444,7 @@ func (c *Client) CreateMeta(ctx context.Context, projects []string) ([]CreateMet
 // inventing a name here would be a display value the origin never sent.
 func (c *Client) createMetaServer(ctx context.Context, projects []string) ([]CreateMetaProject, error) {
 	if len(projects) == 0 {
-		return nil, ErrServerCreateMetaScope
+		return nil, errServerCreateMetaScope
 	}
 	out := make([]CreateMetaProject, 0, len(projects))
 	for _, key := range projects {
@@ -636,12 +636,12 @@ func (c *Client) Upload(ctx context.Context, key, filename string, file io.Reade
 // `/file/<uuid>/binary` (or `/file/<uuid>/artifact/...`).
 var mediaIDPattern = regexp.MustCompile(`/file/([0-9a-fA-F-]{36})`)
 
-// ErrServerNoMediaRef is the named refusal when a Jira Server / Data Center
+// errServerNoMediaRef is the named refusal when a Jira Server / Data Center
 // client is asked for an attachment's media id (GDK-1636): the Cloud route
 // this resolves — /attachment/content/{id} redirecting to a pre-signed
 // media URL — has no Server counterpart, and asking a base that does not
 // serve the route can only produce an error, never a media id.
-var ErrServerNoMediaRef = errors.New("jira: Jira Server has no attachment media route (Cloud only)")
+var errServerNoMediaRef = errors.New("jira: Jira Server has no attachment media route (Cloud only)")
 
 // MediaRef resolves an attachment id to both the media UUID Jira needs in an ADF
 // node and the filename our own renderer matches on (`alt`), which is what makes
@@ -657,7 +657,7 @@ func (c *Client) MediaRef(ctx context.Context, attachmentID string) (mediaID, fi
 
 func (c *Client) mediaRef(ctx context.Context, attachmentID string) (string, string, error) {
 	if c.serverDialect() {
-		return "", "", ErrServerNoMediaRef
+		return "", "", errServerNoMediaRef
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		c.base+c.apiBase+"/attachment/content/"+url.PathEscape(attachmentID), nil)

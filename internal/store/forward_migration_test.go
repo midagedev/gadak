@@ -238,7 +238,7 @@ func TestOpenWithTooNewStillRefusedUnderRefuseForward(t *testing.T) {
 // MCP server and originbind call plain Open with no version in sight, so a
 // dev main installs the refusal once and every one of them inherits it.
 func TestSetDefaultOpenOptionsMakesPlainOpenRefuse(t *testing.T) {
-	prev := DefaultOpenOptions()
+	prev := defaultOpenOptions()
 	t.Cleanup(func() { SetDefaultOpenOptions(prev) })
 
 	path := filepath.Join(t.TempDir(), "profiles", "x", "gadak.db")
