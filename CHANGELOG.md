@@ -349,6 +349,13 @@ snippet give the list its own scroll region floored to whole rows, with a
 `+N more` line shown only while rows are hidden, and an e2e gate measures
 the cut-row count at both window sizes ([GDK-1745]).
 
+A comment that quotes CSS no longer asks the origin who `@media` is: at-rule
+names, code spans and package paths never become mention sites, and the one
+warning left says the comment was saved as typed ([GDK-1125], [GDK-1544]);
+an `@email` already becomes a real mention node, which is now pinned by a
+test rather than by a comment that said "add it when someone asks"
+([GDK-21]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -1928,3 +1935,6 @@ priority sorting keyed on `priority_rank`.
 [GDK-1691]: https://gadak.dev/backlog/#/?ks=GDK-1691
 [GDK-1710]: https://gadak.dev/backlog/#/?ks=GDK-1710
 [GDK-1745]: https://gadak.dev/backlog/#/?ks=GDK-1745
+[GDK-1125]: https://gadak.dev/backlog/#/?ks=GDK-1125
+[GDK-1544]: https://gadak.dev/backlog/#/?ks=GDK-1544
+[GDK-21]: https://gadak.dev/backlog/#/?ks=GDK-21

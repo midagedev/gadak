@@ -2012,7 +2012,10 @@ func warnUnresolvedMentions(tokens []string) {
 	for i, t := range tokens {
 		parts[i] = "@" + t
 	}
-	fmt.Fprintf(os.Stderr, "gadak: %s did not resolve to a user on this origin — left as plain text\n", strings.Join(parts, ", "))
+	// The same line must say the write landed (GDK-1544): "did not resolve"
+	// alone reads as failure to an agent, which retried or rewrote a body
+	// that had posted fine.
+	fmt.Fprintf(os.Stderr, "gadak: %s did not resolve to a user on this origin — left as plain text; the comment was saved as typed\n", strings.Join(parts, ", "))
 }
 
 // noticeResolvedMentions is the twin of warnUnresolvedMentions for the
@@ -2034,13 +2037,14 @@ func noticeResolvedMentions(ms []resolvedMention) {
 // at most maxMentionWords exact substrings of the body after `@` — see
 // resolveMentionSite for why the order is not the other way round.
 //
-// Two shapes never become sites at all (GDK-894): an `@` inside markdown code
-// — jira.FindCodeRegions is the same region judgment the substitution side
-// uses, so extraction and substitution cannot disagree — and an `@` whose
-// first word contains `/`, which is a package path or handle, not a person.
-// Dropping a site is the safe direction: the token stays plain text and
-// nobody is summoned. The reverse — treating code as a person — once nearly
-// turned `@xterm/xterm` into a user mention.
+// Three shapes never become sites at all: an `@` inside markdown code
+// (GDK-894) — jira.FindCodeRegions is the same region judgment the
+// substitution side uses, so extraction and substitution cannot disagree — an
+// `@` whose first word contains `/`, which is a package path or handle, not a
+// person, and an `@` naming a CSS at-rule (GDK-1125, GDK-1544), which is
+// stylesheet data quoted into prose. Dropping a site is the safe direction:
+// the token stays plain text and nobody is summoned. The reverse — treating
+// code as a person — once nearly turned `@xterm/xterm` into a user mention.
 func mentionSites(body string) [][]string {
 	regions := jira.FindCodeRegions(body)
 	var sites [][]string
@@ -2048,7 +2052,7 @@ func mentionSites(body string) [][]string {
 		r, size := utf8.DecodeRuneInString(body[i:])
 		if r == '@' && mentionStartsAt(body, i) && !regions.Cover(i) {
 			rest := body[i+size:]
-			if !mentionFirstWordHasSlash(rest) {
+			if !mentionFirstWordHasSlash(rest) && !mentionIsCSSAtRule(rest) {
 				if cands := mentionWordCandidates(rest); len(cands) > 0 {
 					sites = append(sites, cands)
 				}
@@ -2057,6 +2061,45 @@ func mentionSites(body string) [][]string {
 		i += size
 	}
 	return sites
+}
+
+// cssAtRuleNames is the single table of at-rule names an `@`-token is never
+// a person for. A comment quoting CSS in prose — "@theme 밖이라…" (GDK-1544),
+// a bare media query (GDK-1125) — used to ask the origin's user search for
+// every one of them and come back as a stderr warning an agent could read as
+// a failed write. One table, one lookup (mentionIsCSSAtRule): extending the
+// class is a line here, nowhere else. CSS itself is case-insensitive, so the
+// lookup folds.
+var cssAtRuleNames = []string{
+	"charset", "container", "font-face", "import", "keyframes", "layer",
+	"media", "namespace", "page", "property", "supports", "theme",
+}
+
+// cssAtRules is cssAtRuleNames keyed in foldForMention form — smallest rune
+// of each fold orbit, uppercase for Latin — the same fold the query side
+// applies, so the lookup is a plain map hit.
+var cssAtRules = func() map[string]bool {
+	m := make(map[string]bool, len(cssAtRuleNames))
+	for _, n := range cssAtRuleNames {
+		m[foldForMention(n)] = true
+	}
+	return m
+}()
+
+// mentionIsCSSAtRule reports whether rest — the text glued after an `@` —
+// starts with one of the known CSS at-rule names. The identifier run is
+// letters, digits, and hyphen ("font-face", "keyframes"), so a glued paren or
+// brace still identifies the rule: `@media(…)` is media. A real person named
+// after an at-rule stays plain text — the same trade every drop class makes.
+func mentionIsCSSAtRule(rest string) bool {
+	var name []rune
+	for _, r := range rest {
+		if r != '-' && !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+			break
+		}
+		name = append(name, r)
+	}
+	return len(name) > 0 && cssAtRules[foldForMention(string(name))]
 }
 
 // mentionFirstWordHasSlash reports whether the first word after an `@`

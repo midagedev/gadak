@@ -258,6 +258,12 @@ Server 가 아직 구현되지 않았다고 말하고, dev-link 쓰기는 실제
 주고 높이를 온전한 행 수로 내림하며, 숨은 행이 있을 때만 `+N more` 줄을
 보입니다. e2e 게이트가 두 창 크기에서 잘린 행 수를 잽니다 ([GDK-1745]).
 
+CSS 를 인용한 코멘트가 `@media` 가 누구냐고 origin 에 묻지 않습니다. at-rule
+이름·코드 스팬·패키지 경로는 멘션 자리가 되지 않고, 남은 경고 한 줄은 코멘트가
+입력한 대로 저장됐다고 함께 말합니다 ([GDK-1125], [GDK-1544]). `@이메일` 은
+이미 실제 멘션 노드가 되고 있었고, 이제 "누가 요청하면 넣자" 던 주석 대신
+테스트가 그것을 고정합니다 ([GDK-21]).
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -1771,3 +1777,6 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1691]: https://gadak.dev/backlog/#/?ks=GDK-1691
 [GDK-1710]: https://gadak.dev/backlog/#/?ks=GDK-1710
 [GDK-1745]: https://gadak.dev/backlog/#/?ks=GDK-1745
+[GDK-1125]: https://gadak.dev/backlog/#/?ks=GDK-1125
+[GDK-1544]: https://gadak.dev/backlog/#/?ks=GDK-1544
+[GDK-21]: https://gadak.dev/backlog/#/?ks=GDK-21

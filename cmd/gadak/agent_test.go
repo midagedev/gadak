@@ -2261,6 +2261,43 @@ func TestCommentMentionSingleHitBecomesNode(t *testing.T) {
 	}
 }
 
+// GDK-21, measured and pinned: `comment edit`/`rm` are GDK-1647's subverbs,
+// and the deferred @email provision landed with GDK-510's resolver — an
+// @email glued in prose goes through the same users search the web UI's
+// autocomplete uses (the email containment in plausibleMentionHits) and
+// jira.Doc turns the typed token into a real mention node, the only shape
+// that notifies the person. This is the pin for that third provision.
+func TestCommentEmailMentionBecomesNode(t *testing.T) {
+	f := newFakeJira(t)
+	f.searchUsers = func(q string) string {
+		if q == "dana@example.com" {
+			return `[{"accountId":"acc-dana","displayName":"Dana Whitfield","emailAddress":"dana@example.com","active":true}]`
+		}
+		return `[]`
+	}
+	mirror(t, f.URL)
+
+	stdout, stderr, err := captureBoth(t, func() error {
+		return cmdComment([]string{"NMB-1", "-m", "cc @dana@example.com on the fix"})
+	})
+	if err != nil {
+		t.Fatalf("comment: %v", err)
+	}
+	body := commentADF(f)
+	if !strings.Contains(body, `"type":"mention"`) || !strings.Contains(body, `"id":"acc-dana"`) {
+		t.Fatalf("email mention did not become a node: %s", body)
+	}
+	if !strings.Contains(body, `"text":"@dana@example.com"`) {
+		t.Fatalf("mention node does not carry the typed token: %s", body)
+	}
+	if !strings.Contains(stderr, "@dana@example.com -> Dana Whitfield") {
+		t.Fatalf("stderr missing the resolution notice: %q", stderr)
+	}
+	if strings.Contains(stdout, "mention:") {
+		t.Fatalf("notice leaked to stdout: %q", stdout)
+	}
+}
+
 func TestCommentMentionAmbiguousRefusesWrite(t *testing.T) {
 	f := newFakeJira(t)
 	f.searchUsers = func(q string) string {
@@ -2319,6 +2356,12 @@ func TestCommentMentionZeroHitsStaysPlainAndWarns(t *testing.T) {
 	}
 	if !strings.Contains(stderr, "Dana") {
 		t.Fatalf("stderr must name the unresolved token: %q", stderr)
+	}
+	// GDK-1544: the warning must say on the same line that the write itself
+	// landed — "did not resolve" alone reads as failure to an agent, which
+	// retried or rewrote a body that had posted fine.
+	if !strings.Contains(stderr, "the comment was saved as typed") {
+		t.Fatalf("warning must say the comment was saved as typed: %q", stderr)
 	}
 	if strings.Contains(stdout, "plain text") || strings.Contains(stdout, "did not resolve") {
 		t.Fatalf("warning leaked to stdout: %q", stdout)
@@ -2550,6 +2593,51 @@ func TestCommentScopedPathIsNotAMention(t *testing.T) {
 	}
 }
 
+// GDK-1125/GDK-1544, one defect recorded twice: a CSS at-rule quoted in a
+// comment — @media in a media query, @theme loose in prose — went to the
+// origin's user search and came back as "did not resolve to a user", which an
+// agent reads as a failed write. At-rules join code spans and paths as tokens
+// that die at extraction: SearchUsers never runs, nothing warns, and the body
+// lands exactly as typed. The third body pins that the code-span half of the
+// class has held since GDK-894.
+func TestCommentAtRuleIsNotSearched(t *testing.T) {
+	f := newFakeJira(t)
+	f.searchUsers = func(string) string {
+		return `[{"accountId":"acc-dana","displayName":"Dana Whitfield","emailAddress":"dana@example.com","active":true}]`
+	}
+	mirror(t, f.URL)
+
+	cases := []struct{ body, token string }{
+		{"@theme 밖이라 token-catalog 드리프트 없음", "@theme"},
+		{"repro needs @media (prefers-color-scheme: dark)", "@media"},
+		{"wrap it in `@media (prefers-color-scheme: dark)`", "@media"},
+	}
+	for _, tc := range cases {
+		stdout, stderr, err := captureBoth(t, func() error {
+			return cmdComment([]string{"NMB-1", "-m", tc.body})
+		})
+		if err != nil {
+			t.Fatalf("%q: %v", tc.body, err)
+		}
+		if len(f.searchQueries) != 0 {
+			t.Errorf("%q: SearchUsers ran for an at-rule: %v", tc.body, f.searchQueries)
+		}
+		if strings.Contains(stdout+stderr, "did not resolve") {
+			t.Errorf("%q: at-rule produced an unresolved-mention warning: stdout %q stderr %q", tc.body, stdout, stderr)
+		}
+		if !f.called("POST /issue/NMB-1/comment") {
+			t.Fatalf("%q: comment not sent; calls %v", tc.body, f.calls)
+		}
+		got := commentADF(f)
+		if strings.Contains(got, `"type":"mention"`) {
+			t.Errorf("%q: at-rule became a mention node: %s", tc.body, got)
+		}
+		if !strings.Contains(got, tc.token) {
+			t.Errorf("%q: token %q lost from the body: %s", tc.body, tc.token, got)
+		}
+	}
+}
+
 // GDK-894: a live origin's user search answered a plain table-cell word with
 // every user on the site (18/18) — nobody's name contained the token — and
 // the comment was refused as "ambiguous". All-match is no-match: a hit whose
@@ -2618,10 +2706,11 @@ func TestCommentMentionResolvedNotifiesStderr(t *testing.T) {
 	}
 }
 
-// Site extraction is where code tokens die (GDK-894). The email row pins the
-// pre-existing rule — only a string-start/whitespace-preceded `@` is a site —
-// which is what keeps a@b.com from ever being searched.
-func TestMentionSitesSkipsCodePathsAndEmails(t *testing.T) {
+// Site extraction is where non-people die (GDK-894, GDK-1125, GDK-1544). The
+// email row pins the pre-existing rule — only a string-start/whitespace-
+// preceded `@` is a site — which is what keeps a@b.com from ever being
+// searched.
+func TestMentionSitesSkipsNonPeople(t *testing.T) {
 	cases := []struct {
 		name string
 		body string
@@ -2634,6 +2723,19 @@ func TestMentionSitesSkipsCodePathsAndEmails(t *testing.T) {
 		{"fenced block", "before\n```\n@dana x\n```\nafter", nil},
 		{"scoped path", "pin @xterm/xterm 6.0.0", nil},
 		{"email mid-token", "mail a@b.com now", nil},
+		// A CSS at-rule quoted in prose is data about a stylesheet, not a
+		// person — the class GDK-1125 (@media) and GDK-1544 (@theme) both
+		// recorded. Dropped whole like a path token: nobody named "Media" is
+		// reachable this way, and the safe direction is plain text.
+		{"CSS at-rule, prose", "@theme 밖이라 token-catalog 드리프트 없음", nil},
+		{"CSS at-rule, space-led query", "fixed @media (prefers-color-scheme: dark)", nil},
+		{"CSS at-rule, glued paren", "wrap @media(max-width: 600px) in a span", nil},
+		{"CSS at-rule, hyphenated", "@font-face {", nil},
+		{"CSS at-rule, case-folded", "@MEDIA screen and (min-width: 30em)", nil},
+		{"CSS at-rule inside a code span", "see `@media (prefers-color-scheme: dark)` in the log", nil},
+		// The at-rule test is on the @-glued identifier only: a plain mention
+		// whose sentence later says "media" stays a live site.
+		{"name next to an at-rule word", "@Dana reviews the media query", [][]string{{"Dana", "Dana reviews", "Dana reviews the"}}},
 		// Third candidate keeps the code span because wordEndOffsets only
 		// breaks at whitespace or a word-initial `@` — fine: the search for
 		// "Dana and `@Dana`" can't contain-match anyone (GDK-894 filter).
