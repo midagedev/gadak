@@ -228,4 +228,14 @@ bash scripts/scan-internal.sh
 pack_backlog_snapshot "$STAGE" "$ARCHIVE"
 rm -rf "$OUT"
 echo "backlog-snapshot: $ARCHIVE ready — review the diff, then commit"
-tar -xOf "$ARCHIVE" MANIFEST
+# The MANIFEST's keys= line is every published key on one line — 1,458 of them
+# at 0.22, ~19KB. Printing it made the regen the single noisiest step of a
+# release round for whoever (or whatever) was reading the terminal, and the
+# information a caller actually needs is the count. The whole line stays one
+# command away, and BACKLOG_SNAPSHOT_PRINT_MANIFEST=1 restores the old echo.
+if [ "${BACKLOG_SNAPSHOT_PRINT_MANIFEST:-0}" = "1" ]; then
+  tar -xOf "$ARCHIVE" MANIFEST
+else
+  tar -xOf "$ARCHIVE" MANIFEST | sed 's/ keys=.*//'
+  echo "  (keys omitted; tar -xOf $ARCHIVE MANIFEST for the full line)"
+fi
