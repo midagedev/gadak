@@ -102,7 +102,11 @@ func resolveDocsRefs(data *DocsDataset, refs map[string]string) (int, error) {
 			resolved++
 			return key
 		})
-		for _, name := range missing {
+		// The first unresolved name is the error; the others would say the same
+		// thing (staticcheck SA4004 named the range-that-returns shape, CI run
+		// 34499901502).
+		if len(missing) > 0 {
+			name := missing[0]
 			if refs == nil {
 				return "", fmt.Errorf("%s %q uses {{ref:%s}} but no --refmap was given — run the --data half with --refmap first", where, title, name)
 			}
