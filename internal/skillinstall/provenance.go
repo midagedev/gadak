@@ -1,6 +1,7 @@
 package skillinstall
 
 import (
+	"regexp"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -64,10 +65,24 @@ func IsDevBuild(version string) bool {
 	// or build-metadata part that says dev, and a bare commit hash appended
 	// with '+' says the same thing about provenance.
 	if i := strings.IndexAny(v, "-+"); i >= 0 {
-		return strings.Contains(strings.ToLower(v[i:]), "dev")
+		suffix := strings.ToLower(v[i:])
+		if strings.Contains(suffix, "dev") {
+			return true
+		}
+		// `git describe` on a checkout past the tag reads
+		// "0.21.0-170-gae822545": commits-since and the object name. That
+		// says "built from a tree that is not the tag" as plainly as -dev
+		// does, and desktop/build-app.sh stamps exactly this string, so
+		// without it every locally built app was a release to these rules.
+		if describeSuffix.MatchString(suffix) {
+			return true
+		}
 	}
 	return false
 }
+
+// describeSuffix matches `git describe`'s "-<commits>-g<object>" tail.
+var describeSuffix = regexp.MustCompile(`-[0-9]+-g[0-9a-f]{4,}`)
 
 // SourceFor is the receipt word for a version string.
 func SourceFor(version string) string {

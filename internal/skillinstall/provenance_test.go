@@ -158,3 +158,19 @@ func TestIsDevBuildReadsStampedCheckoutBuilds(t *testing.T) {
 		}
 	}
 }
+
+// desktop/build-app.sh stamps `git describe`, which past a tag reads
+// "0.21.0-170-gae822545". Without this the app built from any checkout was a
+// release to the dev-lockout and the dev-home split (GDK-1749).
+func TestIsDevBuildReadsGitDescribe(t *testing.T) {
+	for _, v := range []string{"0.21.0-170-gae822545", "v1.0.0-1-gabcd123"} {
+		if !IsDevBuild(v) {
+			t.Errorf("IsDevBuild(%q) = false, want true — git describe past a tag is a checkout build", v)
+		}
+	}
+	for _, v := range []string{"0.21.0", "v0.21.0", "0.21.0-rc.1"} {
+		if IsDevBuild(v) {
+			t.Errorf("IsDevBuild(%q) = true, want false — that is a cut release", v)
+		}
+	}
+}

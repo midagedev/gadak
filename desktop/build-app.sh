@@ -7,6 +7,7 @@
 # Usage: desktop/build-app.sh [--dmg]
 #
 # Optional signing / notarization (off by default for local development):
+#   GADAK_APP_VERSION            version stamp (default: git describe)
 #   GADAK_SIGN_IDENTITY          codesign identity (e.g. "Developer ID Application: …")
 #   GADAK_NOTARY_KEY             path to App Store Connect API key (.p8)
 #   GADAK_NOTARY_KEY_ID          key id
@@ -17,7 +18,13 @@ set -euo pipefail
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 out="$repo/desktop/build"
 app="$out/Gadak.app"
-version="$(cd "$repo" && git describe --tags --always 2>/dev/null || echo 0.0.0-dev)"
+# GADAK_APP_VERSION overrides the stamp. `git describe` past a tag reads
+# "0.21.0-170-g<hash>", which IsDevBuild now calls a checkout build — so a
+# locally built app takes ~/.gadak-dev and refuses to migrate a release-written
+# mirror, which is what a build for testing should do. Set this only when the
+# build is meant to replace an installed release and use the real home, and
+# know that opening it migrates those mirrors forward.
+version="${GADAK_APP_VERSION:-$(cd "$repo" && git describe --tags --always 2>/dev/null || echo 0.0.0-dev)}"
 # Single-arch for now (macos-14 runners are arm64). File name carries the arch
 # so a future universal build can ship alongside without colliding.
 arch="$(uname -m)"
