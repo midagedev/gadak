@@ -24,6 +24,8 @@
   } from '../lib/writes'
   import { keyboardInset } from '../lib/keyboard'
   import { t, fieldLabel } from '../lib/i18n'
+  import { showToast } from '../lib/toast.svelte'
+  import { buildSharePayload, shareIssue, ShareRefused } from '../lib/share'
   import type {
     DetailComment,
     DetailResponse,
@@ -64,6 +66,33 @@
   let refused = $state(false)
   const writesOff = $derived(app.writes === 'off' || refused)
   let failedId = $state<string | null>(null)
+
+  /*
+   * Share the key (GDK-877): "<KEY> <summary>" plus the origin's page when
+   * the row has an absolute one. navigator.share when this webview exposes
+   * it (unverified in WKWebView on device as of 2026-09-11 — the fallback
+   * is the road until a device says otherwise), else a clipboard copy
+   * announced with the same toast a link tap uses. lib/share.ts owns the
+   * payload and refuses anything offer-shaped (DESIGN.md §5): a refusal
+   * here is a bug, not a user error, so it says nothing and shares nothing.
+   */
+  async function share(): Promise<void> {
+    if (!lite) return
+    let payload
+    try {
+      payload = buildSharePayload({ issue_key: lite.issue_key, summary: lite.summary, url: lite.url })
+    } catch (err) {
+      if (err instanceof ShareRefused) return
+      throw err
+    }
+    const nav = typeof navigator === 'undefined' ? undefined : navigator
+    await shareIssue(payload, {
+      share: typeof nav?.share === 'function' ? (d) => nav.share(d) : undefined,
+      writeClipboard: (text) => navigator.clipboard.writeText(text),
+      onCopied: () => showToast(t('detail.linkCopied'), 'success'),
+      onCopyFailed: () => showToast(t('clipboard.copyFailed'), 'error'),
+    })
+  }
 
   /* ── A2 header writes: assignee, priority, summary, description ── */
   let assigneeOpen = $state(false)
@@ -483,7 +512,17 @@
           <span>{t('app.back')}</span>
         </button>
         <span class="bar-key">{issueKey}</span>
-        <span class="bar-pad" aria-hidden="true"></span>
+        <span class="bar-pad">
+          {#if lite}
+            <button class="share" data-testid="detail-share" onclick={() => void share()} aria-label={t('detail.share')}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
+                <path d="M16 6l-4-4-4 4" />
+                <path d="M12 2v13" />
+              </svg>
+            </button>
+          {/if}
+        </span>
       </div>
     {/snippet}
 
@@ -893,8 +932,25 @@
     font-size: var(--text-micro);
     color: var(--color-text-muted);
   }
+  /* Mirrors .back's flex share so the key stays centred; the share button
+     sits at its far edge, the same accent and 22px glyph as the back arrow. */
   .bar-pad {
     flex: 1 1 0;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .share {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--spacing-control);
+    min-width: var(--spacing-control);
+    margin-right: -6px;
+    color: var(--color-accent-text);
+  }
+  .share svg {
+    width: 22px;
+    height: 22px;
   }
 
   .spined {

@@ -681,6 +681,14 @@ Confluence 동기화·Jira 동기화·retro 패스는 각자 가장 긴 구간�
 중인 스프린트"도 한 꼴로, 이슈 수는 어디서나 건으로 셉니다. 일본어 카탈로그는
 件 앞의 공백을 없앴습니다 ([GDK-1787]).
 
+폰의 상세 화면 헤더에 공유 버튼이 생겼습니다. 웹뷰가 공유 시트를 지원하면
+그것을 열고, 없으면 클립보드에 복사한 뒤 링크 탭이 쓰던 복사 토스트로
+알립니다. 공유할 내용을 만드는 자리는 하나이고, 페어링 오퍼처럼 보이는
+것은 전부 거절합니다 ([GDK-877]). 폰 항목 둘은 코드가 아니라 실측으로
+닫았습니다. 데모 세 언어의 위키 제목이 모두 402px 문서 행 한 줄에
+들어가서 행을 두 줄로 늘리지 않았고 ([GDK-1551]), 관리되는 키체인 대안이
+아직 없어 secure-storage 플러그인은 그대로 둡니다 ([GDK-1136]).
+
 900px 아래에는 좁은 레짐이 하나입니다. 사이드바의 좁은 폭이 760px 미디어 쿼리 아래 다섯
 자리에 재선언돼 있어서 800px 창은 272px 사이드바를 유지하고 리스트는 남는 만큼만 받았습니다.
 이제 좁은 값은 인라인 토큰 설치에 실리고, `app.css` 는 `--layout-sidebar` 를 어디에도 정의하지
@@ -1981,6 +1989,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-871]: https://gadak.dev/backlog/#/?ks=GDK-871
 [GDK-873]: https://gadak.dev/backlog/#/?ks=GDK-873
 [GDK-875]: https://gadak.dev/backlog/#/?ks=GDK-875
+[GDK-877]: https://gadak.dev/backlog/#/?ks=GDK-877
 [GDK-879]: https://gadak.dev/backlog/#/?ks=GDK-879
 [GDK-880]: https://gadak.dev/backlog/#/?ks=GDK-880
 [GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883
@@ -2062,6 +2071,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1133]: https://gadak.dev/backlog/#/?ks=GDK-1133
 [GDK-1134]: https://gadak.dev/backlog/#/?ks=GDK-1134
 [GDK-1135]: https://gadak.dev/backlog/#/?ks=GDK-1135
+[GDK-1136]: https://gadak.dev/backlog/#/?ks=GDK-1136
 [GDK-1141]: https://gadak.dev/backlog/#/?ks=GDK-1141
 [GDK-1147]: https://gadak.dev/backlog/#/?ks=GDK-1147
 [GDK-1149]: https://gadak.dev/backlog/#/?ks=GDK-1149

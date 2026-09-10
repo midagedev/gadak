@@ -58,7 +58,9 @@ export type { AdfNode, DetailAttachment, FlowSummary, HistoryEntry }
  * sort last). Field semantics live on the owner; the two the phone reads
  * hardest are `status_category` (the only status axis logic may key on) and
  * `reporter_id`/`reporter_email` (the delegation ledger's half of
- * person-match, GDK-1495 ④ — id first, email the fallback).
+ * person-match, GDK-1495 ④ — id first, email the fallback). `url` is the
+ * origin's own page for the row (items.url), read only by the share
+ * (GDK-877) and only when absolute.
  */
 export type IssueLite = Pick<
   WebIssueLite,
@@ -86,6 +88,7 @@ export type IssueLite = Pick<
   | 'duedate'
   | 'started_at'
   | 'status_changed_at'
+  | 'url'
 >
 
 export interface Me {

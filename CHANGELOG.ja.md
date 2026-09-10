@@ -725,6 +725,15 @@ Tauri 設定からバージョンを読み、カレンダーのフォーマッ�
 スプリント」もひとつの形で、課題数はどこでも 건 で数えます。日本語カタログは 件 の前の
 空白をなくしました ([GDK-1787])。
 
+スマートフォンの詳細ヘッダーに共有ボタンが付きました。WebView
+が共有シートを持てばそれを開き、なければクリップボードにコピーして、
+リンクのタップで使っていたコピー通知で知らせます。共有する内容を組む
+場所は一つで、ペアリングオファーに見えるものはすべて拒否します
+([GDK-877])。二件は実測で閉じました。デモ三言語のウィキ題名がすべて
+402px の文書行に一行で収まるため行は二行にせず ([GDK-1551])、保守
+されているキーチェーン代替がまだないため secure-storage プラグインは
+据え置きです ([GDK-1136])。
+
 900px より下では狭いレジームがひとつです。サイドバーの狭い幅が 760px のメディアクエリの
 下で五か所に再宣言されていたため、800px の窓は 272px のサイドバーを保ち、一覧は残りだけを
 受け取っていました。いまは狭い値がインラインのトークン設置に載り、`app.css` は
@@ -2105,6 +2114,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-871]: https://gadak.dev/backlog/#/?ks=GDK-871
 [GDK-873]: https://gadak.dev/backlog/#/?ks=GDK-873
 [GDK-875]: https://gadak.dev/backlog/#/?ks=GDK-875
+[GDK-877]: https://gadak.dev/backlog/#/?ks=GDK-877
 [GDK-879]: https://gadak.dev/backlog/#/?ks=GDK-879
 [GDK-880]: https://gadak.dev/backlog/#/?ks=GDK-880
 [GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883
@@ -2186,6 +2196,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1133]: https://gadak.dev/backlog/#/?ks=GDK-1133
 [GDK-1134]: https://gadak.dev/backlog/#/?ks=GDK-1134
 [GDK-1135]: https://gadak.dev/backlog/#/?ks=GDK-1135
+[GDK-1136]: https://gadak.dev/backlog/#/?ks=GDK-1136
 [GDK-1141]: https://gadak.dev/backlog/#/?ks=GDK-1141
 [GDK-1147]: https://gadak.dev/backlog/#/?ks=GDK-1147
 [GDK-1149]: https://gadak.dev/backlog/#/?ks=GDK-1149

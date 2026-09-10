@@ -868,6 +868,15 @@ forking its own vocabulary: one word for watching, one for the history view,
 one form of "active sprint", and issue counts in 건 throughout; the Japanese
 catalog sets its counters without a space before 件 ([GDK-1787]).
 
+The phone's detail header gained a share button: the OS share sheet where
+the webview offers one, otherwise a clipboard copy announced with the copy
+toast the link taps already use. The payload builder is the one door and it
+refuses anything shaped like a pairing offer ([GDK-877]). Two phone items
+closed on evidence rather than code: every wiki title in the three demo
+locales fits the 402px document row on one line, so the row is not clamped
+([GDK-1551]), and the secure-storage plugin stays because no maintained
+keychain alternative exists yet ([GDK-1136]).
+
 Under 900 pixels there is one narrow regime. The sidebar's narrow width was
 redeclared in five places under a 760-pixel media query, so an 800-pixel
 window kept a 272-pixel sidebar and squeezed the list into what was left;
@@ -2240,6 +2249,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-871]: https://gadak.dev/backlog/#/?ks=GDK-871
 [GDK-873]: https://gadak.dev/backlog/#/?ks=GDK-873
 [GDK-875]: https://gadak.dev/backlog/#/?ks=GDK-875
+[GDK-877]: https://gadak.dev/backlog/#/?ks=GDK-877
 [GDK-879]: https://gadak.dev/backlog/#/?ks=GDK-879
 [GDK-880]: https://gadak.dev/backlog/#/?ks=GDK-880
 [GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883
@@ -2321,6 +2331,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1133]: https://gadak.dev/backlog/#/?ks=GDK-1133
 [GDK-1134]: https://gadak.dev/backlog/#/?ks=GDK-1134
 [GDK-1135]: https://gadak.dev/backlog/#/?ks=GDK-1135
+[GDK-1136]: https://gadak.dev/backlog/#/?ks=GDK-1136
 [GDK-1141]: https://gadak.dev/backlog/#/?ks=GDK-1141
 [GDK-1147]: https://gadak.dev/backlog/#/?ks=GDK-1147
 [GDK-1149]: https://gadak.dev/backlog/#/?ks=GDK-1149

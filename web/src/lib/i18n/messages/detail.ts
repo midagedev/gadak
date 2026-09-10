@@ -262,6 +262,14 @@ export const detail = {
     ko: '링크 복사',
     ja: 'リンクをコピー',
   },
+  // GDK-877: the phone's detail header shares the key (OS share sheet, or
+  // a clipboard copy where the webview has no share API). A verb, not a
+  // toast — the copy path reuses detail.linkCopied below.
+  'detail.share': {
+    en: 'Share',
+    ko: '공유',
+    ja: '共有',
+  },
   'detail.linkCopied': {
     en: 'Copied',
     ko: '복사됨',
