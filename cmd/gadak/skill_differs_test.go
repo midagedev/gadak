@@ -35,7 +35,7 @@ func plantSkillDiffers(t *testing.T, marker string) string {
 	if err := os.WriteFile(dest, old, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := skillinstall.WriteReceipt(filepath.Dir(dest), skillinstall.Digest(old), "0.0.0-test"); err != nil {
+	if err := skillinstall.WriteReceipt(filepath.Dir(dest), old, "0.0.0-test"); err != nil {
 		t.Fatal(err)
 	}
 	return dest

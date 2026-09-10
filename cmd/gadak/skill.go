@@ -167,6 +167,17 @@ func installSkill(w io.Writer, content []byte, dest string, force, printOnly boo
 		return fmt.Errorf("embedded skill is empty — this binary was built without skills/gadak/SKILL.md")
 	}
 
+	// A symlinked dest is judged and written by what it points at (GDK-1520):
+	// provider-style layouts link this path to a canonical copy. Renaming a
+	// temp file over the link would replace the link itself — the layout
+	// breaks and the canonical copy stays stale — so both the classification
+	// and the write go to the real file. A dest that does not exist (the
+	// common install) stays as typed: EvalSymlinks only resolves what is
+	// there.
+	if resolved, err := filepath.EvalSymlinks(dest); err == nil {
+		dest = resolved
+	}
+
 	status, existing, err := skillDestStatus(dest, content)
 	if err != nil {
 		return err
@@ -237,7 +248,7 @@ func installSkill(w io.Writer, content []byte, dest string, force, printOnly boo
 	}
 	// The receipt is what makes the *next* upgrade a no-question overwrite.
 	// Failing to write it costs nothing today, so it never fails the install.
-	if err := writeSkillReceipt(dir, skillDigest(content)); err != nil {
+	if err := writeSkillReceipt(dir, content); err != nil {
 		fmt.Fprintf(w, "note: could not record the install receipt in %s — the next upgrade may ask for --force\n",
 			clitool.TildeHome(dir))
 	}
@@ -263,8 +274,8 @@ func skillDigest(content []byte) string { return skillinstall.Digest(content) }
 
 func readSkillReceipt(dir string) (skillReceipt, bool) { return skillinstall.ReadReceipt(dir) }
 
-func writeSkillReceipt(dir, digest string) error {
-	return skillinstall.WriteReceipt(dir, digest, version)
+func writeSkillReceipt(dir string, content []byte) error {
+	return skillinstall.WriteReceipt(dir, content, version)
 }
 
 func skillFrontmatterName(content []byte) string { return skillinstall.FrontmatterName(content) }
@@ -449,13 +460,19 @@ type skillAutoSyncStamp struct {
 
 // skillAutoSyncSkip names the commands the hook never runs for:
 //
-//	skill  its subcommands own the copy explicitly; the install verb is the
-//	       one that must write it
-//	mcp    the stdio JSON-RPC server — stdout is protocol and stderr sits
-//	       right beside it in the host's log, so no surprise startup lines
+//	skill        its subcommands own the copy explicitly; the install verb is
+//	             the one that must write it
+//	mcp          the stdio JSON-RPC server — stdout is protocol and stderr sits
+//	             right beside it in the host's log, so no surprise startup lines
+//	init         installs the skill itself (autoInstallSkill) and prints its
+//	             own one line — a hook line on top of that is the doubled
+//	             refusal `gadak init` already fixed once (GDK-1545)
+//	install-cli  same: its whole second half is the skill install
 var skillAutoSyncSkip = map[string]bool{
-	"skill": true,
-	"mcp":   true,
+	"skill":       true,
+	"mcp":         true,
+	"init":        true,
+	"install-cli": true,
 }
 
 func skillAutoSyncStampPath() (string, error) {

@@ -276,9 +276,12 @@ export const detail = {
     ko: '{tracker} 링크를 복사했습니다',
     ja: '{tracker} のリンクをコピーしました',
   },
-  // Toast copy rule: a single-sentence toast carries no trailing period
-  // (`filter.saveServerFailed` in list.ts is the standard); hints and
-  // built-in sentences keep theirs. (GDK-1226)
+  // Toast copy rule (GDK-1588, which reversed GDK-1226's no-period rule): a
+  // toast ends in a sentence terminator, an ellipsis, or an interpolation /
+  // closing paren when the value is the tail — one ending per surface, all
+  // locales. The catalog test derives the key set from every call spelling
+  // (write.toast / this.toast / say), so this comment is a pointer, not the
+  // contract.
   'clipboard.copyFailed': {
     en: 'Could not copy — the clipboard refused the write.',
     ko: '복사하지 못했습니다 — 클립보드가 쓰기를 거부했습니다.',

@@ -93,7 +93,7 @@ func TestDestStatusToleratesOSMetadataSibling(t *testing.T) {
 	if err := os.WriteFile(dest, content, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := WriteReceipt(dir, Digest(content), "test"); err != nil {
+	if err := WriteReceipt(dir, content, "test"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -158,17 +158,45 @@ func TestDestStatusRejectsDirectory(t *testing.T) {
 	}
 }
 
+// TestStatusWord — GDK-1534. "identical" is the classifier's word; the word a
+// person reads is "current". Two callers renamed it by hand (doctor, the
+// desktop integrations list); this is the one owner, so a third caller cannot
+// diverge. The other three words are already the words people read.
+func TestStatusWord(t *testing.T) {
+	for _, tc := range []struct{ status, want string }{
+		{StatusIdentical, "current"},
+		{StatusStale, StatusStale},
+		{StatusMissing, StatusMissing},
+		{StatusConflict, StatusConflict},
+	} {
+		if got := StatusWord(tc.status); got != tc.want {
+			t.Errorf("StatusWord(%q) = %q, want %q", tc.status, got, tc.want)
+		}
+	}
+}
+
 func TestReceiptRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	if _, ok := ReadReceipt(dir); ok {
 		t.Error("no receipt should read as absent")
 	}
-	if err := WriteReceipt(dir, "abc", "0.0.0-test"); err != nil {
+	// GDK-1520: the receipt records both digests of the bytes it is handed —
+	// the exact form, and the line-ending-folded form — which is why
+	// WriteReceipt takes content rather than a precomputed digest.
+	content := []byte("line one\nline two\n")
+	if err := WriteReceipt(dir, content, "0.0.0-test"); err != nil {
 		t.Fatal(err)
 	}
 	r, ok := ReadReceipt(dir)
-	if !ok || r.SHA256 != "abc" || r.GadakVersion != "0.0.0-test" {
+	if !ok || r.SHA256 != Digest(content) || r.GadakVersion != "0.0.0-test" {
 		t.Fatalf("receipt = %+v ok=%v", r, ok)
+	}
+	if want, _ := TextDigest(content); r.TextSHA256 != want {
+		t.Fatalf("text digest = %q, want %q", r.TextSHA256, want)
+	}
+	// The two digests differ, or the folded form would be testing nothing.
+	if text, _ := TextDigest(toCRLF(content)); text != r.TextSHA256 {
+		t.Fatalf("CRLF of the same text hashed to %q, want the receipt's %q", text, r.TextSHA256)
 	}
 	// A corrupt receipt is "no receipt", never an error: it is a disposable
 	// cache, and the worst it costs is one --force.
@@ -177,5 +205,101 @@ func TestReceiptRoundTrip(t *testing.T) {
 	}
 	if _, ok := ReadReceipt(dir); ok {
 		t.Error("corrupt receipt should read as absent")
+	}
+}
+
+// toCRLF rewrites a skill body the way git's autocrlf=true rewrites a file the
+// moment it lands on a Windows checkout — every LF becomes CRLF (GDK-1520,
+// the vector orca's verify-skill-update-roundtrip --autocrlf matrix covers).
+func toCRLF(b []byte) []byte {
+	return []byte(strings.ReplaceAll(string(b), "\n", "\r\n"))
+}
+
+// TestDestStatusCRLFCurrentIsIdentical — GDK-1520. The copy on disk is the
+// embedded skill after Windows line-ending conversion: same text, different
+// bytes. Telling the user "differs — re-run with --force" over an OS-side
+// rewrite is the roundtrip break the receipt exists to prevent.
+func TestDestStatusCRLFCurrentIsIdentical(t *testing.T) {
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "SKILL.md")
+	content := []byte("---\nname: gadak\ndescription: x\n---\n\n# body\n")
+	if err := os.WriteFile(dest, toCRLF(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	status, _, err := DestStatus(dest, content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != StatusIdentical {
+		t.Errorf("CRLF of the current skill = %q, want %q", status, StatusIdentical)
+	}
+}
+
+// TestDestStatusCRLFofOurLastWriteIsStale — GDK-1520. gadak wrote the previous
+// release's body, the OS converted it, and this binary carries a newer skill.
+// That is gadak's copy behind by one release — stale, upgradable without
+// --force — not a conflict.
+func TestDestStatusCRLFofOurLastWriteIsStale(t *testing.T) {
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "SKILL.md")
+	prev := []byte("---\nname: gadak\ndescription: previous\n---\n\n# older\n")
+	if err := os.WriteFile(dest, prev, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteReceipt(dir, prev, "0.0.0-test"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dest, toCRLF(prev), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	status, _, err := DestStatus(dest, []byte("---\nname: gadak\ndescription: newer\n---\n\n# newer\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != StatusStale {
+		t.Errorf("CRLF of gadak's own previous write = %q, want %q", status, StatusStale)
+	}
+}
+
+// TestDestStatusSymlinkedDestConsultsTargetReceipt — GDK-1520, the
+// --shape=symlink leg. A provider-style layout symlinks the dest at a host's
+// path to a canonical copy that carries its receipt. The classifier judged by
+// the directory *beside the link* only, never found the receipt, and called
+// gadak's own stale copy a conflict.
+func TestDestStatusSymlinkedDestConsultsTargetReceipt(t *testing.T) {
+	canonicalDir := t.TempDir()
+	canonical := filepath.Join(canonicalDir, "SKILL.md")
+	prev := []byte("---\nname: gadak\ndescription: previous\n---\n\n# older\n")
+	if err := os.WriteFile(canonical, prev, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteReceipt(canonicalDir, prev, "0.0.0-test"); err != nil {
+		t.Fatal(err)
+	}
+
+	providerDir := t.TempDir()
+	link := filepath.Join(providerDir, "SKILL.md")
+	if err := os.Symlink(canonical, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	status, _, err := DestStatus(link, []byte("---\nname: gadak\ndescription: newer\n---\n\n# newer\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != StatusStale {
+		t.Errorf("symlink to gadak's own previous write = %q, want %q", status, StatusStale)
+	}
+	// And the current case through a link is identical, which is what a
+	// provider layout sees on a happy day.
+	if err := os.WriteFile(canonical, []byte("---\nname: gadak\ndescription: newer\n---\n\n# newer\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	status, _, err = DestStatus(link, []byte("---\nname: gadak\ndescription: newer\n---\n\n# newer\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != StatusIdentical {
+		t.Errorf("symlink to the current skill = %q, want %q", status, StatusIdentical)
 	}
 }

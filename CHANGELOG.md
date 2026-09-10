@@ -703,6 +703,27 @@ committed file carry `contentless_delete=1` would break the snapshot's
 Datasette Lite contract, so that question is left open with the numbers
 ([GDK-1756]).
 
+The CLI and the skill surface lost some duplicate vocabulary. The skill's
+status word and card label had two spellings, one in `doctor` and one in the
+integrations table; `internal/skillinstall` owns both now ([GDK-1534]). The
+app's integrations tab always refused a conflicting install because it had
+no `--force`; Replace is asked for twice — an armed button on the second
+tap — and the argv is built in one place for the app and the CLI
+([GDK-1535]). A dev build's first `init` printed the skill refusal twice, from
+the daily auto-sync hook and from the install itself; one line ([GDK-1545]).
+The skill receipt survives a CRLF checkout and a symlinked destination, so
+a file that is ours by content is recognised as ours ([GDK-1520]). The
+terminal font family was resolved in two renderers; `protocol.ts` owns it,
+with the phone renderer delegating and a pin on `app.css` ([GDK-1528]). The
+three sync-status string families — sidebar, freshness chip, sync — are one
+`sync.*` family with byte-identical text, so the e2e strings did not move
+([GDK-136]); the remaining toast punctuation drift was aligned to the
+current rule rather than the one the issue was written under, which GDK-1588
+had since reversed ([GDK-1242]). Mentions no longer read `@3×` or `@media`
+as a person ([GDK-976]), and `source: "jira"` on a built-in-tracker row is
+documented as the stored slug it is, since the write pickers key on it
+([GDK-487]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2381,3 +2402,12 @@ priority sorting keyed on `priority_rank`.
 [GDK-25]: https://gadak.dev/backlog/#/?ks=GDK-25
 [GDK-1349]: https://gadak.dev/backlog/#/?ks=GDK-1349
 [GDK-1756]: https://gadak.dev/backlog/#/?ks=GDK-1756
+[GDK-1534]: https://gadak.dev/backlog/#/?ks=GDK-1534
+[GDK-1535]: https://gadak.dev/backlog/#/?ks=GDK-1535
+[GDK-1545]: https://gadak.dev/backlog/#/?ks=GDK-1545
+[GDK-1520]: https://gadak.dev/backlog/#/?ks=GDK-1520
+[GDK-1528]: https://gadak.dev/backlog/#/?ks=GDK-1528
+[GDK-136]: https://gadak.dev/backlog/#/?ks=GDK-136
+[GDK-1242]: https://gadak.dev/backlog/#/?ks=GDK-1242
+[GDK-976]: https://gadak.dev/backlog/#/?ks=GDK-976
+[GDK-487]: https://gadak.dev/backlog/#/?ks=GDK-487

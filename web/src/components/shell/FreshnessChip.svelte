@@ -41,12 +41,12 @@
 
   const label = $derived.by(() => {
     void tick // re-read the wall clock every tick
-    if (!issues.mirrorBusy && token?.state === 'expired') return t('freshness.tokenExpired')
+    if (!issues.mirrorBusy && token?.state === 'expired') return t('sync.tokenExpired')
     if (!issues.mirrorBusy && token?.state === 'expiring') {
       const n = token.days_left
-      if (n === 0) return t('freshness.tokenExpiringToday')
-      if (n === 1) return t('freshness.tokenExpiringOne')
-      if (n != null) return t('freshness.tokenExpiring', { n })
+      if (n === 0) return t('sync.tokenExpiringToday')
+      if (n === 1) return t('sync.tokenExpiringOne')
+      if (n != null) return t('sync.tokenExpiring', { n })
     }
     // One wording for the mirror on this chip. A pass the background loop
     // started shows here too. The sidebar history row no longer repeats it
@@ -58,21 +58,21 @@
     void tick
     if (token?.message) {
       if (level === 'failed' && health?.message) {
-        return `${token.message}\n${t('freshness.titleFailed', { message: health.message })}`
+        return `${token.message}\n${t('sync.failedTitle', { message: health.message })}`
       }
       return token.message
     }
-    if (level === 'failed') return t('freshness.titleFailed', { message: health?.message ?? '' })
-    if (level === 'never') return t('freshness.titleNever')
+    if (level === 'failed') return t('sync.failedTitle', { message: health?.message ?? '' })
+    if (level === 'never') return t('sync.neverTitle')
     // GDK-1325: the tracker is named by its single owner, never assumed to
     // be Jira — a Linear mirror said "pulled from Jira" for a month.
     const when = relativeTime(syncedAt, 'long')
     const line =
       level === 'stale'
-        ? t('freshness.titleStale', { when })
+        ? t('sync.staleTitle', { when })
         : isBuiltIn(config())
-          ? t('freshness.titleFreshLocal', { when })
-          : t('freshness.titleFresh', { when, tracker: originTrackerName() })
+          ? t('sync.freshLocalTitle', { when })
+          : t('sync.freshTitle', { when, tracker: originTrackerName() })
     const abs = absTime(syncedAt)
     return `${line}${abs ? `\n${abs}` : ''}`
   })
@@ -111,7 +111,7 @@
     data-testid="freshness-chip"
     data-state={issues.mirrorBusy ? 'syncing' : level}
     disabled={issues.mirrorBusy}
-    aria-label={t('freshness.label')}
+    aria-label={t('sync.freshLabel')}
     {title}
     onclick={() => void issues.pullMirror()}
   >

@@ -95,6 +95,17 @@ type Client struct {
 	Name string
 	// Label is the host's own name, for messages and docs.
 	Label string
+	// CardLabel is the host's name as a card title — Label without the
+	// parenthetical qualifiers that make a narrow card wrap (GDK-1534). Same
+	// value as Label for every host whose label has no parenthetical; the
+	// table test keeps the two honest against each other.
+	CardLabel string
+	// Universal marks the one row the desktop integrations list always offers,
+	// whether or not the host looks installed: the cross-host .agents
+	// convention is a directory any agentskills.io reader loads, so absence
+	// of the host is not a reason to hide the install (GDK-1534). Exactly one
+	// client may set this — the table test pins which.
+	Universal bool
 
 	// configDir returns the host's configuration root — the directory whose
 	// existence means "this host is on this machine".
@@ -124,9 +135,10 @@ type Client struct {
 // a wrong path installs a skill nobody loads and reports success.
 var clients = []Client{
 	{
-		Name:    "claude",
-		homeDoc: "~/.claude/skills/gadak/",
-		Label:   "Claude Code",
+		Name:      "claude",
+		homeDoc:   "~/.claude/skills/gadak/",
+		Label:     "Claude Code",
+		CardLabel: "Claude Code",
 		configDir: func(e Env) (string, error) {
 			return e.homeJoin(".claude")
 		},
@@ -134,9 +146,10 @@ var clients = []Client{
 		projectRel: []string{".claude", skillsRootName},
 	},
 	{
-		Name:    "codex",
-		homeDoc: "$CODEX_HOME/skills/gadak/ (default ~/.codex/skills/gadak/)",
-		Label:   "Codex CLI",
+		Name:      "codex",
+		homeDoc:   "$CODEX_HOME/skills/gadak/ (default ~/.codex/skills/gadak/)",
+		Label:     "Codex CLI",
+		CardLabel: "Codex CLI",
 		configDir: func(e Env) (string, error) {
 			// Codex's own installer writes under $CODEX_HOME, and the binary
 			// reads it, even though the published docs describe only
@@ -156,42 +169,53 @@ var clients = []Client{
 		Name:    "agents",
 		homeDoc: "~/.agents/skills/gadak/",
 		Label:   "agentskills.io hosts (.agents)",
+		// The card title drops the parenthetical: the row already shows the
+		// path it installs to, so the qualifier only wraps.
+		CardLabel: "agentskills.io hosts",
+		// No single host owns ~/.agents — every agentskills.io reader walks it
+		// — so the integrations list offers this row even on a machine where
+		// none of them looks installed (GDK-1534).
+		Universal: true,
 		configDir: func(e Env) (string, error) {
 			return e.homeJoin(".agents")
 		},
 		projectRel: []string{".agents", skillsRootName},
 	},
 	{
-		Name:    "cursor",
-		homeDoc: "~/.cursor/skills/gadak/",
-		Label:   "Cursor",
+		Name:      "cursor",
+		homeDoc:   "~/.cursor/skills/gadak/",
+		Label:     "Cursor",
+		CardLabel: "Cursor",
 		configDir: func(e Env) (string, error) {
 			return e.homeJoin(".cursor")
 		},
 		noProjectWhy: "Cursor's project scope is a rules file (.cursor/rules/gadak.mdc), not a skill directory",
 	},
 	{
-		Name:    "gemini",
-		homeDoc: "~/.gemini/skills/gadak/",
-		Label:   "Gemini CLI",
+		Name:      "gemini",
+		homeDoc:   "~/.gemini/skills/gadak/",
+		Label:     "Gemini CLI",
+		CardLabel: "Gemini CLI",
 		configDir: func(e Env) (string, error) {
 			return e.homeJoin(".gemini")
 		},
 		noProjectWhy: "Gemini's project scope is an extension manifest (gemini-extension.json), not a skill directory",
 	},
 	{
-		Name:    "opencode",
-		homeDoc: "~/.config/opencode/skills/gadak/",
-		Label:   "OpenCode",
+		Name:      "opencode",
+		homeDoc:   "~/.config/opencode/skills/gadak/",
+		Label:     "OpenCode",
+		CardLabel: "OpenCode",
 		configDir: func(e Env) (string, error) {
 			return e.homeJoin(".config", "opencode")
 		},
 		noProjectWhy: "OpenCode's project scope is a plugin under .opencode/, not a skill directory",
 	},
 	{
-		Name:    "grok",
-		homeDoc: "~/.grok/skills/gadak/",
-		Label:   "grok CLI",
+		Name:      "grok",
+		homeDoc:   "~/.grok/skills/gadak/",
+		Label:     "grok CLI",
+		CardLabel: "grok CLI",
 		configDir: func(e Env) (string, error) {
 			return e.homeJoin(".grok")
 		},

@@ -65,7 +65,7 @@ describe('GDK-1323 onboarding says cache, not mirror', () => {
   // Mirror" stays a decision on the record rather than an oversight someone
   // later tidies away.
   test('the freshness chip is out of scope and still says Mirror', () => {
-    const en = (messages as Record<string, Record<string, string>>)['freshness.label'].en
+    const en = (messages as Record<string, Record<string, string>>)['sync.freshLabel'].en
     expect(MIRROR_WORD.test(en), 'GDK-1323 marks the freshness wording a separate matter').toBe(
       true,
     )

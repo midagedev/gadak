@@ -657,6 +657,22 @@ describe('postInstall', () => {
     expect(calls).toEqual([['/desktop/integrations/mcp-claude/install', 'POST']])
   })
 
+  // GDK-1535: replacing a copy gadak did not write is a separate action, and
+  // the flag is opt-in per request — a plain install post never carries it,
+  // so the button that means "install" can never mean "overwrite".
+  test('a forced replace posts ?force=1 on the same install path', async () => {
+    const calls: string[] = []
+    await postInstall(
+      'skill-claude',
+      async (input) => {
+        calls.push(String(input))
+        return new Response(streamOf(['exit=0\n']), { status: 200 })
+      },
+      { force: true },
+    )
+    expect(calls).toEqual(['/desktop/integrations/skill-claude/install?force=1'])
+  })
+
   test('an id the server does not know is reported as such', async () => {
     const result = await postInstall('nope', async () => new Response('', { status: 404 }))
     expect(result).toEqual({ failure: 'unknown-id', status: 404 })

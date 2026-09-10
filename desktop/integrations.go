@@ -30,7 +30,17 @@ func handleIntegrationsGET(w http.ResponseWriter, r *http.Request) {
 
 func handleIntegrationsInstall(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	args, ok := integrations.InstallArgs(id)
+	// ?force=1 is the second tap of the armed confirm on a conflict skill
+	// row's Replace (GDK-1535): the classifier called the copy someone else's
+	// and the user said overwrite anyway. InstallArgsForce appends one
+	// --force for skill rows and leaves every other row's argv unchanged.
+	var args []string
+	var ok bool
+	if r.URL.Query().Get("force") == "1" {
+		args, ok = integrations.InstallArgsForce(id)
+	} else {
+		args, ok = integrations.InstallArgs(id)
+	}
 	if !ok {
 		http.Error(w, `{"error":"unknown_integration"}`, http.StatusNotFound)
 		return

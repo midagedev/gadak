@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/midagedev/gadak/internal/clitool"
 )
@@ -22,6 +23,18 @@ const (
 	StatusStale     = "stale"     // gadak wrote it, and it has fallen behind
 	StatusConflict  = "conflict"  // someone else's file, or gadak's after an edit
 )
+
+// StatusWord renames the classifier's "identical" to the word a person reads
+// better — "current" — and passes the other three through unchanged
+// (GDK-1534). doctor and the desktop integrations list both print these
+// words; this is the one owner of the renaming, so a third caller cannot
+// diverge from the two that exist.
+func StatusWord(installStatus string) string {
+	if installStatus == StatusIdentical {
+		return "current"
+	}
+	return installStatus
+}
 
 // DestStatus classifies dest relative to content.
 //
@@ -53,10 +66,34 @@ func DestStatus(dest string, content []byte) (status string, existing []byte, er
 	if bytes.Equal(existing, content) {
 		return StatusIdentical, existing, nil
 	}
-	if IsOurs(filepath.Dir(dest), existing) {
+	// The same text after a Windows line-ending conversion is the same skill
+	// (GDK-1520): autocrlf=true rewrites the file the moment the repo touches
+	// it, and demanding --force over an OS-side rewrite is the roundtrip break
+	// the receipt exists to prevent.
+	if sameText(existing, content) {
+		return StatusIdentical, existing, nil
+	}
+	// Provenance starts beside the file. When dest is itself a symlink —
+	// provider-style layouts link this path to a canonical copy — the receipt
+	// that speaks for these bytes sits beside what it points at, not beside
+	// the link (GDK-1520).
+	dirs := []string{filepath.Dir(dest)}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		if real, err := filepath.EvalSymlinks(dest); err == nil {
+			dirs = append(dirs, filepath.Dir(real))
+		}
+	}
+	if isOursIn(dirs, existing) {
 		return StatusStale, existing, nil
 	}
 	return StatusConflict, existing, nil
+}
+
+// sameText reports whether a and b are equal once line endings are folded —
+// nil (not valid UTF-8) never equals anything, so a binary stays byte-exact.
+func sameText(a, b []byte) bool {
+	na, nb := normalizeText(a), normalizeText(b)
+	return na != nil && nb != nil && bytes.Equal(na, nb)
 }
 
 // ---------------------------------------------------------------------------
@@ -86,6 +123,12 @@ type Receipt struct {
 	SHA256       string `json:"sha256"`
 	GadakVersion string `json:"gadak_version"`
 	InstalledAt  string `json:"installed_at"`
+	// TextSHA256 is the same bytes hashed after folding line endings (GDK-1520):
+	// a checkout with autocrlf=true rewrites the file the moment the repo
+	// touches it, and a copy that differs from the receipt only in \r\n is
+	// still the copy gadak wrote. omitempty because the digest only exists for
+	// valid UTF-8 — a receipt for anything else has no text form to record.
+	TextSHA256 string `json:"text_sha256,omitempty"`
 	// Source and Revision say which *kind* of binary wrote the copy
 	// (GDK-1531): a cut release, or one built from a checkout, and in the
 	// second case the short git hash it came from. Before these fields a
@@ -136,9 +179,28 @@ var LegacyDigests = map[string]string{
 
 // IsOurs reports whether gadak wrote these exact bytes.
 func IsOurs(dir string, existing []byte) bool {
+	return isOursIn([]string{dir}, existing)
+}
+
+// isOursIn is IsOurs over every directory that could hold the receipt for
+// these bytes — one beside the file, plus the target's directory when the
+// file itself is a symlink. A byte-equal hit is the original rule; the text
+// digest extends it to a copy an OS line-ending conversion rewrote after
+// gadak wrote it (GDK-1520). Receipts from before the field, and the frozen
+// legacy table, stay byte-exact — that boundary costs one --force and is
+// documented in the issue.
+func isOursIn(dirs []string, existing []byte) bool {
 	digest := Digest(existing)
-	if r, ok := ReadReceipt(dir); ok && r.SHA256 == digest {
-		return true
+	textDigest, hasText := TextDigest(existing)
+	for _, dir := range dirs {
+		if r, ok := ReadReceipt(dir); ok {
+			if r.SHA256 == digest {
+				return true
+			}
+			if hasText && r.TextSHA256 != "" && r.TextSHA256 == textDigest {
+				return true
+			}
+		}
 	}
 	_, ok := LegacyDigests[digest]
 	return ok
@@ -168,23 +230,56 @@ func ReadReceipt(dir string) (Receipt, bool) {
 	return r, true
 }
 
-// WriteReceipt records digest as what gadak just wrote into dir. version is the
-// binary's version string, kept for the human who opens the file — and, through
-// SourceFor, the single input to the provenance word. The caller never decides
-// "is this a dev build": it passes its version and this file answers, so the
-// receipt and the auto-sync gate can never disagree (GDK-1531).
-func WriteReceipt(dir, digest, version string) error {
-	raw, err := json.MarshalIndent(Receipt{
-		SHA256:       digest,
+// WriteReceipt records what gadak just wrote into dir: the digest of the exact
+// bytes, and — because a checkout with autocrlf=true rewrites the file the
+// moment the repo touches it — the digest of the same text with line endings
+// folded (GDK-1520). It takes the bytes, not a digest, because the text digest
+// can only be computed from them. version is the binary's version string, kept
+// for the human who opens the file — and, through SourceFor, the single input
+// to the provenance word. The caller never decides "is this a dev build": it
+// passes its version and this file answers, so the receipt and the auto-sync
+// gate can never disagree (GDK-1531).
+func WriteReceipt(dir string, content []byte, version string) error {
+	r := Receipt{
+		SHA256:       Digest(content),
 		GadakVersion: version,
 		InstalledAt:  time.Now().UTC().Format(time.RFC3339),
 		Source:       SourceFor(version),
 		Revision:     BuildRevision(),
-	}, "", "  ")
+	}
+	if textDigest, ok := TextDigest(content); ok {
+		r.TextSHA256 = textDigest
+	}
+	raw, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(filepath.Join(dir, ReceiptName), append(raw, '\n'), 0o644)
+}
+
+// normalizeText folds \r\n and lone \r to \n, the same normalization orca's
+// verify-skill-update-roundtrip --autocrlf matrix applies before hashing. It
+// returns nil when content is not valid UTF-8: a binary has no line-ending
+// story, and nil is how the callers say "no text form".
+func normalizeText(content []byte) []byte {
+	if !utf8.Valid(content) {
+		return nil
+	}
+	if !bytes.ContainsRune(content, '\r') {
+		return content
+	}
+	s := strings.ReplaceAll(string(content), "\r\n", "\n")
+	return []byte(strings.ReplaceAll(s, "\r", "\n"))
+}
+
+// TextDigest is Digest over the line-ending-folded form. The bool is false
+// exactly when the bytes are not valid UTF-8.
+func TextDigest(content []byte) (string, bool) {
+	normalized := normalizeText(content)
+	if normalized == nil {
+		return "", false
+	}
+	return Digest(normalized), true
 }
 
 // FrontmatterName returns the `name:` value of a leading YAML frontmatter

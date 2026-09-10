@@ -293,11 +293,11 @@ test.describe('freshness chip', () => {
     const row = page.getByTestId('sidebar-sync-now')
     await expect(chip).not.toHaveAttribute('data-state', 'syncing', { timeout: 30_000 })
 
-    await expect(row).toContainText(en['sidebar.syncHistory'])
+    await expect(row).toContainText(en['sync.history'])
     await expect(row).not.toContainText(/Sync delayed|Synced |ago/)
     const chipText = ((await chip.textContent()) ?? '').trim()
     expect(chipText.length, 'the chip still names the mirror age').toBeGreaterThan(0)
-    expect(chipText).not.toBe(en['sidebar.syncHistory'])
+    expect(chipText).not.toBe(en['sync.history'])
     // Chip click is sync (now, or retry after a failed pass). Either sentence
     // is the chip's job; the sidebar's is the history popover.
     await expect(chip).toHaveAttribute('title', /Click to (sync now|retry)/)
@@ -305,7 +305,7 @@ test.describe('freshness chip', () => {
     await row.click()
     const popover = page.getByTestId('sync-history-popover')
     await expect(popover).toBeVisible()
-    await expect(popover).toContainText(en['sidebar.syncHistory'])
+    await expect(popover).toContainText(en['sync.history'])
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
@@ -319,13 +319,13 @@ test.describe('freshness chip', () => {
     const row = page.getByTestId('sidebar-sync-now')
     await expect(chip).not.toHaveAttribute('data-state', 'syncing', { timeout: 30_000 })
     // The row stays the history entry; Last checked lives in the popover.
-    await expect(row).toContainText(en['sidebar.syncHistory'])
+    await expect(row).toContainText(en['sync.history'])
     await expect(row).not.toContainText(/Last checked/)
 
     const popover = await openSyncHistory(page)
     const line = popover.getByTestId('sync-history-last-checked')
     await expect(line).toBeVisible()
-    const prefix = en['sidebar.syncLastChecked'].split('{when}')[0]
+    const prefix = en['sync.lastChecked'].split('{when}')[0]
     await expect(line).toContainText(prefix)
     await expect(line).toHaveText(/Last checked .+/)
 
@@ -347,7 +347,7 @@ test.describe('freshness chip', () => {
 
     const popover = await openSyncHistory(page)
     await expect(popover.getByTestId('sync-history-last-checked')).toHaveCount(0)
-    await expect(popover).toContainText(en['sidebar.syncHistory'])
+    await expect(popover).toContainText(en['sync.history'])
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })

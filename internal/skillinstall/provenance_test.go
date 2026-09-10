@@ -79,7 +79,7 @@ func TestWriteReceiptRecordsProvenance(t *testing.T) {
 		{"0.20.2", SourceRelease},
 	} {
 		dir := t.TempDir()
-		if err := WriteReceipt(dir, "deadbeef", c.version); err != nil {
+		if err := WriteReceipt(dir, []byte("gadak skill\n"), c.version); err != nil {
 			t.Fatalf("WriteReceipt(%q): %v", c.version, err)
 		}
 		r, ok := ReadReceipt(dir)
@@ -124,7 +124,7 @@ func TestReceiptSourceWordBackfillsFromVersion(t *testing.T) {
 // "revision": "" line.
 func TestReceiptFieldsAreOmittedWhenEmpty(t *testing.T) {
 	dir := t.TempDir()
-	if err := WriteReceipt(dir, "deadbeef", "0.20.2"); err != nil {
+	if err := WriteReceipt(dir, []byte("gadak skill\n"), "0.20.2"); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := os.ReadFile(filepath.Join(dir, ReceiptName))

@@ -266,6 +266,48 @@ func TestIntegrationsPOSTUnknownID(t *testing.T) {
 	}
 }
 
+// TestIntegrationsPOSTForceQuery — GDK-1535. The second tap of the armed
+// confirm posts ?force=1 and the skill row's argv grows exactly one --force;
+// every other row's argv is untouched by the flag, so a stray force on the
+// wire cannot turn another install into an overwrite.
+func TestIntegrationsPOSTForceQuery(t *testing.T) {
+	script := filepath.Join(t.TempDir(), "gadak")
+	body := "#!/bin/sh\necho \"args: $*\"\nexit 0\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GADAK_DESKTOP_CLI", script)
+
+	for id, want := range map[string]string{
+		"skill-claude": "args: skill install claude --force",
+		"skill":        "args: skill install claude --force", // legacy alias
+		"skill-codex":  "args: skill install codex --force",
+		// Non-skill rows stay flagless under ?force=1.
+		"mcp-claude":         "args: mcp install claude",
+		"command-line-tool":  "args: install-cli",
+		"mcp-claude-desktop": "args: mcp install claude-desktop",
+	} {
+		rec := httptest.NewRecorder()
+		integrationsMux().ServeHTTP(rec, httptest.NewRequest(http.MethodPost,
+			"/desktop/integrations/"+id+"/install?force=1", nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: POST %d %s", id, rec.Code, rec.Body.String())
+		}
+		got := rec.Body.String()
+		if !strings.Contains(got, want) {
+			t.Fatalf("%s: want %q in:\n%s", id, want, got)
+		}
+	}
+
+	// And without the query the skill argv is the plain verb — the flag is
+	// opt-in per request, never sticky.
+	rec := httptest.NewRecorder()
+	integrationsMux().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/desktop/integrations/skill-claude/install", nil))
+	if got := rec.Body.String(); !strings.Contains(got, "args: skill install claude\n") || strings.Contains(got, "--force") {
+		t.Fatalf("plain POST must stay flagless:\n%s", got)
+	}
+}
+
 func TestIntegrationsPOSTRaycastOnWindowsIsUnknown(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		// The GOOS seam lives in InstallArgsFor; pin it there. This test

@@ -375,7 +375,7 @@
             {/if}
           </span>
         </p>
-        <button class="act" onclick={() => void sync()} disabled={app.syncing}>{t('sidebar.syncNow')}</button>
+        <button class="act" onclick={() => void sync()} disabled={app.syncing}>{t('sync.now')}</button>
       </section>
 
       <section>

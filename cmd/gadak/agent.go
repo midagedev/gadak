@@ -2037,14 +2037,16 @@ func noticeResolvedMentions(ms []resolvedMention) {
 // at most maxMentionWords exact substrings of the body after `@` — see
 // resolveMentionSite for why the order is not the other way round.
 //
-// Three shapes never become sites at all: an `@` inside markdown code
+// Four shapes never become sites at all: an `@` inside markdown code
 // (GDK-894) — jira.FindCodeRegions is the same region judgment the
 // substitution side uses, so extraction and substitution cannot disagree — an
 // `@` whose first word contains `/`, which is a package path or handle, not a
-// person, and an `@` naming a CSS at-rule (GDK-1125, GDK-1544), which is
-// stylesheet data quoted into prose. Dropping a site is the safe direction:
-// the token stays plain text and nobody is summoned. The reverse — treating
-// code as a person — once nearly turned `@xterm/xterm` into a user mention.
+// person, an `@` naming a CSS at-rule (GDK-1125, GDK-1544), which is
+// stylesheet data quoted into prose, and an `@` whose first word is written in
+// runes no name uses (GDK-976) — a pixel-density "@3×)" is technical data.
+// Dropping a site is the safe direction: the token stays plain text and nobody
+// is summoned. The reverse — treating code as a person — once nearly turned
+// `@xterm/xterm` into a user mention.
 func mentionSites(body string) [][]string {
 	regions := jira.FindCodeRegions(body)
 	var sites [][]string
@@ -2053,7 +2055,7 @@ func mentionSites(body string) [][]string {
 		if r == '@' && mentionStartsAt(body, i) && !regions.Cover(i) {
 			rest := body[i+size:]
 			if !mentionFirstWordHasSlash(rest) && !mentionIsCSSAtRule(rest) {
-				if cands := mentionWordCandidates(rest); len(cands) > 0 {
+				if cands := mentionWordCandidates(rest); len(cands) > 0 && mentionPlausibleName(cands[0]) {
 					sites = append(sites, cands)
 				}
 			}
@@ -2100,6 +2102,33 @@ func mentionIsCSSAtRule(rest string) bool {
 		name = append(name, r)
 	}
 	return len(name) > 0 && cssAtRules[foldForMention(string(name))]
+}
+
+// mentionPlausibleName reports whether every rune of cand is in the alphabet
+// names and addresses are written in: unicode letters and digits, plus the
+// punctuation real ones carry — hyphens, apostrophes, the period in
+// "St. Clair", the underscore in a handle, and the @ and + of an email
+// address (GDK-510's email provision resolves these, so the filter must pass
+// them). Technical notations glued after an `@` fail it: the × and ) of
+// "@3×)" are in no name alphabet (GDK-976). It is a rune filter and not a
+// letters-of-the-English-alphabet check, because a Korean display name is a
+// first-class mention. The check runs on the first candidate — a site's
+// shortest form, which every longer candidate extends — and an ASCII "@2x"
+// passes it: the issue's own out, since a handle that could be real deserves
+// the search, and the search leaving it as typed is the safe result.
+func mentionPlausibleName(cand string) bool {
+	if cand == "" {
+		return false
+	}
+	for _, r := range cand {
+		switch {
+		case unicode.IsLetter(r), unicode.IsDigit(r):
+		case r == '-' || r == '_' || r == '.' || r == '\'' || r == '@' || r == '+':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // mentionFirstWordHasSlash reports whether the first word after an `@`

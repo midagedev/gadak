@@ -451,79 +451,10 @@ export const shell = {
     ko: '뷰를 삭제하지 못했습니다. 다시 시도하세요.',
     ja: 'ビューを削除できませんでした。再試行してください。',
   },
-  'sidebar.syncOk': {
-    en: 'OK',
-    ko: '정상',
-    ja: '正常',
-  },
-  'sidebar.syncing': {
-    en: 'Syncing',
-    ko: '동기화 중',
-    ja: '同期中',
-  },
-  'sidebar.syncOffHours': {
-    en: 'Waiting (outside business hours)',
-    ko: '업무시간 외 대기',
-    ja: '待機（営業時間外）',
-  },
-  'sidebar.syncWaiting': {
-    en: 'Waiting',
-    ko: '대기',
-    ja: '待機',
-  },
-  'sidebar.syncDelayed': {
-    en: 'Delayed',
-    ko: '지연',
-    ja: '遅延',
-  },
-  'sidebar.syncFailed': {
-    en: 'Failed',
-    ko: '실패',
-    ja: '失敗',
-  },
-  'sidebar.syncNoRecord': {
-    en: 'No record',
-    ko: '기록 없음',
-    ja: '記録なし',
-  },
-  'sidebar.syncFailTitle': {
-    en: 'Sync failed',
-    ko: '동기화 실패',
-    ja: '同期失敗',
-  },
-  'sidebar.syncDelayedTitle': {
-    en: 'Sync delayed',
-    ko: '동기화 지연',
-    ja: '同期遅延',
-  },
-  'sidebar.syncNow': {
-    en: 'Sync now',
-    ko: '지금 동기화',
-    ja: '今すぐ同期',
-  },
-  'sidebar.syncHistory': {
-    // "Sync log", not "Sync history": the RECENT block three rows below has
-    // its own History door (visits, history.title), and one word for two
-    // things in one column read as one thing (2026-09-07, GDK-1493).
-    en: 'Sync log',
-    ko: '동기화 기록',
-    ja: '同期ログ',
-  },
-  'sidebar.syncHistoryTitle': {
-    en: 'Click for recent sync runs',
-    ko: '클릭하면 최근 동기화 내역을 보여줍니다',
-    ja: 'クリックすると最近の同期を表示します',
-  },
-  'sidebar.syncNoHistory': {
-    en: 'No recorded runs yet — history keeps syncs that changed something.',
-    ko: '기록된 내역이 없습니다 — 변경이 있었던 동기화만 남습니다.',
-    ja: '記録された実行はまだありません — 何かが変わった同期だけが残ります。',
-  },
-  'sidebar.syncLastChecked': {
-    en: 'Last checked {when}',
-    ko: '마지막 확인 {when}',
-    ja: '最終確認 {when}',
-  },
+  // The sync-state words, the Sync-now verb, the sync-log row, and the
+  // freshness chip's sentences all live under sync.* in messages/settings.ts
+  // since GDK-136 — one family for the sidebar dot, the chip, and the
+  // palette instead of three byte-identical copies under two prefixes.
   'sidebar.serverUnreachable': {
     en: 'Could not reach the server. Retry.',
     ko: '서버에 연결하지 못했습니다. 다시 시도하세요.',
@@ -558,57 +489,6 @@ export const shell = {
     en: 'Drag or Alt+↑↓ to reorder',
     ko: '드래그 또는 Alt+↑↓로 순서 변경',
     ja: 'ドラッグまたは Alt+↑↓ で並べ替え',
-  },
-  /* ── Freshness chip (mirror ↔ Jira leg) ── */
-  'freshness.label': {
-    en: 'Mirror freshness',
-    ko: '미러 신선도',
-    ja: 'ミラーの鮮度',
-  },
-  'freshness.titleFresh': {
-    en: 'Mirror pulled from {tracker} {when}. Click to sync now.',
-    ko: '{when} {tracker}에서 가져온 미러입니다. 클릭하면 지금 동기화합니다.',
-    ja: '{tracker} からミラーを {when} 取得しました。クリックで今すぐ同期します。',
-  },
-  'freshness.titleFreshLocal': {
-    en: 'Mirror refreshed from the built-in tracker {when}. Click to sync now.',
-    ko: '내장 트래커에서 미러를 {when} 갱신했습니다. 클릭하면 지금 동기화합니다.',
-    ja: '内蔵トラッカーからミラーを {when} 更新しました。クリックで今すぐ同期します。',
-  },
-  'freshness.titleStale': {
-    en: 'Mirror is behind — last successful sync {when}. Click to sync now.',
-    ko: '미러가 지연됐습니다 — 마지막 성공 동기화 {when}. 클릭하면 지금 동기화합니다.',
-    ja: 'ミラーが遅れています — 最後の成功同期は {when}。クリックで今すぐ同期します。',
-  },
-  'freshness.titleFailed': {
-    en: 'Last sync failed: {message}\nClick to retry.',
-    ko: '마지막 동기화 실패: {message}\n클릭하면 재시도합니다.',
-    ja: '最後の同期に失敗しました: {message}\nクリックで再試行します。',
-  },
-  'freshness.titleNever': {
-    en: 'The mirror has never synced. Click to sync now.',
-    ko: '미러가 아직 한 번도 동기화되지 않았습니다. 클릭하면 지금 동기화합니다.',
-    ja: 'ミラーはまだ一度も同期していません。クリックで今すぐ同期します。',
-  },
-  'freshness.tokenExpiring': {
-    en: 'Token expires in {n} days',
-    ko: '토큰이 {n}일 후 만료',
-    ja: 'トークンは {n} 日後に期限切れ',
-  },
-  'freshness.tokenExpiringOne': {
-    en: 'Token expires in 1 day',
-    ko: '토큰이 1일 후 만료',
-    ja: 'トークンは 1 日後に期限切れ',
-  },
-  'freshness.tokenExpiringToday': {
-    en: 'Token expires today',
-    ko: '토큰이 오늘 만료',
-    ja: 'トークンは今日期限切れ',
-  },
-  'freshness.tokenExpired': {
-    en: 'API token expired',
-    ko: 'API 토큰 만료됨',
-    ja: 'API token の期限切れ',
   },
   /* ── First-sync band (GDK-1677): one line while a first sync fills an
      empty mirror. Counts arrive pre-formatted (formatNumber); the wiki-next
@@ -1053,9 +933,9 @@ export const shell = {
     ja: 'デモの編集はこのブラウザにだけ適用されます — どこにも送られず、再読み込みで元に戻ります。',
   },
   'app.demoAttachDisabled': {
-    en: 'Attachments need a server — not available in the demo',
-    ko: '첨부는 서버가 필요해 데모에서는 지원되지 않습니다',
-    ja: '添付にはサーバーが必要です — デモでは利用できません',
+    en: 'Attachments need a server — not available in the demo.',
+    ko: '첨부는 서버가 필요해 데모에서는 지원되지 않습니다.',
+    ja: '添付にはサーバーが必要です — デモでは利用できません。',
   },
   'app.demoEditCount': {
     en: '{n} local edit(s), not saved',

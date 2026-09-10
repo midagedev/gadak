@@ -18,6 +18,7 @@ import {
   createUtf8StreamDecoder,
   TERMINAL_ANSI_VARS,
   TERMINAL_CHROME_VARS,
+  terminalFontFamily,
   watchChromeVars,
   type TerminalAnsiSlot,
 } from './protocol'
@@ -47,19 +48,17 @@ function cssVar(name: string, fallback: string, scope?: Element | null): string 
 }
 
 /**
- * The terminal's font stack, from a token of its own (GDK-1043): WebKit
- * resolves ui-monospace to SF Mono, whose box-glyph ink (15.31css at 13px)
- * undershoots the 16css cell xterm derives — a 1px seam at every row
- * boundary — while Menlo joins by overshoot on both engines. --font-mono
- * stays the app-wide face (code chips, tables) where box grids never occur.
- * Falls back to it, then to a literal, so jsdom (no stylesheet) still gets
- * a stack. Injectable reader, same shape as terminalFontSize.
+ * The terminal's font stack, resolved by protocol.ts's terminalFontFamily
+ * (GDK-1528) — the one owner, shared with the phone renderer. The stack
+ * comes from a token of its own (GDK-1043): WebKit resolves ui-monospace to
+ * SF Mono, whose box-glyph ink (15.31css at 13px) undershoots the 16css
+ * cell xterm derives — a 1px seam at every row boundary — while Menlo joins
+ * by overshoot on both engines. --font-mono stays the app-wide face (code
+ * chips, tables) where box grids never occur. Kept as a wrapper for the
+ * readCssVar default and the name this module's callers already use.
  */
 export function fontFamily(read: (name: string) => string = readCssVar): string {
-  const terminal = read('--font-mono-terminal')
-  if (terminal) return terminal
-  const raw = read('--font-mono')
-  return raw || 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+  return terminalFontFamily(read)
 }
 
 /** xterm's own sixteen — the fallback when a token is missing (jsdom, an

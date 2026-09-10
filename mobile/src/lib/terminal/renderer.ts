@@ -11,6 +11,7 @@
 import {
   createUtf8StreamDecoder,
   TERMINAL_CHROME_VARS,
+  terminalFontFamily,
   type TerminalRenderer,
   watchChromeVars,
 } from '../../../../web/src/lib/terminal/protocol'
@@ -25,31 +26,25 @@ function cssVar(name: string, fallback: string): string {
 }
 
 /**
- * The terminal's font stack, from a token of its own (GDK-1043 / GDK-1131).
+ * The terminal's font stack, resolved by protocol.ts's terminalFontFamily
+ * (GDK-1528) — the one owner, shared with the web renderer. Kept as a
+ * wrapper for the readCssVar default and the name this module's callers
+ * already use; the reader reads the document root, the web pane reads its
+ * dock scope (GDK-1357), which is why the reader stays injectable rather
+ * than the whole function moving without one.
  *
- * WebKit resolves ui-monospace to SF Mono, whose box-glyph ink (15.31css at
- * 13px) undershoots the 16css cell xterm derives — a 1px seam at every row
- * boundary — while Menlo joins by overshoot on both engines. --font-mono
- * leads with ui-monospace on purpose: it is the app-wide face, for code
- * chips and tables where a box grid never occurs. --font-mono-terminal is
- * the one that leads with Menlo.
- *
- * The phone read --font-mono until GDK-1131, so the one surface where box
- * drawing actually matters — a full-screen TUI on a 48-column phone grid —
- * was the one still riding the seam the web had already stepped off. The
- * token needed no plumbing: mobile/src/app.css imports web/src/app.css, so
- * it has been in this bundle since GDK-1043 landed.
- *
- * Same shape as the web sibling (web/src/lib/terminal/renderer.ts
- * fontFamily) and the same order — terminal token, then the app face, then
- * a literal for a build with no stylesheet at all. Injectable reader, like
- * terminalFontSize, because the unit project runs in node.
+ * The stack comes from a token of its own (GDK-1043 / GDK-1131): --font-mono
+ * leads with ui-monospace on purpose (app-wide face, code chips and tables
+ * where a box grid never occurs), --font-mono-terminal is the one that leads
+ * with Menlo, because WebKit resolves ui-monospace to SF Mono, whose
+ * box-glyph ink undershoots the cell xterm derives — a 1px seam at every
+ * row boundary. The phone read --font-mono until GDK-1131, so the one
+ * surface where box drawing actually matters — a full-screen TUI on a
+ * 48-column phone grid — was the one still riding the seam the web had
+ * already stepped off.
  */
 export function fontFamily(read: (name: string) => string = readCssVar): string {
-  const terminal = read('--font-mono-terminal')
-  if (terminal) return terminal
-  const raw = read('--font-mono')
-  return raw || 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+  return terminalFontFamily(read)
 }
 
 /** Chrome colours only — ANSI palette stays the library default so a light

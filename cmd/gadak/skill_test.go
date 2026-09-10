@@ -343,6 +343,93 @@ func TestSkillInstallRefusesEditsMadeAfterOurInstall(t *testing.T) {
 	}
 }
 
+// TestSkillInstallUpdatesThroughSymlinkedDest — GDK-1520, the write half of
+// the --shape=symlink leg. A provider-style layout symlinks the dest at a
+// host's path to a canonical copy. The temp+rename write used to rename over
+// the *link*, leaving the provider pointing nowhere and the canonical copy
+// still stale — the update silently did nothing to what the host loads.
+func TestSkillInstallUpdatesThroughSymlinkedDest(t *testing.T) {
+	canonicalRoot := t.TempDir()
+	canonicalDest := filepath.Join(canonicalRoot, "gadak", "SKILL.md")
+	prev := []byte("---\nname: gadak\ndescription: the previous release's skill\n---\n\n# older body\n")
+	var seed bytes.Buffer
+	if err := installSkill(&seed, prev, canonicalDest, false, false); err != nil {
+		t.Fatalf("seed canonical copy: %v", err)
+	}
+
+	providerRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(providerRoot, "gadak"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(providerRoot, "gadak", "SKILL.md")
+	if err := os.Symlink(canonicalDest, link); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skipf("symlinks need a privilege this run lacks: %v", err)
+		}
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if err := installSkill(&buf, gadak.SkillMarkdown(), link, false, false); err != nil {
+		t.Fatalf("update through a symlinked dest must not need --force: %v\nout:\n%s", err, buf.String())
+	}
+	fi, err := os.Lstat(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("%s was replaced by a regular file (mode %o) — the provider layout is broken", link, fi.Mode().Perm())
+	}
+	got, err := os.ReadFile(link) // follows the link to the canonical copy
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, gadak.SkillMarkdown()) {
+		t.Errorf("the canonical copy behind the link was not updated (%d vs %d bytes)", len(got), len(gadak.SkillMarkdown()))
+	}
+	if !strings.Contains(buf.String(), "updated:") {
+		t.Errorf("expected updated:, got:\n%s", buf.String())
+	}
+}
+
+// TestSkillInstallCRLFConvertedCopyIsStillOurs — GDK-1520, the --autocrlf
+// leg. git with autocrlf=true rewrites the install the moment the repo
+// touches it. The next gadak must still read that copy as its own: current
+// content converted is a no-op, previous content converted is an update —
+// neither may demand --force.
+func TestSkillInstallCRLFConvertedCopyIsStillOurs(t *testing.T) {
+	dest := filepath.Join(t.TempDir(), "gadak", "SKILL.md")
+	prev := []byte("---\nname: gadak\ndescription: the previous release's skill\n---\n\n# older body\n")
+	var seed bytes.Buffer
+	if err := installSkill(&seed, prev, dest, false, false); err != nil {
+		t.Fatalf("seed previous release: %v", err)
+	}
+	if err := os.WriteFile(dest, []byte(strings.ReplaceAll(string(prev), "\n", "\r\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	if err := installSkill(&buf, gadak.SkillMarkdown(), dest, false, false); err != nil {
+		t.Fatalf("a CRLF conversion of gadak's own copy must upgrade without --force: %v", err)
+	}
+	if !strings.Contains(buf.String(), "updated:") {
+		t.Errorf("expected updated:, got:\n%s", buf.String())
+	}
+
+	// The freshly written current copy, converted again, is "already
+	// installed" — not a conflict, and not a rewrite.
+	if err := os.WriteFile(dest, []byte(strings.ReplaceAll(string(gadak.SkillMarkdown()), "\n", "\r\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	buf.Reset()
+	if err := installSkill(&buf, gadak.SkillMarkdown(), dest, false, false); err != nil {
+		t.Fatalf("a CRLF conversion of the current copy must be a no-op: %v", err)
+	}
+	if !strings.Contains(buf.String(), "already installed") {
+		t.Errorf("expected already installed, got:\n%s", buf.String())
+	}
+}
+
 func TestSkillInstallPrintNoWrite(t *testing.T) {
 	root := t.TempDir()
 	// dest under a path that does not exist yet
@@ -1195,6 +1282,39 @@ func TestSkillAutoSyncSkippedForSkillAndMCP(t *testing.T) {
 		}
 		if _, err := os.Stat(filepath.Join(gadakHome, skillAutoSyncStampName)); !os.IsNotExist(err) {
 			t.Errorf("%s: excluded command wrote the rate-limit stamp: %v", cmd, err)
+		}
+	}
+}
+
+// TestSkillAutoSyncSkippedForInitAndInstallCLI — GDK-1545. Those two commands
+// auto-install the skill themselves and print their own one line about it, so
+// the daily hook running first printed a second refusal beside it (measured
+// 2026-09-07: "skill: dev build — not syncing …" followed by "… not replacing
+// …"). They belong in the skip table for the same reason as skill: the line
+// the command itself prints is the one the user should see.
+func TestSkillAutoSyncSkippedForInitAndInstallCLI(t *testing.T) {
+	home := isolateHomeWithClaude(t)
+	gadakHome := t.TempDir()
+	t.Setenv("GADAK_HOME", gadakHome)
+	dest := skillDestUnder(home)
+	prev := []byte("---\nname: gadak\ndescription: the previous release's skill\n---\n\n# older body\n")
+
+	for _, cmd := range []string{"init", "install-cli"} {
+		autoSyncSeedStaleCopy(t, dest)
+		var buf bytes.Buffer
+		maybeAutoSyncSkill(&buf, cmd)
+		if buf.Len() != 0 {
+			t.Errorf("%s: the hook must stay silent — the command's own auto-install line is the one line, got:\n%s", cmd, buf.String())
+		}
+		got, err := os.ReadFile(dest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got, prev) {
+			t.Errorf("%s: skipped command rewrote the copy", cmd)
+		}
+		if _, err := os.Stat(filepath.Join(gadakHome, skillAutoSyncStampName)); !os.IsNotExist(err) {
+			t.Errorf("%s: skipped command wrote the rate-limit stamp: %v", cmd, err)
 		}
 	}
 }

@@ -67,6 +67,24 @@
   /** Log panels, so a live stream keeps its tail in view. */
   const logEls: Record<string, HTMLElement | undefined> = {}
 
+  /** The row whose Replace is armed for a second tap. Overwriting a file
+   *  gadak did not write is the one action here that discards user data, so
+   *  it asks twice — same shape as forgetting a paired host (GDK-1535). */
+  let replaceArmedId = $state<string | null>(null)
+  let replaceArmTimer: ReturnType<typeof setTimeout> | null = null
+
+  function onReplace(item: IntegrationItem): void {
+    if (replaceArmedId !== item.id) {
+      replaceArmedId = item.id
+      if (replaceArmTimer) clearTimeout(replaceArmTimer)
+      replaceArmTimer = setTimeout(() => (replaceArmedId = null), 3000)
+      return
+    }
+    if (replaceArmTimer) clearTimeout(replaceArmTimer)
+    replaceArmedId = null
+    void install(item, { force: true })
+  }
+
   const STATUS_LABEL: Record<IntegrationPillState, MessageKey> = {
     checking: 'settings.integrationChecking',
     running: 'settings.integrationRunning',
@@ -177,7 +195,7 @@
     if (el) el.scrollTop = el.scrollHeight
   }
 
-  async function install(item: IntegrationItem): Promise<void> {
+  async function install(item: IntegrationItem, opts?: { force?: boolean }): Promise<void> {
     const current = runs[item.id]
     if (current?.running || current?.foreignRunning || installBlocked(item)) return
     patchRun(item.id, {
@@ -189,7 +207,7 @@
       note: null,
     })
 
-    const started = await postInstall(item.id)
+    const started = await postInstall(item.id, fetch, opts)
     if ('failure' in started) {
       const { foreignRunning, noteKind } = startFailureOutcome(started.failure)
       // The previous run's log is left alone: nothing new ran, so erasing the
@@ -339,6 +357,22 @@
           >
             {t('settings.integrationRecheck')}
           </button>
+          {#if status === 'skill-conflict'}
+            <!-- Secondary on purpose: Install is the safe verb, and Replace is
+                 the destructive one, so it sits apart and asks twice — the
+                 label swap on the armed tap is the whole confirmation. -->
+            <button
+              type="button"
+              class={COPY_BTN}
+              disabled={busy || blocked}
+              onclick={() => onReplace(item)}
+              data-testid="integration-replace-{item.id}"
+            >
+              {replaceArmedId === item.id
+                ? t('settings.integrationReplaceConfirm')
+                : t('settings.integrationReplace')}
+            </button>
+          {/if}
         </div>
 
         {#if item.prerequisite && !item.prerequisite.ok}
@@ -352,8 +386,9 @@
 
         {#if status === 'skill-conflict'}
           <!-- The Install button cannot clear this one: gadak refuses to
-               overwrite a file it did not write, and the app has no --force to
-               offer. Say what the file is and where the way out is. -->
+               overwrite a file it did not write. Replace is the way out, and
+               the hint says which button does what rather than sending the
+               user to a terminal (GDK-1535). -->
           <p class="mt-1.5 text-micro leading-relaxed text-text-secondary" data-testid="integration-conflict-hint-{item.id}">
             {t('settings.integrationConflictHint')}
           </p>

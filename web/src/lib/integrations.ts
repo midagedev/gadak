@@ -505,11 +505,21 @@ export function startFailureOutcome(failure: InstallFailure): StartFailureOutcom
 /**
  * Start an install. Never throws: a dead socket is one of the outcomes the
  * card has to draw, not an exception for the click handler to swallow.
+ *
+ * `force` is the skill-replace action (GDK-1535): the server answers it by
+ * appending exactly one `--force` to the skill argv, which is the only way a
+ * file gadak did not write gets overwritten. Opt-in per request — the flag
+ * never rides along on an ordinary install.
  */
-export async function postInstall(id: string, fetchImpl: FetchLike = fetch): Promise<InstallStart> {
+export async function postInstall(
+  id: string,
+  fetchImpl: FetchLike = fetch,
+  opts?: { force?: boolean },
+): Promise<InstallStart> {
   let res: Response
   try {
-    res = await fetchImpl(installPath(id), { method: 'POST' })
+    const url = opts?.force ? `${installPath(id)}?force=1` : installPath(id)
+    res = await fetchImpl(url, { method: 'POST' })
   } catch {
     return { failure: 'unavailable', status: 0 }
   }

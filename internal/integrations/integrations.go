@@ -39,14 +39,6 @@ const (
 
 	// skillIDPrefix + a skillinstall client name is a skill row's id.
 	skillIDPrefix = "skill-"
-
-	// universalSkillClient is the one host offered whether or not it is
-	// already on the machine: ~/.agents is the shared root every
-	// agentskills.io host reads, so it is worth installing before any
-	// particular host is, and stays worth it afterwards. orca reaches the
-	// same conclusion from the other side — its per-agent table always
-	// includes the universal key so an unmapped agent still gets the skill.
-	universalSkillClient = "agents"
 )
 
 // skillRowID is the catalog id for one skill host.
@@ -141,6 +133,19 @@ func InstallArgs(id string) ([]string, bool) {
 
 // InstallArgsFor is InstallArgs with an explicit GOOS.
 func InstallArgsFor(id, goos string) ([]string, bool) {
+	return installArgs(id, goos, false)
+}
+
+// InstallArgsForce is the replace variant, for a skill row the classifier
+// called a conflict and the user answered the armed confirm on (GDK-1535):
+// the same argv with exactly one --force appended. --force is a skill-install
+// flag — for every other row this returns the plain argv unchanged, so a
+// stray force on the wire cannot turn any other install into an overwrite.
+func InstallArgsForce(id string) ([]string, bool) {
+	return installArgs(id, runtime.GOOS, true)
+}
+
+func installArgs(id, goos string, force bool) ([]string, bool) {
 	switch id {
 	case idCommandLineTool:
 		return []string{"install-cli"}, true
@@ -152,7 +157,7 @@ func InstallArgsFor(id, goos string) ([]string, bool) {
 	case idSkill:
 		// The pre-GDK-1513 id, kept working: it ran the default client and
 		// still does.
-		return skillInstallArgs(skillinstall.DefaultClient), true
+		return skillInstallArgs(skillinstall.DefaultClient, force), true
 	case idMCPClaude:
 		return []string{"mcp", "install", "claude"}, true
 	case idMCPClaudeDesktop:
@@ -160,7 +165,7 @@ func InstallArgsFor(id, goos string) ([]string, bool) {
 	default:
 		if name, found := strings.CutPrefix(id, skillIDPrefix); found {
 			if client, known := skillinstall.Lookup(name); known {
-				return skillInstallArgs(client.Name), true
+				return skillInstallArgs(client.Name, force), true
 			}
 		}
 		return nil, false
@@ -168,12 +173,17 @@ func InstallArgsFor(id, goos string) ([]string, bool) {
 }
 
 // skillInstallArgs is the argv for one host, and the only place the app
-// composes a skill install. Never --project: the app has no notion of the
-// working directory the user means. The integrations tab is a settings
-// surface; a project install belongs where the project is, which is a
-// terminal (GDK-1513).
-func skillInstallArgs(client string) []string {
-	return []string{"skill", "install", client}
+// composes a skill install. force appends the one --flag that lets the verb
+// replace a copy it did not write (GDK-1535) — nothing else here is flaggable.
+// Never --project: the app has no notion of the working directory the user
+// means. The integrations tab is a settings surface; a project install
+// belongs where the project is, which is a terminal (GDK-1513).
+func skillInstallArgs(client string, force bool) []string {
+	args := []string{"skill", "install", client}
+	if force {
+		args = append(args, "--force")
+	}
+	return args
 }
 
 func commandLineToolItem() Item {
@@ -235,14 +245,13 @@ func raycastItem() Item {
 // skillinstall.Present is the single owner of that signal, and it ignores the
 // .DS_Store a single Finder visit leaves behind.
 //
-// The .agents row is the exception and is always offered; see
-// universalSkillClient.
+// The .agents row is the exception (Client.Universal) and is always offered.
 func skillItems() []Item {
 	env := skillEnv()
 	content := skillContent()
 	items := make([]Item, 0, len(skillinstall.Clients()))
 	for _, client := range skillinstall.Clients() {
-		if client.Name != universalSkillClient && !client.Present(env) {
+		if !client.Universal && !client.Present(env) {
 			continue
 		}
 		items = append(items, skillItem(client, env, content))
@@ -254,8 +263,8 @@ func skillItems() []Item {
 func skillItem(client skillinstall.Client, env skillinstall.Env, content []byte) Item {
 	item := Item{
 		ID:      skillRowID(client.Name),
-		Title:   client.Label + " skill",
-		Command: "gadak " + strings.Join(skillInstallArgs(client.Name), " "),
+		Title:   client.CardLabel + " skill",
+		Command: "gadak " + strings.Join(skillInstallArgs(client.Name, false), " "),
 	}
 	dest, err := client.HomeDest(env)
 	if err != nil {
@@ -274,25 +283,12 @@ func skillItem(client skillinstall.Client, env skillinstall.Env, content []byte)
 		// answer as above: unknown, and let the command say why.
 		return item
 	}
-	item.Status = skillStatusWord(status)
+	item.Status = skillinstall.StatusWord(status)
 	// Every word except "missing" means a copy is there. "Installed" alone
 	// would call a three-release-old file current, which is the disagreement
 	// with `gadak doctor` this row exists to end (GDK-1514).
 	item.Installed = boolPtr(status != skillinstall.StatusMissing)
 	return item
-}
-
-// skillStatusWord renames the installer's "identical" to "current", the word
-// a report reads better with; the other three are already right.
-//
-// It is a copy of cmd/gadak/doctor.go's skillStatusWord because package main
-// cannot be imported. The words themselves are contract and live in
-// skillinstall; a StatusWord there would leave one owner (noted for the lead).
-func skillStatusWord(installStatus string) string {
-	if installStatus == skillinstall.StatusIdentical {
-		return "current"
-	}
-	return installStatus
 }
 
 // mcpClaudeItem is Claude Code's MCP row. Everything in it is Claude Code:

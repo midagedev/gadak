@@ -265,3 +265,29 @@ func TestMissingHomeIsReportedNotGuessed(t *testing.T) {
 		t.Errorf("--project should not need a home directory: %v", err)
 	}
 }
+
+// TestClientUniversalAndCardLabels — GDK-1534. The always-offered row and the
+// short card title were decided by a magic string and a Label+" skill"
+// concatenation at the call site; both belong to the table so a new host
+// cannot miss them.
+func TestClientUniversalAndCardLabels(t *testing.T) {
+	var universal []string
+	for _, c := range Clients() {
+		if c.Universal {
+			universal = append(universal, c.Name)
+		}
+		if c.CardLabel == "" {
+			t.Errorf("%s: no CardLabel — a card title would come out empty", c.Name)
+		}
+	}
+	if len(universal) != 1 || universal[0] != "agents" {
+		t.Errorf("Universal clients = %v, want exactly [agents] — the cross-host .agents convention", universal)
+	}
+	agents, ok := Lookup("agents")
+	if !ok {
+		t.Fatal("no agents client")
+	}
+	if agents.CardLabel == agents.Label {
+		t.Errorf("agents CardLabel = Label (%q) — the card title is what this field exists to shorten", agents.Label)
+	}
+}

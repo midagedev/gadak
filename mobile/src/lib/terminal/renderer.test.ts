@@ -183,8 +183,16 @@ describe('GDK-1131 — the terminal font stack comes from --font-mono-terminal',
     // advance-corrected CJK families to whatever it returned. The assertion
     // keeps its subject (the reader supplies the stack) and follows the
     // shape.
+    //
+    // GDK-1528 moved the token spelling itself into protocol.ts's
+    // terminalFontFamily (the one owner, web and phone — asserted from the
+    // web side in web/src/lib/terminal/protocol.test.ts), so the pin here
+    // follows the wrapper: the reader is still asked, the literal is still
+    // nowhere in this file. FAIL-first: this assertion was red against the
+    // moved source before the pin was rewritten.
     expect(rendererSrc).toContain('installCjkMetricFaces({ stack: fontFamily() })')
-    expect(rendererSrc).toContain("read('--font-mono-terminal')")
+    expect(rendererSrc).toContain('return terminalFontFamily(read)')
+    expect(rendererSrc).not.toContain("read('--font-mono-terminal')")
   })
 
   it('shares the CJK cell fit with the web renderer instead of copying it', () => {

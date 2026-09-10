@@ -562,10 +562,10 @@ import type { SettingsTab } from '../../lib/settings-tabs'
     const overall = issues.syncHealth?.overall
     const label =
       overall === 'failed'
-        ? t('sidebar.syncFailTitle')
+        ? t('sync.settledFailed')
         : overall === 'warning'
-          ? t('sidebar.syncDelayedTitle')
-          : t('sidebar.syncOk')
+          ? t('sync.stateDelayedTitle')
+          : t('sync.stateOk')
     const when = issues.lastSync ? formatTimeOfDay(issues.lastSync) : t('common.unknown')
     write.toast(t('palette.syncToast', { overall: label, when }), overall === 'failed' ? 'error' : 'info')
   }

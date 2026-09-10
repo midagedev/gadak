@@ -257,7 +257,7 @@ func TestSkillRowStatusPerState(t *testing.T) {
 	// receipt beside them proves gadak wrote them.
 	older := []byte("---\nname: gadak\ndescription: an older release\n---\n\nold body\n")
 	dir := writeSkill(t, home, ".claude", older)
-	if err := skillinstall.WriteReceipt(dir, skillinstall.Digest(older), "0.0.0-test"); err != nil {
+	if err := skillinstall.WriteReceipt(dir, older, "0.0.0-test"); err != nil {
 		t.Fatal(err)
 	}
 	if got := row(); got.Status != skillinstall.StatusStale || got.Installed == nil || !*got.Installed {
@@ -321,6 +321,38 @@ func TestInstallArgs(t *testing.T) {
 	}
 	if _, ok := InstallArgs("nope"); ok {
 		t.Fatal("unknown id must be false")
+	}
+}
+
+// TestInstallArgsForce — GDK-1535. A conflict skill row's Replace needs the
+// one flag the armed confirm bought; the plain verbs stay byte-identical so a
+// stray ?force=1 on the wire cannot turn any other install into an overwrite.
+func TestInstallArgsForce(t *testing.T) {
+	for _, id := range []string{idSkill, "skill-codex"} {
+		args, ok := InstallArgsForce(id)
+		if !ok {
+			t.Fatalf("%s: InstallArgsForce ok=false", id)
+		}
+		want, _ := InstallArgs(id)
+		if len(args) != len(want)+1 || args[len(args)-1] != "--force" {
+			t.Fatalf("%s force args=%v, want exactly one --force after %v", id, args, want)
+		}
+		for i := range want {
+			if args[i] != want[i] {
+				t.Fatalf("%s force args=%v reshaped %v", id, args, want)
+			}
+		}
+	}
+	// Every other row ignores the flag: same argv as the plain verb.
+	for _, id := range []string{idCommandLineTool, idMCPClaude, idMCPClaudeDesktop} {
+		forced, ok1 := InstallArgsForce(id)
+		plain, ok2 := InstallArgs(id)
+		if !ok1 || !ok2 || strings.Join(forced, " ") != strings.Join(plain, " ") {
+			t.Fatalf("%s: force=%v (%v), plain=%v (%v) — non-skill rows stay flagless", id, forced, ok1, plain, ok2)
+		}
+	}
+	if _, ok := InstallArgsForce("nope"); ok {
+		t.Fatal("unknown id must be false for the force variant too")
 	}
 }
 

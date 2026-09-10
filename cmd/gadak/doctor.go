@@ -734,7 +734,7 @@ func skillHostStatus(client skillinstall.Client, env skillinstall.Env, content [
 	if userErr == nil {
 		host.Path = tildeHome(userDest)
 		if status, existing, err := skillinstall.DestStatus(userDest, content); err == nil && status != skillinstall.StatusMissing {
-			host.Status = skillStatusWord(status)
+			host.Status = skillinstall.StatusWord(status)
 			addSkillReceiptFacts(&host, userDest, existing)
 			return host, true
 		}
@@ -744,7 +744,7 @@ func skillHostStatus(client skillinstall.Client, env skillinstall.Env, content [
 			if status, existing, err := skillinstall.DestStatus(projDest, content); err == nil && status != skillinstall.StatusMissing {
 				proj := doctorSkillHost{
 					Client: client.Name,
-					Status: skillStatusWord(status),
+					Status: skillinstall.StatusWord(status),
 					Scope:  "project",
 					Path:   client.ProjectRelDir(),
 				}
@@ -770,15 +770,6 @@ func addSkillReceiptFacts(host *doctorSkillHost, dest string, existing []byte) {
 	host.Source = r.SourceWord()
 	host.InstalledByVersion = r.GadakVersion
 	host.Revision = r.Revision
-}
-
-// skillStatusWord renames the installer's "identical" to the word a report
-// reads better with. The other three are already the right words.
-func skillStatusWord(installStatus string) string {
-	if installStatus == skillinstall.StatusIdentical {
-		return "current"
-	}
-	return installStatus
 }
 
 // formatDoctorSkill is the one summary line. With a single known host it is

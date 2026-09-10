@@ -592,6 +592,22 @@ GDK-645 のスイープに例外はなくなりました ([GDK-693])。スコー
 コミット済みのファイルに `contentless_delete=1` を持たせるとスナップショットの Datasette
 Lite 契約が壊れるので、その問いは数字とともに開けたままにしました ([GDK-1756])。
 
+CLI とスキルの表面から二重の語彙が減りました。スキルの状態語とカードラベルは `doctor` と
+統合の表にそれぞれ綴りがありましたが、いまは `internal/skillinstall` が両方を持ちます
+([GDK-1534])。アプリの統合タブは `--force` がないため衝突する導入を常に拒んでいましたが、
+Replace は二度尋ね — 二度目のタップで武装したボタン — argv はアプリと CLI がひとつの場所で
+組みます ([GDK-1535])。dev ビルドの最初の `init` は日次 auto-sync フックと導入自体からスキル
+拒否の行を二度出していましたが、いまは一行です ([GDK-1545])。スキルの受領証は CRLF の
+チェックアウトとシンボリックリンク先を越えて生き、内容が私たちのものであるファイルを
+私たちのものと認めます ([GDK-1520])。ターミナルのフォントファミリーは二つのレンダラーが
+別々に解いていましたが、`protocol.ts` が持ち、電話のレンダラーは委譲し、`app.css` にピンが
+付きました ([GDK-1528])。同期状態の文字列三系列 — サイドバー・鮮度チップ・sync — は
+バイト単位で同じ文言の `sync.*` 一系列になり、e2e の文字列は動きませんでした ([GDK-136])。
+残っていたトーストの句読点のずれは、イシューが書かれた当時の規則ではなく、その後 GDK-1588
+が反転させた現在の規則に揃えました ([GDK-1242])。メンションは `@3×` や `@media` を人として
+読まなくなり ([GDK-976])、組み込みトラッカーの行の `source: "jira"` は書き込みピッカーが
+それをキーにする保存スラグであると文書に記しました ([GDK-487])。
+
 ## v0.21.0 — 2026-09-08
 
 **離れていた間に何が起きたのかに、キャッシュから答えます。** ステータスの変更も
@@ -2282,3 +2298,12 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-25]: https://gadak.dev/backlog/#/?ks=GDK-25
 [GDK-1349]: https://gadak.dev/backlog/#/?ks=GDK-1349
 [GDK-1756]: https://gadak.dev/backlog/#/?ks=GDK-1756
+[GDK-1534]: https://gadak.dev/backlog/#/?ks=GDK-1534
+[GDK-1535]: https://gadak.dev/backlog/#/?ks=GDK-1535
+[GDK-1545]: https://gadak.dev/backlog/#/?ks=GDK-1545
+[GDK-1520]: https://gadak.dev/backlog/#/?ks=GDK-1520
+[GDK-1528]: https://gadak.dev/backlog/#/?ks=GDK-1528
+[GDK-136]: https://gadak.dev/backlog/#/?ks=GDK-136
+[GDK-1242]: https://gadak.dev/backlog/#/?ks=GDK-1242
+[GDK-976]: https://gadak.dev/backlog/#/?ks=GDK-976
+[GDK-487]: https://gadak.dev/backlog/#/?ks=GDK-487

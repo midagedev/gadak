@@ -8,6 +8,8 @@ import {
   DROPPED_REASONS,
   TERMINAL_ANSI_VARS,
   TERMINAL_CHROME_VARS,
+  TERMINAL_FONT_VARS,
+  terminalFontFamily,
   watchChromeVars,
 } from './protocol'
 
@@ -145,6 +147,74 @@ describe('GDK-1109 chrome-variable parity (protocol ⟷ app.css ⟷ renderers)',
       // (`chromeTheme(scope)`), so the argument list is open here.
       expect(src, `${path} must re-apply the chrome, not only read it once`).toMatch(
         /term\.options\.theme\s*=\s*chromeTheme\([^)]*\)/,
+      )
+    }
+  })
+})
+
+/*
+ * GDK-1528: the pane's font stack used to live as two whole copies — the
+ * resolution order, the token names, and the fallback literal — one in the
+ * web renderer, one in the phone's, byte-identical the day they were split
+ * and free to drift the next. The phone imports this module directly, so the
+ * chrome variable names already had their one owner here (GDK-1109) and the
+ * dropped-reason vocabulary before that (GDK-932); the font stack is the
+ * same shape of thing and now has the same home. These pins hold the owner
+ * against app.css and both renderers against the owner, exactly as the
+ * chrome list is held.
+ */
+describe('GDK-1528 font-stack ownership (protocol ⟷ app.css ⟷ renderers)', () => {
+  const HERE = dirname(fileURLToPath(import.meta.url))
+
+  // Same declaration-shaped scrape as the chrome parity above: names as
+  // app.css declares them, @theme and palette overrides alike.
+  const declared = (): Set<string> => {
+    const css = readFileSync(resolve(HERE, '../../app.css'), 'utf8')
+    const out = new Set<string>()
+    const re = /^[ \t]*(--[a-z0-9-]+)\s*:/gm
+    for (let m = re.exec(css); m !== null; m = re.exec(css)) out.add(m[1])
+    return out
+  }
+
+  test('every font variable the owner names is declared in app.css', () => {
+    const names = declared()
+    for (const [slot, name] of Object.entries(TERMINAL_FONT_VARS)) {
+      expect(
+        names.has(name),
+        `${slot} reads ${name}, which app.css no longer declares — update TERMINAL_FONT_VARS (protocol.ts is the list's one owner)`,
+      ).toBe(true)
+    }
+  })
+
+  test('the owner resolves terminal token → app face → literal, in that order', () => {
+    const both = terminalFontFamily(
+      (n) => (n === '--font-mono-terminal' ? 'Menlo, monospace' : 'ui-monospace, monospace'),
+    )
+    expect(both).toBe('Menlo, monospace')
+    const appOnly = terminalFontFamily(
+      (n) => (n === '--font-mono' ? 'ui-monospace, monospace' : ''),
+    )
+    expect(appOnly).toBe('ui-monospace, monospace')
+    // Units and jsdom ship no stylesheet: the literal is the whole stack.
+    expect(terminalFontFamily(() => '')).toBe(
+      'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+    )
+  })
+
+  test('both renderers resolve through the owner, not a re-spelled copy', () => {
+    for (const path of ['renderer.ts', '../../../../mobile/src/lib/terminal/renderer.ts']) {
+      const src = readFileSync(resolve(HERE, path), 'utf8')
+      expect(src, `${path} must resolve its font stack via terminalFontFamily`).toContain(
+        'terminalFontFamily',
+      )
+      // A token literal or the fallback stack re-spelled in a renderer is the
+      // drift this gate exists to catch — the two copies had already grown
+      // different doc comments when GDK-1528 found them.
+      expect(src, `${path} must not spell the font tokens itself`).not.toContain(
+        "'--font-mono-terminal'",
+      )
+      expect(src, `${path} must not re-spell the fallback stack`).not.toContain(
+        'SFMono-Regular, Menlo, Consolas',
       )
     }
   })

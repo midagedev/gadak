@@ -648,10 +648,22 @@ export const settings = {
     ko: '직접 만든 사본',
     ja: '自分で置いたコピー',
   },
+  // GDK-1535: the way out is a button now, so the hint names it instead of
+  // sending the user to a terminal. Replace asks twice before it overwrites.
   'settings.integrationConflictHint': {
-    en: 'The file there is not one gadak wrote, so installing will not overwrite it. Run the command with --force in a terminal to replace it.',
-    ko: 'gadak이 쓴 파일이 아니라서 설치해도 덮어쓰지 않습니다. 바꾸려면 터미널에서 --force를 붙여 실행하세요.',
-    ja: 'そこにあるのは gadak が書いたファイルではないため、インストールしても上書きしません。置き換えるにはターミナルで --force を付けて実行してください。',
+    en: 'The file there is not one gadak wrote, so Install leaves it alone. Replace overwrites it with this build’s copy.',
+    ko: 'gadak이 쓴 파일이 아니라서 설치는 건드리지 않습니다. 바꾸기를 누르면 이 빌드의 사본으로 덮어씁니다.',
+    ja: 'そこにあるのは gadak が書いたファイルではないため、インストールでは上書きしません。置き換えでこのビルドのコピーに上書きできます。',
+  },
+  'settings.integrationReplace': {
+    en: 'Replace',
+    ko: '바꾸기',
+    ja: '置き換え',
+  },
+  'settings.integrationReplaceConfirm': {
+    en: 'Tap again to replace',
+    ko: '다시 눌러 바꾸기',
+    ja: 'もう一度タップして置き換え',
   },
   'settings.integrationUnknown': {
     en: 'Status unknown',
@@ -1799,7 +1811,7 @@ export const settings = {
   'sync.done': {
     en: 'Sync finished · fetched {n} · changed {changed}',
     ko: '동기화 완료 · 가져옴 {n} · 변경 {changed}',
-    ja: '同期完了 · 取得 {n}件 · 変更 {changed}件',
+    ja: '同期完了 · 取得 {n}件 · 変更 {changed}件。',
   },
   'sync.failed': {
     en: 'Sync failed: {message}',
@@ -1882,5 +1894,131 @@ export const settings = {
     en: 'Checking sync',
     ko: '동기화 확인 중',
     ja: '同期を確認中',
+  },
+  /* ── Sync-state vocabulary (GDK-136). These moved here byte-identical
+     from sidebar.sync* and freshness.* — the sidebar dot, the freshness
+     chip, and the palette all ask one family now, where before the same
+     sentence lived three times under two other domains' prefixes and had
+     already scarred (sidebar.syncFailed vs sync.settledFailed). The failed
+     *title* needed no new key: sync.settledFailed above already held the
+     exact sentence the old sidebar.syncFailTitle spelled. ── */
+  'sync.stateOk': {
+    en: 'OK',
+    ko: '정상',
+    ja: '正常',
+  },
+  'sync.stateSyncing': {
+    en: 'Syncing',
+    ko: '동기화 중',
+    ja: '同期中',
+  },
+  'sync.stateOffHours': {
+    en: 'Waiting (outside business hours)',
+    ko: '업무시간 외 대기',
+    ja: '待機（営業時間外）',
+  },
+  'sync.stateWaiting': {
+    en: 'Waiting',
+    ko: '대기',
+    ja: '待機',
+  },
+  'sync.stateDelayed': {
+    en: 'Delayed',
+    ko: '지연',
+    ja: '遅延',
+  },
+  'sync.stateFailed': {
+    en: 'Failed',
+    ko: '실패',
+    ja: '失敗',
+  },
+  'sync.stateNoRecord': {
+    en: 'No record',
+    ko: '기록 없음',
+    ja: '記録なし',
+  },
+  'sync.stateDelayedTitle': {
+    en: 'Sync delayed',
+    ko: '동기화 지연',
+    ja: '同期遅延',
+  },
+  'sync.now': {
+    en: 'Sync now',
+    ko: '지금 동기화',
+    ja: '今すぐ同期',
+  },
+  'sync.history': {
+    // "Sync log", not "Sync history": the RECENT block three rows below has
+    // its own History door (visits, history.title), and one word for two
+    // things in one column read as one thing (2026-09-07, GDK-1493).
+    en: 'Sync log',
+    ko: '동기화 기록',
+    ja: '同期ログ',
+  },
+  'sync.historyTitle': {
+    en: 'Click for recent sync runs',
+    ko: '클릭하면 최근 동기화 내역을 보여줍니다',
+    ja: 'クリックすると最近の同期を表示します',
+  },
+  'sync.noHistory': {
+    en: 'No recorded runs yet — history keeps syncs that changed something.',
+    ko: '기록된 내역이 없습니다 — 변경이 있었던 동기화만 남습니다.',
+    ja: '記録された実行はまだありません — 何かが変わった同期だけが残ります。',
+  },
+  'sync.lastChecked': {
+    en: 'Last checked {when}',
+    ko: '마지막 확인 {when}',
+    ja: '最終確認 {when}',
+  },
+  // The freshness chip's own vocabulary (mirror ↔ tracker leg).
+  'sync.freshLabel': {
+    en: 'Mirror freshness',
+    ko: '미러 신선도',
+    ja: 'ミラーの鮮度',
+  },
+  'sync.freshTitle': {
+    en: 'Mirror pulled from {tracker} {when}. Click to sync now.',
+    ko: '{when} {tracker}에서 가져온 미러입니다. 클릭하면 지금 동기화합니다.',
+    ja: '{tracker} からミラーを {when} 取得しました。クリックで今すぐ同期します。',
+  },
+  'sync.freshLocalTitle': {
+    en: 'Mirror refreshed from the built-in tracker {when}. Click to sync now.',
+    ko: '내장 트래커에서 미러를 {when} 갱신했습니다. 클릭하면 지금 동기화합니다.',
+    ja: '内蔵トラッカーからミラーを {when} 更新しました。クリックで今すぐ同期します。',
+  },
+  'sync.staleTitle': {
+    en: 'Mirror is behind — last successful sync {when}. Click to sync now.',
+    ko: '미러가 지연됐습니다 — 마지막 성공 동기화 {when}. 클릭하면 지금 동기화합니다.',
+    ja: 'ミラーが遅れています — 最後の成功同期は {when}。クリックで今すぐ同期します。',
+  },
+  'sync.failedTitle': {
+    en: 'Last sync failed: {message}\nClick to retry.',
+    ko: '마지막 동기화 실패: {message}\n클릭하면 재시도합니다.',
+    ja: '最後の同期に失敗しました: {message}\nクリックで再試行します。',
+  },
+  'sync.neverTitle': {
+    en: 'The mirror has never synced. Click to sync now.',
+    ko: '미러가 아직 한 번도 동기화되지 않았습니다. 클릭하면 지금 동기화합니다.',
+    ja: 'ミラーはまだ一度も同期していません。クリックで今すぐ同期します。',
+  },
+  'sync.tokenExpiring': {
+    en: 'Token expires in {n} days',
+    ko: '토큰이 {n}일 후 만료',
+    ja: 'トークンは {n} 日後に期限切れ',
+  },
+  'sync.tokenExpiringOne': {
+    en: 'Token expires in 1 day',
+    ko: '토큰이 1일 후 만료',
+    ja: 'トークンは 1 日後に期限切れ',
+  },
+  'sync.tokenExpiringToday': {
+    en: 'Token expires today',
+    ko: '토큰이 오늘 만료',
+    ja: 'トークンは今日期限切れ',
+  },
+  'sync.tokenExpired': {
+    en: 'API token expired',
+    ko: 'API 토큰 만료됨',
+    ja: 'API token の期限切れ',
   },
 } as const satisfies Record<string, Message>

@@ -193,6 +193,38 @@ export const TERMINAL_ANSI_VARS = {
 export type TerminalAnsiSlot = keyof typeof TERMINAL_ANSI_VARS
 
 /*
+ * The pane's font stack, names and resolution both (GDK-1528). Until here the
+ * whole function lived twice — web/src/lib/terminal/renderer.ts and
+ * mobile/src/lib/terminal/renderer.ts each carried the order, the token
+ * names, and the fallback literal — byte-identical copies that existed only
+ * because the phone cannot import the web renderer. This module is the one
+ * both already import, so the chrome variable names beat the font stack to
+ * this home by nineteen issues (GDK-1109); this closes the same gap for the
+ * stack. The reader stays injectable: each renderer hands its own cssVar
+ * wrapper, because the web pane reads tokens off its dock scope (GDK-1357)
+ * while the phone reads the document root.
+ */
+
+/** Font tokens by role: the terminal's own face first, then the app-wide
+ *  mono it falls back to. Declared in app.css under every palette. */
+export const TERMINAL_FONT_VARS = {
+  terminal: '--font-mono-terminal',
+  app: '--font-mono',
+} as const
+
+/** The stack when no stylesheet has loaded at all (unit runs, jsdom). Menlo
+ *  joins the 16css cell by overshoot where SF Mono undershoots — the
+ *  GDK-1043 story, kept whole in the renderers' own notes. */
+export const TERMINAL_FONT_FALLBACK = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+
+/** Terminal token wins, then the app-wide face, then the literal. */
+export function terminalFontFamily(read: (name: string) => string): string {
+  const terminal = read(TERMINAL_FONT_VARS.terminal)
+  if (terminal) return terminal
+  return read(TERMINAL_FONT_VARS.app) || TERMINAL_FONT_FALLBACK
+}
+
+/*
  * When those variables move, and who notices (GDK-1156).
  *
  * The names having one owner was not enough: both renderers read them once,

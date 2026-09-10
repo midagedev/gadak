@@ -291,8 +291,8 @@ export const write = {
   },
   'write.commentPosted': {
     en: 'Posted comment on {key}',
-    ko: '{key}에 코멘트를 등록했습니다',
-    ja: '{key} にコメントを投稿しました',
+    ko: '{key}에 코멘트를 등록했습니다.',
+    ja: '{key} にコメントを投稿しました。',
   },
   'write.attachFailed': {
     en: 'Attachment upload failed: {name}',
@@ -300,9 +300,9 @@ export const write = {
     ja: '添付のアップロードに失敗しました: {name}',
   },
   'write.credSaved': {
-    en: 'Jira credentials saved',
-    ko: 'Jira 자격증명을 저장했습니다',
-    ja: 'Jira 資格情報を保存しました',
+    en: 'Jira credentials saved.',
+    ko: 'Jira 자격증명을 저장했습니다.',
+    ja: 'Jira 資格情報を保存しました。',
   },
   'write.credSaveFailed': {
     en: 'Could not save credentials.',
@@ -310,9 +310,9 @@ export const write = {
     ja: '資格情報を保存できませんでした。',
   },
   'write.credDeleted': {
-    en: 'Jira credentials deleted',
-    ko: 'Jira 자격증명을 삭제했습니다',
-    ja: 'Jira 資格情報を削除しました',
+    en: 'Jira credentials deleted.',
+    ko: 'Jira 자격증명을 삭제했습니다.',
+    ja: 'Jira 資格情報を削除しました。',
   },
   'write.credDeleteFailed': {
     en: 'Could not delete credentials.',

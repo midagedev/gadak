@@ -238,9 +238,13 @@ describe('catalog contracts', () => {
   })
 
   test('every catalog key is referenced or sits under a dynamic prefix', () => {
+    // The scan reads every source file under web/src, e2e and mobile/src —
+    // thousands of reads that fit the default timeout standalone but not
+    // under the full suite's parallel workers (measured 5.8s, limit 5s). The
+    // assertion is unchanged; only the budget reflects the walk it pays for.
     const unused = unusedCatalogKeys()
     expect(unused, unused.join('\n')).toEqual([])
-  })
+  }, 30_000)
 
   test('each status category has exactly one catalog key', () => {
     // category.inProgressSpaced was a second in-progress string. The owner is
@@ -253,6 +257,21 @@ describe('catalog contracts', () => {
       })
       expect(keys, `aliases of category.${cat}`).toEqual([`category.${cat}`])
     }
+  })
+
+  test('sync-status strings live in the sync.* family only (GDK-136)', () => {
+    // sidebar.sync* and freshness.* were second and third copies of the
+    // sync-status vocabulary under other domains' prefixes — byte-identical
+    // strings that had already scarred once (sidebar.syncFailed vs
+    // sync.settledFailed disagreeing in shape when one was reworded). One
+    // family is the containment: a sync-state sentence goes under sync.*,
+    // not into a component-local prefix. The render-side tripwire is
+    // e2e/freshness.spec.ts's exact-string assertions — the move must keep
+    // them green, which is why this gate keys on names, not values.
+    const strays = Object.keys(en).filter(
+      (k) => k.startsWith('freshness.') || k.startsWith('sidebar.sync'),
+    )
+    expect(strays, strays.map((k) => `${k} = ${en[k as MessageKey]}`).join('\n')).toEqual([])
   })
 
   test('Korean catalog has no competing spelling of settled terms', () => {
@@ -564,15 +583,28 @@ describe('GDK-1588 toast copy ends the same way in every locale', () => {
   // A toast ends in a sentence terminator, an ellipsis (something is still
   // running), or an interpolation / closing paren (the value is the tail).
   const TERMINAL = /(?:[.!?…。]|\}|[)）])$/
-  test('every write.toast(t(key)) key ends in a terminator, ellipsis, or value in en, ko and ja', () => {
+  // GDK-1242 re-measure: the surface has three call spellings — write.toast
+  // from components, this.toast inside the store, say in sync-now — and the
+  // original derivation only read the first, so keys the store raised itself
+  // sat outside the contract (write.credSaved et al. ended bare while their
+  // siblings terminated). All three spellings now feed the same set.
+  // A key that is ALSO a status label somewhere renders as that label first
+  // — a period on a pill is the wrong glyph — and is listed here with its
+  // other consumer instead.
+  const TOAST_LABEL_TWINS = new Map<string, string>([
+    ['sync.settledFailed', 'status word: palette label + mirror-status verdict line, not only say()'],
+  ])
+  test('every toast key, however spelled, ends in a terminator, ellipsis, or value in en, ko and ja', () => {
     const keys = new Set<string>()
     for (const file of walkSourceFiles(WEB_SRC)) {
       const src = readFileSync(file, 'utf8')
-      for (const m of src.matchAll(/write\.toast\(\s*t\(\s*'([^']+)'/g)) keys.add(m[1])
+      for (const m of src.matchAll(/(?:write|this)\.toast\(\s*t\(\s*'([^']+)'/g)) keys.add(m[1])
+      for (const m of src.matchAll(/\bsay\(\s*t\(\s*'([^']+)'/g)) keys.add(m[1])
     }
     expect(keys.size).toBeGreaterThan(20)
     const failures: string[] = []
     for (const key of [...keys].sort()) {
+      if (TOAST_LABEL_TWINS.has(key)) continue
       for (const [locale, table] of [['en', en], ['ko', ko], ['ja', ja]] as const) {
         const text = (table as Record<string, string>)[key]
         if (text === undefined) continue // catalog completeness is another test's job

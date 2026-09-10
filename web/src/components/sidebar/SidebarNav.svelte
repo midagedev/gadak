@@ -134,13 +134,13 @@
   })
 
   const STATUS_LABEL: Record<string, string> = {
-    healthy: t('sidebar.syncOk'),
-    running: t('sidebar.syncing'),
-    paused: t('sidebar.syncOffHours'),
-    idle: t('sidebar.syncWaiting'),
-    stale: t('sidebar.syncDelayed'),
-    failed: t('sidebar.syncFailed'),
-    missing: t('sidebar.syncNoRecord'),
+    healthy: t('sync.stateOk'),
+    running: t('sync.stateSyncing'),
+    paused: t('sync.stateOffHours'),
+    idle: t('sync.stateWaiting'),
+    stale: t('sync.stateDelayed'),
+    failed: t('sync.stateFailed'),
+    missing: t('sync.stateNoRecord'),
   }
 
   function relativeSync(value: string | null): string {
@@ -203,7 +203,7 @@
     if (!historyLastCheckedAt) return ''
     const when = relativeTime(historyLastCheckedAt, 'long')
     if (!when) return ''
-    return t('sidebar.syncLastChecked', { when })
+    return t('sync.lastChecked', { when })
   })
 
   let deleteArmedId = $state<string | null>(null)
@@ -561,15 +561,15 @@
       <button
         type="button"
         class="ml-1 inline-flex items-center gap-1 rounded px-0.5 text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
-        title={[syncTitle || syncLabel, t('sidebar.syncHistoryTitle')].filter(Boolean).join('\n')}
-        aria-label={t('sidebar.syncHistory')}
+        title={[syncTitle || syncLabel, t('sync.historyTitle')].filter(Boolean).join('\n')}
+        aria-label={t('sync.history')}
         aria-expanded={historyOpen}
         data-testid="sidebar-sync-now"
         data-state={issues.mirrorBusy ? 'syncing' : 'idle'}
         onclick={() => void toggleHistory()}
       >
         <span class="h-1.5 w-1.5 flex-none rounded-full {syncDot}" aria-hidden="true"></span>
-        {t('sidebar.syncHistory')}
+        {t('sync.history')}
       </button>
       {#if historyOpen}
         <div
@@ -577,7 +577,7 @@
           data-testid="sync-history-popover"
         >
           <div class="px-2 py-1 text-micro font-medium text-text-muted">
-            {t('sidebar.syncHistory')}
+            {t('sync.history')}
           </div>
           {#if historyLastCheckedLine}
             <div
@@ -606,7 +606,7 @@
           {#if historyLoading}
             <div class="px-2 py-2 text-micro text-text-muted">{t('common.searching')}</div>
           {:else if historyRuns.length === 0}
-            <div class="px-2 py-2 text-micro text-text-muted">{t('sidebar.syncNoHistory')}</div>
+            <div class="px-2 py-2 text-micro text-text-muted">{t('sync.noHistory')}</div>
           {:else}
             <div class="max-h-64 overflow-y-auto">
               {#each historyRuns as run (run.started_at + run.kind)}
@@ -648,7 +648,7 @@
                 void runSyncNow('incremental')
               }}
             >
-              {t('sidebar.syncNow')}
+              {t('sync.now')}
             </button>
           </div>
         </div>

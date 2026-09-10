@@ -214,7 +214,8 @@ describe('GDK-460: the busy sentence is the chip\'s, the sidebar row is sync his
       nav.indexOf('</button>', nav.indexOf('data-testid="sidebar-sync-now"')),
     )
     // Visible text is the log entry; syncLabel may ride the tooltip only.
-    expect(button).toMatch(/\{t\('sidebar\.syncHistory'\)\}/)
+    // The key moved to the sync.* family (GDK-136) — same sentence, new home.
+    expect(button).toMatch(/\{t\('sync\.history'\)\}/)
     expect(button).not.toMatch(/\{syncLabel\}/)
     expect(button).not.toMatch(/\{mirrorLabel\(\)\}/)
   })

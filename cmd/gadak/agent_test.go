@@ -2770,6 +2770,26 @@ func TestMentionSitesSkipsNonPeople(t *testing.T) {
 		// The at-rule test is on the @-glued identifier only: a plain mention
 		// whose sentence later says "media" stays a live site.
 		{"name next to an at-rule word", "@Dana reviews the media query", [][]string{{"Dana", "Dana reviews", "Dana reviews the"}}},
+		// GDK-976: a pixel-density notation glued after an @ is technical
+		// data, never an account name — the runes after it (× and the closing
+		// paren) are not in any name alphabet. Same trade as the classes
+		// above: dropping the site leaves plain text, which is what it was.
+		{"pixel density, observed", "... 1206×2622 PNG(402×874 @3×) looks crisp", nil},
+		{"pixel density, mid-sentence", "cap the shot at @3× density", nil},
+		// The name alphabet carries @ and + so the email provision (GDK-510)
+		// still has a site to resolve — pinned here beside the density rows
+		// because the filter is exactly where the two could collide.
+		{"email stays a site", "cc @dana@example.com on the fix", [][]string{{"dana@example.com", "dana@example.com on", "dana@example.com on the"}}},
+		// ASCII @2x is letters-and-digits all the way, so it stays a live
+		// site — pinned here as the known residual. The issue's own out: the
+		// warning is accurate and the mention is left as typed, so keeping
+		// the search for a handle that could be real is the safe direction.
+		{"pixel density, ascii survives", "render at @2x scale", [][]string{{"2x", "2x scale"}}},
+		// Names outside ASCII are why the filter is a rune class, not a
+		// letters-of-the-English-alphabet check: a Korean display name is a
+		// first-class mention here.
+		{"Korean display name", "이번 화면은 @김철수 담당 입니다", [][]string{{"김철수", "김철수 담당", "김철수 담당 입니다"}}},
+		{"digits in a name", "@J2 가 결제 확인했습니다", [][]string{{"J2", "J2 가", "J2 가 결제"}}},
 		// Third candidate keeps the code span because wordEndOffsets only
 		// breaks at whitespace or a word-initial `@` — fine: the search for
 		// "Dana and `@Dana`" can't contain-match anyone (GDK-894 filter).

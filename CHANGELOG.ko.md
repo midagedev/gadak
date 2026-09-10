@@ -552,6 +552,21 @@ vitest 의 가짜 타이머 열 케이스로 내려가 규칙 가족마다 스�
 설계된 수선 경로입니다. 커밋된 파일에 `contentless_delete=1` 을 넣으면 스냅숏의
 Datasette Lite 계약이 깨지므로 그 질문은 숫자와 함께 열어 두었습니다 ([GDK-1756]).
 
+CLI 와 스킬 표면에서 두 벌짜리 어휘가 줄었습니다. 스킬의 상태 단어와 카드 라벨은 `doctor`
+와 통합 표에 철자가 하나씩 있었는데 이제 `internal/skillinstall` 이 둘 다 소유합니다
+([GDK-1534]). 앱의 통합 탭은 `--force` 가 없어 충돌하는 설치를 늘 거절했는데, Replace 는 두
+번 묻고 — 두 번째 탭에서 무장된 버튼 — argv 는 앱과 CLI 가 한 자리에서 만듭니다
+([GDK-1535]). dev 빌드의 첫 `init` 은 일일 auto-sync 훅과 설치 자체에서 스킬 거절 줄을 두
+번 찍었는데 이제 한 줄입니다 ([GDK-1545]). 스킬 영수증은 CRLF 체크아웃과 심링크된 목적지를
+견뎌, 내용이 우리 것인 파일은 우리 것으로 알아봅니다 ([GDK-1520]). 터미널 폰트 패밀리는
+렌더러 둘에서 각자 해석했는데 `protocol.ts` 가 소유하고 폰 렌더러는 위임하며 `app.css` 에
+핀이 붙었습니다 ([GDK-1528]). 동기화 상태 문자열 세 계열 — 사이드바·신선도 칩·sync — 은
+바이트까지 같은 글자의 `sync.*` 한 계열이 되어 e2e 문자열은 움직이지 않았고 ([GDK-136]),
+남은 토스트 문장부호 이탈은 이슈가 쓰인 당시 규칙이 아니라 그 뒤 GDK-1588 이 뒤집은 현재
+규칙에 맞췄습니다 ([GDK-1242]). 멘션은 `@3×` 나 `@media` 를 사람으로 읽지 않고 ([GDK-976]),
+내장 트래커 행의 `source: "jira"` 는 쓰기 픽커가 그것을 키로 쓰는 저장 슬러그라는 사실을
+문서에 적었습니다 ([GDK-487]).
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -2164,3 +2179,12 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-25]: https://gadak.dev/backlog/#/?ks=GDK-25
 [GDK-1349]: https://gadak.dev/backlog/#/?ks=GDK-1349
 [GDK-1756]: https://gadak.dev/backlog/#/?ks=GDK-1756
+[GDK-1534]: https://gadak.dev/backlog/#/?ks=GDK-1534
+[GDK-1535]: https://gadak.dev/backlog/#/?ks=GDK-1535
+[GDK-1545]: https://gadak.dev/backlog/#/?ks=GDK-1545
+[GDK-1520]: https://gadak.dev/backlog/#/?ks=GDK-1520
+[GDK-1528]: https://gadak.dev/backlog/#/?ks=GDK-1528
+[GDK-136]: https://gadak.dev/backlog/#/?ks=GDK-136
+[GDK-1242]: https://gadak.dev/backlog/#/?ks=GDK-1242
+[GDK-976]: https://gadak.dev/backlog/#/?ks=GDK-976
+[GDK-487]: https://gadak.dev/backlog/#/?ks=GDK-487
