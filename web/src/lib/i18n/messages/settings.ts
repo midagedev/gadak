@@ -77,9 +77,9 @@ export const settings = {
     ja: 'X の @midagedev',
   },
   'settings.intro': {
-    en: 'Choose what this workspace mirrors, how often it syncs, and which features are on. Saving re-reads this window.',
-    ko: '이 워크스페이스가 미러링할 대상, 동기화 주기, 켤 기능을 정합니다. 저장하면 이 창을 다시 읽습니다.',
-    ja: 'このワークスペースがミラーする対象、同期の頻度、オンにする機能を選びます。保存するとこのウィンドウを再読み込みします。',
+    en: 'Choose what this workspace syncs, how often, and which features are on. Saving re-reads this window.',
+    ko: '이 워크스페이스가 무엇을 동기화할지, 얼마나 자주 할지, 어떤 기능을 켤지 정합니다. 저장하면 이 창을 다시 읽습니다.',
+    ja: 'このワークスペースが何を同期するか、その頻度、オンにする機能を選びます。保存するとこのウィンドウを再読み込みします。',
   },
   'settings.loadFailed': {
     en: 'Could not load settings. Close and reopen.',
@@ -102,9 +102,9 @@ export const settings = {
     ja: 'JSON の解析エラー — 直すと保存が再び有効になります。',
   },
   'settings.projects': {
-    en: 'Project keys to mirror (comma-separated)',
-    ko: '미러링할 프로젝트 키 (콤마 구분)',
-    ja: 'ミラーするプロジェクトキー（カンマ区切り）',
+    en: 'Project keys to sync (comma-separated)',
+    ko: '동기화할 프로젝트 키 (콤마 구분)',
+    ja: '同期するプロジェクトキー（カンマ区切り）',
   },
   'settings.projectsManual': {
     en: 'The project list could not be read from the site, so keys are entered by hand here.',
@@ -117,14 +117,14 @@ export const settings = {
     ja: 'Jira プロジェクト',
   },
   'settings.sourcesProjectsHint': {
-    en: 'Only these projects are mirrored.',
-    ko: '선택한 프로젝트만 미러링합니다.',
-    ja: 'これらのプロジェクトだけをミラーします。',
+    en: 'Only these projects are synced.',
+    ko: '선택한 프로젝트만 동기화합니다.',
+    ja: 'これらのプロジェクトだけを同期します。',
   },
   'settings.sourcesNoProjects': {
-    en: 'Nothing selected — every project this account can see is mirrored.',
-    ko: '선택 없음 — 이 계정이 볼 수 있는 모든 프로젝트가 미러링됩니다.',
-    ja: '未選択 — このアカウントが見られるすべてのプロジェクトをミラーします。',
+    en: 'Nothing selected — every project this account can see is synced.',
+    ko: '선택 없음 — 이 계정이 볼 수 있는 모든 프로젝트를 동기화합니다.',
+    ja: '未選択 — このアカウントが見られるすべてのプロジェクトを同期します。',
   },
   'settings.confluenceTitle': {
     en: 'Confluence',
@@ -132,14 +132,14 @@ export const settings = {
     ja: 'Confluence',
   },
   'settings.confluenceOffHint': {
-    en: 'Off for this workspace — no document is mirrored. Choose spaces below to start, or turn it on for every team space.',
-    ko: '이 워크스페이스에서는 꺼져 있어 위키 문서가 미러링되지 않습니다. 아래에서 스페이스를 고르면 시작되고, 팀 스페이스 전체로 켤 수도 있습니다.',
-    ja: 'このワークスペースではオフです — ドキュメントはミラーされません。下でスペースを選ぶか、すべてのチームスペースでオンにしてください。',
+    en: 'Off for this workspace — no document is synced. Choose spaces below to start, or turn it on for every team space.',
+    ko: '이 워크스페이스에서는 꺼져 있어 위키 문서를 받아오지 않습니다. 아래에서 스페이스를 고르면 시작되고, 팀 스페이스 전체로 켤 수도 있습니다.',
+    ja: 'このワークスペースではオフです — ドキュメントは同期されません。下でスペースを選ぶか、すべてのチームスペースでオンにしてください。',
   },
   'settings.confluenceOnHint': {
-    en: 'Documents are mirrored alongside issues.',
-    ko: '위키 문서가 이슈와 함께 미러링됩니다.',
-    ja: 'ドキュメントは課題と一緒にミラーされます。',
+    en: 'Documents are synced alongside issues.',
+    ko: '위키 문서가 이슈와 함께 동기화됩니다.',
+    ja: 'ドキュメントは課題と一緒に同期されます。',
   },
   'settings.confluenceTurnOnCount': {
     en: 'Turn on for {n} spaces',
@@ -152,9 +152,9 @@ export const settings = {
     ja: 'すべてのチームスペースでオン',
   },
   'settings.confluenceTurnOnAllConfirm': {
-    en: 'Click again to mirror every team space',
-    ko: '한 번 더 누르면 모든 팀 스페이스를 미러링합니다',
-    ja: 'もう一度クリックするとすべてのチームスペースをミラーします',
+    en: 'Click again to sync every team space',
+    ko: '한 번 더 누르면 모든 팀 스페이스를 동기화합니다',
+    ja: 'もう一度クリックするとすべてのチームスペースを同期します',
   },
   'settings.confluenceTurnOff': {
     en: 'Turn off',
@@ -162,9 +162,9 @@ export const settings = {
     ja: 'オフにする',
   },
   'settings.confluenceAllWarning': {
-    en: 'No space selected: every team (global) space will be mirrored to disk. Personal spaces are mirrored only when named.',
+    en: 'No space selected: every team (global) space will be synced to this computer. Personal spaces are synced only when named.',
     ko: '선택한 스페이스가 없습니다. 모든 팀(global) 스페이스가 디스크로 내려옵니다. 개인 스페이스는 직접 지정할 때만 포함됩니다.',
-    ja: 'スペース未選択: すべてのチーム（global）スペースがディスクにミラーされます。個人スペースは名前を指定したときだけです。',
+    ja: 'スペース未選択: すべてのチーム（global）スペースをこのコンピュータに同期します。個人スペースは名前を指定したときだけです。',
   },
   'settings.sourcesSpaces': {
     en: 'Confluence spaces',
@@ -172,19 +172,19 @@ export const settings = {
     ja: 'Confluence スペース',
   },
   'settings.sourcesSpacesHint': {
-    en: 'Only these spaces are mirrored.',
-    ko: '선택한 스페이스만 미러링합니다.',
-    ja: 'これらのスペースだけをミラーします。',
+    en: 'Only these spaces are synced.',
+    ko: '선택한 스페이스만 동기화합니다.',
+    ja: 'これらのスペースだけを同期します。',
   },
   'settings.sourcesAllGlobal': {
-    en: 'Nothing selected — every team (global) space is mirrored.',
-    ko: '선택 없음 — 모든 팀(global) 스페이스를 미러링합니다.',
-    ja: '未選択 — すべてのチーム（global）スペースをミラーします。',
+    en: 'Nothing selected — every team (global) space is synced.',
+    ko: '선택 없음 — 모든 팀(global) 스페이스를 동기화합니다.',
+    ja: '未選択 — すべてのチーム（global）スペースを同期します。',
   },
   'settings.sourcesNoSpaces': {
-    en: 'Nothing selected — no document is mirrored.',
-    ko: '선택 없음 — 미러링되는 문서가 없습니다.',
-    ja: '未選択 — ドキュメントはミラーされません。',
+    en: 'Nothing selected — no document is synced.',
+    ko: '선택 없음 — 동기화되는 문서가 없습니다.',
+    ja: '未選択 — ドキュメントは同期されません。',
   },
   'settings.showPersonalSpaces': {
     en: 'Show personal spaces',

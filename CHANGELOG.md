@@ -877,6 +877,13 @@ locales fits the 402px document row on one line, so the row is not clamped
 ([GDK-1551]), and the secure-storage plugin stays because no maintained
 keychain alternative exists yet ([GDK-1136]).
 
+The settings window's Sources tab stopped saying "mirror" to the person
+reading it: project and space hints, the Confluence on/off lines and the
+confirm button say sync in all three languages, and the warning about every
+team space names this computer rather than a disk ([GDK-1286]). The
+built-in tracker's display name was already Built-in on every surface the
+audit listed, so that item closed without a change ([GDK-1285]).
+
 Under 900 pixels there is one narrow regime. The sidebar's narrow width was
 redeclared in five places under a 760-pixel media query, so an 800-pixel
 window kept a 272-pixel sidebar and squeezed the list into what was left;

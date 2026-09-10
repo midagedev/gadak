@@ -405,7 +405,7 @@ test.describe('documents in the daily loop', () => {
     // Turning it on for every team space is the unscoped case: first click
     // arms (JiraKeySettings deleteArmed), second click commits (GDK-476).
     await turnOn.click()
-    await expect(turnOn).toHaveText('Click again to mirror every team space')
+    await expect(turnOn).toHaveText('Click again to sync every team space')
     await expect(confluence.getByTestId('confluence-all-warning')).toHaveCount(0)
     await turnOn.click()
     await expect(confluence.getByTestId('confluence-all-warning')).toBeVisible()
