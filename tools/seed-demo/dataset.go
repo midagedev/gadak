@@ -27,6 +27,11 @@ type SeedIssue struct {
 	AssigneeSlot *int       `json:"assignee_slot"`
 	Comments     []string   `json:"comments"`
 	Links        []SeedLink `json:"links"`
+	// Ref is this issue's stable local symbol for the docs half of the seed
+	// (GDK-45): a --data run with --refmap writes ref → real key, and the
+	// --docs run substitutes {{ref:…}} tokens against that map. Empty (the
+	// default, and every line of the committed dataset) means "no symbol".
+	Ref string `json:"ref,omitempty"`
 }
 
 // SeedLink targets another issue by index into the same issues array.

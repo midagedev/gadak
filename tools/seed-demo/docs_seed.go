@@ -10,12 +10,32 @@ import (
 )
 
 // seedDocs loads a wiki dataset and creates Confluence spaces, pages, and
-// comments. dry prints a plan and never hits the network.
-func (c *Client) seedDocs(path string, dry bool) int {
+// comments. dry prints a plan and never hits the network. refmapPath (GDK-45)
+// names the symbol → issue-key map written by a previous --data run; the
+// dataset's {{ref:…}} tokens are substituted against it before anything is
+// planned or created, so an unresolved token fails here, offline, not halfway
+// through a live site.
+func (c *Client) seedDocs(path, refmapPath string, dry bool) int {
 	data, err := loadDocsDataset(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR load docs dataset: %v\n", err)
 		return 1
+	}
+	var refs map[string]string
+	if refmapPath != "" {
+		refs, err = loadRefMap(refmapPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR refmap: %v\n", err)
+			return 1
+		}
+	}
+	resolved, err := resolveDocsRefs(data, refs)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR refs: %v\n", err)
+		return 1
+	}
+	if resolved > 0 {
+		fmt.Printf("refs: resolved %d symbol(s)\n", resolved)
 	}
 	return c.seedDocsData(data, dry)
 }

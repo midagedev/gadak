@@ -1,6 +1,6 @@
 .PHONY: build test vet typecheck theme-check bench scan docker plugins-test \
 	media media-web media-search media-agent media-groupby media-scale media-sprint media-retro media-mcp media-prep media-deps \
-	media-fixture media-hero-sprint-retro brand demo-fixture demo-fixture-check \
+	media-fixture media-hero-sprint-retro brand demo-enrich demo-fixture demo-fixture-check \
 	hosted-demo hosted-demo-test
 
 build:
@@ -36,6 +36,15 @@ theme-check:
 # `go test ./internal/store -run TestCommittedDemoDBMatchesCurrentSchema`;
 # this target does not claim to land "the current schema" by itself.
 # `bash scripts/demo-schema.sh` prints the stamp + row counts.
+#
+# demo-enrich is the reviewable form of "edit examples/demo-source.db" for the
+# fixture-only relations that never existed on the live site (GDK-1755 /
+# GDK-114: dev-panel PRs, a Cloners link, a wiki-URL page ref). Upserts, fixed
+# ids, and a verify pass — rerunnable, so demo-fixture-check's byte-identity
+# holds. Run before demo-fixture when changing what it seeds; the committed
+# demo-source.db already carries the result.
+demo-enrich:
+	go run ./tools/demo-enrich
 demo-fixture:
 	bash scripts/demo-fixture.sh
 	# The browsing history that accompanies the mirror (GDK-1720). local.db is

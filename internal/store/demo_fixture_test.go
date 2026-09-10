@@ -268,6 +268,101 @@ func TestCommittedDemoDBPageStampsAreCoherent(t *testing.T) {
 	t.Logf("pages=%d page-comments=%d", pages, pageComments)
 }
 
+// TestCommittedDemoDBCarriesDevPanelCloneAndPageRefs is the GDK-1755 /
+// GDK-114 recurrence gate for fixture content the copy set was silently
+// dropping.
+//
+// Measured on the committed file at e3eafe3d (2026-09-10), all zero:
+// dev_links had 0 rows — server.ListLinkedPRs maps jira.DevPRStatus onto
+// open|merged|declined and no surface ever rendered a second state;
+// issues_raw.cloned_from was empty on every row (the Cloners outward link
+// never existed in the source); item_refs held only target_kind='issue'
+// via='text' rows, so ExtractPageRefsFromIssue's /wiki/spaces/…/pages/N
+// grammar reached no fixture row either.
+//
+// The three probes are invariants, not counts: the statuses are the whole
+// DevPRStatus vocabulary (a fixture that carries only 'open' still leaves
+// the merged/declined chip classes unexercised), cloned_from must match the
+// links a schemaV40 recompute would read (same predicate as schemaV40 /
+// derive.go clonedFrom), and a page ref must name an existing page — an
+// unresolvable target_key renders as a dead cross-link in the detail panel.
+func TestCommittedDemoDBCarriesDevPanelCloneAndPageRefs(t *testing.T) {
+	src := filepath.Join("..", "..", "examples", "demo.db")
+	in, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatalf("examples/demo.db is part of the tree: %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "gadak.db")
+	if err := os.WriteFile(path, in, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := sql.Open("sqlite", "file:"+path+"?mode=ro")
+	if err != nil {
+		t.Fatalf("open demo copy read-only: %v", err)
+	}
+	defer raw.Close()
+
+	// Dev panel (GDK-1755): every PR status the server can map.
+	for _, status := range []string{"open", "merged", "declined"} {
+		var n int
+		if err := raw.QueryRow(
+			`SELECT count(*) FROM dev_links WHERE kind = 'pullrequest' AND status = ?`,
+			status).Scan(&n); err != nil {
+			t.Fatalf("dev_links: %v", err)
+		}
+		if n == 0 {
+			t.Errorf("dev_links has no %q pullrequest row — server.ListLinkedPRs maps exactly open|merged|declined and the fixture leaves that chip class unexercised (GDK-1755)", status)
+		}
+	}
+
+	// Cloners (GDK-114): cloned_from is non-empty somewhere and equals what
+	// the schemaV40 predicate derives from the copied links.
+	var badClones int
+	if err := raw.QueryRow(`
+		SELECT count(*) FROM issues_raw r
+		 WHERE r.cloned_from != ''
+		   AND NOT EXISTS (
+		     SELECT 1 FROM links l
+		      WHERE l.item_id = r.item_id
+		        AND l.direction = 'outward'
+		        AND lower(l.type) LIKE '%clone%'
+		        AND l.target_key = r.cloned_from)`).Scan(&badClones); err != nil {
+		t.Fatalf("cloned_from probe: %v", err)
+	}
+	var clones int
+	if err := raw.QueryRow(`SELECT count(*) FROM issues_raw WHERE cloned_from != ''`).Scan(&clones); err != nil {
+		t.Fatalf("cloned_from count: %v", err)
+	}
+	if clones == 0 {
+		t.Errorf("issues_raw.cloned_from is empty on every row — the clone relation never reaches the UI (GDK-114)")
+	}
+	if badClones != 0 {
+		t.Errorf("cloned_from vs links: %d rows disagree with the schemaV40 outward-Cloners predicate (GDK-114)", badClones)
+	}
+
+	// Wiki page refs (GDK-114): target_kind='page' rows exist and resolve.
+	var pageRefs int
+	if err := raw.QueryRow(
+		`SELECT count(*) FROM item_refs WHERE target_kind = 'page'`).Scan(&pageRefs); err != nil {
+		t.Fatalf("item_refs page probe: %v", err)
+	}
+	if pageRefs == 0 {
+		t.Errorf("item_refs has no target_kind='page' row — ExtractPageRefsFromIssue's /wiki/spaces grammar never fires on the fixture (GDK-114)")
+	}
+	var dead int
+	if err := raw.QueryRow(`
+		SELECT count(*) FROM item_refs r
+		 WHERE r.target_kind = 'page'
+		   AND NOT EXISTS (
+		     SELECT 1 FROM pages p WHERE p.item_id = 'confluence:' || r.target_key)`).Scan(&dead); err != nil {
+		t.Fatalf("page ref resolution probe: %v", err)
+	}
+	if dead != 0 {
+		t.Errorf("item_refs: %d page refs name no page in the fixture — dead cross-links (GDK-114)", dead)
+	}
+	t.Logf("page refs=%d cloned issues=%d", pageRefs, clones)
+}
+
 // TestCommittedLinearDemoDBMatchesCurrentSchema is the same lockstep gate for
 // the Linear fixture (GDK-1298): examples/demo-linear.db serves on the
 // suite's second port, and a schema bump that regenerates demo.db but not

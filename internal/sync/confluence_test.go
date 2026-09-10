@@ -655,6 +655,14 @@ func TestConfluenceFullSyncMapsPagesAndFTS(t *testing.T) {
 		if p.SpaceKey == "AAA" && p.SpaceName != "Alpha" {
 			t.Errorf("PageLite %s SpaceName = %q, want Alpha", p.Key, p.SpaceName)
 		}
+		// GDK-25: the page's own version.by is the author. PageLite.AuthorID
+		// (items.author_id) is what account-keyed reads filter on; a
+		// producer regression that drops it leaves every page authorless on
+		// those surfaces while the display-name Author still looks fine —
+		// exactly the shape this line exists to catch.
+		if p.AuthorID != "acc-1" {
+			t.Errorf("PageLite %s AuthorID = %q, want acc-1 (version.by.accountId)", p.Key, p.AuthorID)
+		}
 	}
 }
 

@@ -577,6 +577,21 @@ GDK-645 のスイープに例外はなくなりました ([GDK-693])。スコー
 言い、ワーカーごとの分離設計は測った最悪ファイルの一覧とともに書かれています
 ([GDK-1758])。
 
+デモのフィクスチャがコードの写すものを実際に通ります。`examples/demo.db` に `dev_links`
+の行がひとつもなく、PR チップの open/merged/declined の対応はフィクスチャで一度も走って
+いませんでした。`make demo-fixture` のパイプラインに入った `tools/demo-enrich` の播種器が
+各状態ひとつずつと、クローン関係ひとつ、ページ参照になる wiki URL のコメントひとつを植え、
+ストアのテストがフィクスチャの内容を固定し、e2e の仕様がチップを見せます ([GDK-1755],
+[GDK-114])。`tools/seed-demo` は生成のあとに記号参照 — イシューの `ref:` と文書の
+`{{ref:…}}` — を解決するので、書いた文書はキーを埋め込まずにイシューとつながり、解決
+できない参照はエラーです ([GDK-45])。Confluence 同期のテストは `version.by` が
+`author_id` になることを主張します ([GDK-25])。デモ録画の仕様には CI セットの外の腐敗
+ゲート `npm run test:e2e:demo` ができ、最初の実行がすでに腐っていた仕様を二つ捕まえました
+— ひとつは振り返りの折りたたみ UI に対して古く、ひとつはポートを埋め込んでいました
+([GDK-1349])。初回オープンの FTS 再構築は 73 ms と測られ、設計された修復経路です。
+コミット済みのファイルに `contentless_delete=1` を持たせるとスナップショットの Datasette
+Lite 契約が壊れるので、その問いは数字とともに開けたままにしました ([GDK-1756])。
+
 ## v0.21.0 — 2026-09-08
 
 **離れていた間に何が起きたのかに、キャッシュから答えます。** ステータスの変更も
@@ -2261,3 +2276,9 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1147]: https://gadak.dev/backlog/#/?ks=GDK-1147
 [GDK-1502]: https://gadak.dev/backlog/#/?ks=GDK-1502
 [GDK-1758]: https://gadak.dev/backlog/#/?ks=GDK-1758
+[GDK-1755]: https://gadak.dev/backlog/#/?ks=GDK-1755
+[GDK-114]: https://gadak.dev/backlog/#/?ks=GDK-114
+[GDK-45]: https://gadak.dev/backlog/#/?ks=GDK-45
+[GDK-25]: https://gadak.dev/backlog/#/?ks=GDK-25
+[GDK-1349]: https://gadak.dev/backlog/#/?ks=GDK-1349
+[GDK-1756]: https://gadak.dev/backlog/#/?ks=GDK-1756

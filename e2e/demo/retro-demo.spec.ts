@@ -66,6 +66,11 @@ test.describe('retro demo', () => {
     await expect(view).toBeVisible()
     // The title is this locale's, not English standing in a Korean frame.
     await expect(view).toContainText(T['retro.title'])
+    // GDK-1724 folded the number grid — eight rows against twelve columns is
+    // where a reader checks one number, not where one starts. The take now
+    // unfolds it the way a person does: the toggle, and the fold is remembered
+    // for the sprint cut below.
+    await page.getByTestId('retro-table-toggle').click()
     await expect(page.getByTestId('retro-table')).toBeVisible()
     // Four whole ISO weeks plus the partial current one.
     await expect(page.getByTestId('retro-week')).toHaveCount(5)
@@ -80,7 +85,11 @@ test.describe('retro demo', () => {
     await page.getByTestId('retro-range').filter({ hasText: T['retro.bySprint'] }).click()
     await expect(page.getByTestId('retro-week')).toHaveCount(2)
     await expect(page.getByTestId('retro-week').last()).toContainText(T['retro.thisSprint'])
-    await expect(page.getByTestId('retro-table')).toContainText(T['retro.bucket.sprint'])
+    // The definitions switched vocabulary with the cut — but GDK-1724 folded
+    // them behind the same Definitions toggle the grid has. Open them and read
+    // one sentence: it names sprints now, not weeks.
+    await page.getByTestId('retro-defs-toggle').click()
+    await expect(page.getByTestId('retro-def').first()).toContainText(T['retro.bucket.sprint'])
     await beat(page, 2600)
 
     // The claim: a number is a door. The closed cell carries the keys of

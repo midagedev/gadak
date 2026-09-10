@@ -27,7 +27,7 @@ import { fileURLToPath } from 'node:url'
 import { type Page } from '@playwright/test'
 import { test, expect } from '../helpers'
 
-import { forceLocale, DEMO_ISSUE_COUNT_EN_RE, e2eHomeDir } from '../helpers'
+import { apiURL, forceLocale, DEMO_ISSUE_COUNT_EN_RE, e2eHomeDir } from '../helpers'
 
 const isMedia = !!process.env.GADAK_MEDIA
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -99,7 +99,7 @@ const FRAME = `<!DOCTYPE html>
       <div id="out"></div>
     </div>
   </div>
-  <iframe id="app" src="http://127.0.0.1:7877/" title="gadak"></iframe>
+  <iframe id="app" src="${apiURL('/')}" title="gadak"></iframe>
 </body>
 </html>`
 

@@ -685,6 +685,24 @@ with the gate released in cleanup, so a sibling can no longer inherit a leak
 and the design for per-worker isolation is written down with the measured
 worst files ([GDK-1758]).
 
+The demo fixture exercises what the code maps. `examples/demo.db` had no
+`dev_links` row, so the PR chip's open/merged/declined mapping had never run
+against the fixture; a `tools/demo-enrich` seeder in the `make demo-fixture`
+pipeline now plants one of each, a clone relation and a wiki-URL comment that
+becomes a page reference, a store test pins the fixture's content and an e2e
+spec shows the chips ([GDK-1755], [GDK-114]). `tools/seed-demo` resolves
+symbolic references — an issue's `ref:` and a document's `{{ref:…}}` — after
+creation, so authored documents can join issues without hard-coded keys, and
+an unresolved reference is an error ([GDK-45]); the Confluence sync test
+asserts that `version.by` becomes `author_id` ([GDK-25]). The demo recording
+specs have a rot gate, `npm run test:e2e:demo`, outside the CI set; its first
+run caught two specs that had already rotted — one stale against the retro
+folding UI, one with a hard-coded port ([GDK-1349]). The FTS rebuild on first
+open is measured at 73 ms and is the designed repair path; making the
+committed file carry `contentless_delete=1` would break the snapshot's
+Datasette Lite contract, so that question is left open with the numbers
+([GDK-1756]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2357,3 +2375,9 @@ priority sorting keyed on `priority_rank`.
 [GDK-1147]: https://gadak.dev/backlog/#/?ks=GDK-1147
 [GDK-1502]: https://gadak.dev/backlog/#/?ks=GDK-1502
 [GDK-1758]: https://gadak.dev/backlog/#/?ks=GDK-1758
+[GDK-1755]: https://gadak.dev/backlog/#/?ks=GDK-1755
+[GDK-114]: https://gadak.dev/backlog/#/?ks=GDK-114
+[GDK-45]: https://gadak.dev/backlog/#/?ks=GDK-45
+[GDK-25]: https://gadak.dev/backlog/#/?ks=GDK-25
+[GDK-1349]: https://gadak.dev/backlog/#/?ks=GDK-1349
+[GDK-1756]: https://gadak.dev/backlog/#/?ks=GDK-1756

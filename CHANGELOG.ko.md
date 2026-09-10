@@ -538,6 +538,20 @@ vitest 의 가짜 타이머 열 케이스로 내려가 규칙 가족마다 스�
 하나 그대로입니다. 어느 스펙이 변이를 일으키는지 인구조사 게이트가 말하고, 워커별 격리
 설계는 실측한 최악 파일 목록과 함께 적혀 있습니다 ([GDK-1758]).
 
+데모 픽스처가 코드가 매핑하는 것을 실제로 탑니다. `examples/demo.db` 에 `dev_links`
+행이 하나도 없어 PR 칩의 open/merged/declined 매핑은 픽스처에서 한 번도 돈 적이
+없었습니다. `make demo-fixture` 파이프라인에 들어간 `tools/demo-enrich` 시더가 이제 각
+상태 하나씩과 클론 관계 하나, 페이지 참조가 되는 위키 URL 코멘트 하나를 심고, 스토어
+테스트가 픽스처 내용을 고정하며 e2e 스펙이 칩을 보여줍니다 ([GDK-1755], [GDK-114]).
+`tools/seed-demo` 는 생성 뒤에 상징 참조 — 이슈의 `ref:` 와 문서의 `{{ref:…}}` — 를
+해석해, 저작한 문서가 키를 박지 않고 이슈와 이어지고, 해석되지 않는 참조는 에러입니다
+([GDK-45]). Confluence 동기화 테스트는 `version.by` 가 `author_id` 가 되는지 단언합니다
+([GDK-25]). 데모 녹화 스펙에는 CI 세트 밖의 부패 게이트 `npm run test:e2e:demo` 가
+생겼고, 첫 실행이 이미 썩어 있던 스펙 둘을 잡았습니다 — 하나는 회고 접기 UI 에 낡았고
+하나는 포트를 박아 두었습니다 ([GDK-1349]). 첫 열기의 FTS 재구축은 73 ms 로 재었고
+설계된 수선 경로입니다. 커밋된 파일에 `contentless_delete=1` 을 넣으면 스냅숏의
+Datasette Lite 계약이 깨지므로 그 질문은 숫자와 함께 열어 두었습니다 ([GDK-1756]).
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -2144,3 +2158,9 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1147]: https://gadak.dev/backlog/#/?ks=GDK-1147
 [GDK-1502]: https://gadak.dev/backlog/#/?ks=GDK-1502
 [GDK-1758]: https://gadak.dev/backlog/#/?ks=GDK-1758
+[GDK-1755]: https://gadak.dev/backlog/#/?ks=GDK-1755
+[GDK-114]: https://gadak.dev/backlog/#/?ks=GDK-114
+[GDK-45]: https://gadak.dev/backlog/#/?ks=GDK-45
+[GDK-25]: https://gadak.dev/backlog/#/?ks=GDK-25
+[GDK-1349]: https://gadak.dev/backlog/#/?ks=GDK-1349
+[GDK-1756]: https://gadak.dev/backlog/#/?ks=GDK-1756

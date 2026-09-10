@@ -31,6 +31,7 @@ func run(args []string) int {
 	noHistory := fs.Bool("no-history", false, "create issues only; skip transitions, comments, links")
 	dataPath := fs.String("data", "", "JSON dataset to project onto Jira instead of generating content")
 	docsPath := fs.String("docs", "", "JSON wiki dataset to seed into Confluence (docs only; skips issue seeding)")
+	refmapPath := fs.String("refmap", "", "symbol → issue-key map for {{ref:…}} tokens (GDK-45): --data writes it, --docs reads it")
 	epicsPath := fs.String("epics", "", "JSON epic hierarchy dataset to seed (epics only; skips issue seeding)")
 	assigneesFlag := fs.String("assignees", "", "comma-separated accountIds for assignee slots")
 	repairStatesFlag := fs.Bool("repair-states", false, "re-drive workflow states matched by summary")
@@ -54,7 +55,7 @@ func run(args []string) int {
 		if *dryRun {
 			c := newClient("https://example.com", "dry@example.com", "dry-token")
 			c.paceDelay = 0
-			return c.seedDocs(*docsPath, true)
+			return c.seedDocs(*docsPath, *refmapPath, true)
 		}
 		site := strings.TrimRight(os.Getenv("JIRA_SITE"), "/")
 		email := os.Getenv("JIRA_EMAIL")
@@ -64,7 +65,7 @@ func run(args []string) int {
 			return 2
 		}
 		c := newClient(site, email, token)
-		return c.seedDocs(*docsPath, false)
+		return c.seedDocs(*docsPath, *refmapPath, false)
 	}
 
 	// --epics mode: create Epic issues and parent existing children by summary.
@@ -137,7 +138,7 @@ func run(args []string) int {
 		if len(assignees) == 0 {
 			assignees = []string{me.AccountID}
 		}
-		keys := c.seedFromData(*dataPath, projects, assignees, *dryRun, *skipSetup)
+		keys := c.seedFromData(*dataPath, projects, assignees, *dryRun, *skipSetup, *refmapPath)
 		fmt.Printf("\ndone. %d issues from %s\n", len(keys), *dataPath)
 		return 0
 	}

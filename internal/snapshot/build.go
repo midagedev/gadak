@@ -158,6 +158,12 @@ func buildInto(tmp string, opts Options) (rotationStats, error) {
 		return rot, err
 	}
 
+	// Dev-panel rows (GDK-1755): same originals-only rule as links — a PR is
+	// attached to the issue it closes, not to the snapshot's copies of it.
+	if err := copyDevLinks(src, tx, planned); err != nil {
+		return rot, err
+	}
+
 	// Boards and sprints ride along like link_types; a fixture whose source
 	// never had any can ask for a derived set (GDK-1656).
 	if err := copyAgile(src, tx); err != nil {
@@ -625,6 +631,61 @@ func copyItemRefs(src *sql.DB, tx *sql.Tx, keptIDs map[string]bool) error {
 		if _, err := tx.Exec(
 			`INSERT OR IGNORE INTO item_refs (item_id, target_kind, target_key, via) VALUES (?,?,?,?)`,
 			itemID, targetKind, targetKey, via,
+		); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}
+
+// copyDevLinks carries the development-panel rows (dev_links, GDK-497) the
+// way copyOriginalLinks carries issue links: originals only, verbatim. Until
+// GDK-1755 the snapshot dropped the table entirely, so a source that carried
+// PRs still produced a fixture where server.ListLinkedPRs had nothing to map
+// — the committed demo.db measured 0 rows while the e2e copy got its single
+// 'open' row injected by serve.sh at serve time (GDK-590), leaving the
+// merged/declined chip classes unexercised everywhere.
+func copyDevLinks(src *sql.DB, tx *sql.Tx, planned []plannedIssue) error {
+	ok, err := tableExists(src, "dev_links")
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil
+	}
+	// Only original (non-clone) item ids keep their dev panel.
+	origIDs := map[string]bool{}
+	for _, p := range planned {
+		if p.cloneSeq == 0 {
+			origIDs[p.src.itemID] = true
+		}
+	}
+	rows, err := src.Query(`
+		SELECT item_id, kind, external_id, url, title, status,
+		       updated_at, author, actor, actor_name, branch, environment
+		FROM dev_links
+		ORDER BY item_id, url`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var itemID, kind, externalID, url, title, status string
+		var updatedAt, author, actor, actorName, branch, environment string
+		if err := rows.Scan(&itemID, &kind, &externalID, &url, &title, &status,
+			&updatedAt, &author, &actor, &actorName, &branch, &environment); err != nil {
+			return err
+		}
+		if !origIDs[itemID] {
+			continue
+		}
+		if _, err := tx.Exec(
+			`INSERT OR IGNORE INTO dev_links
+			   (item_id, kind, external_id, url, title, status,
+			    updated_at, author, actor, actor_name, branch, environment)
+			 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+			itemID, kind, externalID, url, title, status,
+			updatedAt, author, actor, actorName, branch, environment,
 		); err != nil {
 			return err
 		}

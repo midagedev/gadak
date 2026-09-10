@@ -179,7 +179,7 @@ func truncate(s string, n int) string {
 	return s[:n]
 }
 
-func (c *Client) seedFromData(path string, projects, assignees []string, dry, skipSetup bool) []string {
+func (c *Client) seedFromData(path string, projects, assignees []string, dry, skipSetup bool, refmapPath string) []string {
 	data, err := loadDataset(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "  ERROR load dataset: %v\n", err)
@@ -316,6 +316,24 @@ func (c *Client) seedFromData(path string, projects, assignees []string, dry, sk
 		}
 	}
 	fmt.Printf("  links: %d\n", linked)
+
+	// GDK-45: persist ref → key so a later --docs run can resolve
+	// {{ref:…}} tokens against the keys this run got. `order` and `keys`
+	// are parallel (both built from the same filtered dataset sequence),
+	// which is what makes the pairing trustworthy. Dry runs write DRY-N
+	// keys on purpose — enough to validate that every token in the docs
+	// dataset resolves, which is all a dry run owes.
+	if refmapPath != "" {
+		m, err := refKeyMap(order, keys)
+		if err == nil {
+			err = writeRefMap(refmapPath, m)
+		}
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "  ERROR refmap: %v\n", err)
+			return keys
+		}
+		fmt.Printf("  refmap: %d symbol(s) → %s\n", len(m), refmapPath)
+	}
 	return keys
 }
 
