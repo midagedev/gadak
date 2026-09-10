@@ -80,7 +80,7 @@ like watches/favorites via the API).
 | QA impact column | **Enrichment** | `kind=qa` + `features.qa` (shape in [`PLUGINS.md`](PLUGINS.md)). |
 | A free-text review note | **Enrichment** | `kind=opinion` (JSON string payload). |
 | Spreadsheet-managed extras | **Enrichment** | [csv-import](../examples/plugins/csv-import/). |
-| Weekly reopen / load report | **SQL** | `gadak sql` + cron; see AGENTS.md cookbook. |
+| Weekly reopen / load report | **SQL** | `gadak sql` + cron; see the SQL cookbook in `docs/MIRROR.md`. |
 | “Has anyone hit this before?” | **SQL** | FTS via `items_fts` / `gadak search`. |
 | Agent that comments or transitions | **CLI / REST** | `gadak comment` / `gadak transition` (writes go through the origin, then re-mirror). |
 

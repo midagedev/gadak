@@ -94,7 +94,7 @@ Legend: **done** / **partial** / **todo**
 | T5.8 | `gadak transition <KEY> <status-or-id>` | done — matches a transition id, its name, or its **target status** name (case-insensitive), because a caller knows the status it wants, not the verb the workflow uses. A miss lists what is available. `TestTransitionMatchesByNameAndReportsAlternatives` |
 | T5.9 | `gadak assign <KEY> <email\|->` | done — configured member directory first, then Jira's user search; a bare `-` unassigns without asking Jira anything. Ambiguous matches are refused with the candidates, never guessed. `TestAssignResolvesEmailAndUnassigns` |
 | T5.10 | Staleness warning on every issue command | done — one stderr line when the last sync failed or is over an hour old, so stdout stays pipeable. `contracts/agent.md`, "Staleness" |
-| T5.11 | `AGENTS.md` as the agent-facing reference | done — SQL cookbook, CLI reference, REST examples, staleness; `docs/AGENT_ACCESS.md` is the three-layer map that points at it |
+| T5.11 | `AGENTS.md` as the agent-facing reference | done — contributor contract with CLI/REST/MCP pointers; the SQL cookbook lives in `docs/MIRROR.md`, and `docs/AGENT_ACCESS.md` is the three-layer map that points at both |
 
 Writes with no stored credential fail before any Jira call
 (`TestWritesRefuseToRunWithoutACredential`), and a write that lands but fails to

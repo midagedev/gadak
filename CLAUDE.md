@@ -2,7 +2,7 @@
 
 현재 유효한 규칙만 담는다. 히스토리·결정 경위는 `docs/decisions/`와
 CHANGELOG의 몫. 여기 없는 도메인 지식은 `docs/project/STATE_OF_PLAY.md`(현황·
-hard-won 목록)와 `AGENTS.md`(스키마·쿼리)가 원본이다.
+hard-won 목록)와 `AGENTS.md`(기여 계약)·`docs/MIRROR.md`(스키마·SQL 쿡북)가 원본이다.
 
 ## 제품 불변 조건 (깨면 제품이 아니다)
 

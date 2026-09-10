@@ -242,7 +242,7 @@ type Config struct {
 	Confluence *ConfluenceConfig `json:"confluence,omitempty"`
 
 	// Linear, when non-nil, enables the Linear issue mirror (third source,
-	// read-only — GDK-263). Unlike Confluence it carries its own credential:
+	// writes go through too since 0.16.1, GDK-263 opened the reads). Unlike Confluence it carries its own credential:
 	// APIKey is a Linear personal API key and gets the same article-8
 	// treatment as Token — never a log line, a snapshot, or a team export
 	// (teamconfig classifies the whole block never-export).
