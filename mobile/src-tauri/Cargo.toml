@@ -30,6 +30,7 @@ tauri-plugin-websocket = "2"
 # is an encrypted vault file, store is plaintext JSON).
 tauri-plugin-secure-storage = "1.5"
 tauri-plugin-barcode-scanner = "2"
+tauri-plugin-deep-link = "2.4.10"
 
 # iOS shell only: one objc2 msg_send pair sets the WKWebView scroll view to
 # UIScrollViewContentInsetAdjustmentNever (see lib.rs setup) — the page owns

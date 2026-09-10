@@ -3,7 +3,8 @@
   import { initLocale } from './lib/i18n'
   import { t } from './lib/i18n'
   import { systemBack } from './lib/back'
-  import { app, boot, closeIssue, exitDemo, startClock } from './lib/store.svelte'
+  import { app, boot, closeIssue, exitDemo, openIssue, startClock, switchTab } from './lib/store.svelte'
+  import { bindOsDeepLinks, createDeepLinkRouter, exposeForTests } from './lib/deeplink-entry'
   import PairGate from './screens/PairGate.svelte'
   import Issues from './screens/Issues.svelte'
   import Search from './screens/Search.svelte'
@@ -36,6 +37,39 @@
       () => app.detail !== null,
       closeIssue,
     )
+  })
+
+  // gadak:// deep links (GDK-873). The decision is entirely in lib/deeplink
+  // — this is the connection to the OS on one side and the store on the
+  // other. A link that lands on the Issues tab is the only navigation the
+  // scheme can ask for; the scheme carries no verb.
+  const deepLinks = createDeepLinkRouter({
+    openIssue: (key) => {
+      switchTab('issues')
+      openIssue(key)
+    },
+    // A detail screen over a booting or unpaired app has nothing behind it,
+    // so a cold-launch link waits here rather than pushing onto nothing.
+    ready: () => app.phase === 'paired',
+    // onRefused is deliberately unwired: a refusal a user should read needs
+    // catalog keys in all three locales, which this round does not author
+    // (see the report's string list). The refusal classes already exist and
+    // are asserted in deeplink.test.ts, so wiring a toast later is one line.
+  })
+
+  $effect(() => {
+    exposeForTests(deepLinks)
+    let teardown: (() => void) | null = null
+    void bindOsDeepLinks(deepLinks).then((off) => {
+      teardown = off
+    })
+    return () => teardown?.()
+  })
+
+  // Release a link that arrived while the app was still booting, the moment
+  // it can actually be shown. Reads app.phase, so it re-runs on the change.
+  $effect(() => {
+    if (app.phase === 'paired') deepLinks.flush()
   })
 
   // Safe-area policy (measured 2026-08-25 on the dev shell): the shell's

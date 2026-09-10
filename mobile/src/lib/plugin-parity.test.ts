@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest'
  * a red unit test before any build.
  *
  * Parity pairs are exactly the plugins with a JS binding in this app:
- * http, websocket, barcode-scanner. Excluded on purpose:
+ * http, websocket, barcode-scanner, deep-link. Excluded on purpose:
  *   - tauri-plugin-secure-storage: Rust-only by design — lib.rs's
  *     token_get/token_set/token_del commands are the only door to the
  *     token, and no @tauri-apps/plugin-secure-storage is installed.
@@ -29,6 +29,7 @@ const PARITY_PAIRS: Array<{ npm: string; crate: string }> = [
   { npm: '@tauri-apps/plugin-http', crate: 'tauri-plugin-http' },
   { npm: '@tauri-apps/plugin-websocket', crate: 'tauri-plugin-websocket' },
   { npm: '@tauri-apps/plugin-barcode-scanner', crate: 'tauri-plugin-barcode-scanner' },
+  { npm: '@tauri-apps/plugin-deep-link', crate: 'tauri-plugin-deep-link' },
 ]
 
 function npmVersion(name: string): string {

@@ -1,0 +1,248 @@
+[
+  {
+    "name": "view with a hash",
+    "input": "gadak://view?issue=GDK-119",
+    "outcome": "ok",
+    "action": "view",
+    "hash": "issue=GDK-119"
+  },
+  {
+    "name": "view on a named profile",
+    "input": "gadak://view/w/oss?issue=GDK-119\u0026pj=GDK",
+    "outcome": "ok",
+    "action": "view",
+    "profile": "oss",
+    "hash": "issue=GDK-119\u0026pj=GDK"
+  },
+  {
+    "name": "view with several axes",
+    "input": "gadak://view?pj=GDK\u0026sc=inprogress\u0026q=crash",
+    "outcome": "ok",
+    "action": "view",
+    "hash": "pj=GDK\u0026sc=inprogress\u0026q=crash"
+  },
+  {
+    "name": "a discovered-field axis",
+    "input": "gadak://view?f.requirement_11461=yes",
+    "outcome": "ok",
+    "action": "view",
+    "hash": "f.requirement_11461=yes"
+  },
+  {
+    "name": "the action folds case",
+    "input": "gadak://VIEW?issue=GDK-119",
+    "outcome": "ok",
+    "action": "view",
+    "hash": "issue=GDK-119"
+  },
+  {
+    "name": "one trailing slash before the query",
+    "input": "gadak://view/w/oss/?issue=GDK-119",
+    "outcome": "ok",
+    "action": "view",
+    "profile": "oss",
+    "hash": "issue=GDK-119"
+  },
+  {
+    "name": "a bare subject",
+    "input": "gadak://issue/GDK-119",
+    "outcome": "ok",
+    "action": "issue",
+    "subject": "GDK-119"
+  },
+  {
+    "name": "a profile and a subject",
+    "input": "gadak://issue/w/oss/GDK-119",
+    "outcome": "ok",
+    "action": "issue",
+    "profile": "oss",
+    "subject": "GDK-119"
+  },
+  {
+    "name": "an unknown action still parses",
+    "input": "gadak://timeline?issue=GDK-119",
+    "outcome": "ok",
+    "action": "timeline",
+    "hash": "issue=GDK-119"
+  },
+  {
+    "name": "no query at all",
+    "input": "gadak://setup",
+    "outcome": "ok",
+    "action": "setup"
+  },
+  {
+    "name": "the default profile is a name like any other",
+    "input": "gadak://view/w/default?issue=GDK-119",
+    "outcome": "ok",
+    "action": "view",
+    "profile": "default",
+    "hash": "issue=GDK-119"
+  },
+  {
+    "name": "percent-encoding is passed through untouched",
+    "input": "gadak://view?q=one%20two",
+    "outcome": "ok",
+    "action": "view",
+    "hash": "q=one%20two"
+  },
+  {
+    "name": "a parameter with no value",
+    "input": "gadak://view?issue=",
+    "outcome": "ok",
+    "action": "view",
+    "hash": "issue="
+  },
+  {
+    "name": "another app's scheme",
+    "input": "myapp://view?issue=GDK-119",
+    "outcome": "not_gadak"
+  },
+  {
+    "name": "an https link",
+    "input": "https://example.com/browse/GDK-119",
+    "outcome": "not_gadak"
+  },
+  {
+    "name": "empty input",
+    "input": "",
+    "outcome": "not_gadak"
+  },
+  {
+    "name": "a bare issue key",
+    "input": "GDK-119",
+    "outcome": "not_gadak"
+  },
+  {
+    "name": "the opaque form has no action",
+    "input": "gadak:view?issue=GDK-119",
+    "outcome": "malformed",
+    "why": "action \"\" is not a plain lowercase word"
+  },
+  {
+    "name": "a port is not part of an action",
+    "input": "gadak://view:7777?issue=GDK-119",
+    "outcome": "malformed",
+    "why": "action \"view:7777\" is not a plain lowercase word"
+  },
+  {
+    "name": "userinfo is not allowed",
+    "input": "gadak://user@view?issue=GDK-119",
+    "outcome": "malformed",
+    "why": "userinfo not allowed"
+  },
+  {
+    "name": "a fragment is not allowed",
+    "input": "gadak://view?issue=GDK-119#panel",
+    "outcome": "malformed",
+    "why": "fragment not allowed"
+  },
+  {
+    "name": "a bare trailing hash is still a fragment",
+    "input": "gadak://view?issue=GDK-119#",
+    "outcome": "malformed",
+    "why": "fragment not allowed"
+  },
+  {
+    "name": "an action with a dot could be a hostname",
+    "input": "gadak://view.example.com?issue=GDK-119",
+    "outcome": "malformed",
+    "why": "action \"view.example.com\" is not a plain lowercase word"
+  },
+  {
+    "name": "an uppercase-only action is folded, but an underscore is not a word",
+    "input": "gadak://view_all?issue=GDK-119",
+    "outcome": "malformed",
+    "why": "action \"view_all\" is not a plain lowercase word"
+  },
+  {
+    "name": "an empty profile after /w/",
+    "input": "gadak://view/w/?issue=GDK-119",
+    "outcome": "malformed",
+    "why": "empty profile after /w/"
+  },
+  {
+    "name": "a traversal as the profile",
+    "input": "gadak://view/w/../x?issue=GDK-119",
+    "outcome": "malformed",
+    "why": "profile \"..\" is a directory reference, not a name"
+  },
+  {
+    "name": "a traversal as the subject",
+    "input": "gadak://issue/..?x=1",
+    "outcome": "malformed",
+    "why": "subject \"..\" is a directory reference, not a name"
+  },
+  {
+    "name": "a dot as the subject",
+    "input": "gadak://issue/.?x=1",
+    "outcome": "malformed",
+    "why": "subject \".\" is a directory reference, not a name"
+  },
+  {
+    "name": "an encoded separator cannot smuggle a segment",
+    "input": "gadak://issue/a%2Fb?x=1",
+    "outcome": "malformed",
+    "why": "path \"/a/b\" is not \"/w/\u003cprofile\u003e\", \"/\u003csubject\u003e\", or both"
+  },
+  {
+    "name": "more path segments than the grammar allows",
+    "input": "gadak://view/w/oss/GDK-119/extra?x=1",
+    "outcome": "malformed",
+    "why": "path \"/w/oss/GDK-119/extra\" has more segments than the grammar allows"
+  },
+  {
+    "name": "two segments without the /w/ introducer",
+    "input": "gadak://view/a/b?x=1",
+    "outcome": "malformed",
+    "why": "path \"/a/b\" is not \"/w/\u003cprofile\u003e\", \"/\u003csubject\u003e\", or both"
+  },
+  {
+    "name": "a duplicate parameter key",
+    "input": "gadak://view?issue=GDK-119\u0026issue=GDK-120",
+    "outcome": "malformed",
+    "why": "duplicate parameter key \"issue\""
+  },
+  {
+    "name": "an uppercase parameter key",
+    "input": "gadak://view?Issue=GDK-119",
+    "outcome": "malformed",
+    "why": "parameter key \"Issue\" does not match the key shape"
+  },
+  {
+    "name": "a parameter key starting with a digit",
+    "input": "gadak://view?1issue=GDK-119",
+    "outcome": "malformed",
+    "why": "parameter key \"1issue\" does not match the key shape"
+  },
+  {
+    "name": "a control byte in the query",
+    "input": "gadak://view?q=a\u0001b",
+    "outcome": "malformed",
+    "why": "unparseable URL: parse \"gadak://view?q=a\\x01b\": net/url: invalid control character in URL"
+  },
+  {
+    "name": "over the input length limit",
+    "input": "gadak://view?q=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "outcome": "malformed",
+    "why": "input is 2063 bytes, over the 2048-byte limit"
+  },
+  {
+    "name": "over the value length limit",
+    "input": "gadak://view?q=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "outcome": "malformed",
+    "why": "value for \"q\" is 513 bytes, over the 512-byte limit"
+  },
+  {
+    "name": "over the parameter count limit",
+    "input": "gadak://view?kaa=1\u0026kba=1\u0026kca=1\u0026kda=1\u0026kea=1\u0026kfa=1\u0026kga=1\u0026kha=1\u0026kia=1\u0026kja=1\u0026kka=1\u0026kla=1\u0026kma=1\u0026kna=1\u0026koa=1\u0026kpa=1\u0026kqa=1\u0026kra=1\u0026ksa=1\u0026kta=1\u0026kua=1\u0026kva=1\u0026kwa=1\u0026kxa=1\u0026kya=1\u0026kza=1\u0026kab=1\u0026kbb=1\u0026kcb=1\u0026kdb=1\u0026keb=1\u0026kfb=1\u0026kgb=1",
+    "outcome": "malformed",
+    "why": "33 parameters, over the limit of 32"
+  },
+  {
+    "name": "over the key length limit",
+    "input": "gadak://view?kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk=1",
+    "outcome": "malformed",
+    "why": "parameter key \"kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk\" does not match the key shape"
+  }
+]

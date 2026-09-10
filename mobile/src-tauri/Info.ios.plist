@@ -16,5 +16,26 @@
 	     and never reaches a tester until someone answers by hand. -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<!-- gadak:// deep links (GDK-873). This array is what actually registers
+	     the scheme with iOS; tauri-plugin-deep-link only delivers a URL the
+	     OS has already routed here, so without this key the plugin never
+	     fires. Universal Links are deliberately absent: an apple-app-site-
+	     association file needs a public HTTPS host, which would break the
+	     no-outbound invariant (SECURITY.md), so a custom scheme is the whole
+	     mechanism. A custom scheme is claimable by any app, which is why
+	     nothing downstream of it is trusted — see src/lib/deeplink.ts. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.gadak.mobile.deeplink</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>gadak</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

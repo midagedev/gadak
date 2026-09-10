@@ -47,6 +47,7 @@
       "field": "status",
       "from": "할 일",
       "from_category": "new",
+      "is_reopen": false,
       "to": "진행 중",
       "to_category": "inprogress"
     }

@@ -147,6 +147,19 @@ pub fn run() {
     #[cfg(mobile)]
     let builder = builder.plugin(tauri_plugin_barcode_scanner::init());
 
+    // gadak:// deep links (GDK-873). On iOS the scheme is declared by
+    // CFBundleURLTypes in Info.ios.plist — this plugin only delivers the URL
+    // the OS already resolved to this app, so registering it grants nothing
+    // the plist has not already granted. The JS side subscribes with
+    // onOpenUrl (src/lib/deeplink-entry.ts) and hands the string to a pure parser;
+    // nothing in that path writes, dials, or pairs, because the scheme
+    // carries no verb (internal/deeplink package comment).
+    //
+    // Desktop targets also register a runtime handler in the plugin, which
+    // is why this is not mobile-gated: the dev shell (npm run tauri dev on
+    // macOS) is where the wiring is exercised without a simulator.
+    let builder = builder.plugin(tauri_plugin_deep_link::init());
+
     builder
         .setup(|_app| {
             // iOS: wry leaves the WKWebView's scroll view on .automatic

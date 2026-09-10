@@ -137,7 +137,7 @@ type volatileField struct {
 	path string
 	// kind: "iso" stamps must be non-empty ISO-8601 strings; "ms" must be
 	// non-negative numbers (durations in milliseconds).
-	kind string
+	kind  string
 	fixed any
 }
 
@@ -217,7 +217,7 @@ func seedMentionComment(t *testing.T, db *store.DB) {
 		Records: []store.IssueRecord{{
 			Item: store.Item{
 				ID: "jira:2001", SourceID: "jira", ExternalID: "2001", Key: "NMA-9",
-				Title: "modeler crash on import",
+				Title:     "modeler crash on import",
 				CreatedAt: "2026-07-05T00:00:00.000Z", UpdatedAt: "2026-07-06T00:00:00.000Z",
 			},
 			Issue: store.Issue{

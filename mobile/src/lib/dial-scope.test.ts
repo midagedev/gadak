@@ -171,7 +171,15 @@ describe('capability corpus shape: what the shipped ACL is made of (GDK-1581)', 
     expect(ids).toEqual(['default', 'dev-loopback'])
   })
 
-  it('the permission identifier set is exactly the four grants', () => {
+  // 2026-09-10 — GDK-873: deep-link:default joined the set. Widened
+  // deliberately, not to make a red test green: the grant lets JS subscribe
+  // to URLs iOS has ALREADY routed to this bundle (the routing itself is
+  // CFBundleURLTypes in src-tauri/Info.ios.plist), so it adds no dialable
+  // destination — which is why the allow-URL union assertion above is
+  // unchanged and still lists three entries. The exhaustive shape of this
+  // list is the point: a grant that arrives without a line of reasoning
+  // here turns it red.
+  it('the permission identifier set is exactly the five grants', () => {
     const ids = new Set<string>()
     for (const doc of readCapabilityDocs().values()) {
       for (const p of doc.permissions) {
@@ -181,6 +189,7 @@ describe('capability corpus shape: what the shipped ACL is made of (GDK-1581)', 
     expect(sorted([...ids])).toEqual([
       'barcode-scanner:default',
       'core:default',
+      'deep-link:default',
       'http:default',
       'websocket:default',
     ])

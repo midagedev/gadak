@@ -459,6 +459,18 @@ including the fixture translator no Go test compiles, is now checked by a
 census gate that reads the canonical column list out of the schema
 ([GDK-1021]).
 
+Three things on the phone side. The REST responses the phone decodes are
+now a golden the server test writes and a phone test consumes, so a removed
+field or a changed type is red on both ends ([GDK-803]). The pairing token
+is asserted absent from the server's log, bodies and headers across nine gate
+branches and from every console call the phone makes, with a source rule on
+each side that follows the argument list across line breaks ([GDK-804]). And
+`gadak://` links open an issue on the phone: the Go parser emits its grammar
+as a vector table the phone parser replays, a cold-launch link is held until
+the app is paired, another app's scheme passes in silence, and the scheme
+carries no verb, so the worst a hostile link does is show the wrong issue
+([GDK-873]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2060,3 +2072,6 @@ priority sorting keyed on `priority_rank`.
 [GDK-1457]: https://gadak.dev/backlog/#/?ks=GDK-1457
 [GDK-1490]: https://gadak.dev/backlog/#/?ks=GDK-1490
 [GDK-1021]: https://gadak.dev/backlog/#/?ks=GDK-1021
+[GDK-803]: https://gadak.dev/backlog/#/?ks=GDK-803
+[GDK-804]: https://gadak.dev/backlog/#/?ks=GDK-804
+[GDK-873]: https://gadak.dev/backlog/#/?ks=GDK-873
