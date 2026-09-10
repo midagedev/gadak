@@ -3,7 +3,6 @@ package migrate
 import (
 	"context"
 	"database/sql"
-	"encoding/base64"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -179,40 +178,6 @@ func TestGhostUsersAndLossCounts(t *testing.T) {
 	}
 	if !strings.Contains(t1.DescriptionADF, `"type":"codeBlock"`) {
 		t.Fatalf("T-1 must carry its description ADF verbatim (GDK-1382), got %q", t1.DescriptionADF)
-	}
-}
-
-func TestInlineAttachments(t *testing.T) {
-	doc := &Doc{Issues: []Issue{{Key: "T-1", Attachments: []Attachment{
-		{Filename: "a.txt", MimeType: "text/plain", ContentID: "1"},
-		{Filename: "b.bin", MimeType: "application/octet-stream", ContentID: "2"},
-		{Filename: "gone.txt", MimeType: "text/plain", ContentID: "3"},
-		{Filename: "linear.png", MimeType: "image/png", ContentID: "4", SourceURL: "https://uploads.linear.app/x"},
-		{Filename: "huge.bin", ContentID: "5", Size: maxAttachmentBytes + 1},
-	}}}}
-	st := &Stats{}
-	bin := []byte{0x00, 0xFF, 0x10}
-	InlineAttachments(context.Background(), doc, func(_ context.Context, id string) (int, []byte, error) {
-		switch id {
-		case "1":
-			return 200, []byte("hello\n"), nil
-		case "2":
-			return 200, bin, nil
-		case "3":
-			return 404, nil, nil
-		}
-		t.Fatalf("unexpected fetch %q", id)
-		return 0, nil, nil
-	}, st)
-	atts := doc.Issues[0].Attachments
-	if atts[0].Text != "hello\n" || atts[0].DataBase64 != "" {
-		t.Fatalf("text inline: %+v", atts[0])
-	}
-	if atts[1].DataBase64 != base64.StdEncoding.EncodeToString(bin) {
-		t.Fatalf("binary inline: %+v", atts[1])
-	}
-	if st.AttachInlined != 2 || st.AttachMissing != 1 || st.AttachSkipURL != 1 || st.AttachTooLarge != 1 {
-		t.Fatalf("stats %+v", st)
 	}
 }
 

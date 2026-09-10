@@ -100,6 +100,9 @@ func cmdMigrate(args []string) error {
 		return err
 	}
 
+	// The attachment byte source. nil means the seed carries metadata only
+	// (--skip-attachments, or a source with no attachments at all).
+	var fetch migrate.StreamFetch
 	if !*skipAttach && stats.Attachments > 0 {
 		client, cerr := origin.Client(srcCfg)
 		if cerr != nil {
@@ -114,38 +117,26 @@ func cmdMigrate(args []string) error {
 				"  to bring the bytes: make the source reachable (a frozen workspace: `gadak --workspace %s config set frozen false`)\n"+
 				"  to migrate without them on purpose: --skip-attachments",
 				*from, cerr, stats.Attachments, *from)
-		} else {
-			migrate.InlineAttachments(ctx, doc, func(ctx context.Context, id string) (int, []byte, error) {
-				// Stream, not Raw: Raw reads through a 64 MiB
-				// io.LimitReader, which on a large attachment returns a
-				// truncated prefix with no error — the same silent loss
-				// GDK-1614 fixed on the upload side, on the migrate side
-				// (GDK-1617). The seed document still holds the bytes
-				// base64 in memory; that ceiling is GDK-1618.
-				res, err := client.Stream(ctx, "GET", "/rest/api/3/attachment/content/"+url.PathEscape(id), nil)
-				if err != nil {
-					return 0, nil, err
-				}
-				defer res.Body.Close()
-				b, err := io.ReadAll(res.Body)
-				if err != nil {
-					return res.StatusCode, nil, err
-				}
-				return res.StatusCode, b, nil
-			}, stats)
+		}
+		fetch = func(ctx context.Context, id string) (int, int64, io.ReadCloser, error) {
+			// Stream, not Raw: Raw reads through a 64 MiB io.LimitReader,
+			// which on a large attachment returns a truncated prefix with no
+			// error — the same silent loss GDK-1614 fixed on the upload
+			// side, on the migrate side (GDK-1617). The body is handed on
+			// unread: migrate.WriteDoc base64-encodes it straight into the
+			// seed file, so the bytes never accumulate in memory (GDK-1618).
+			res, err := client.Stream(ctx, "GET", "/rest/api/3/attachment/content/"+url.PathEscape(id), nil)
+			if err != nil {
+				return 0, 0, nil, err
+			}
+			if res.StatusCode != 200 {
+				_ = res.Body.Close()
+				return res.StatusCode, 0, nil, nil
+			}
+			return res.StatusCode, res.ContentLength, res.Body, nil
 		}
 	}
 
-	// JSON, not YAML, even though the seed file keeps issuetap's legacy
-	// name: yaml.v3's emitter produces block scalars its own parser
-	// rejects on real Jira bodies (leading-space/blank-line combinations —
-	// measured on the first full GDK export, "did not find expected key").
-	// JSON escaping has no such class, and JSON is valid YAML, so
-	// issuetap's yaml.Unmarshal reads it unchanged.
-	data, err := json.MarshalIndent(doc, "", "  ")
-	if err != nil {
-		return err
-	}
 	originDir := filepath.Join(targetDir, filepath.Dir(filepath.FromSlash(origin.LegacyYAMLRel)))
 	if err := fsperm.EnsurePrivateDir(targetDir); err != nil {
 		return err
@@ -154,7 +145,9 @@ func cmdMigrate(args []string) error {
 		return err
 	}
 	yamlPath := filepath.Join(targetDir, filepath.FromSlash(origin.LegacyYAMLRel))
-	if err := atomicfile.WriteFile(yamlPath, "issuetap-*.yaml", data); err != nil {
+	if err := atomicfile.WriteStream(yamlPath, "issuetap-*.yaml", func(w io.Writer) error {
+		return migrate.WriteDoc(ctx, w, doc, fetch, stats)
+	}); err != nil {
 		return err
 	}
 
@@ -374,7 +367,7 @@ func printMigrateReport(w *os.File, target, from, locale string, st *migrate.Sta
 	}
 
 	if st.Attachments > 0 {
-		fmt.Fprintf(w, "attachments: %d inlined", st.AttachInlined)
+		fmt.Fprintf(w, "attachments: %d inlined (%d bytes)", st.AttachInlined, st.AttachBytes)
 		if n := st.Attachments - st.AttachInlined; n > 0 {
 			fmt.Fprintf(w, ", %d metadata-only (missing at origin %d, over size cap %d, non-Jira source %d, errors %d)",
 				n, st.AttachMissing, st.AttachTooLarge, st.AttachSkipURL, len(st.AttachErrors))

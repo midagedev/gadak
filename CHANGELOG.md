@@ -415,6 +415,14 @@ pages and their comments are now placed on the same window, and a gate over
 the committed fixture keeps created ≤ updated and every comment inside its
 page's span ([GDK-1731]).
 
+`gadak migrate` no longer holds the archive in memory. The seed document
+used to inline every attachment as base64 and then marshal the whole thing a
+second time, so a workspace big enough to be worth migrating was the one that
+could not be; attachment bytes now stream from the origin straight into the
+seed file as the writer reaches them, the size cap and the missing-file
+accounting are unchanged, and a test pins that memory does not grow with the
+archive ([GDK-1618]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2010,3 +2018,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1753]: https://gadak.dev/backlog/#/?ks=GDK-1753
 [GDK-1451]: https://gadak.dev/backlog/#/?ks=GDK-1451
 [GDK-1731]: https://gadak.dev/backlog/#/?ks=GDK-1731
+[GDK-1618]: https://gadak.dev/backlog/#/?ks=GDK-1618

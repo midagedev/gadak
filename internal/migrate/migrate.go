@@ -20,7 +20,6 @@ package migrate
 import (
 	"context"
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -240,7 +239,8 @@ type Stats struct {
 
 	// Attachment byte pass.
 	AttachInlined  int
-	AttachMissing  int // origin answered 404 — metadata kept
+	AttachBytes    int64 // bytes actually written into the seed (GDK-1618)
+	AttachMissing  int   // origin answered 404 — metadata kept
 	AttachTooLarge int
 	AttachSkipURL  int // stored origin URL (non-Jira source) — out of scope
 	AttachErrors   []string
@@ -257,8 +257,9 @@ type Stats struct {
 	PriorityDefaulted  int
 }
 
-// maxAttachmentBytes caps one inlined file. The fixture is a YAML document
-// read into memory; a file past this stays metadata-only and is reported.
+// maxAttachmentBytes caps one inlined file. The bytes no longer pile up on
+// this side (GDK-1618 streams them), but the loader still decodes one file
+// into memory; a file past this stays metadata-only and is reported.
 const maxAttachmentBytes = 16 << 20
 
 // Build reads the mirror and assembles the fixture document. db must be a
@@ -853,53 +854,6 @@ func buildUsers(ctx context.Context, db *sql.DB, doc *Doc, st *Stats) error {
 	}
 	st.Users = len(doc.Users)
 	return nil
-}
-
-// Fetch downloads one attachment's bytes by content id. Implemented by the
-// caller over the source origin client (Jira's and issuetap's
-// /attachment/content/{id} are the same shape). A 404 returns status 404
-// with err nil.
-type Fetch func(ctx context.Context, contentID string) (status int, body []byte, err error)
-
-// InlineAttachments downloads each attachment's bytes and inlines them into
-// the document — printable text/* as Text, anything else as std base64. A
-// missing file (404) or an oversized one keeps its metadata row and is
-// counted, never fatal: a partial archive that says what is missing beats
-// no archive.
-func InlineAttachments(ctx context.Context, doc *Doc, fetch Fetch, st *Stats) {
-	for i := range doc.Issues {
-		for j := range doc.Issues[i].Attachments {
-			a := &doc.Issues[i].Attachments[j]
-			switch {
-			case a.SourceURL != "":
-				st.AttachSkipURL++
-				continue
-			case a.Size > maxAttachmentBytes:
-				st.AttachTooLarge++
-				continue
-			}
-			status, body, err := fetch(ctx, a.ContentID)
-			switch {
-			case err != nil:
-				st.AttachErrors = append(st.AttachErrors,
-					fmt.Sprintf("%s (%s): %v", a.Filename, doc.Issues[i].Key, err))
-			case status == 404:
-				st.AttachMissing++
-			case status != 200:
-				st.AttachErrors = append(st.AttachErrors,
-					fmt.Sprintf("%s (%s): origin status %d", a.Filename, doc.Issues[i].Key, status))
-			case len(body) > maxAttachmentBytes:
-				st.AttachTooLarge++
-			default:
-				if isPrintableText(a.MimeType, body) {
-					a.Text = string(body)
-				} else {
-					a.DataBase64 = base64.StdEncoding.EncodeToString(body)
-				}
-				st.AttachInlined++
-			}
-		}
-	}
 }
 
 func isPrintableText(mime string, b []byte) bool {
