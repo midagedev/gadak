@@ -17,6 +17,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/reflink"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -24,11 +25,9 @@ const refUsage = "usage: gadak ref <KEY> <workspace>/<TARGET-KEY>|<url> [--as <r
 	"       gadak ref <KEY> --list [--json]\n" +
 	"       gadak ref <KEY> --rm <id>"
 
-// refScheme is the URL form a cross-workspace pointer takes:
-// gadak://<workspace>/<KEY>. It is the stored identity, so the hydrator can
-// recognize its own rows among ordinary remote links (a plain https:// URL
-// is a valid pointer too — it just has nothing local to hydrate from).
-const refScheme = "gadak://"
+// The pointer grammar — gadak://<workspace>/<KEY>, its parser, its
+// hydration read — is owned by internal/reflink (GDK-1316); this file is
+// the CLI surface over it, not a second copy of it.
 
 func cmdRef(args []string) error {
 	fs := newFlagSet("ref")
@@ -76,12 +75,13 @@ func parseRefTarget(token string) (url, workspace, targetKey string, err error) 
 		return "", "", "", fmt.Errorf("name what to point at: <workspace>/<KEY> or a URL")
 	}
 	if strings.Contains(token, "://") {
-		if strings.HasPrefix(token, refScheme) {
-			ws, k, ok := strings.Cut(strings.TrimPrefix(token, refScheme), "/")
-			if !ok || ws == "" || k == "" {
-				return "", "", "", fmt.Errorf("%s is not <workspace>/<KEY>", token)
-			}
+		// The URL keeps the caller's spelling; only the grammar is the
+		// owner package's (GDK-1316).
+		if ws, k, ok := reflink.Parse(token); ok {
 			return token, ws, normalizeKey(k), nil
+		}
+		if strings.HasPrefix(token, reflink.Scheme) {
+			return "", "", "", fmt.Errorf("%s is not <workspace>/<KEY>", token)
 		}
 		return token, "", "", nil
 	}
@@ -90,7 +90,7 @@ func parseRefTarget(token string) (url, workspace, targetKey string, err error) 
 		return "", "", "", fmt.Errorf("point at <workspace>/<KEY> (e.g. work/NMA-9) or a URL — %q is neither", token)
 	}
 	k = normalizeKey(k)
-	return refScheme + ws + "/" + k, ws, k, nil
+	return reflink.Compose(ws, k), ws, k, nil
 }
 
 func refAdd(key, target, relationship string, asJSON bool) error {
@@ -109,8 +109,8 @@ func refAdd(key, target, relationship string, asJSON bool) error {
 		// reads sensibly even from a machine that does not mirror that
 		// workspace. The live state still comes from hydration.
 		if lite, ok := hydrateRef(ws, targetKey); ok {
-			summary = lite.summary
-			title = targetKey + " — " + lite.summary
+			summary = lite.Summary
+			title = targetKey + " — " + lite.Summary
 		}
 	}
 
@@ -180,10 +180,7 @@ func refreshRefs(ctx context.Context, cfg *config.Config, db *store.DB, rl origi
 	}
 	update := store.RemoteLinksUpdate{}
 	for _, l := range links {
-		update.Links = append(update.Links, store.RemoteLink{
-			ID: l.ID, GlobalID: l.GlobalID, Relationship: l.Relationship,
-			URL: l.URL, Title: l.Title, Summary: l.Summary,
-		})
+		update.Links = append(update.Links, reflink.StoreLink(l))
 	}
 	return db.ReplaceRemoteLinks(ctx, key, update)
 }
@@ -218,15 +215,12 @@ func refList(key string, asJSON bool) error {
 	out := make([]refRow, 0, len(rows))
 	for _, r := range rows {
 		row := refRow{ID: r.ID, Relationship: r.Relationship, URL: r.URL, Title: r.Title}
-		if strings.HasPrefix(r.URL, refScheme) {
-			ws, k, ok := strings.Cut(strings.TrimPrefix(r.URL, refScheme), "/")
-			if ok {
-				row.Workspace, row.Key = ws, k
-				if lite, found := hydrateRef(ws, k); found {
-					row.Status, row.Assignee, row.Summary = lite.status, lite.assignee, lite.summary
-				} else {
-					row.Stale = true
-				}
+		if ws, k, ok := reflink.Parse(r.URL); ok {
+			row.Workspace, row.Key = ws, k
+			if lite, found := hydrateRef(ws, k); found {
+				row.Status, row.Assignee, row.Summary = lite.Status, lite.Assignee, lite.Summary
+			} else {
+				row.Stale = true
 			}
 		}
 		out = append(out, row)
@@ -265,38 +259,17 @@ func refList(key string, asJSON bool) error {
 	return nil
 }
 
-// refLite is what hydration reads out of another workspace's mirror.
-type refLite struct {
-	summary  string
-	status   string
-	assignee string
-}
-
 // hydrateRef reads one issue out of another workspace's mirror, read-only.
 // A workspace that does not exist, has no mirror, or does not carry the key
 // is a miss, never an error — the pointer stays valid either way.
-func hydrateRef(workspace, key string) (refLite, bool) {
+func hydrateRef(workspace, key string) (reflink.Lite, bool) {
 	if workspace == "" || key == "" {
-		return refLite{}, false
+		return reflink.Lite{}, false
 	}
-	path, err := config.DBPathFor(workspace)
-	if err != nil {
-		return refLite{}, false
+	m := reflink.OpenMirror(workspace)
+	if m == nil {
+		return reflink.Lite{}, false
 	}
-	if _, err := os.Stat(path); err != nil {
-		return refLite{}, false
-	}
-	db, err := store.OpenReadOnly(path)
-	if err != nil {
-		return refLite{}, false
-	}
-	defer db.Close()
-	var lite refLite
-	err = db.QueryRow(`
-		SELECT COALESCE(summary,''), COALESCE(status,''), COALESCE(assignee,'')
-		FROM issues_full WHERE key = ? LIMIT 1`, key).Scan(&lite.summary, &lite.status, &lite.assignee)
-	if err != nil {
-		return refLite{}, false
-	}
-	return lite, true
+	defer m.Close()
+	return m.Lookup(context.Background(), key)
 }

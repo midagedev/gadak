@@ -300,7 +300,17 @@ group resolves the same way from the CLI, a REST write and `gadak claim`,
 because the mirror-usage tiebreak has one owner instead of three
 ([GDK-1521]). And a board on a self-hosted Jira knows its project: Server
 answers the board location differently from Cloud, so the key is backfilled
-per board rather than left blank ([GDK-1665]).
+per board rather than left blank ([GDK-1665]). `migrate` stopped swallowing two failures: a dev-links
+count that errored reported success anyway, and a Linear assignee that could
+not be resolved vanished from the report rather than being named in it — the
+run still continues, it just says who it could not place ([GDK-1318]). The
+pairing dialog decides a loopback refusal from the error's type rather than
+by matching the sentence it happens to carry ([GDK-1317]). And three
+grammars became one: the `gadak://` pointer had a parser in the CLI and
+another in the server ([GDK-1316]), the Cloud category fold had a hand-written
+copy beside it ([GDK-1315]), and the page-id case policy differed between
+the store and sync ([GDK-1104]). Each has a single owner now, held there by a
+gate that names any second copy.
 
 ## v0.21.0 — 2026-09-08
 
@@ -1833,6 +1843,11 @@ priority sorting keyed on `priority_rank`.
 [GDK-1700]: https://gadak.dev/backlog/#/?ks=GDK-1700
 [GDK-1702]: https://gadak.dev/backlog/#/?ks=GDK-1702
 [GDK-1323]: https://gadak.dev/backlog/#/?ks=GDK-1323
+[GDK-1104]: https://gadak.dev/backlog/#/?ks=GDK-1104
+[GDK-1315]: https://gadak.dev/backlog/#/?ks=GDK-1315
+[GDK-1316]: https://gadak.dev/backlog/#/?ks=GDK-1316
+[GDK-1317]: https://gadak.dev/backlog/#/?ks=GDK-1317
+[GDK-1318]: https://gadak.dev/backlog/#/?ks=GDK-1318
 [GDK-1496]: https://gadak.dev/backlog/#/?ks=GDK-1496
 [GDK-1521]: https://gadak.dev/backlog/#/?ks=GDK-1521
 [GDK-1665]: https://gadak.dev/backlog/#/?ks=GDK-1665

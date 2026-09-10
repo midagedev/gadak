@@ -2,8 +2,10 @@ package migrate
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -163,5 +165,91 @@ func TestToLinearDryRunIsOffline(t *testing.T) {
 	// T-3 is cut by --limit 2; nothing references it, so no drops.
 	if byMetric["parents"].Source != 0 {
 		t.Fatalf("parents %+v", byMetric["parents"])
+	}
+}
+
+// fakeLinearServe answers ToLinear's read path from canned pages and lets
+// the caller fail the Users lookup selectively (by email substring), so a
+// lookup error can be told apart from a miss without a second server.
+func fakeLinearServe(t *testing.T, failEmails ...string) (*linear.Client, *int) {
+	t.Helper()
+	creates := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		page := func(coll, nodes string) string {
+			return `{"data":{"` + coll + `":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[` + nodes + `]}}}`
+		}
+		switch {
+		case strings.Contains(string(body), "query Teams"):
+			w.Write([]byte(page("teams", `{"id":"team-1","key":"FIX","name":"Fix"}`)))
+		case strings.Contains(string(body), "query WorkflowStates"):
+			w.Write([]byte(page("workflowStates", `{"id":"s-back","name":"Backlog","type":"backlog","position":0}`)))
+		case strings.Contains(string(body), "query Issues"):
+			w.Write([]byte(page("issues", "")))
+		case strings.Contains(string(body), "query Labels"):
+			w.Write([]byte(page("issueLabels", `{"id":"lab-1","name":"gadak-migrate"}`)))
+		case strings.Contains(string(body), "query Users"):
+			for _, email := range failEmails {
+				if strings.Contains(string(body), email) {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+			}
+			w.Write([]byte(`{"data":{"users":{"nodes":[]}}}`))
+		case strings.Contains(string(body), "mutation IssueCreate"):
+			creates++
+			w.Write([]byte(`{"data":{"issueCreate":{"success":true,"issue":{"id":"i-` +
+				strconv.Itoa(creates) + `","identifier":"FIX-` + strconv.Itoa(creates) + `","createdAt":"2026-09-10T00:00:00.000Z"}}}}`))
+		default:
+			t.Errorf("unexpected GraphQL document: %.120s", body)
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	c := linear.New("not-a-key")
+	c.Endpoint = srv.URL
+	c.Retries, c.Backoff = 1, 0
+	return c, &creates
+}
+
+// TestToLinearNamesFailedAssigneeLookups is the GDK-1318 gate for the
+// Linear path: a Users lookup that errors must not fail the run (one
+// person must not sink the migration), must not pass as success either —
+// the report names the account — and must stay distinguishable from a
+// genuine miss (the account Linear simply does not have). FAIL-first: on
+// the swallowing source, the run reported plain success and this test
+// failed on the missing line.
+func TestToLinearNamesFailedAssigneeLookups(t *testing.T) {
+	c, creates := fakeLinearServe(t, "broken@example.com")
+	doc := &Doc{
+		Issues: []Issue{
+			{Key: "NMB-1", Summary: "lookup breaks", StatusCategory: "new",
+				Assignee: "acc-broken", AssigneeEmail: "broken@example.com"},
+			{Key: "NMB-2", Summary: "genuine miss", StatusCategory: "new",
+				Assignee: "acc-miss", AssigneeEmail: "miss@example.com"},
+		},
+	}
+	rep, err := ToLinear(context.Background(), c, doc, nil, LinearOptions{TeamKey: "FIX"})
+	if err != nil {
+		t.Fatalf("a failed assignee lookup must not fail the run (one person, whole migration): %v", err)
+	}
+	joined := strings.Join(rep.NotMigrated, "\n")
+	if !strings.Contains(joined, "assignee lookups failed for 1 accounts (acc-broken)") {
+		t.Fatalf("a failed lookup must be named in the report, not swallowed: %q", joined)
+	}
+	if strings.Contains(joined, "acc-miss") {
+		t.Fatalf("a genuine miss is not a lookup failure — the assignees row already counts it: %q", joined)
+	}
+	// The migration continued: both issues were created, and the assignees
+	// row tells the truth (source 2, migrated 0) instead of fake success.
+	if *creates != 2 {
+		t.Fatalf("creates = %d, want 2 — the run must keep going past a failed lookup", *creates)
+	}
+	byMetric := map[string]VerifyRow{}
+	for _, r := range rep.Counts {
+		byMetric[r.Metric] = r
+	}
+	if a := byMetric["assignees"]; a.Source != 2 || a.Migrated != 0 {
+		t.Fatalf("assignees row %+v, want Source 2 / Migrated 0", a)
 	}
 }

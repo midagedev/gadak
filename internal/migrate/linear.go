@@ -399,15 +399,25 @@ func ToLinear(ctx context.Context, client *linear.Client, doc *Doc, st *Stats, o
 		created["labels"]++
 	}
 
-	// Assignees by email; a miss leaves the issue unassigned.
-	userID := map[string]string{} // account id → Linear user id ("" = miss)
+	// Assignees by email; a miss leaves the issue unassigned. A failed
+	// lookup used to be indistinguishable from a miss (any error skipped
+	// the assignment and the run reported success, GDK-1318) — the issue
+	// still migrates, because one person must not fail the whole run, but
+	// the account is remembered and the report names it, so a transport
+	// error never masquerades as "no such user" in the assignees row's
+	// mismatch.
+	userID := map[string]string{} // account id → Linear user id ("" = miss or failed)
+	userLookupFailed := map[string]bool{}
 	resolveUser := func(acct string) string {
 		if id, ok := userID[acct]; ok {
 			return id
 		}
 		id := ""
 		if email := emails[acct]; email != "" {
-			if users, err := client.Users(ctx, email); err == nil {
+			users, err := client.Users(ctx, email)
+			if err != nil {
+				userLookupFailed[acct] = true
+			} else {
 				for _, u := range users {
 					if strings.EqualFold(u.Email, email) {
 						id = u.ID
@@ -568,6 +578,15 @@ func ToLinear(ctx context.Context, client *linear.Client, doc *Doc, st *Stats, o
 		created["relations"]++
 	}
 
+	// GDK-1318: the assignee skips the run could not verify are a report
+	// row, not a silent gap — the assignees count row shows the mismatch
+	// either way; this line says which part of it is "the lookup errored"
+	// and not "the person is not on Linear".
+	if len(userLookupFailed) > 0 {
+		rep.NotMigrated = append(rep.NotMigrated,
+			fmt.Sprintf("assignee lookups failed for %d accounts (%s) — their issues migrated unassigned; a lookup error, not a confirmed miss",
+				len(userLookupFailed), strings.Join(sortedKeys(userLookupFailed), ", ")))
+	}
 	counts(created, skipped)
 	return rep, nil
 }

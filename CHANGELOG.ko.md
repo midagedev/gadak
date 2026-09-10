@@ -214,7 +214,15 @@ serve 플래그를 유닛에 그대로 싣고, 설치 시점에 serve 파서로 
 풀어도 같은 결론이 납니다 — 미러 사용량 타이브레이크의 소유자가 셋에서 하나가
 됐습니다 ([GDK-1521]). 셀프호스트 Jira 의 보드는 자기 프로젝트를 압니다. Server 는
 보드 위치를 Cloud 와 다르게 답하므로, 키를 비워 두는 대신 보드마다 채웁니다
-([GDK-1665]).
+([GDK-1665]). `migrate` 가 삼키던 실패 둘을 뱉습니다. dev-links
+개수 조회가 에러를 내도 성공으로 보고하던 것, 그리고 해석되지 않은 Linear 담당자가
+리포트에서 사라지던 것입니다 — 실행은 그대로 이어지고, 누구를 못 앉혔는지 말합니다
+([GDK-1318]). 페어링 대화상자는 루프백 거절을 문장이 아니라 에러 타입으로
+판정합니다 ([GDK-1317]). 그리고 문법 셋이 하나가 됐습니다. `gadak://` 포인터는
+CLI 와 서버에 파서가 따로 있었고 ([GDK-1316]), Cloud 카테고리 접기는 손으로 쓴
+사본을 옆에 두고 있었으며 ([GDK-1315]), 페이지 id 의 대소문자 정책은 스토어와
+동기화가 달랐습니다 ([GDK-1104]). 이제 각각 소유자가 하나이고, 두 번째 사본이
+생기면 게이트가 그 자리를 이름으로 부릅니다.
 
 ## v0.21.0 — 2026-09-08
 
@@ -1681,6 +1689,11 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1700]: https://gadak.dev/backlog/#/?ks=GDK-1700
 [GDK-1702]: https://gadak.dev/backlog/#/?ks=GDK-1702
 [GDK-1323]: https://gadak.dev/backlog/#/?ks=GDK-1323
+[GDK-1104]: https://gadak.dev/backlog/#/?ks=GDK-1104
+[GDK-1315]: https://gadak.dev/backlog/#/?ks=GDK-1315
+[GDK-1316]: https://gadak.dev/backlog/#/?ks=GDK-1316
+[GDK-1317]: https://gadak.dev/backlog/#/?ks=GDK-1317
+[GDK-1318]: https://gadak.dev/backlog/#/?ks=GDK-1318
 [GDK-1496]: https://gadak.dev/backlog/#/?ks=GDK-1496
 [GDK-1521]: https://gadak.dev/backlog/#/?ks=GDK-1521
 [GDK-1665]: https://gadak.dev/backlog/#/?ks=GDK-1665

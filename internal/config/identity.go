@@ -30,6 +30,19 @@ const (
 	LegacyEnvPrefix = "SCRY_"
 )
 
+// LegacySunsetRelease is the release that drops the legacy scry names
+// (the rename-sunset audit; decision 0007's addendum is the record). The
+// rename landed 2026-08-13; the 0.19-release audit asked
+// for a sunset so this compatibility cannot take up permanent residence —
+// its proposal ("drop in 0.19 or 0.20") shipped past, so the sunset is the
+// next minor after v0.21. The moment CHANGELOG.md gains a v0.22.0 heading,
+// sunset_test.go fails until the compat is gone. The drop is mechanical
+// (about 120 lines): the constants here and legacyEnv (identity.go), the
+// SCRY_* reads and the ~/.scry tree migration (config.go), the binary-name
+// hint (cmd/gadak/main.go), and the scry: localStorage migrations
+// (web/src/lib/storage.ts) — decision 0007's addendum is the record.
+const LegacySunsetRelease = "v0.22.0"
+
 // envSuffixes is every suffix production currently passes to Env. Env itself
 // does not consult this map — a new call site works immediately. The map is
 // only the runtime allowlist for warnUnknownGADAK. A hardcoded census is

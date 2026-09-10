@@ -92,23 +92,3 @@ func TestHydrateRefs(t *testing.T) {
 		t.Fatalf("external URL altered: %+v", ext)
 	}
 }
-
-func TestParseRefURL(t *testing.T) {
-	cases := []struct {
-		in       string
-		ws, key  string
-		expectOK bool
-	}{
-		{"gadak://work/NMA-9", "work", "NMA-9", true},
-		{"gadak://work/", "", "", false},
-		{"gadak:///NMA-9", "", "", false},
-		{"https://example.com/x", "", "", false},
-		{"", "", "", false},
-	}
-	for _, c := range cases {
-		ws, key, ok := parseRefURL(c.in)
-		if ok != c.expectOK || ws != c.ws || key != c.key {
-			t.Errorf("parseRefURL(%q) = %q,%q,%v want %q,%q,%v", c.in, ws, key, ok, c.ws, c.key, c.expectOK)
-		}
-	}
-}

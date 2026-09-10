@@ -33,9 +33,24 @@ var (
 	reBareIssue = regexp.MustCompile(`\b(` + fields.IssueKeyBare + `)\b`)
 	// Confluence pretty URL …/wiki/spaces/…/pages/123…
 	reWikiPage = regexp.MustCompile(`/wiki/spaces/[^/\s]+/pages/(\d+)`)
-	// Query-style pageId=123
-	rePageIDParam = regexp.MustCompile(`pageId=(\d+)`)
+	// Query-style pageId=123, case-folded (GDK-1104): the parameter's case
+	// varies in the wild — links get hand-typed and proxies rewrite — and
+	// this package is the single owner of the grammar. internal/sync's
+	// comment-container scan folded its own (?i) copy into PageIDFromQuery
+	// below; a second spelling of the policy is how the two drifted apart.
+	rePageIDParam = regexp.MustCompile(`(?i)pageId=(\d+)`)
 )
+
+// PageIDFromQuery is the exported half of rePageIDParam: the page id in a
+// `pageId=<digits>` parameter, case-insensitively, or "" when absent. It
+// exists so the sync pass answers comment-container webui strings with the
+// same case policy refs extraction uses — one grammar, one owner.
+func PageIDFromQuery(s string) string {
+	if m := rePageIDParam.FindStringSubmatch(s); len(m) == 2 {
+		return m[1]
+	}
+	return ""
+}
 
 // ExtractIssueRefsFromPage finds issue keys in a page's ADF (URL paths) and
 // plain body_text (bare keys filtered by knownProjects). Same key from both

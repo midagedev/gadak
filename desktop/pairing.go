@@ -168,12 +168,17 @@ func handlePairingMint(w http.ResponseWriter, r *http.Request) {
 	res, err := pairflow.MintDevice(dir, cfg, label, scope, body.TTL, strings.TrimSpace(body.Endpoint), time.Now())
 	if err != nil && res.Offer == "" {
 		// The flow refuses before minting; classify by its own wording,
-		// which never carries the credential.
+		// which never carries the credential. The loopback refusal is a
+		// typed error, matched like the CLI matches it (GDK-1317) — the
+		// string form is mint.go's wording, and wording is allowed to
+		// change without degrading this tab's specific refusal into a
+		// generic mint_failed.
+		var lb *pairflow.LoopbackEndpointError
 		switch {
 		case strings.Contains(err.Error(), "already exists"):
 			writePairingErr(w, http.StatusConflict, "label_exists")
-		case strings.Contains(err.Error(), "no live serve"),
-			strings.Contains(err.Error(), "listens on loopback"):
+		case errors.As(err, &lb),
+			strings.Contains(err.Error(), "no live serve"):
 			// GDK-1266: the form sent no endpoint and the live serve is
 			// loopback-only — same prescription as no serve: fill it in.
 			writePairingErr(w, http.StatusConflict, "no_serve")

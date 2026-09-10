@@ -237,7 +237,15 @@ Jira に遅れること、トークンの置き場所、拒否された書き込
 `gadak claim` からも同じように解けます — ミラー使用量のタイブレークの持ち主が三つから一つに
 なりました ([GDK-1521])。セルフホストの Jira のボードは自分のプロジェクトを知っています。
 Server はボードの位置を Cloud とは違う形で答えるため、キーを空のままにせずボードごとに
-埋めます ([GDK-1665])。
+埋めます ([GDK-1665])。`migrate` が飲み込んでいた失敗が二つ表に出ます。dev-links の
+件数取得がエラーでも成功と報告していたこと、そして解決できなかった Linear の担当者が
+レポートから消えていたことです — 実行はそのまま続き、誰を割り当てられなかったかを
+言います ([GDK-1318])。ペアリングダイアログは、ループバックの拒否を文面ではなく
+エラーの型で判断します ([GDK-1317])。そして三つの文法が一つになりました。`gadak://`
+ポインタは CLI とサーバーに別々のパーサーがあり ([GDK-1316])、Cloud のカテゴリ畳み込みは
+手書きの写しを隣に置いていて ([GDK-1315])、ページ id の大文字小文字の扱いはストアと
+同期で違っていました ([GDK-1104])。いまはそれぞれ持ち主が一つで、二つ目の写しが
+できればゲートがその場所を名指しします。
 
 ## v0.21.0 — 2026-09-08
 
@@ -1782,6 +1790,11 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1700]: https://gadak.dev/backlog/#/?ks=GDK-1700
 [GDK-1702]: https://gadak.dev/backlog/#/?ks=GDK-1702
 [GDK-1323]: https://gadak.dev/backlog/#/?ks=GDK-1323
+[GDK-1104]: https://gadak.dev/backlog/#/?ks=GDK-1104
+[GDK-1315]: https://gadak.dev/backlog/#/?ks=GDK-1315
+[GDK-1316]: https://gadak.dev/backlog/#/?ks=GDK-1316
+[GDK-1317]: https://gadak.dev/backlog/#/?ks=GDK-1317
+[GDK-1318]: https://gadak.dev/backlog/#/?ks=GDK-1318
 [GDK-1496]: https://gadak.dev/backlog/#/?ks=GDK-1496
 [GDK-1521]: https://gadak.dev/backlog/#/?ks=GDK-1521
 [GDK-1665]: https://gadak.dev/backlog/#/?ks=GDK-1665

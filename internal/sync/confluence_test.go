@@ -2133,3 +2133,23 @@ func TestConfluenceSomeConfiguredSpacesMissingStillSyncs(t *testing.T) {
 		t.Errorf("no partial-scope log line; got:\n%s", strings.Join(logs, "\n"))
 	}
 }
+
+// TestCommentContainerFromWebUICasePolicy (GDK-1104): the webui's pageId=
+// parameter folds case through store.PageIDFromQuery — the same policy refs
+// extraction uses — and the /pages/<id> path form stays the fallback it
+// always was. Before the fold this scan carried its own (?i) copy; the test
+// pins that folding the owner in did not narrow either side.
+func TestCommentContainerFromWebUICasePolicy(t *testing.T) {
+	for _, tc := range []struct{ webui, want string }{
+		{"/spaces/ENG/pages/987117?focusedCommentId=1", "987117"},
+		{"pageId=123", "123"},
+		{"pageid=123", "123"},
+		{"?PageId=456", "456"},
+		{"", ""},
+		{"no page id here", ""},
+	} {
+		if got := commentContainerFromWebUI(tc.webui); got != tc.want {
+			t.Errorf("commentContainerFromWebUI(%q) = %q, want %q", tc.webui, got, tc.want)
+		}
+	}
+}

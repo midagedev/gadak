@@ -27,6 +27,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/midagedev/gadak/internal/statuscat"
 )
 
 // Doc is the fixture document. Key names follow issuetap's
@@ -402,12 +404,18 @@ func buildIssues(ctx context.Context, db *sql.DB, doc *Doc, st *Stats) error {
 		}
 	}
 
+	// GDK-1318: this count used to swallow its own error (`err == nil`
+	// guarded the assignment), reporting 0 dev links when the query failed
+	// — a number indistinguishable from a clean mirror, so verify either
+	// cried a fake mismatch or hid a real one. The neighbors above
+	// propagate; the count is not special.
 	var devs int
 	if err := db.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM dev_links d JOIN issues_full i ON i.item_id = d.item_id
-		WHERE i.project_key IN (`+marks+`)`, args...).Scan(&devs); err == nil {
-		st.DevLinks = devs
+		WHERE i.project_key IN (`+marks+`)`, args...).Scan(&devs); err != nil {
+		return err
 	}
+	st.DevLinks = devs
 	return nil
 }
 
@@ -616,8 +624,10 @@ func buildCatalogs(ctx context.Context, db *sql.DB, doc *Doc, st *Stats) error {
 	}
 
 	// Mirror categories are new|inprogress|done; fixtures speak Cloud's
-	// new|indeterminate|done.
-	toFixtureCat := map[string]string{"new": "new", "inprogress": "indeterminate", "done": "done"}
+	// new|indeterminate|done. statuscat.CategoryKey owns that fold (GDK-1315)
+	// — an unknown category lands on "new", same as the hand-rolled map it
+	// replaced, and a stray Cloud key now folds correctly instead of
+	// falling to "new".
 	for _, id := range sortedKeys(statusIDs) {
 		n := name[id]
 		if n == "" {
@@ -627,11 +637,7 @@ func buildCatalogs(ctx context.Context, db *sql.DB, doc *Doc, st *Stats) error {
 			n = id
 			st.UnnamedStatuses = append(st.UnnamedStatuses, id)
 		}
-		c := toFixtureCat[cat[id]]
-		if c == "" {
-			c = "new"
-		}
-		doc.Statuses = append(doc.Statuses, Status{ID: id, Name: n, Category: c})
+		doc.Statuses = append(doc.Statuses, Status{ID: id, Name: n, Category: statuscat.CategoryKey(cat[id])})
 	}
 
 	// Rule 1: catalog order is priority_rank — emit in numeric id order,

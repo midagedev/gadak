@@ -333,3 +333,30 @@ func TestIDLessMirrorIsReported(t *testing.T) {
 		t.Fatalf("mirror with ids: derived=%v defaulted=%d, want false/0", st2.PriorityIDsDerived, st2.PriorityDefaulted)
 	}
 }
+
+// GDK-1318: the dev-links count must fail Build when its query fails. It
+// used to guard the assignment with `err == nil`, so a broken query
+// reported 0 dev links — a number indistinguishable from a clean mirror,
+// making verify cry a fake mismatch (or hide a real one). FAIL-first: on
+// the swallowing source, Build below returned nil and this test failed.
+func TestBuildPropagatesCountFailure(t *testing.T) {
+	path := seedMirror(t)
+	w, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatalf("open rw: %v", err)
+	}
+	if _, err := w.Exec(`DROP TABLE dev_links`); err != nil {
+		t.Fatalf("drop dev_links: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	ro, err := store.OpenReadOnly(path)
+	if err != nil {
+		t.Fatalf("open ro: %v", err)
+	}
+	defer ro.Close()
+	if _, _, err := Build(context.Background(), ro, Options{}); err == nil {
+		t.Fatal("the dev-links count query failed but Build reported success — a 0 count from a failed query is a silent lie (GDK-1318)")
+	}
+}

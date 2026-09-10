@@ -16,6 +16,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"image/png"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -24,8 +25,10 @@ import (
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/pairflow"
 	"github.com/midagedev/gadak/internal/pairing"
+	"github.com/midagedev/gadak/internal/serveaddr"
 )
 
 func pairingMuxForTest() http.Handler {
@@ -169,6 +172,57 @@ func TestPairingMintGuardAndQR(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &loop)
 	if !loop.LoopbackWarning {
 		t.Fatal("a loopback endpoint must set loopback_warning")
+	}
+}
+
+// TestPairingMintRefusesDiscoveredLoopbackServe is the GDK-1317 gate: a
+// mint whose endpoint would be *discovered* from a live loopback serve is
+// refused (GDK-1266), and the refusal must reach this tab as its specific
+// code (409 no_serve) by error type — the classification may not depend
+// on pairflow's wording, or a wording change there quietly degrades the
+// actionable refusal into a generic mint_failed (measured FAIL-first with
+// the string matcher against a reworded error).
+func TestPairingMintRefusesDiscoveredLoopbackServe(t *testing.T) {
+	builtInDesktopHome(t)
+	h := pairingMuxForTest()
+
+	// A live serve on loopback, advertised the way a real one is — the
+	// run-dir record the discovery walk reads — and answering the identity
+	// probe like a gadak serve (same stand-in as the CLI's test for the
+	// same refusal; the port is whatever httptest picked, so the sweep
+	// ranges never see it).
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != origin.ProbePath {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("X-Gadak", "1")
+		w.Header().Set("X-Gadak-Profile", "")
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(ts.Close)
+	addr := ts.Listener.Addr().String()
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil || host != "127.0.0.1" {
+		t.Skipf("httptest listener %q is not 127.0.0.1", addr)
+	}
+	runDir, err := serveaddr.Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := serveaddr.Write(runDir, addr, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	// No endpoint in the form: the flow discovers the loopback serve and
+	// must refuse before a token exists, with the code whose prescription
+	// is "fill the endpoint in".
+	rec := postPairing(t, h, "/desktop/pairing/mint", `{"label":"phone","scope":"serve"}`)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("discovered loopback serve: %d %s, want 409", rec.Code, rec.Body.String())
+	}
+	if got := pairingErrCode(t, rec); got != "no_serve" {
+		t.Fatalf("code %q, want no_serve — the specific refusal degraded to something else", got)
 	}
 }
 

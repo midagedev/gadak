@@ -1142,20 +1142,20 @@ func commentsOnlyPass(
 	return nil
 }
 
-// reCommentPageID / reCommentWebUIPage extract the container page from a
-// comment search hit's webui. store.reWikiPage requires /wiki/spaces/ which
-// Cloud webui often omits (/spaces/KEY/pages/ID or pageId=).
-var (
-	reCommentPageID    = regexp.MustCompile(`(?i)pageId=(\d+)`)
-	reCommentWebUIPage = regexp.MustCompile(`/pages/(\d+)`)
-)
+// reCommentWebUIPage extracts the container page from a comment search
+// hit's webui path form. The pageId= parameter form lives in
+// store.PageIDFromQuery (GDK-1104): the case policy of that grammar has one
+// owner — the same one refs extraction folds with — instead of a private
+// (?i) copy here that could drift again. store.reWikiPage requires
+// /wiki/spaces/ which Cloud webui often omits (/spaces/KEY/pages/ID).
+var reCommentWebUIPage = regexp.MustCompile(`/pages/(\d+)`)
 
 func commentContainerFromWebUI(webui string) string {
 	if webui == "" {
 		return ""
 	}
-	if m := reCommentPageID.FindStringSubmatch(webui); len(m) == 2 {
-		return m[1]
+	if id := store.PageIDFromQuery(webui); id != "" {
+		return id
 	}
 	if m := reCommentWebUIPage.FindStringSubmatch(webui); len(m) == 2 {
 		return m[1]

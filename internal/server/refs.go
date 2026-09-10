@@ -4,24 +4,16 @@ package server
 // pointer is just a URL; what makes it worth showing is hydration — the
 // target's current status and assignee, read out of that workspace's own
 // mirror file. No network, and never a write: the other workspace is opened
-// read-only.
+// read-only. The pointer grammar and the mirror read are owned by
+// internal/reflink (GDK-1316); this file is the HTTP surface over them.
 
 import (
 	"context"
-	"os"
-	"strings"
-	"sync"
 	"time"
 
-	"database/sql"
-
-	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/reflink"
 	"github.com/midagedev/gadak/internal/store"
 )
-
-// refScheme is the URL form of a cross-workspace pointer. Kept in step with
-// cmd/gadak's refScheme — the CLI writes these and the server reads them.
-const refScheme = "gadak://"
 
 // detailRef is one reference as the client sees it.
 type detailRef struct {
@@ -49,99 +41,32 @@ func hydrateRefs(ctx context.Context, links []store.RemoteLink) []detailRef {
 		return nil
 	}
 	out := make([]detailRef, 0, len(links))
-	cache := map[string]*refMirror{}
+	cache := map[string]*reflink.Mirror{}
 	for _, l := range links {
 		ref := detailRef{ID: l.ID, Relationship: l.Relationship, URL: l.URL, Title: l.Title, Summary: l.Summary}
-		if ws, key, ok := parseRefURL(l.URL); ok {
+		if ws, key, ok := reflink.Parse(l.URL); ok {
 			ref.Workspace, ref.Key = ws, key
 			m, seen := cache[ws]
 			if !seen {
-				m = openRefMirror(ws)
+				m = reflink.OpenMirror(ws)
 				cache[ws] = m
 			}
 			if m != nil {
-				if lite, found := m.lookup(ctx, key); found {
+				// A foreign mirror is another process's file; a lock wait
+				// must not hold the detail request open.
+				qctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+				if lite, found := m.Lookup(qctx, key); found {
 					ref.Summary, ref.Status, ref.Category, ref.Assignee =
-						lite.summary, lite.status, lite.category, lite.assignee
+						lite.Summary, lite.Status, lite.Category, lite.Assignee
 					ref.Hydrated = true
 				}
+				cancel()
 			}
 		}
 		out = append(out, ref)
 	}
 	for _, m := range cache {
-		m.close()
+		m.Close()
 	}
 	return out
-}
-
-// parseRefURL splits gadak://<workspace>/<KEY>. Any other URL is a plain
-// external pointer with nothing local to read.
-func parseRefURL(url string) (workspace, key string, ok bool) {
-	if !strings.HasPrefix(url, refScheme) {
-		return "", "", false
-	}
-	ws, k, found := strings.Cut(strings.TrimPrefix(url, refScheme), "/")
-	if !found || ws == "" || k == "" {
-		return "", "", false
-	}
-	return ws, k, true
-}
-
-type refLite struct {
-	summary  string
-	status   string
-	category string
-	assignee string
-}
-
-// refMirror is one other workspace's mirror, opened read-only for the life
-// of a request. nil means "not available here" — a missing workspace, a
-// mirror that was never synced, or a file this process may not read. None
-// of those is an error: the pointer stands, it just has no live half.
-type refMirror struct {
-	db   *sql.DB
-	once sync.Once
-}
-
-func openRefMirror(workspace string) *refMirror {
-	path, err := config.DBPathFor(workspace)
-	if err != nil {
-		return nil
-	}
-	if _, err := os.Stat(path); err != nil {
-		return nil
-	}
-	db, err := store.OpenReadOnly(path)
-	if err != nil {
-		return nil
-	}
-	return &refMirror{db: db}
-}
-
-func (m *refMirror) lookup(ctx context.Context, key string) (refLite, bool) {
-	if m == nil || m.db == nil {
-		return refLite{}, false
-	}
-	// A foreign mirror is another process's file; a lock wait must not hold
-	// the detail request open.
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	var lite refLite
-	err := m.db.QueryRowContext(ctx, `
-		SELECT COALESCE(summary,''), COALESCE(status,''), COALESCE(status_category,''),
-		       COALESCE(assignee,'')
-		FROM issues_full WHERE key = ? LIMIT 1`, key).
-		Scan(&lite.summary, &lite.status, &lite.category, &lite.assignee)
-	if err != nil {
-		return refLite{}, false
-	}
-	return lite, true
-}
-
-func (m *refMirror) close() {
-	if m == nil || m.db == nil {
-		return
-	}
-	m.once.Do(func() { _ = m.db.Close() })
 }

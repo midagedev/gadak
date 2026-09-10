@@ -22,6 +22,7 @@ import (
 	"github.com/midagedev/gadak/internal/jirafields"
 	"github.com/midagedev/gadak/internal/linear"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/reflink"
 	"github.com/midagedev/gadak/internal/statuscat"
 	"github.com/midagedev/gadak/internal/store"
 )
@@ -1668,10 +1669,7 @@ func remoteLinksFor(ctx context.Context, cfg *config.Config, c *jira.Client, key
 	}
 	u := &store.RemoteLinksUpdate{}
 	for _, rl := range links {
-		u.Links = append(u.Links, store.RemoteLink{
-			ID: rl.ID, GlobalID: rl.GlobalID, Relationship: rl.Relationship,
-			URL: rl.URL, Title: rl.Title, Summary: rl.Summary,
-		})
+		u.Links = append(u.Links, reflink.StoreLink(rl))
 	}
 	return u
 }

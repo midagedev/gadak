@@ -513,3 +513,18 @@ func TestDetailRefsJSONOmitEmpty(t *testing.T) {
 		t.Errorf("empty backlink_pages should omit, got %v", m["backlink_pages"])
 	}
 }
+
+// TestExtractPageRefsCaseFoldedParam is GDK-1104's FAIL-first fixture: the
+// pageId= parameter arrives with its case varying in the wild (the comment
+// container path in internal/sync already matched (?i) — two policies for
+// one URL grammar). store/refs.go is the owner; the param folds there.
+func TestExtractPageRefsCaseFoldedParam(t *testing.T) {
+	got := ExtractPageRefsFromIssue("", "see ?pageid=3003 and ?PageId=3004", nil)
+	want := []ItemRef{
+		{TargetKind: "page", TargetKey: "3003", Via: "url"},
+		{TargetKind: "page", TargetKey: "3004", Via: "url"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("case-varied pageId= params = %+v, want %+v (GDK-1104: one case policy, owned here)", got, want)
+	}
+}
