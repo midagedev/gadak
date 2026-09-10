@@ -171,7 +171,7 @@
       class="rounded-md border border-border-subtle bg-bg-base/60 px-3 py-2.5"
       data-testid="settings-upgrade"
     >
-      <div class="mb-2 text-micro font-medium uppercase tracking-wide text-text-muted">
+      <div class="mb-2 section-label">
         {t('settings.upgradeTitle')}
       </div>
       <!-- Command comes from upgradeCta — the single owner. A new package

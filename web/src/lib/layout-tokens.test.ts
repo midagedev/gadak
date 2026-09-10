@@ -35,6 +35,16 @@ import {
  * now channels the user's --layout-sidebar-narrow dim override, so a bare
  * 208px redefinition in that block is an offender again and only the
  * var(--layout-sidebar-narrow, 208px) fallback form may appear.
+ *
+ * GDK-1369 + GDK-1091/A-8 (2026-09-11): the step left CSS entirely. It was
+ * re-declared on five consuming elements because the inline install on
+ * .issue-layout out-ranks anything a block could say there — a structural
+ * fork with a measured casualty (the terminal-sheet 64px strip, GDK-1371).
+ * viewport-regime.ts now owns the stepped value: layoutTokenStyle() emits
+ * it under the boundary (moved 760 → 899, the terminal sheet's edge) and a
+ * watcher rewrites the install on a flip. app.css therefore defines
+ * --layout-sidebar nowhere, in no form — this file pins that, and the JS
+ * half lives in viewport-regime.test.ts.
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -192,7 +202,6 @@ test('converted declarations resolve to the exact pre-conversion geometry', () =
     expect(decl, `${selector} must declare ${prop}`).toBeTruthy()
     return (decl?.[1] ?? '').trim().replace(/\s+/g, ' ')
   }
-  const narrow = mediaBody('@media (max-width: 760px)').body
   const wide1600 = mediaBody('@media (min-width: 1600px)').body
 
   expect(resolve(declOf(CSS_CODE, '.issue-layout', 'grid-template-columns'))).toBe(
@@ -223,38 +232,15 @@ test('converted declarations resolve to the exact pre-conversion geometry', () =
     ),
   ).toBe('min(560px, calc(100vw - 272px))')
 
-  // Narrow step (≤760px). The step redefines the token on the consuming
-  // elements because the inline install on .issue-layout out-ranks any
-  // redeclaration this block could place there — so on .issue-layout itself
-  // the grid still resolves the inline 272px, exactly what painted before
-  // the conversion, where the literal 208px declaration was already
-  // out-ranked by the data-viewport-regime overlay rules. The step stays
-  // CSS-owned (viewport-regime's docked floor is narrow-independent);
-  // GDK-849 turned its value into the override channel asserted below.
-  expect(resolve(declOf(narrow, '.issue-layout', 'grid-template-columns'))).toBe(
-    '272px minmax(0, 1fr)',
-  )
-  expect(resolve(declOf(narrow, '.issue-sidebar', 'width'), narrowVars)).toBe('208px')
-  expect(resolve(declOf(narrow, '.browse-pane', 'left'), narrowVars)).toBe('208px')
-  expect(resolve(declOf(narrow, '.browse-reentry', 'left'), narrowVars)).toBe('calc(208px + 1rem)')
-
-  // GDK-849: the step redefinition is the user-override channel. Absent an
-  // override the fallback paints the shipped 208px (narrowVars above);
-  // present, it wins — and sidebar-narrow ≤ sidebar (dim-catalog relation,
-  // internal/config/tokencheck/dimcheck.go:204) is the only guard against
-  // paint inversion: nothing in the CSS re-clamps the step.
-  const step = declOf(narrow, '.issue-sidebar', '--layout-sidebar')
-  expect(step, 'the narrow step channels the override token with a 208px fallback').toBe(
-    'var(--layout-sidebar-narrow, 208px)',
-  )
-  const overridden = { ...narrowVars, '--layout-sidebar-narrow': '180px' }
-  expect(resolve(step, overridden)).toBe('180px')
-  expect(
-    resolve(declOf(narrow, '.issue-sidebar', 'width'), {
-      ...narrowVars,
-      '--layout-sidebar': resolve(step, overridden),
-    }),
-  ).toBe('180px')
+  // Narrow step (under 900, JS-owned since GDK-1091 A-8 / GDK-1369). The
+  // stepped value rides the same inline install as every other token, so
+  // the base rules resolve it by inheritance — resolving them against a
+  // narrow install (narrowVars) must paint exactly the old narrow geometry:
+  // sidebar 208, browse pane flush at 208, re-entry 208 + 1rem. No
+  // per-element redeclaration, no 760px block.
+  expect(resolve(declOf(CSS_CODE, '.issue-sidebar', 'width'), narrowVars)).toBe('208px')
+  expect(resolve(declOf(CSS_CODE, '.browse-pane', 'inset'), narrowVars)).toBe('0 0 0 208px')
+  expect(resolve(declOf(CSS_CODE, '.browse-reentry', 'left'), narrowVars)).toBe('calc(208px + 1rem)')
 })
 
 test('app.css consumes the tokens and never restates their px', () => {
@@ -271,33 +257,25 @@ test('app.css consumes the tokens and never restates their px', () => {
    * CSS-owned maxima landed in :root, that ban failed on them — measured:
    * this test went red on --layout-detail-max/-overlay-max/-shell-max and
    * the 208px narrow step before this refinement. Precise form: the four
-   * JS-owned names may not be defined anywhere except the narrow-step
-   * redefinition of --layout-sidebar inside the max-width: 760px block
-   * (which by design sits on the consuming elements — the inline install on
-   * .issue-layout out-ranks anything placed there). The CSS-owned maxima
-   * are pinned by their own test above.
+   * JS-owned names may not be defined anywhere; the CSS-owned maxima are
+   * pinned by their own test above.
    *
-   * GDK-849 (2026-08-25) closed that last exception: the narrow step is
-   * var()-valued now, so the px ban holds across the whole file and the
-   * block's step redefinitions must all be the override-channel form.
-   * Three consumers under GDK-849 (sidebar, browse pane, browse re-entry
-   * pill);
-   * GDK-1355 (2026-09-02) added a fourth, the terminal dock's roster
-   * column, which is as wide as the sidebar and so steps with it — the
-   * count moved 3 → 4 here first, with the new block already in the
-   * var() form.
+   * GDK-849 (2026-08-25) closed the px-valued exception by making the
+   * narrow step var()-valued. GDK-1369 (2026-09-11) closed the var()-valued
+   * one too: the five per-element redeclarations in the 760px block were a
+   * structural fork (each new consumer had to remember to re-declare — the
+   * terminal-sheet strip GDK-1371 fixed was one that didn't), and the step
+   * now rides the JS-owned inline install (viewport-regime.test.ts pins
+   * that half). app.css therefore defines --layout-sidebar nowhere, in no
+   * form, and the block itself is gone rather than emptied.
    */
-  const narrow = mediaBody('@media (max-width: 760px)')
-  // The property, not a count of consumers (GDK-1366): every redefinition
-  // of the step in the narrow block channels the override var, whatever
-  // surface it is on — sidebar, browse pane, roster, terminal sheet.
-  const decls = [...narrow.body.matchAll(/--layout-sidebar:\s*([^;]+);/g)].map((m) => m[1].trim())
-  expect(decls.length, 'the narrow block redefines the step somewhere').toBeGreaterThan(0)
-  for (const value of decls) {
-    expect(value, 'every narrow-step redefinition channels --layout-sidebar-narrow (GDK-849)').toBe(
-      'var(--layout-sidebar-narrow, 208px)',
-    )
-  }
+  expect(
+    CSS_CODE,
+    '--layout-sidebar is defined nowhere in CSS, var()-valued included (GDK-1369)',
+  ).not.toMatch(/--layout-sidebar\s*:/)
+  expect(CSS_CODE, 'the 760px narrow block is gone, not emptied (GDK-1369)').not.toContain(
+    '@media (max-width: 760px)',
+  )
   expect(
     CSS_CODE,
     'the four JS-owned track tokens are never defined as px anywhere (GDK-849 closed the narrow exception)',
@@ -334,4 +312,23 @@ test('the boot shell consumes the same tokens the app does (GDK-842 chunk 3)', (
   const stripped = boot.replaceAll(sidebarVar, '').replaceAll('var(--spacing-row, 42px)', '')
   expect(stripped, 'no raw 272px survives outside the var() fallbacks').not.toContain('272px')
   expect(stripped, 'no raw 42px survives outside the var() fallbacks').not.toContain('42px')
+})
+
+/*
+ * GDK-54: the shell's height is the window the browser actually shows.
+ * 100vh keeps the fold under a phone's URL bar, so the shell's bottom rows
+ * (terminal toolbar, composer) scroll behind it. The dynamic-viewport pair
+ * sizes to the visible window; the static value stays first for engines
+ * without either, so the property cascade — vh, dvh, svh — is the contract.
+ */
+test('the shell owns the window: dvh/svh ride after the vh fallback (GDK-54)', () => {
+  const at = CSS_CODE.indexOf('.issue-shell {')
+  expect(at, '.issue-shell must exist').toBeGreaterThan(-1)
+  const block = CSS_CODE.slice(at, CSS_CODE.indexOf('}', at))
+  const vh = block.indexOf('height: 100vh')
+  const dvh = block.indexOf('height: 100dvh')
+  const svh = block.indexOf('height: 100svh')
+  expect(vh, 'static fallback first').toBeGreaterThan(-1)
+  expect(dvh, 'dvh line present').toBeGreaterThan(vh)
+  expect(svh, 'svh line last — the stable size wins where both parse').toBeGreaterThan(dvh)
 })

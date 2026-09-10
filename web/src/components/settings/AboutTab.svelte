@@ -26,7 +26,7 @@
   </div>
 
   <div class="flex flex-col gap-1.5">
-    <div class="text-micro font-medium uppercase tracking-wide text-text-muted">
+    <div class="section-label">
       {t('settings.aboutFeedback')}
     </div>
     <div class="flex flex-col gap-1">

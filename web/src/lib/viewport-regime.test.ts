@@ -5,13 +5,18 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import {
   LAYOUT_DETAIL_MIN_PX,
   LAYOUT_LIST_MIN_PX,
+  LAYOUT_NARROW_MAX_PX,
+  LAYOUT_SIDEBAR_NARROW_PX,
   LAYOUT_SIDEBAR_PX,
   VIEWPORT_DOCKED_MIN_PX,
   applyLayoutDimOverrides,
   effectiveLayout,
   layoutTokenStyle,
+  readNarrowViewport,
+  subscribeViewportNarrow,
   subscribeViewportRegime,
 } from './viewport-regime'
+import { TERMINAL_OVERLAY_MAX_PX } from './terminal/layout'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 
@@ -32,7 +37,13 @@ describe('layout dim overrides (GDK-842 chunk 3)', () => {
 
   test('effectiveLayout ships the defaults and keeps dockedMin a sum', () => {
     const eff = effectiveLayout()
-    expect(eff).toEqual({ sidebar: 272, listMin: 390, detailMin: 438, dockedMin: 1100 })
+    expect(eff).toEqual({
+      sidebar: 272,
+      sidebarNarrow: 208,
+      listMin: 390,
+      detailMin: 438,
+      dockedMin: 1100,
+    })
     expect(eff.dockedMin).toBe(eff.sidebar + eff.listMin + eff.detailMin)
   })
 
@@ -55,6 +66,7 @@ describe('layout dim overrides (GDK-842 chunk 3)', () => {
     } as unknown as Record<string, string>)
     expect(effectiveLayout()).toEqual({
       sidebar: 272,
+      sidebarNarrow: 208,
       listMin: 390,
       detailMin: 438,
       dockedMin: 1100,
@@ -67,6 +79,7 @@ describe('layout dim overrides (GDK-842 chunk 3)', () => {
     applyLayoutDimOverrides(null)
     expect(effectiveLayout()).toEqual({
       sidebar: 272,
+      sidebarNarrow: 208,
       listMin: 390,
       detailMin: 438,
       dockedMin: 1100,
@@ -112,6 +125,129 @@ describe('layout dim overrides (GDK-842 chunk 3)', () => {
 
     unsub()
     expect(mqls[1].listeners.size).toBe(0)
+  })
+})
+
+/*
+ * GDK-1091 (audit A-8) + GDK-1369: the narrow sidebar step is JS-owned.
+ * The step used to live in app.css's 760px block, re-declared on each
+ * consuming element (sidebar, roster, browse pane, terminal sheet,
+ * re-entry pill — five surfaces, and the terminal-sheet strip GDK-1371
+ * fixed was that class biting again). Now the stepped value rides the same
+ * inline install as every other layout token: layoutTokenStyle() reads the
+ * narrow matchMedia synchronously, the install is rewritten when the
+ * boundary flips, and inheritance delivers the value to every consumer —
+ * a CSS redeclaration cannot fork it a second time because app.css never
+ * defines --layout-sidebar at all (layout-tokens.test.ts pins that half).
+ */
+describe('narrow sidebar step is JS-owned (GDK-1091 A-8, GDK-1369)', () => {
+  afterEach(() => {
+    applyLayoutDimOverrides(null)
+    vi.unstubAllGlobals()
+  })
+
+  /** matchMedia where every (max-width: LAYOUT_NARROW_MAX_PX) query matches. */
+  function narrowWindow() {
+    const narrow = `(max-width: ${LAYOUT_NARROW_MAX_PX}px)`
+    vi.stubGlobal('window', {
+      matchMedia: vi.fn((media: string) => ({
+        media,
+        matches: media === narrow,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      })),
+    })
+  }
+
+  test('the step boundary is the terminal sheet boundary — one number, two readers', () => {
+    expect(LAYOUT_NARROW_MAX_PX).toBe(TERMINAL_OVERLAY_MAX_PX)
+    expect(LAYOUT_SIDEBAR_NARROW_PX).toBe(208)
+  })
+
+  test('under the boundary the install ships the narrow sidebar, floor unmoved', () => {
+    narrowWindow()
+    expect(readNarrowViewport()).toBe(true)
+    const style = layoutTokenStyle()
+    expect(style).toContain(`--layout-sidebar:${LAYOUT_SIDEBAR_NARROW_PX}px`)
+    expect(style, 'the docked floor is narrow-independent').toContain('--layout-docked-min:1100px')
+  })
+
+  test('above the boundary the base sidebar ships', () => {
+    vi.stubGlobal('window', {
+      matchMedia: vi.fn((media: string) => ({
+        media,
+        matches: false,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      })),
+    })
+    expect(readNarrowViewport()).toBe(false)
+    expect(layoutTokenStyle()).toContain(`--layout-sidebar:${LAYOUT_SIDEBAR_PX}px`)
+  })
+
+  test("the user's --layout-sidebar-narrow override channels through the install", () => {
+    narrowWindow()
+    applyLayoutDimOverrides({ '--layout-sidebar-narrow': '180px' })
+    expect(layoutTokenStyle()).toContain('--layout-sidebar:180px')
+  })
+
+  test('a narrow step wider than the sidebar clamps to the sidebar', () => {
+    // The dim catalog relation (sidebar-narrow ≤ sidebar) was the CSS era's
+    // only inversion guard; the JS owner clamps locally, so an illegal config
+    // can no longer widen the sidebar by crossing the boundary.
+    narrowWindow()
+    applyLayoutDimOverrides({ '--layout-sidebar': '220px', '--layout-sidebar-narrow': '240px' })
+    expect(layoutTokenStyle()).toContain('--layout-sidebar:220px')
+  })
+
+  test('a boundary flip rewrites the mounted install', () => {
+    const narrow = `(max-width: ${LAYOUT_NARROW_MAX_PX}px)`
+    // A real window's matchMedia caches per media string and hands back the
+    // same live MediaQueryList — flipping .matches is what a resize does.
+    // Without the cache every read would mint a fresh object seeded at its
+    // media string and the synchronous read could never observe the flip.
+    const cache = new Map<
+      string,
+      {
+        media: string
+        matches: boolean
+        listeners: Set<() => void>
+        addEventListener: (t: string, fn: () => void) => void
+        removeEventListener: (t: string, fn: () => void) => void
+      }
+    >()
+    vi.stubGlobal('window', {
+      matchMedia: vi.fn((media: string) => {
+        const hit = cache.get(media)
+        if (hit) return hit
+        const listeners = new Set<() => void>()
+        const mq = {
+          media,
+          matches: media === narrow,
+          listeners,
+          addEventListener: (_t: string, fn: () => void) => void listeners.add(fn),
+          removeEventListener: (_t: string, fn: () => void) => void listeners.delete(fn),
+        }
+        cache.set(media, mq)
+        return mq
+      }),
+    })
+
+    const seen: boolean[] = []
+    const unsub = subscribeViewportNarrow((n) => seen.push(n))
+    expect(seen, 'subscription fires once immediately with the current value').toEqual([true])
+    const mq = cache.get(narrow)!
+    expect(mq.media).toBe(narrow)
+
+    mq.matches = false
+    for (const fn of mq.listeners) fn()
+    expect(seen).toEqual([true, false])
+    expect(layoutTokenStyle(), 'the install follows the flip without a remount').toContain(
+      `--layout-sidebar:${LAYOUT_SIDEBAR_PX}px`,
+    )
+
+    unsub()
+    expect(mq.listeners.size).toBe(0)
   })
 })
 
@@ -199,6 +335,9 @@ describe('the live regime is module state, once (GDK-696)', () => {
         offenders.push(rel)
       }
       if (source.includes('subscribeViewportRegime')) offenders.push(rel)
+      // GDK-1369: the narrow step is another JS-owned regime value — the
+      // svelte module holds the one subscription, same rule as the regime.
+      if (source.includes('subscribeViewportNarrow')) offenders.push(rel)
     }
     expect(offenders).toEqual([])
   })

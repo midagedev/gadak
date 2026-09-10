@@ -805,6 +805,26 @@ calendar instrumentation has consumers, the `e2e` class assertions were
 already gone, and one hand-run diagnostic script is left to the user
 ([GDK-1232]).
 
+Under 900 pixels there is one narrow regime. The sidebar's narrow width was
+redeclared in five places under a 760-pixel media query, so an 800-pixel
+window kept a 272-pixel sidebar and squeezed the list into what was left;
+the narrow value now rides the inline token install, `app.css` defines
+`--layout-sidebar` nowhere, the step sits at 899, and the terminal overlay
+shares the same boundary ([GDK-1369], [GDK-1091]). The shell's height falls
+through `100vh`, `100dvh`, `100svh`, so an in-app tab bar no longer eats the
+bottom row ([GDK-54]). Section labels — twenty-one sites spelling the same
+four utilities — are one `.section-label` recipe, and Korean and Japanese
+keep their case, so the hierarchy comes from size, weight and tracking
+rather than from capitals ([GDK-141]). The QA teal was the only off-palette
+neon in either theme; it is a `--color-status-qa` token from the avatar
+family now, measured against done and in-progress ([GDK-160]). Deleting a
+saved view and opening the Jira filter show on focus as well as hover
+([GDK-728]); the document and person overlays carry the same back arrow as
+the issue overlay ([GDK-729]); the palette keeps its icon rail even for
+rows without one ([GDK-143]); the clipboard fallback's premise is scoped to
+the build it was measured on ([GDK-1114]); and the scoped-token hint on a
+401 was already there ([GDK-73]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -1838,11 +1858,13 @@ priority sorting keyed on `priority_rank`.
 [GDK-51]: https://gadak.dev/backlog/#/?ks=GDK-51
 [GDK-52]: https://gadak.dev/backlog/#/?ks=GDK-52
 [GDK-53]: https://gadak.dev/backlog/#/?ks=GDK-53
+[GDK-54]: https://gadak.dev/backlog/#/?ks=GDK-54
 [GDK-58]: https://gadak.dev/backlog/#/?ks=GDK-58
 [GDK-61]: https://gadak.dev/backlog/#/?ks=GDK-61
 [GDK-67]: https://gadak.dev/backlog/#/?ks=GDK-67
 [GDK-68]: https://gadak.dev/backlog/#/?ks=GDK-68
 [GDK-69]: https://gadak.dev/backlog/#/?ks=GDK-69
+[GDK-73]: https://gadak.dev/backlog/#/?ks=GDK-73
 [GDK-76]: https://gadak.dev/backlog/#/?ks=GDK-76
 [GDK-78]: https://gadak.dev/backlog/#/?ks=GDK-78
 [GDK-82]: https://gadak.dev/backlog/#/?ks=GDK-82
@@ -1874,7 +1896,9 @@ priority sorting keyed on `priority_rank`.
 [GDK-136]: https://gadak.dev/backlog/#/?ks=GDK-136
 [GDK-137]: https://gadak.dev/backlog/#/?ks=GDK-137
 [GDK-138]: https://gadak.dev/backlog/#/?ks=GDK-138
+[GDK-141]: https://gadak.dev/backlog/#/?ks=GDK-141
 [GDK-142]: https://gadak.dev/backlog/#/?ks=GDK-142
+[GDK-143]: https://gadak.dev/backlog/#/?ks=GDK-143
 [GDK-149]: https://gadak.dev/backlog/#/?ks=GDK-149
 [GDK-150]: https://gadak.dev/backlog/#/?ks=GDK-150
 [GDK-154]: https://gadak.dev/backlog/#/?ks=GDK-154
@@ -1882,6 +1906,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-157]: https://gadak.dev/backlog/#/?ks=GDK-157
 [GDK-158]: https://gadak.dev/backlog/#/?ks=GDK-158
 [GDK-159]: https://gadak.dev/backlog/#/?ks=GDK-159
+[GDK-160]: https://gadak.dev/backlog/#/?ks=GDK-160
 [GDK-161]: https://gadak.dev/backlog/#/?ks=GDK-161
 [GDK-162]: https://gadak.dev/backlog/#/?ks=GDK-162
 [GDK-163]: https://gadak.dev/backlog/#/?ks=GDK-163
@@ -2072,6 +2097,8 @@ priority sorting keyed on `priority_rank`.
 [GDK-723]: https://gadak.dev/backlog/#/?ks=GDK-723
 [GDK-724]: https://gadak.dev/backlog/#/?ks=GDK-724
 [GDK-725]: https://gadak.dev/backlog/#/?ks=GDK-725
+[GDK-728]: https://gadak.dev/backlog/#/?ks=GDK-728
+[GDK-729]: https://gadak.dev/backlog/#/?ks=GDK-729
 [GDK-732]: https://gadak.dev/backlog/#/?ks=GDK-732
 [GDK-733]: https://gadak.dev/backlog/#/?ks=GDK-733
 [GDK-734]: https://gadak.dev/backlog/#/?ks=GDK-734
@@ -2221,6 +2248,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1108]: https://gadak.dev/backlog/#/?ks=GDK-1108
 [GDK-1110]: https://gadak.dev/backlog/#/?ks=GDK-1110
 [GDK-1113]: https://gadak.dev/backlog/#/?ks=GDK-1113
+[GDK-1114]: https://gadak.dev/backlog/#/?ks=GDK-1114
 [GDK-1121]: https://gadak.dev/backlog/#/?ks=GDK-1121
 [GDK-1122]: https://gadak.dev/backlog/#/?ks=GDK-1122
 [GDK-1125]: https://gadak.dev/backlog/#/?ks=GDK-1125
@@ -2355,6 +2383,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1360]: https://gadak.dev/backlog/#/?ks=GDK-1360
 [GDK-1361]: https://gadak.dev/backlog/#/?ks=GDK-1361
 [GDK-1362]: https://gadak.dev/backlog/#/?ks=GDK-1362
+[GDK-1369]: https://gadak.dev/backlog/#/?ks=GDK-1369
 [GDK-1380]: https://gadak.dev/backlog/#/?ks=GDK-1380
 [GDK-1382]: https://gadak.dev/backlog/#/?ks=GDK-1382
 [GDK-1383]: https://gadak.dev/backlog/#/?ks=GDK-1383

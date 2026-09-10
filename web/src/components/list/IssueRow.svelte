@@ -203,16 +203,19 @@
         return null
     }
   })
-  // Deploy-stage badge. QA scan target is qa (swap done) → strong teal; waiting/dev/prod
-  //  stay muted. none/merged = no badge (noise control).
+  // Deploy-stage badge. QA scan target is qa (swap done) → the palette's QA
+  //  teal; waiting/dev/prod stay muted. none/merged = no badge (noise control).
   const deployState = $derived(issue.deploy_status?.state ?? 'none')
   const deployMeta = $derived.by(() => {
     switch (deployState) {
       case 'qa':
         // Swap done = QA can verify — teal dot + label so it pops in the list
-        return { label: t('deploy.qa'), cls: 'bg-[#2dd4bf]/15 text-[#5eead4]', dot: true }
+        return { label: t('deploy.qa'), cls: 'bg-status-qa/15 text-status-qa', dot: true }
       case 'qa_preview':
-        return { label: t('list.qaPending'), cls: 'bg-[#2dd4bf]/8 text-[#2dd4bf]/70', dot: false }
+        // Full ink like its sibling: a /70 dim of the old neon measured
+        // 3.18:1 at best — depth of tint + the dot's absence keep the two
+        // apart instead (GDK-160).
+        return { label: t('list.qaPending'), cls: 'bg-status-qa/8 text-status-qa', dot: false }
       case 'dev':
         return { label: t('deploy.dev'), cls: 'bg-bg-active text-text-muted', dot: false }
       case 'prod':
@@ -575,7 +578,7 @@
           onclick={stop(() => filters.addValue('deploy_state', deployState))}
         >
           {#if deployMeta.dot}
-            <span class="h-1.5 w-1.5 flex-none rounded-full bg-[#2dd4bf]"></span>
+            <span class="h-1.5 w-1.5 flex-none rounded-full bg-status-qa"></span>
           {/if}
           <span class="deploy-chip-label min-w-0 truncate">{deployMeta.label}</span>
         </button>

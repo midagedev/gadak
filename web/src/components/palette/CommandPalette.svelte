@@ -1005,7 +1005,7 @@ import type { SettingsTab } from '../../lib/settings-tabs'
         {#if i === 0 || items[i - 1].section !== item.section}
           <div
             role="presentation"
-            class="flex items-center gap-1.5 px-2 pb-1 pt-2 text-micro font-medium uppercase tracking-wide text-text-muted"
+            class="flex items-center gap-1.5 px-2 pb-1 pt-2 section-label"
             data-testid="palette-section"
             data-section={item.section}
           >
@@ -1043,6 +1043,10 @@ import type { SettingsTab } from '../../lib/settings-tabs'
           <span class="flex w-full min-w-0 items-center gap-2">
             {#if item.icon}
               <Icon name={item.icon} size={14} class={i === idx ? 'text-text-secondary' : 'text-text-muted'} />
+            {:else}
+              <!-- GDK-143: the slot is reserved, not collapsed — an iconless row
+                   starts its text where its iconed neighbours do. -->
+              <span class="w-3.5 flex-none" aria-hidden="true"></span>
             {/if}
             {#if item.badge}
               <span
@@ -1098,7 +1102,7 @@ import type { SettingsTab } from '../../lib/settings-tabs'
       {#if showUnifiedStatus}
         <div
           role="presentation"
-          class="flex items-center gap-1.5 px-2 pb-1 pt-2 text-micro font-medium uppercase tracking-wide text-text-muted"
+          class="flex items-center gap-1.5 px-2 pb-1 pt-2 section-label"
           data-testid="palette-section"
           data-section="unified"
         >

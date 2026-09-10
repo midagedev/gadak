@@ -46,7 +46,7 @@
   aria-label={t('settings.thisMirror')}
   data-testid="runtime-mirror"
 >
-  <div class="mb-2 text-micro font-medium uppercase tracking-wide text-text-muted">
+  <div class="mb-2 section-label">
     {t('settings.thisMirror')}
   </div>
   <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-micro">

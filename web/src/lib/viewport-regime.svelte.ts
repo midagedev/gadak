@@ -22,9 +22,14 @@
  * Importers use the explicit `.svelte` suffix, the store convention
  * (panel.svelte).
  */
-import { readViewportRegime, subscribeViewportRegime } from './viewport-regime'
+import {
+  readNarrowViewport,
+  readViewportRegime,
+  subscribeViewportNarrow,
+  subscribeViewportRegime,
+} from './viewport-regime'
 
-export const viewport = $state({ regime: readViewportRegime() })
+export const viewport = $state({ regime: readViewportRegime(), narrow: readNarrowViewport() })
 
 // Module-lifetime on purpose: the regime is an app-lifetime value and the
 // underlying matchMedia singleton (viewport-regime.ts) already persists the
@@ -32,5 +37,11 @@ export const viewport = $state({ regime: readViewportRegime() })
 if (typeof window !== 'undefined') {
   subscribeViewportRegime((r) => {
     viewport.regime = r
+  })
+  // The narrow step (GDK-1369): the watcher in viewport-regime.ts rewrites
+  // the inline token install on every flip; this copy is the reactive read
+  // for whatever wants it later, same one-owner shape as the regime.
+  subscribeViewportNarrow((n) => {
+    viewport.narrow = n
   })
 }

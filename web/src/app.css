@@ -46,6 +46,11 @@
   --color-status-done: #1c4c31; /* P2: L 44.0→37.5, separates from reopen under deuteranopia */
   --color-status-reopen: #8f3530;
   --color-status-stale: #734701; /* P3: was ΔEok 0.009 from inprogress */
+  /* GDK-160: deploy-QA ink. avatar-5 is the palette's own teal — the raw
+     neon chip ink this replaces measured 1.23:1 on its 15% tint; this
+     clears the 4.5:1 micro-text floor on every ground (6.64/5.97/5.45)
+     and 5.32:1 on the tint itself. */
+  --color-status-qa: #2a5c54;
 
   /* Search match. The ladder already occupies L 81–95, so no lightness
      separates this mark from every ground — chroma carries it. Must not
@@ -287,13 +292,16 @@
    comes from documentElement.lang, the same hook the font stacks use. The
    uppercase utility is Latin display styling: on a CJK page it turns the
    one Latin word in a heading into JIRA 필터, so it is switched off here at
-   its single owner rather than per heading. */
+   its single owner rather than per heading. .section-label rides the same
+   kill: its label-ness is weight (600, above), not case. */
 :lang(ko) {
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
 :lang(ko) .uppercase,
-:lang(ja) .uppercase {
+:lang(ko) .section-label,
+:lang(ja) .uppercase,
+:lang(ja) .section-label {
   text-transform: none;
 }
 :lang(ja) {
@@ -353,6 +361,7 @@
       --color-status-done: #90bea0;
       --color-status-reopen: #e18179;
       --color-status-stale: #d19b5a;
+      --color-status-qa: #6c9e95; /* GDK-160: avatar-5's dark translation — 5.26:1 on its 15% tint */
       --color-search-match: #6d4a05;
       --color-scrim: rgb(6 7 9 / 0.66);
       --color-scrollbar-hover: #8d95a3;
@@ -434,6 +443,7 @@
     --color-status-done: #90bea0;
     --color-status-reopen: #e18179;
     --color-status-stale: #d19b5a;
+    --color-status-qa: #6c9e95; /* GDK-160: avatar-5's dark translation — 5.26:1 on its 15% tint */
     --color-search-match: #6d4a05;
     --color-scrim: rgb(6 7 9 / 0.66);
     --color-scrollbar-hover: #8d95a3;
@@ -509,6 +519,7 @@
     --color-status-done: #90bea0;
     --color-status-reopen: #e18179;
     --color-status-stale: #d19b5a;
+    --color-status-qa: #6c9e95; /* GDK-160: avatar-5's dark translation — 5.26:1 on its 15% tint */
     --color-search-match: #71500a;
     --color-scrim: rgb(5 9 14 / 0.66);
     --color-scrollbar-hover: #8b9aac;
@@ -585,6 +596,7 @@
     --color-status-done: #90bea0;
     --color-status-reopen: #e18179;
     --color-status-stale: #d19b5a;
+    --color-status-qa: #6c9e95; /* GDK-160: avatar-5's dark translation — 5.26:1 on its 15% tint */
     --color-search-match: #724900;
     --color-scrim: rgb(10 6 1 / 0.62);
     --color-scrollbar-hover: #8f8273;
@@ -748,10 +760,41 @@
     font-size: 18px;
   }
 
+  /*
+    Section label (GDK-141) — the single owner of the "these rows are
+    called X" recipe. Uppercase was the only hierarchy signal the old
+    utility dialect carried, and Hangul has no case: after the
+    :lang(ko)/:lang(ja) kill below, a Korean label wore the same costume
+    as metadata (micro, 500, muted). Weight is the one signal every
+    script in the product renders — the ko/ja system stacks ship a real
+    SemiBold — so the label tier is 600 everywhere and uppercase stays as
+    the Latin bonus. Rounded badge chips keep the utility dialect: shape
+    carries their meaning. Numeric contract gated in
+    chrome-vocabulary.test.ts.
+  */
+  .section-label {
+    font-size: var(--text-micro);
+    line-height: var(--text-micro--line-height);
+    font-weight: 600;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
   .issue-shell {
     display: flex;
     flex-direction: column;
+    /* GDK-54: the shell owns the window. On a phone browser 100vh keeps
+       the fold under the URL bar, so the bottom rows (terminal toolbar,
+       composer footer) scroll behind it; the dynamic-viewport pair sizes
+       to what is actually visible. dvh first (no dead gap when the bar
+       hides), svh last so an engine picking the final line it knows is
+       the stable one; the static value stays first for engines without
+       either. The Tauri shell has no browser chrome — all three agree
+       there, which is why the phone e2e viewport never saw this. */
     height: 100vh;
+    height: 100dvh;
+    height: 100svh;
     overflow: hidden;
     background: var(--color-shell);
   }
@@ -1280,64 +1323,17 @@
     opacity: 1;
   }
 
-  @media (max-width: 760px) {
-    /*
-      Narrow sidebar step (GDK-842). --layout-sidebar's base comes inline
-      from layoutTokenStyle() on .issue-layout, and an inline declaration
-      out-ranks anything this block could say on that element — so the step
-      is redefined on each consuming element, where the element's own rule
-      beats the inherited value. On .issue-layout itself the var therefore
-      still resolves the inline 272px here, which is also what painted
-      before: the 208px literal this replaced was already out-ranked by the
-      data-viewport-regime overlay rules above (measured in Chromium at
-      740px: grid 272px 452px, sidebar 208px — identical before/after).
-      GDK-849 (2026-08-25): the step value now channels the user's
-      --layout-sidebar-narrow dim override (UIDimensionVars injects it
-      overrides-only, so with no override this 208px fallback paints —
-      unchanged). The step stays CSS-owned; viewport-regime's docked floor
-      is narrow-independent.
-    */
-    .issue-layout,
-    .issue-layout.detail-open {
-      grid-template-columns: var(--layout-sidebar, 272px) minmax(0, 1fr);
-    }
-
-    .issue-sidebar {
-      --layout-sidebar: var(--layout-sidebar-narrow, 208px);
-      width: var(--layout-sidebar, 272px);
-    }
-
-    .terminal-roster {
-      --layout-sidebar: var(--layout-sidebar-narrow, 208px);
-      width: var(--layout-sidebar, 272px);
-    }
-
-    .browse-pane {
-      --layout-sidebar: var(--layout-sidebar-narrow, 208px);
-      left: var(--layout-sidebar, 272px);
-    }
-
-    /*
-      The terminal's overlay sheet (<900px, TerminalPane.svelte) sets its own
-      `left: var(--layout-sidebar)` inline and, like the browse pane, has no
-      sidebar ancestor to inherit the step from: without this it read the
-      root's 272px beside a 208px sidebar and left a 64px strip of content
-      showing between them (GDK-1371).
-    */
-    .terminal-sheet {
-      --layout-sidebar: var(--layout-sidebar-narrow, 208px);
-    }
-
-    .browse-reentry {
-      --layout-sidebar: var(--layout-sidebar-narrow, 208px);
-      left: calc(var(--layout-sidebar, 272px) + 1rem);
-    }
-
-    .issue-detail-panel,
-    .issue-detail-panel.is-open {
-      width: 100vw;
-    }
-  }
+  /*
+    The narrow sidebar step used to live here, as a 760px media block that
+    re-declared --layout-sidebar on each consuming element (sidebar, roster,
+    browse pane, terminal sheet, re-entry pill). Since GDK-1091 A-8 /
+    GDK-1369 the stepped value rides the same inline install as every other
+    layout token — viewport-regime.ts emits it under 900px and rewrites the
+    install when the boundary flips — so these base rules below resolve the
+    narrow paint by inheritance and nothing here defines the token. A new
+    consumer inherits the step for free; forgetting to re-declare is no
+    longer a defect class (that was the terminal-sheet strip, GDK-1371).
+  */
 }
 
 /*

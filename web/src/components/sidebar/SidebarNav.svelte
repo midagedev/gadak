@@ -379,7 +379,7 @@
     {#if row.remove}
       <button
         type="button"
-        class="flex flex-none items-center text-text-muted opacity-0 transition-opacity hover:text-status-reopen group-hover:opacity-100 {armed
+        class="flex flex-none items-center text-text-muted opacity-0 transition-opacity hover:text-status-reopen group-hover:opacity-100 group-focus-within:opacity-100 {armed
           ? 'opacity-100 text-status-reopen'
           : ''}"
         title={armed ? t('jiraSettings.deleteConfirm') : t('common.delete')}
@@ -698,7 +698,7 @@
               {#if visibleBuiltins.some((v) => v.stance === s.stance)}
               <div
                 data-testid={s.testid}
-                class="px-3 pb-0.5 pt-2 text-micro uppercase tracking-wide text-text-muted"
+                class="px-3 pb-0.5 pt-2 section-label"
               >
                 {s.label}
               </div>
@@ -775,7 +775,7 @@
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="flex flex-none items-center text-text-muted opacity-0 transition-opacity hover:text-accent-text group-hover:opacity-100"
+                    class="flex flex-none items-center text-text-muted opacity-0 transition-opacity hover:text-accent-text group-hover:opacity-100 group-focus-within:opacity-100"
                     title={t('sidebar.openFilterInJira')}
                     aria-label={t('sidebar.openFilterInJira')}
                     data-testid="sidebar-jira-filter-open"

@@ -181,7 +181,7 @@
 
 {#if favoriteItems.length}
   <div class="mb-2 flex-none">
-    <div class="flex h-6 items-center pl-7 pr-3 text-micro font-medium uppercase tracking-wide text-text-muted">
+    <div class="flex h-6 items-center pl-7 pr-3 section-label">
       {t('personal.favorites')}
     </div>
     {#each favoriteItems as item (item.issue.issue_key)}
@@ -245,7 +245,7 @@
   default viewport).
 -->
 <div class="flex h-6 flex-none items-center pl-7 pr-3">
-  <span class="text-micro font-medium uppercase tracking-wide text-text-muted">
+  <span class="section-label">
     {t('personal.recent')}
   </span>
   <button

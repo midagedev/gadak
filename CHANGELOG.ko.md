@@ -627,6 +627,20 @@ Ubuntu 미러 장애에 런을 잃는 대신 캐시를 재생합니다 ([GDK-234
 `e2e` 의 클래스 단언은 이미 사라졌으며, 손으로 돌리는 진단 스크립트 하나는 사용자 판단으로
 남겼습니다 ([GDK-1232]).
 
+900px 아래에는 좁은 레짐이 하나입니다. 사이드바의 좁은 폭이 760px 미디어 쿼리 아래 다섯
+자리에 재선언돼 있어서 800px 창은 272px 사이드바를 유지하고 리스트는 남는 만큼만 받았습니다.
+이제 좁은 값은 인라인 토큰 설치에 실리고, `app.css` 는 `--layout-sidebar` 를 어디에도 정의하지
+않으며, 스텝은 899 에 있고, 터미널 오버레이도 같은 경계를 씁니다 ([GDK-1369], [GDK-1091]). 셸
+높이는 `100vh`·`100dvh`·`100svh` 로 떨어져 인앱 탭 바가 마지막 행을 먹지 않습니다 ([GDK-54]).
+섹션 라벨 — 같은 유틸리티 넷을 스물한 곳에서 적던 것 — 은 `.section-label` 레시피 하나이고,
+한국어·일본어는 대소문자를 그대로 두어 위계가 대문자가 아니라 크기·굵기·자간에서 나옵니다
+([GDK-141]). QA 틸은 두 테마에서 유일한 오프팔레트 네온이었는데 이제 아바타 가족의
+`--color-status-qa` 토큰이고, done·진행 중과 대비를 재었습니다 ([GDK-160]). 저장한 뷰 삭제와
+Jira 필터 열기는 hover 뿐 아니라 포커스에서도 보이고 ([GDK-728]), 문서·사람 오버레이는 이슈
+오버레이와 같은 뒤로가기 화살표를 갖습니다 ([GDK-729]). 팔레트는 아이콘 없는 행에도 아이콘
+레일을 유지하고 ([GDK-143]), 클립보드 폴백의 전제는 측정한 빌드로 범위가 좁혀졌으며
+([GDK-1114]), 401 의 scoped 토큰 힌트는 이미 있었습니다 ([GDK-73]).
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -1594,11 +1608,13 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-51]: https://gadak.dev/backlog/#/?ks=GDK-51
 [GDK-52]: https://gadak.dev/backlog/#/?ks=GDK-52
 [GDK-53]: https://gadak.dev/backlog/#/?ks=GDK-53
+[GDK-54]: https://gadak.dev/backlog/#/?ks=GDK-54
 [GDK-58]: https://gadak.dev/backlog/#/?ks=GDK-58
 [GDK-61]: https://gadak.dev/backlog/#/?ks=GDK-61
 [GDK-67]: https://gadak.dev/backlog/#/?ks=GDK-67
 [GDK-68]: https://gadak.dev/backlog/#/?ks=GDK-68
 [GDK-69]: https://gadak.dev/backlog/#/?ks=GDK-69
+[GDK-73]: https://gadak.dev/backlog/#/?ks=GDK-73
 [GDK-76]: https://gadak.dev/backlog/#/?ks=GDK-76
 [GDK-78]: https://gadak.dev/backlog/#/?ks=GDK-78
 [GDK-82]: https://gadak.dev/backlog/#/?ks=GDK-82
@@ -1630,7 +1646,9 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-136]: https://gadak.dev/backlog/#/?ks=GDK-136
 [GDK-137]: https://gadak.dev/backlog/#/?ks=GDK-137
 [GDK-138]: https://gadak.dev/backlog/#/?ks=GDK-138
+[GDK-141]: https://gadak.dev/backlog/#/?ks=GDK-141
 [GDK-142]: https://gadak.dev/backlog/#/?ks=GDK-142
+[GDK-143]: https://gadak.dev/backlog/#/?ks=GDK-143
 [GDK-149]: https://gadak.dev/backlog/#/?ks=GDK-149
 [GDK-150]: https://gadak.dev/backlog/#/?ks=GDK-150
 [GDK-154]: https://gadak.dev/backlog/#/?ks=GDK-154
@@ -1638,6 +1656,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-157]: https://gadak.dev/backlog/#/?ks=GDK-157
 [GDK-158]: https://gadak.dev/backlog/#/?ks=GDK-158
 [GDK-159]: https://gadak.dev/backlog/#/?ks=GDK-159
+[GDK-160]: https://gadak.dev/backlog/#/?ks=GDK-160
 [GDK-161]: https://gadak.dev/backlog/#/?ks=GDK-161
 [GDK-162]: https://gadak.dev/backlog/#/?ks=GDK-162
 [GDK-163]: https://gadak.dev/backlog/#/?ks=GDK-163
@@ -1828,6 +1847,8 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-723]: https://gadak.dev/backlog/#/?ks=GDK-723
 [GDK-724]: https://gadak.dev/backlog/#/?ks=GDK-724
 [GDK-725]: https://gadak.dev/backlog/#/?ks=GDK-725
+[GDK-728]: https://gadak.dev/backlog/#/?ks=GDK-728
+[GDK-729]: https://gadak.dev/backlog/#/?ks=GDK-729
 [GDK-732]: https://gadak.dev/backlog/#/?ks=GDK-732
 [GDK-733]: https://gadak.dev/backlog/#/?ks=GDK-733
 [GDK-734]: https://gadak.dev/backlog/#/?ks=GDK-734
@@ -1977,6 +1998,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1108]: https://gadak.dev/backlog/#/?ks=GDK-1108
 [GDK-1110]: https://gadak.dev/backlog/#/?ks=GDK-1110
 [GDK-1113]: https://gadak.dev/backlog/#/?ks=GDK-1113
+[GDK-1114]: https://gadak.dev/backlog/#/?ks=GDK-1114
 [GDK-1121]: https://gadak.dev/backlog/#/?ks=GDK-1121
 [GDK-1122]: https://gadak.dev/backlog/#/?ks=GDK-1122
 [GDK-1125]: https://gadak.dev/backlog/#/?ks=GDK-1125
@@ -2111,6 +2133,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1360]: https://gadak.dev/backlog/#/?ks=GDK-1360
 [GDK-1361]: https://gadak.dev/backlog/#/?ks=GDK-1361
 [GDK-1362]: https://gadak.dev/backlog/#/?ks=GDK-1362
+[GDK-1369]: https://gadak.dev/backlog/#/?ks=GDK-1369
 [GDK-1380]: https://gadak.dev/backlog/#/?ks=GDK-1380
 [GDK-1382]: https://gadak.dev/backlog/#/?ks=GDK-1382
 [GDK-1383]: https://gadak.dev/backlog/#/?ks=GDK-1383

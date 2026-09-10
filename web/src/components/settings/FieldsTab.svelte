@@ -17,7 +17,7 @@
 <div class="flex flex-col gap-5">
   {#if draft.specsSupported}
     <div class="flex flex-col gap-1.5">
-      <div class="text-micro font-medium uppercase tracking-wide text-text-muted">
+      <div class="section-label">
         {t('settings.discoveredFields')}
       </div>
       <p class="text-micro text-text-muted">{t('settings.discoveredFieldsHint')}</p>

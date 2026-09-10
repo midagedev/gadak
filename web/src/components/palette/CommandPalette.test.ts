@@ -30,3 +30,23 @@ describe('CommandPalette highlight index (GDK-645)', () => {
     expect(SRC).not.toMatch(/idx = list\.length \? list\.length - 1 : -1/)
   })
 })
+
+/*
+ * GDK-143 (visual audit V8): in a mixed list the leading icon must not move
+ * where the text starts. Rows without an icon used to begin one gap earlier
+ * than their iconed neighbours — the same class the audit flagged on the
+ * history rows ("아이콘 유무로 텍스트 시작 x 갈림"). The row now reserves the
+ * icon slot: an icon or a same-width spacer, never neither.
+ */
+describe('palette rows reserve the icon slot (GDK-143)', () => {
+  test('an iconless row renders a same-width spacer, not an earlier start', () => {
+    const at = SRC.indexOf('<Icon name={item.icon}')
+    expect(at, 'the row still leads with the item icon').toBeGreaterThan(-1)
+    // From the {#if item.icon} just above the icon to its {/if}: both
+    // branches live there, and the else branch must hold the slot.
+    const open = SRC.lastIndexOf('{#if item.icon}', at)
+    const block = SRC.slice(open, SRC.indexOf('{/if}', at))
+    expect(block).toContain('<Icon name={item.icon}')
+    expect(block, 'icon absent: a 14px spacer holds the slot').toMatch(/<span class="w-3\.5 flex-none"/)
+  })
+})

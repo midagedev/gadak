@@ -308,7 +308,7 @@
             data-testid="history-group"
             data-group={item.group}
           >
-            <span class="truncate text-micro font-medium uppercase tracking-wide text-text-muted">
+            <span class="truncate section-label">
               {GROUP_LABEL[item.group]}
             </span>
             <span class="h-px flex-1 self-center bg-border-subtle"></span>

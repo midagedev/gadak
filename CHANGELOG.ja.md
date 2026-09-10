@@ -673,6 +673,22 @@ cask のバージョン以上になるのを待ち、タグごとに出るミラ
 おり、カレンダーの計測には消費者があり、`e2e` のクラス主張はすでに消えていて、手で回す診断
 スクリプトひとつはユーザーの判断に残しました ([GDK-1232])。
 
+900px より下では狭いレジームがひとつです。サイドバーの狭い幅が 760px のメディアクエリの
+下で五か所に再宣言されていたため、800px の窓は 272px のサイドバーを保ち、一覧は残りだけを
+受け取っていました。いまは狭い値がインラインのトークン設置に載り、`app.css` は
+`--layout-sidebar` をどこにも定義せず、段は 899 にあり、ターミナルのオーバーレイも同じ境界を
+使います ([GDK-1369], [GDK-1091])。シェルの高さは `100vh`・`100dvh`・`100svh` へと落ちるので、
+アプリ内のタブバーが最後の行を食いません ([GDK-54])。セクションラベル — 同じ四つの
+ユーティリティを二十一か所で綴っていたもの — は `.section-label` というひとつのレシピになり、
+韓国語と日本語は大文字小文字をそのまま保つので、階層は大文字ではなく大きさ・太さ・字間から
+生まれます ([GDK-141])。QA のティールは両テーマで唯一のパレット外のネオンでしたが、いまは
+アバターファミリーの `--color-status-qa` トークンで、done と進行中に対して測りました
+([GDK-160])。保存したビューの削除と Jira フィルタを開く操作はホバーだけでなくフォーカスでも
+見え ([GDK-728])、文書と人物のオーバーレイはイシューのオーバーレイと同じ戻る矢印を持ちます
+([GDK-729])。パレットはアイコンのない行にもアイコンのレールを保ち ([GDK-143])、クリップボード
+のフォールバックの前提は測ったビルドに範囲が絞られ ([GDK-1114])、401 の scoped トークンの
+ヒントはすでにありました ([GDK-73])。
+
 ## v0.21.0 — 2026-09-08
 
 **離れていた間に何が起きたのかに、キャッシュから答えます。** ステータスの変更も
@@ -1718,11 +1734,13 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-51]: https://gadak.dev/backlog/#/?ks=GDK-51
 [GDK-52]: https://gadak.dev/backlog/#/?ks=GDK-52
 [GDK-53]: https://gadak.dev/backlog/#/?ks=GDK-53
+[GDK-54]: https://gadak.dev/backlog/#/?ks=GDK-54
 [GDK-58]: https://gadak.dev/backlog/#/?ks=GDK-58
 [GDK-61]: https://gadak.dev/backlog/#/?ks=GDK-61
 [GDK-67]: https://gadak.dev/backlog/#/?ks=GDK-67
 [GDK-68]: https://gadak.dev/backlog/#/?ks=GDK-68
 [GDK-69]: https://gadak.dev/backlog/#/?ks=GDK-69
+[GDK-73]: https://gadak.dev/backlog/#/?ks=GDK-73
 [GDK-76]: https://gadak.dev/backlog/#/?ks=GDK-76
 [GDK-78]: https://gadak.dev/backlog/#/?ks=GDK-78
 [GDK-82]: https://gadak.dev/backlog/#/?ks=GDK-82
@@ -1754,7 +1772,9 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-136]: https://gadak.dev/backlog/#/?ks=GDK-136
 [GDK-137]: https://gadak.dev/backlog/#/?ks=GDK-137
 [GDK-138]: https://gadak.dev/backlog/#/?ks=GDK-138
+[GDK-141]: https://gadak.dev/backlog/#/?ks=GDK-141
 [GDK-142]: https://gadak.dev/backlog/#/?ks=GDK-142
+[GDK-143]: https://gadak.dev/backlog/#/?ks=GDK-143
 [GDK-149]: https://gadak.dev/backlog/#/?ks=GDK-149
 [GDK-150]: https://gadak.dev/backlog/#/?ks=GDK-150
 [GDK-154]: https://gadak.dev/backlog/#/?ks=GDK-154
@@ -1762,6 +1782,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-157]: https://gadak.dev/backlog/#/?ks=GDK-157
 [GDK-158]: https://gadak.dev/backlog/#/?ks=GDK-158
 [GDK-159]: https://gadak.dev/backlog/#/?ks=GDK-159
+[GDK-160]: https://gadak.dev/backlog/#/?ks=GDK-160
 [GDK-161]: https://gadak.dev/backlog/#/?ks=GDK-161
 [GDK-162]: https://gadak.dev/backlog/#/?ks=GDK-162
 [GDK-163]: https://gadak.dev/backlog/#/?ks=GDK-163
@@ -1952,6 +1973,8 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-723]: https://gadak.dev/backlog/#/?ks=GDK-723
 [GDK-724]: https://gadak.dev/backlog/#/?ks=GDK-724
 [GDK-725]: https://gadak.dev/backlog/#/?ks=GDK-725
+[GDK-728]: https://gadak.dev/backlog/#/?ks=GDK-728
+[GDK-729]: https://gadak.dev/backlog/#/?ks=GDK-729
 [GDK-732]: https://gadak.dev/backlog/#/?ks=GDK-732
 [GDK-733]: https://gadak.dev/backlog/#/?ks=GDK-733
 [GDK-734]: https://gadak.dev/backlog/#/?ks=GDK-734
@@ -2101,6 +2124,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1108]: https://gadak.dev/backlog/#/?ks=GDK-1108
 [GDK-1110]: https://gadak.dev/backlog/#/?ks=GDK-1110
 [GDK-1113]: https://gadak.dev/backlog/#/?ks=GDK-1113
+[GDK-1114]: https://gadak.dev/backlog/#/?ks=GDK-1114
 [GDK-1121]: https://gadak.dev/backlog/#/?ks=GDK-1121
 [GDK-1122]: https://gadak.dev/backlog/#/?ks=GDK-1122
 [GDK-1125]: https://gadak.dev/backlog/#/?ks=GDK-1125
@@ -2235,6 +2259,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1360]: https://gadak.dev/backlog/#/?ks=GDK-1360
 [GDK-1361]: https://gadak.dev/backlog/#/?ks=GDK-1361
 [GDK-1362]: https://gadak.dev/backlog/#/?ks=GDK-1362
+[GDK-1369]: https://gadak.dev/backlog/#/?ks=GDK-1369
 [GDK-1380]: https://gadak.dev/backlog/#/?ks=GDK-1380
 [GDK-1382]: https://gadak.dev/backlog/#/?ks=GDK-1382
 [GDK-1383]: https://gadak.dev/backlog/#/?ks=GDK-1383

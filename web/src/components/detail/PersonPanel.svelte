@@ -28,6 +28,7 @@
   import type { AuthorComment, IssueLite } from '../../lib/types'
   import { ESC_TIER, onEscape } from '../../lib/dom-actions'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
+  import { viewport } from '../../lib/viewport-regime.svelte'
   // The list's Avatar, not detail/'s: the panel owner must wear the same
   // name-derived color the rows repeat, or the identity link breaks.
   import Avatar from '../list/Avatar.svelte'
@@ -39,6 +40,10 @@
   const identity = $derived(member?.jira_account_id ?? email)
   /** Address line: real email when the directory has one, else the identity key. */
   const contact = $derived(member?.email || email || '')
+  // The overlay way back (GDK-729): panels open and close symmetrically, so
+  // when this column covers the list the same arrow the issue panel offers
+  // closes the person. Module state, not a private copy (GDK-696).
+  const overlay = $derived(viewport.regime === 'overlay')
   const matches = (issue: IssueLite, role: 'assignee' | 'reporter') =>
     issueMatchesPerson(issue, role, member?.jira_account_id) || issueMatchesPerson(issue, role, email)
   // What this person is called on screen. Falls back to the email so a member
@@ -113,6 +118,18 @@
     <div class="relative z-10 flex-none bg-bg-panel">
       <header class="border-b border-border-strong/70 px-5 pt-4 pb-4">
         <div class="mb-3 flex items-start gap-3">
+          {#if overlay}
+            <button
+              type="button"
+              onclick={() => person.clear()}
+              data-testid="person-panel-back"
+              class="mt-1.5 flex h-6 w-6 flex-none items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+              aria-label={t('feed.backToList')}
+              title={t('feed.backToList')}
+            >
+              <Icon name="arrow-left" size={14} />
+            </button>
+          {/if}
           <Avatar {name} email={member?.email || email} accountId={member?.jira_account_id} size={36} />
           <div class="min-w-0 flex-1">
             <h2 class="type-subject truncate text-title text-text-primary" data-testid="person-name">

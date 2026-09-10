@@ -295,6 +295,21 @@
       }
     },
     {
+      "name": "status-qa",
+      "cssVar": "--color-status-qa",
+      "tier": "free",
+      "description": "color token; light teal family (#2a5c54)",
+      "rules": [
+        "hex"
+      ],
+      "values": {
+        "light": "#2a5c54",
+        "dark": "#6c9e95",
+        "ember": "#6c9e95",
+        "ink": "#6c9e95"
+      }
+    },
+    {
       "name": "search-match",
       "cssVar": "--color-search-match",
       "tier": "locked",

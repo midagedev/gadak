@@ -6,7 +6,7 @@
  * import time, which a plain .test.ts cannot evaluate.
  */
 
-import { VIEWPORT_DOCKED_MIN_PX } from '../viewport-regime'
+import { LAYOUT_NARROW_MAX_PX, VIEWPORT_DOCKED_MIN_PX } from '../viewport-regime'
 
 /*
  * GDK-1194 (2026-08-30): the split is horizontal — a dock across the bottom
@@ -58,8 +58,14 @@ export const TERMINAL_OVERLAY_ROSTER_PX = 160
  * unchanged by the dock.
  */
 export const TERMINAL_MIN_WIDTH_PX = 320
-/** Below 900px the pane is a full-width overlay instead of a split. */
-export const TERMINAL_OVERLAY_MAX_PX = 899
+/*
+ * Below 900px the pane is a full-width overlay instead of a split. The
+ * boundary is the layout's narrow sidebar step (GDK-1091 A-8 / GDK-1369),
+ * re-exported rather than re-chosen: "under 900" is one window regime —
+ * narrow sidebar, terminal sheet — and two numbers here could drift apart
+ * and show a docked split beside a stepped sidebar.
+ */
+export const TERMINAL_OVERLAY_MAX_PX = LAYOUT_NARROW_MAX_PX
 
 /*
  * The width below which a split cannot coexist with a docked detail panel,

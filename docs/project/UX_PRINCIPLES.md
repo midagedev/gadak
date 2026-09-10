@@ -421,6 +421,22 @@ appears on something you can press. An inline affordance — `Add a label` — i
 `INLINE_ACTION`: the 쪽빛 accent thread, upright, the same ink as an issue key,
 which is the other thing in a row you can click. The two share no class.
 
+**A section label is `.section-label`, and its signal is weight, not
+case.** Section headings through ~20 files wore a copied utility dialect —
+micro, medium, uppercase, tracked, muted — whose label-ness lived in the
+uppercase. Hangul has no case: once the Korean line-breaking work turned
+the uppercase utility off per language, a Korean section label was small
+muted medium text — the same costume as metadata, and the hierarchy the
+audit named collapsed (GDK-141). The class owns the whole recipe (11px /
+600 / 0.025em / muted, in `app.css`'s components layer), and 600 is the
+one signal every script in the product renders — the ko and ja system
+stacks ship a real SemiBold — so the label tier is the same weight in
+every language, with uppercase kept as a Latin-only bonus that the same
+owner switches off per language. Rounded badge chips (the doc badge, the
+palette badge) keep the utility dialect: their shape already says what
+they are. Gated in `chrome-vocabulary.test.ts`: the utility dialect is
+banned everywhere a rounded chip does not justify it.
+
 **A focus trap agrees with the browser about what is focusable.** A roving
 tabindex parks `tabindex="-1"` on real controls; `lib/focus-trap.ts` excludes
 that on every clause, so Tab inside a dialog stops where the browser would.

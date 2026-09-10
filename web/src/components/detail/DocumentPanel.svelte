@@ -20,6 +20,7 @@
   import { createResource } from '../../lib/resource.svelte'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import { ESC_TIER, onEscape } from '../../lib/dom-actions'
+  import { viewport } from '../../lib/viewport-regime.svelte'
   import AdfContent from './AdfContent.svelte'
   import RelatedIssues from './RelatedIssues.svelte'
   import Section from './Section.svelte'
@@ -28,6 +29,10 @@
   import CommentSubmitFooter from '../write/CommentSubmitFooter.svelte'
 
   const key = $derived(pages.selectedKey)
+  // The overlay way back (GDK-729): panels open and close symmetrically, so
+  // when this column covers the list the same arrow the issue panel offers
+  // closes the page. Module state, not a private copy (GDK-696).
+  const overlay = $derived(viewport.regime === 'overlay')
   // Index row for the instant header (a search hit may not be in the index yet).
   const lite = $derived.by(() => {
     if (!key) return undefined
@@ -132,13 +137,27 @@
     <div class="relative z-10 flex-none bg-bg-panel">
       <header class="border-b border-border-strong/70 px-5 pt-4 pb-4">
         <div class="mb-2 flex items-start justify-between gap-2">
-          <!-- Type badge only. The space is the breadcrumb's first segment,
-               which renders under exactly the same condition. -->
-          <span
-            class="flex-none rounded bg-bg-active px-1.5 py-0.5 text-micro font-medium uppercase tracking-wide text-text-muted"
-          >
-            {t('doc.badge')}
-          </span>
+          <div class="flex min-w-0 items-center gap-2">
+            {#if overlay}
+              <button
+                type="button"
+                onclick={() => pages.clear()}
+                data-testid="doc-panel-back"
+                class="flex h-6 w-6 flex-none items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+                aria-label={t('feed.backToList')}
+                title={t('feed.backToList')}
+              >
+                <Icon name="arrow-left" size={14} />
+              </button>
+            {/if}
+            <!-- Type badge only. The space is the breadcrumb's first segment,
+                 which renders under exactly the same condition. -->
+            <span
+              class="flex-none rounded bg-bg-active px-1.5 py-0.5 text-micro font-medium uppercase tracking-wide text-text-muted"
+            >
+              {t('doc.badge')}
+            </span>
+          </div>
           <button
             type="button"
             onclick={() => pages.clear()}

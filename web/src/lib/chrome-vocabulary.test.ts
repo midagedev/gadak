@@ -173,7 +173,69 @@ describe('the focus trap agrees with roving tabindex (GDK-142 V3)', () => {
 // Keeps the gate honest about where it lives.
 it('UX_PRINCIPLES carries the prose half of these rules', () => {
   const doc = readFileSync(join(ROOT, 'docs/project/UX_PRINCIPLES.md'), 'utf8')
-  for (const anchor of ['window seam', 'meter', 'StatusDot', 'EMPTY_VALUE']) {
+  for (const anchor of ['window seam', 'meter', 'StatusDot', 'EMPTY_VALUE', 'section label']) {
     expect(doc, `§16 must name ${anchor}`).toContain(anchor)
   }
+})
+
+/*
+ * GDK-141: a section label is one class, and its hierarchy signal is weight,
+ * not case. The utility dialect (micro/500/uppercase/tracked/muted) carried
+ * its label-ness in uppercase — a signal Hangul does not have, so once the
+ * :lang(ko)/:lang(ja) rules turned the utility off, a Korean section label
+ * wore the same costume as metadata. The class owns the whole recipe and
+ * weighs 600 in every script; uppercase stays as the Latin bonus, killed
+ * per language at the same owner.
+ */
+describe('section labels: one owner, weight as the signal (GDK-141)', () => {
+  const css = read(join(SRC, 'app.css'))
+
+  it('app.css owns the recipe with the numeric contract', () => {
+    // Anchor inside the components layer: the :lang kill rule earlier in
+    // the file also ends a selector line with ".section-label {".
+    const open = css.indexOf('.section-label {', css.indexOf('@layer components'))
+    const block = css.slice(open, css.indexOf('}', open))
+    expect(block, '.section-label must exist in app.css').toContain('font-size: var(--text-micro)')
+    expect(block).toContain('line-height: var(--text-micro--line-height)')
+    // 600 — the one signal every script in the product renders (the ko/ja
+    // system stacks ship a real SemiBold); 500 was the collapsed hierarchy.
+    expect(block).toContain('font-weight: 600')
+    expect(block).toContain('letter-spacing: 0.025em')
+    expect(block).toContain('text-transform: uppercase')
+    expect(block).toContain('color: var(--color-text-muted)')
+  })
+
+  it('the CJK case-kill covers the class, not just the utility', () => {
+    const kill = css.match(/:lang\(ko\) [^{]*\{[^}]*text-transform: none/)
+    expect(kill, 'the :lang(ko) kill rule must exist').toBeTruthy()
+    // The kill is unlayered, so it outranks the @layer components recipe.
+    expect(css.indexOf('.section-label'), 'recipe lives in a layer (checked below)').toBeGreaterThan(0)
+    expect(kill![0]).toContain('.section-label')
+    const killJa = css.match(/:lang\(ja\) [^{]*\{[^}]*text-transform: none/)
+    expect(killJa![0]).toContain('.section-label')
+  })
+
+  it('the utility dialect survives only where a chip justifies it', () => {
+    // A chip (doc badge, palette badge) is a rounded badge: shape carries
+    // its meaning, so the case-free CJK rendering is fine there. A section
+    // heading is text alone — it must carry the class instead.
+    const offenders: string[] = []
+    for (const p of svelte) {
+      const src = read(p)
+      for (const m of src.matchAll(/class="([^"]*)"/g)) {
+        const attrs = m[1]
+        if (/text-micro (?:font-medium )?uppercase tracking-wide text-text-muted/.test(attrs) && !attrs.includes('rounded')) {
+          offenders.push(`${rel(p)}: ${attrs.slice(0, 60)}`)
+        }
+      }
+    }
+    expect(offenders, 'section headings must use .section-label, not the utility dialect').toEqual([])
+  })
+
+  it('the migration actually happened (floor, not the contract)', () => {
+    const files = svelte.filter((p) => read(p).includes('section-label')).map(rel)
+    // 21 sites in 18 files moved in GDK-141; a floor keeps a silent
+    // unmigration visible without pinning every future label.
+    expect(files.length).toBeGreaterThanOrEqual(15)
+  })
 })

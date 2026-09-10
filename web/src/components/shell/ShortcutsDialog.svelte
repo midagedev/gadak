@@ -64,7 +64,7 @@
   >
     {#each sections as section (section.title)}
       <div class="mb-3 last:mb-0">
-        <div class="mb-1 text-micro font-medium uppercase tracking-wide text-text-muted">
+        <div class="mb-1 section-label">
           {section.title}
         </div>
         <dl class="flex flex-col">

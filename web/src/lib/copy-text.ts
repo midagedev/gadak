@@ -2,8 +2,12 @@
  * One owner for "put text on the user's clipboard, honestly" (GDK-178).
  *
  * Desktop: navigator.clipboard is dead inside the wails webview — measured
- * on the installed build: writeText rejected while the old catch-and-confirm
- * idiom still toasted "copied". The pasteboard is reached through wails' own
+ * on the installed build (wails v3.0.0-beta.15; the build also confirmed
+ * `navigator.clipboard` itself exists and isSecureContext is true, so the
+ * rejection is the webview's pasteboard bridge, not a secure-context gap).
+ * desktop/go.mod has since moved to beta.17; whether writeText lives there
+ * is unmeasured, and the branch below does not depend on the answer. The
+ * pasteboard is reached through wails' own
  * runtime binding instead (GDK-1470). The app injects /wails/runtime.js into
  * every index.html it serves (desktop/main.go injectWailsRuntime), so the
  * module resolves on this same custom-scheme origin, and Clipboard.SetText

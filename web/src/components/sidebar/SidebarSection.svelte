@@ -100,7 +100,7 @@
 >
   <button
     type="button"
-    class="group flex h-6 w-full cursor-grab items-center gap-1 px-3 text-left text-micro font-medium uppercase tracking-wide text-text-muted hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent active:cursor-grabbing"
+    class="group flex h-6 w-full cursor-grab items-center gap-1 px-3 text-left section-label hover:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent active:cursor-grabbing"
     aria-expanded={expanded}
     aria-controls={bodyId}
     aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"

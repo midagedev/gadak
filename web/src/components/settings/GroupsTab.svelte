@@ -12,7 +12,7 @@
 <div class="flex flex-col gap-5">
   <!-- Group labels + colors -->
   <div class="flex flex-col gap-1.5">
-    <div class="text-micro font-medium uppercase tracking-wide text-text-muted">
+    <div class="section-label">
       {t('settings.groupLabels')}
     </div>
     {#if draft.groups.length === 0}
@@ -55,7 +55,7 @@
 
   <!-- Product buckets -->
   <div class="flex flex-col gap-1.5">
-    <div class="text-micro font-medium uppercase tracking-wide text-text-muted">
+    <div class="section-label">
       {t('settings.groupToProduct')}
     </div>
     {#if draft.products.length === 0}
@@ -93,7 +93,7 @@
 
   <!-- Group classification rules -->
   <div class="flex flex-col gap-1.5">
-    <div class="text-micro font-medium uppercase tracking-wide text-text-muted">
+    <div class="section-label">
       {t('settings.groupRules')}
     </div>
     <p class="text-micro leading-relaxed text-text-muted">
@@ -137,7 +137,7 @@
   </div>
 
   <div class="flex flex-col gap-1.5">
-    <div class="text-micro font-medium uppercase tracking-wide text-text-muted">
+    <div class="section-label">
       {t('settings.groupQuery')}
     </div>
     <p class="text-micro leading-relaxed text-text-muted">

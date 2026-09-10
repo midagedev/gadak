@@ -293,7 +293,7 @@
           data-day={section.key}
           class="sticky top-0 z-10 flex h-row items-end gap-2 bg-bg-base/95 px-4 pb-1.5 backdrop-blur border-b border-border-subtle"
         >
-          <span class="truncate text-micro font-medium uppercase tracking-wide text-text-muted">
+          <span class="truncate section-label">
             {feedDayLabelText(section.label, t, localeTag())}
           </span>
           <span class="h-px flex-1 self-center bg-border-subtle"></span>

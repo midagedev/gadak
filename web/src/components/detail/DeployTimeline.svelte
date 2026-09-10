@@ -89,13 +89,16 @@
         <span
           class="mt-0.5 flex h-3 w-3 flex-none items-center justify-center rounded-full border transition-colors
             {isQaSwap
-            ? 'border-[#2dd4bf] bg-[#2dd4bf]'
+            ? 'border-status-qa bg-status-qa'
             : reached
               ? 'border-accent bg-accent'
               : 'border-border-strong bg-transparent'}"
         >
           {#if reached}
-            <span class="h-1 w-1 rounded-full {isQaSwap ? 'bg-[#083344]' : 'bg-white'}"></span>
+            <!-- GDK-160: the neon disc needed a teal-950 inner dot; the
+                 in-palette teal is accent-dark, so the dot is white like
+                 the accent branch — one fill, not two. -->
+            <span class="h-1 w-1 rounded-full bg-white"></span>
           {/if}
         </span>
         {#if i < steps.length - 1}
@@ -110,7 +113,7 @@
         <div class="flex items-center gap-1.5">
           <span
             class="text-body font-medium {isQaSwap
-              ? 'text-[#5eead4]'
+              ? 'text-status-qa'
               : reached
                 ? 'text-text-primary'
                 : 'text-text-muted'}"
