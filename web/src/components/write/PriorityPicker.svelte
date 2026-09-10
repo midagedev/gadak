@@ -17,6 +17,7 @@
   import { MenuOriginTimeout, withMenuTimeout } from '../../lib/menu-loading'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import { DETAIL_TESTID } from '../../lib/commands'
+  import { asKeyTarget } from '../../lib/key-targets'
   import LoadingState from '../ui/LoadingState.svelte'
 
   let { issue }: { issue: IssueLite } = $props()
@@ -177,6 +178,7 @@
     type="button"
     onclick={toggle}
     bind:this={triggerEl}
+    use:asKeyTarget={DETAIL_TESTID.priority}
     data-testid={DETAIL_TESTID.priority}
     class="group inline-flex items-center gap-1.5 rounded-md bg-bg-elevated px-2 py-0.5 text-micro font-medium text-text-secondary transition-colors hover:bg-bg-hover"
     aria-haspopup="listbox"

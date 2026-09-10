@@ -15,6 +15,7 @@
   import { widenToServerSearch } from '../../lib/server-search'
   import { isEscapeKey } from '../../lib/dom-actions'
   import { NARROW_FIELD_TESTID } from '../../lib/commands'
+  import { asKeyTarget } from '../../lib/key-targets'
   import { pages } from '../../stores/pages.svelte'
 
   let { value = $bindable('') }: { value?: string } = $props()
@@ -52,6 +53,7 @@
     bind:value
     onkeydown={onKeydown}
     type="text"
+    use:asKeyTarget={NARROW_FIELD_TESTID.docs}
     data-testid={NARROW_FIELD_TESTID.docs}
     data-enter="widen"
     placeholder={t('docs.filterPlaceholder')}

@@ -27,6 +27,7 @@ import type { HistoryVisitKind } from '../lib/types'
 import { column } from './column.svelte'
 import { history } from './history.svelte'
 import { issues } from './issues.svelte'
+import { panel } from './panel.svelte'
 import { watches } from './watches.svelte'
 import { favorites } from './favorites.svelte'
 import type {
@@ -276,6 +277,14 @@ class MeStore {
       if (opts.loadPersonal && !wasIdentified) {
         await Promise.all([watches.load(), this.loadFeed()])
         this.#startFeedPolling()
+        // Read-state used to be reconciled by an App effect that re-ran when
+        // `identified` flipped (GDK-941); recording moved to selection write
+        // time, but markIssueRead no-ops unidentified, so this is where an
+        // issue opened before identity landed (deep link boots ahead of
+        // me.init, or signing in with the detail open) catches up. The feed
+        // is loaded by now, which is what the guard inside reads.
+        const openKey = panel.keyOf('issue')
+        if (openKey) void this.markIssueRead(openKey)
       }
     } else if (this.email !== null) {
       this.#clearIdentity()
@@ -512,11 +521,18 @@ class MeStore {
    */
   recordRecent(key: string, kind: RecentKind = 'issue'): void {
     if (!key) return
+    // The rebuild base is the persisted list until init() has restored it: a
+    // deep link selects during App's script (GDK-941 moved recording to
+    // write time), ahead of onMount's me.init(), and basing the rebuild on
+    // the still-empty in-memory list would retire every other visit the
+    // sidebar remembered. init()'s later loadRecent() reads the merged list
+    // back, unchanged.
+    const base = this.#initialized ? this.recent : loadRecent()
     const id = visitId(kind, key)
     const viewedAt = new Date().toISOString()
     const next = [
       { key, viewed_at: viewedAt, kind },
-      ...this.recent.filter((visit) => visitId(visit.kind, visit.key) !== id),
+      ...base.filter((visit) => visitId(visit.kind, visit.key) !== id),
     ].slice(0, RECENT_MAX)
     this.recent = next
     saveRecent(next)

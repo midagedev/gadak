@@ -849,20 +849,63 @@ describe('GDK-692 no $effect writes $state/$derived in scanned files', () => {
  * source contract below does — the unit project is runes-free and cannot
  * mount a .svelte file, and lib/ is the shared owner of cross-component
  * source pins. A dedicated docs test file would be the better home the day
- * one exists. */
+ * one exists.
+ *
+ * GDK-942 (round w11, 2026-09-10): the consume moved from a direct field
+ * write to pages.takeFocusAuthor() — the effect subscribes to focusAuthorSeq
+ * and never reads the field it spends. The pin followed the source: the old
+ * regex (matching `pages.focusAuthor = null` in the branch) went red on the
+ * rewritten effect before this edit. The transaction it guards is unchanged —
+ * scroll and consume in the same index >= 0 branch. */
 describe('GDK-1586 focusAuthor is consumed only when it lands', () => {
-  test('DocsView clears the request inside the index >= 0 branch', () => {
+  test('DocsView spends the request inside the index >= 0 branch', () => {
     const src = readFileSync(join(WEB_SRC, 'components/docs/DocsView.svelte'), 'utf8')
     // The scroll AND the consume are one transaction: a group the docs
     // filter narrowed out of `rows` must leave the request unspent.
     expect(src).toMatch(
-      /if \(index >= 0\) \{\s*\n\s*list\.scrollToIndex\(index\)\s*\n\s*pages\.focusAuthor = null\s*\n\s*\}/,
+      /if \(index >= 0\) \{\s*\n\s*list\.scrollToIndex\(index\)\s*\n\s*pages\.takeFocusAuthor\(\)\s*\n\s*\}/,
     )
-    // The unguarded shape this replaces — the clear one line below a
-    // single-statement if — must not come back.
-    expect(src).not.toMatch(
-      /if \(index >= 0\) list\.scrollToIndex\(index\)\s*\n\s*pages\.focusAuthor = null/,
+    // The read-what-you-write shape this replaces (GDK-942) must not come
+    // back: no effect in this file touches the focusAuthor field directly.
+    // (focusAuthorSeq does not match — `r`→`S` is not a word boundary, and
+    // the peek/take methods are not the field.)
+    expect(src).not.toMatch(/\$effect\(\(\) => \{[\s\S]*?\bpages\.focusAuthor\b/)
+  })
+})
+
+/*
+ * GDK-941: selection side effects ride the store write, not an effect
+ * watching the store. App.svelte used to run two untrack effects over
+ * selection.selectedKey — one of them reading+writing me.recent, the
+ * read-what-you-write shape this file exists for, invisible to the scanner
+ * above only because the field lives in another module. selection.select
+ * now records inline (the pages.select / browse.svelte precedent), and the
+ * deferred-identity reconcile lives in me.#fetchIdentity. The blockade: no
+ * component may call me.recordRecent / me.markIssueRead itself — that call
+ * belongs to the store whose write it must accompany.
+ */
+describe('GDK-941 selection side effects ride the write, not a watcher', () => {
+  test('no component calls me.recordRecent or me.markIssueRead', () => {
+    const files = readdirSync(WEB_SRC, { recursive: true, encoding: 'utf8' }).filter((f) =>
+      f.endsWith('.svelte'),
     )
+    expect(files.length, 'the sweep found no components to read').toBeGreaterThan(50)
+
+    const offenders: string[] = []
+    for (const rel of files) {
+      const source = readFileSync(join(WEB_SRC, rel), 'utf8')
+      if (/\bme\.(recordRecent|markIssueRead)\b/.test(source)) offenders.push(rel)
+    }
+    expect(offenders).toEqual([])
+  })
+
+  test('selection.select is where the recording lives', () => {
+    const src = readFileSync(join(WEB_SRC, 'stores/selection.svelte.ts'), 'utf8')
+    expect(src).toMatch(/me\.recordRecent\(key\)/)
+    expect(src).toMatch(/void me\.markIssueRead\(key\)/)
+    // The guard mirrors panel.show's same-key early-return: a re-select of
+    // the open issue records nothing, the way the effect never re-fired.
+    expect(src).toMatch(/if \(this\.selectedKey !== key\) \{/)
   })
 })
 

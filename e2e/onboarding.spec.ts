@@ -343,6 +343,54 @@ test.describe('first-run onboarding', () => {
     expect(flow.savedProjects).toEqual([])
   })
 
+  /*
+   * GDK-1324: role=radiogroup promises arrows, so the source picker carries
+   * the whole gesture — one tab stop (the checked radio, the first while
+   * nothing is, which is the GDK-1345 null state), arrows moving the answer
+   * and the focus together, and the group labelled by its own question.
+   */
+  test('the source picker is a keyboard radiogroup — one tab stop, arrows answer', async ({
+    page,
+  }) => {
+    await mockFirstRun(page)
+    await forceLocale(page, 'en')
+    await page.goto('/')
+
+    const wizard = page.getByTestId('onboarding')
+    await expect(wizard).toBeVisible({ timeout: 30_000 })
+
+    const group = page.getByRole('radiogroup')
+    await expect(group).toHaveAttribute('aria-labelledby')
+    const labelledBy = await group.getAttribute('aria-labelledby')
+    await expect(wizard.getByText(en['onboarding.whereQuestion'])).toHaveAttribute(
+      'id',
+      labelledBy!,
+    )
+
+    const jira = wizard.getByTestId('onboarding-source-jira')
+    const builtin = wizard.getByTestId('onboarding-source-builtin')
+    const paired = wizard.getByTestId('onboarding-source-paired')
+    await expect(jira).toHaveAttribute('tabindex', '0')
+    await expect(builtin).toHaveAttribute('tabindex', '-1')
+    await expect(paired).toHaveAttribute('tabindex', '-1')
+
+    await jira.focus()
+    await page.keyboard.press('ArrowRight')
+    await expect(builtin).toBeFocused()
+    await expect(builtin).toHaveAttribute('aria-checked', 'true')
+    await expect(jira).toHaveAttribute('aria-checked', 'false')
+
+    await page.keyboard.press('ArrowRight')
+    await expect(paired).toBeFocused()
+    await expect(paired).toHaveAttribute('aria-checked', 'true')
+
+    // Wraps both ways.
+    await page.keyboard.press('ArrowRight')
+    await expect(jira).toBeFocused()
+    await page.keyboard.press('ArrowLeft')
+    await expect(paired).toBeFocused()
+  })
+
   // Jira answers every bad credential with the same 401, and only one of the
   // traps is recognisable from the pasted token — the ATCTT prefix of an org
   // key. So the server sends two codes and the wizard says two different

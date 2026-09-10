@@ -27,6 +27,7 @@
   import { widenToServerSearch } from '../../lib/server-search'
   import { showIssueList } from '../../lib/show-issue-list'
   import { NARROW_FIELD_TESTID } from '../../lib/commands'
+  import { asKeyTarget } from '../../lib/key-targets'
   import EmptyState from '../list/EmptyState.svelte'
   import LoadingState from '../ui/LoadingState.svelte'
   import VirtualRows from '../ui/VirtualRows.svelte'
@@ -242,6 +243,7 @@
           oninput={(e) => (history.filterText = (e.currentTarget as HTMLInputElement).value)}
           onkeydown={onFilterKey}
           type="text"
+          use:asKeyTarget={NARROW_FIELD_TESTID.history}
           data-testid={NARROW_FIELD_TESTID.history}
           data-enter="widen"
           placeholder={t('history.filterPlaceholder')}

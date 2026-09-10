@@ -14,6 +14,7 @@
   import { recentOf } from '../../lib/recency'
   import { ESC_TIER, isEscapeKey, onEscape, onOutsideClick } from '../../lib/dom-actions'
   import { DETAIL_TESTID } from '../../lib/commands'
+  import { asKeyTarget } from '../../lib/key-targets'
   import Icon from '../ui/Icon.svelte'
 
   /** bare: no inline label — the caller's <dt> names the row (GDK-1337). */
@@ -151,6 +152,7 @@
         oninput={onTyped}
         onkeydown={onKeydown}
         type="text"
+        use:asKeyTarget={DETAIL_TESTID.labelInput}
         data-testid={DETAIL_TESTID.labelInput}
         placeholder={t('write.addLabel')}
         disabled={busy}
@@ -159,6 +161,7 @@
     {:else if issue.labels.length === 0}
       <button
         type="button"
+        use:asKeyTarget={DETAIL_TESTID.labelAdd}
         data-testid={DETAIL_TESTID.labelAdd}
         onclick={() => void openAdd()}
         class="rounded-md px-1 py-0.5 text-left {INLINE_ACTION} transition-colors hover:bg-bg-hover hover:text-text-primary"
@@ -168,6 +171,7 @@
     {:else}
       <button
         type="button"
+        use:asKeyTarget={DETAIL_TESTID.labelAdd}
         data-testid={DETAIL_TESTID.labelAdd}
         onclick={() => void openAdd()}
         class="flex h-5 w-5 flex-none items-center justify-center rounded text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"

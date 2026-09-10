@@ -79,13 +79,8 @@
   import { mediaViewer } from './stores/media-viewer.svelte'
   import { t } from './lib/i18n'
   import { bindPaletteOpener, bindShortcutsOpener } from './lib/unified-search'
-  import {
-    isOverlayModal,
-    layoutTokenStyle,
-    readViewportRegime,
-    subscribeViewportRegime,
-    type ViewportRegime,
-  } from './lib/viewport-regime'
+  import { isOverlayModal, layoutTokenStyle } from './lib/viewport-regime'
+  import { viewport } from './lib/viewport-regime.svelte'
   import { terminalChrome } from './lib/terminal/pane.svelte'
   import { terminalSessions } from './lib/terminal/sessions.svelte'
 
@@ -244,9 +239,6 @@
     // Desktop only: external links + in-app browse session tracking.
     const uninstallLinks = installDesktopLinkOpener()
     const uninstallBrowse = installBrowseSessions()
-    const unsubRegime = subscribeViewportRegime((r) => {
-      viewportRegime = r
-    })
     const unsubTerminal = terminalChrome.start()
     const applyFocus = async () => {
       if (isHostedDemo()) return
@@ -391,7 +383,6 @@
       document.removeEventListener('visibilitychange', onVis)
       uninstallLinks()
       uninstallBrowse()
-      unsubRegime()
       unsubTerminal()
     }
   })
@@ -399,20 +390,6 @@
   function retry() {
     void issues.refresh()
   }
-
-  // ── Record recent issue on select ──
-  //  untrack is required: recordRecent reads+writes me.recent → infinite loop if tracked.
-  $effect(() => {
-    const key = selection.selectedKey
-    if (key) untrack(() => me.recordRecent(key))
-  })
-
-  // Mark feed events read whenever an issue is opened (list / feed / push).
-  $effect(() => {
-    const key = selection.selectedKey
-    const identified = me.identified
-    if (key && identified) untrack(() => void me.markIssueRead(key))
-  })
 
   // ── Identity ↔ credential load/reset (sidebar ⚙︎ + write gate) ──
   $effect(() => {
@@ -648,9 +625,12 @@
    * GDK-201: docked | overlay is owned by viewport-regime.ts. Scrim, inert,
    * dialog role, and focus trap all derive from overlayModal — CSS must not
    * independently decide to cover the list.
+   *
+   * GDK-696: the live value is the module state in
+   * viewport-regime.svelte.ts — one copy for App and DetailPanel, updated by
+   * the module's own subscription rather than per-component copies.
    */
-  let viewportRegime = $state<ViewportRegime>(readViewportRegime())
-  const overlayModal = $derived(isOverlayModal(viewportRegime, panelOpen))
+  const overlayModal = $derived(isOverlayModal(viewport.regime, panelOpen))
 
   /*
    * The terminal is the fourth surface wanting a share of this row, and it is
@@ -660,7 +640,7 @@
    * (viewport-regime.ts), one consumer here.
    */
   $effect(() => {
-    terminalChrome.setDetailDocked(panelOpen && viewportRegime === 'docked')
+    terminalChrome.setDetailDocked(panelOpen && viewport.regime === 'docked')
   })
 
   /* GDK-1585: the overlay chrome is declarative now. `overlayModal` goes to
@@ -845,7 +825,7 @@
       data-testid="issue-layout"
       data-detail-open={panelOpen}
       data-browse-open={browse.paneOpen}
-      data-viewport-regime={viewportRegime}
+      data-viewport-regime={viewport.regime}
       style={layoutTokenStyle()}
       data-detail-wide={panelOpen && reading.wide}
     >

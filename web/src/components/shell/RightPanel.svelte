@@ -53,6 +53,7 @@
   role={modal ? 'dialog' : undefined}
   aria-modal={modal ? 'true' : undefined}
   data-testid="issue-detail-panel"
+  data-open={open ? 'true' : 'false'}
   use:trapWhileModal={modal}
 >
   <div class="h-full w-full min-w-0 overflow-y-auto">

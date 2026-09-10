@@ -4,6 +4,17 @@
  * The pages store owns whether this view holds the main column (`historyView`).
  * This store owns the rows, the kind chip, and the text filter — so leaving
  * the screen and coming back does not drop what was narrowed.
+ *
+ * GDK-1135 asked why this is a store and not HistoryView-local state, reading
+ * it as single-consumer. It is not: HistoryView is the only *reader*, but
+ * me.recordRecent writes through noteItem (four call sites) at times the view
+ * is not mounted — an issue opened from the list posts a visit the moment the
+ * panel opens, and if the history screen is opened next its rows must already
+ * know it. `kind`, `filterText` and `loaded` are also read by noteItem's
+ * gating (a narrowed view only prepends what its filter would show), so they
+ * cannot move into the component without dragging the write path along. The
+ * store boundary is what keeps "record a visit" from depending on "the
+ * history screen happens to be open".
  */
 
 import * as api from '../lib/api'

@@ -636,6 +636,34 @@ the rendered HTML for one issue's description and comments ([GDK-1518]); and
 `scope-sheet.mjs` prints the phone's scope sheet from the demo snapshot
 ([GDK-1554]).
 
+The web tree lost its last document-wide lookups and its last effects that
+read what they write. The global chords found their targets with
+`document.querySelector` at dispatch time; components now register the
+element themselves, an unmounted target is a null the dispatch already
+treats as "not spent", and the GDK-645 sweep that had carved keymap out as an
+exception no longer has one ([GDK-693]); the scope picker's document-level
+click closes through the shared outside-click action, and a sweep forbids
+the next `svelte:document onclick` ([GDK-630]). The viewport regime had one
+`$state` in the app shell and another in the detail panel; one module owns
+it, and a sweep keeps it that way ([GDK-696]). Selecting an issue records
+the visit and marks it read where the selection is written, instead of two
+untracked effects watching the key and writing back to the store they read
+([GDK-941]); the docs view consumes a focus-author request through a nonce
+rather than nulling the field it reads ([GDK-942]); and BulkBar's five batch
+runners share one loop ([GDK-698]). Smaller: rows in the issue list are
+tab-reachable on the same terms as document and history rows ([GDK-829]),
+the onboarding source picker is a real radiogroup — one tab stop, arrows move
+selection and focus, and its first e2e run caught the arrow moving from the
+wrong anchor ([GDK-1324]); a cross-workspace reference that cannot be
+resolved is a plain span, and one that can is an `<a>` ([GDK-1326]); the
+empty-state hint has room for a sentence ([GDK-1732]); the right panel says
+whether it is open in the DOM, since it stays mounted when closed
+([GDK-1187]); the boot-time token mirror in `index.html` carries the fonts
+axis the runtime does, with a parity test ([GDK-1101]); the locale tag has
+one owner ([GDK-1455]); and the history store's boundary is documented as
+the write path it is rather than moved into its one reader, because it has
+four callers ([GDK-1135]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2286,3 +2314,16 @@ priority sorting keyed on `priority_rank`.
 [GDK-1546]: https://gadak.dev/backlog/#/?ks=GDK-1546
 [GDK-1518]: https://gadak.dev/backlog/#/?ks=GDK-1518
 [GDK-1554]: https://gadak.dev/backlog/#/?ks=GDK-1554
+[GDK-693]: https://gadak.dev/backlog/#/?ks=GDK-693
+[GDK-630]: https://gadak.dev/backlog/#/?ks=GDK-630
+[GDK-696]: https://gadak.dev/backlog/#/?ks=GDK-696
+[GDK-941]: https://gadak.dev/backlog/#/?ks=GDK-941
+[GDK-942]: https://gadak.dev/backlog/#/?ks=GDK-942
+[GDK-698]: https://gadak.dev/backlog/#/?ks=GDK-698
+[GDK-1324]: https://gadak.dev/backlog/#/?ks=GDK-1324
+[GDK-1326]: https://gadak.dev/backlog/#/?ks=GDK-1326
+[GDK-1732]: https://gadak.dev/backlog/#/?ks=GDK-1732
+[GDK-1187]: https://gadak.dev/backlog/#/?ks=GDK-1187
+[GDK-1101]: https://gadak.dev/backlog/#/?ks=GDK-1101
+[GDK-1455]: https://gadak.dev/backlog/#/?ks=GDK-1455
+[GDK-1135]: https://gadak.dev/backlog/#/?ks=GDK-1135

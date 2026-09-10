@@ -39,6 +39,7 @@
   import Icon from '../ui/Icon.svelte'
   import { terminalSessions } from '../../lib/terminal/sessions.svelte'
   import { isEscapeKey } from '../../lib/dom-actions'
+  import { TERMINAL_STRIP_SELECTED, asKeyTarget } from '../../lib/key-targets'
   import { stripRows, type TerminalSessionState } from '../../lib/terminal/strip'
 
   let {
@@ -189,6 +190,7 @@
         data-state={row.state}
         data-selected={row.selected ? 'true' : 'false'}
         data-issue-key={row.namedByIssue ? (row.issueAside ?? row.label) : undefined}
+        use:asKeyTarget={row.selected ? TERMINAL_STRIP_SELECTED : null}
         onclick={() => terminalSessions.select(row.id)}
         ondblclick={() => void startRename(row.id)}
         onkeydown={(e) => {

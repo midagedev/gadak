@@ -63,8 +63,12 @@ export function setLocale(next: Locale): void {
   location.reload()
 }
 
-/** BCP 47 tag for Intl APIs. */
-function localeTag(): string {
+/**
+ * BCP 47 tag for Intl APIs. Exported (GDK-1455): callers that hand-format
+ * dates used to re-derive this mapping at each call site, which is how the
+ * two spellings drift apart the day a locale joins.
+ */
+export function localeTag(): string {
   if (current === 'ko') return 'ko-KR'
   if (current === 'ja') return 'ja-JP'
   return 'en-US'

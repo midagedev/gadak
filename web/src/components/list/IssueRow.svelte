@@ -304,6 +304,18 @@
   <span class="block min-w-0 flex-1 truncate text-left text-micro font-medium text-text-muted" title={label}>{label}</span>
 {/snippet}
 
+<!--
+  GDK-829: rows are keyboard-reachable (tabindex 0 on data rows), the same
+  contract DocRow and the history rows already carry — the shortcuts sheet
+  says "Tab moves rows", and this list was the one surface where that was
+  false. j/k still moves the cursor, but Tab no longer skips the list
+  entirely. role stays "button" (ARIA, not native): the browser does not
+  fire click on Enter for it, so open-cursor keeps the row. The ignore is
+  the analyzer reading the two conditionals apart: on a data row the role
+  is button, and on a header row tabindex is -1 — no row is ever both
+  noninteractive and tab-reachable.
+-->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
   class="chipfold-host group flex select-none flex-col justify-center gap-0.5 border-b text-body
     {header
@@ -329,7 +341,7 @@
           ? 'shadow-[inset_3px_0_0_var(--color-accent)]'
           : ''}"
   role={header ? undefined : 'button'}
-  tabindex="-1"
+  tabindex={header ? -1 : 0}
   aria-current={active ? 'true' : undefined}
   data-issue-key={header ? undefined : issue.issue_key}
   data-seen={seen ? 'true' : undefined}

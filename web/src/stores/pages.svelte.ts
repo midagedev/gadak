@@ -15,6 +15,7 @@
  * IndexedDB, so a doc never occupies the issue cache budget.
  */
 
+import { untrack } from 'svelte'
 import * as api from '../lib/api'
 import { STORAGE_KEYS } from '../lib/storage'
 import type { PageDetail, PageLite } from '../lib/types'
@@ -135,8 +136,15 @@ class PagesStore {
   docsTab = $state<DocsTab>(loadDocsTab())
   /** Author group the By-author tab should scroll to once, set by an arrival
    *  from elsewhere (the person panel). Cleared as soon as it is honoured —
-   *  it is a one-shot instruction, not a filter. */
+   *  it is a one-shot instruction, not a filter.
+   *
+   *  GDK-942: consumers reach it through peekFocusAuthor/takeFocusAuthor,
+   *  never by reading the field from an effect — an effect that reads
+   *  focusAuthor and then clears it is the read-what-you-write shape. The
+   *  effect subscribes to focusAuthorSeq instead; every arrival bumps it. */
   focusAuthor = $state<string | null>(null)
+  /** Bumped by every new arrival — the subscribable half of the pair above. */
+  focusAuthorSeq = $state(0)
   /**
    * The label every document screen is narrowed to, or null.
    *
@@ -481,6 +489,20 @@ class PagesStore {
     }
   }
 
+  /** The pending arrival, read without subscribing — for effects, which key
+   *  on focusAuthorSeq instead (GDK-942). */
+  peekFocusAuthor(): string | null {
+    return untrack(() => this.focusAuthor)
+  }
+
+  /** Spend the pending arrival. Only the branch that honoured it calls this
+   *  (the GDK-1586 rule), so an unspendable request stays pending. */
+  takeFocusAuthor(): void {
+    untrack(() => {
+      this.focusAuthor = null
+    })
+  }
+
   /** Arrive at the By-author tab already looking at one person's group. The
    *  axis is the tab's own — nothing new is filtered, the list is only scrolled
    *  to where the answer is, since author groups run in recency order and the
@@ -489,6 +511,7 @@ class PagesStore {
     column.show({ view: 'docs' })
     this.selectTab('author')
     this.focusAuthor = author
+    this.focusAuthorSeq++
   }
 
   /** How many mirrored pages belong to this author. Matches author_id first,

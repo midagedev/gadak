@@ -181,13 +181,20 @@
   // clear on index < 0 lost the request silently — "not in this view" read
   // as "done". Unspent, it fires when the author tab next opens on rows
   // that contain the group.
+  //
+  // GDK-942: the effect subscribes to the arrival's seq and the geometry it
+  // acts on (tab, list, rows); the author is taken through the store's
+  // peek/take pair, so focusAuthor itself is never a dependency and the
+  // consume cannot re-run the effect that performed it.
   $effect(() => {
-    const author = pages.focusAuthor
-    if (!author || tab !== 'author' || !list) return
+    void pages.focusAuthorSeq
+    if (tab !== 'author' || !list) return
+    const author = pages.peekFocusAuthor()
+    if (!author) return
     const index = rows.findIndex((r) => r.kind === 'header' && r.author === author)
     if (index >= 0) {
       list.scrollToIndex(index)
-      pages.focusAuthor = null
+      pages.takeFocusAuthor()
     }
   })
 

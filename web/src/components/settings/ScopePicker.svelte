@@ -22,7 +22,7 @@
    */
   import type { Snippet } from 'svelte'
   import { t } from '../../lib/i18n'
-  import { isEscapeKey } from '../../lib/dom-actions'
+  import { isEscapeKey, onOutsideClick } from '../../lib/dom-actions'
   import Icon from '../ui/Icon.svelte'
   import { INPUT } from './controls'
 
@@ -57,7 +57,6 @@
   let query = $state('')
   let open = $state(false)
   let idx = $state(0)
-  let rootEl = $state<HTMLDivElement | null>(null)
 
   const byValue = $derived(new Map(options.map((o) => [o.value, o])))
 
@@ -111,15 +110,17 @@
       remove(selected[selected.length - 1])
     }
   }
-
-  function onDocClick(e: MouseEvent) {
-    if (open && rootEl && !e.composedPath().includes(rootEl)) open = false
-  }
 </script>
 
-<svelte:document onclick={onDocClick} />
-
-<div class="flex flex-col gap-1.5" bind:this={rootEl} data-testid={testid}>
+<!-- The root is the outside-close boundary (GDK-630): input, chips and the
+     floating list all live inside it, so one onOutsideClick answers for all
+     three the way the svelte:document hand-roll used to — with `enabled`
+     carrying the open gate the hand-roll's `if (open …)` expressed. -->
+<div
+  class="flex flex-col gap-1.5"
+  data-testid={testid}
+  use:onOutsideClick={{ handler: () => (open = false), enabled: open }}
+>
   <div class="flex items-center justify-between gap-2">
     <span class="text-micro text-text-secondary">{label}</span>
     {#if action}{@render action()}{/if}

@@ -31,7 +31,7 @@
    * Room is left deliberately: the burn-up chart (GDK-1710) belongs on this
    * line, and the bar is the element that will yield the width for it.
    */
-  import { t, locale } from '../../lib/i18n'
+  import { t, localeTag } from '../../lib/i18n'
   import { calendarDay, formatAbs, localZone } from '../../lib/calendar'
   import { categoryMetaOf } from '../../lib/format'
   import { filters } from '../../stores/filters.svelte'
@@ -49,9 +49,9 @@
     return active.length === 1 ? active[0] : null
   })
 
-  /** BCP 47 tag for the date formatter. i18n's own `localeTag` is module
-   *  private; this is the same three-way map, not a second policy. */
-  const tag = $derived(locale() === 'ko' ? 'ko-KR' : locale() === 'ja' ? 'ja-JP' : 'en-US')
+  /** BCP 47 tag for the date formatter — i18n's own mapping (GDK-1455 made
+   *  it public; this used to re-spell the same three-way map here). */
+  const tag = $derived(localeTag())
 
   /** Dates as days, never instants: a sprint boundary is a calendar day, and
    *  `absTime` would spend half the strip printing hours and minutes. */

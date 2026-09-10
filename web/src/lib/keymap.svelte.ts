@@ -20,6 +20,7 @@ import {
   type KeyContext,
   type TriageMenuKey,
 } from './commands'
+import { TERMINAL_STRIP_SELECTED, keyTarget } from './key-targets'
 
 export {
   DETAIL_TESTID,
@@ -237,14 +238,13 @@ function dispatchKeyCommand(e: KeyboardEvent, cmd: KeyCommand, host: GlobalKeyHo
     /*
      * Focus escape (GDK-1250): the pane stays, focus moves to the active
      * tab — the strip's own buttons are then Tab/Enter-walkable, which is
-     * why the strip is the target and not the list. The DOM is the
-     * handler's job (focus-narrow precedent): no strip yet means the pane
-     * never rendered it, and a no-op must not eat the key event's default.
+     * why the strip is the target and not the list. The selected row
+     * registers itself under TERMINAL_STRIP_SELECTED (GDK-693): no
+     * registration means the pane never rendered a selection, and a no-op
+     * must not eat the key event's default.
      */
     case 'terminal-focus-strip': {
-      const tab = document.querySelector<HTMLButtonElement>(
-        '[data-testid="terminal-strip-row"][data-selected="true"]',
-      )
+      const tab = keyTarget(TERMINAL_STRIP_SELECTED)
       if (!tab) return
       e.preventDefault()
       tab.focus()
@@ -293,7 +293,7 @@ function dispatchKeyCommand(e: KeyboardEvent, cmd: KeyCommand, host: GlobalKeyHo
       return
     case 'focus-narrow': {
       if (!cmd.testid) return
-      const field = document.querySelector<HTMLInputElement>(`[data-testid="${cmd.testid}"]`)
+      const field = keyTarget(cmd.testid)
       if (field) {
         e.preventDefault()
         field.focus()
@@ -370,25 +370,18 @@ function dispatchKeyCommand(e: KeyboardEvent, cmd: KeyCommand, host: GlobalKeyHo
       return
     case 'activate-labels': {
       e.preventDefault()
-      const field = document.querySelector<HTMLInputElement>(
-        `[data-testid="${DETAIL_TESTID.labelInput}"]`,
-      )
+      const field = keyTarget(DETAIL_TESTID.labelInput)
       if (field) field.focus()
-      else
-        document
-          .querySelector<HTMLButtonElement>(`[data-testid="${DETAIL_TESTID.labelAdd}"]`)
-          ?.click()
+      else keyTarget(DETAIL_TESTID.labelAdd)?.click()
       return
     }
     case 'click-detail':
       e.preventDefault()
-      document.querySelector<HTMLButtonElement>(`[data-testid="${cmd.testid}"]`)?.click()
+      keyTarget(cmd.testid)?.click()
       return
     case 'focus-comment':
       e.preventDefault()
-      document
-        .querySelector<HTMLTextAreaElement>(`[data-testid="${DETAIL_TESTID.comment}"]`)
-        ?.focus()
+      keyTarget(DETAIL_TESTID.comment)?.focus()
       return
     case 'open-comment-cursor':
       if (!cursorKey) return

@@ -85,15 +85,52 @@
           if (udark) ucss += "@media (prefers-color-scheme: dark){:root:not([data-theme='light']){" + udark + '}}'
         }
         var dims = udoc && udoc.dims
+        var ddecl = ''
+        var fdecl = ''
         if (dims && typeof dims === 'object') {
-          var ddecl = ''
           for (var dk in dims) {
             if (/^--(?:spacing|layout|text)-[a-z0-9-]+$/i.test(dk) && dimok(dk, dims[dk])) {
               ddecl += dk + ':' + dims[dk] + ';'
             }
           }
-          if (ddecl) ucss += ':root{' + ddecl + '}'
         }
+        /*
+          폰트축(GDK-896 R4)도 치수와 같은 자리다: 팔레트 변형이 없는
+          하나의 :root 규칙에 들어가고, 문법은 TS 쪽 isFontStack /
+          서버 validFontStack과 손으로 일치한다(쉼표로 나뉜 1..8개
+          패밀리, 전체 256자 이하, 패밀리는 bare 식별자 또는 짝이 맞는
+          따옴표 안 [A-Za-z0-9 _-]). --font-* 이름만 받아 치수 맵이
+          폰트 모양을 세탁하지 못하게 한다. 부트 미러가 이 축을
+          무시하면 폰트 오버라이드 사용자는 번들이 오기 전 프레임에
+          출하 서체로 되돌아간다(GDK-1101).
+        */
+        var fonts = udoc && udoc.fonts
+        if (fonts && typeof fonts === 'object') {
+          var fontok = function (v) {
+            if (typeof v !== 'string' || v.length === 0 || v.length > 256) return false
+            var families = v.split(',')
+            if (families.length > 8) return false
+            for (var i = 0; i < families.length; i++) {
+              var f = families[i].trim()
+              if (
+                f.length >= 2 &&
+                (f.charAt(0) === "'" || f.charAt(0) === '"') &&
+                f.charAt(f.length - 1) === f.charAt(0)
+              ) {
+                if (!/^[A-Za-z0-9 _-]{1,64}$/.test(f.slice(1, -1))) return false
+                continue
+              }
+              if (!/^[A-Za-z][A-Za-z0-9-]{0,63}$/.test(f)) return false
+            }
+            return true
+          }
+          for (var fk in fonts) {
+            if (/^--font-[a-z0-9-]+$/i.test(fk) && fontok(fonts[fk])) {
+              fdecl += fk + ':' + fonts[fk] + ';'
+            }
+          }
+        }
+        if (ddecl || fdecl) ucss += ':root{' + ddecl + fdecl + '}'
         if (ucss) {
           var us = document.createElement('style')
           us.setAttribute('data-gadak-user-tokens', '')

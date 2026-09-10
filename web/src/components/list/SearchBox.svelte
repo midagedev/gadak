@@ -25,6 +25,7 @@
   import { ESC_TIER, isEscapeKey, onEscape, onOutsideClick } from '../../lib/dom-actions'
   import { createCompositionCommit } from '../../lib/composition-commit'
   import { NARROW_FIELD_TESTID } from '../../lib/commands'
+  import { asKeyTarget } from '../../lib/key-targets'
   import Icon from '../ui/Icon.svelte'
 
   let text = $state(filters.filters.q)
@@ -358,6 +359,7 @@
       onfocus={() => (focused = true)}
       onblur={() => (focused = false)}
       type="text"
+      use:asKeyTarget={NARROW_FIELD_TESTID.issues}
       data-testid={NARROW_FIELD_TESTID.issues}
       data-enter="widen"
       placeholder={t(narrowPlaceholder ? 'list.searchPlaceholderShort' : 'list.searchPlaceholder')}

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t, fieldLabel, formatNumber, formatTimeOfDay, locale } from '../../lib/i18n'
+  import { t, fieldLabel, formatNumber, formatTimeOfDay, localeTag } from '../../lib/i18n'
   import Icon, { type IconName } from '../ui/Icon.svelte'
   import ColumnHeader from '../ui/ColumnHeader.svelte'
   import type { FeedFocus, FeedItem } from '../../lib/types'
@@ -286,17 +286,15 @@
              key carries the index because sections are runs: a feed
              whose order interleaves days can show one day twice, and
              duplicate keys are legal data here. data-day is the semantic
-             key e2e reads. locale() ('en'|'ko'|'ja') is itself a valid
-             BCP 47 tag for Intl, and the three shipped locales have no
-             regional weekday/month variance — so it formats exactly what
-             localeTag() would for these options. -->
+             key e2e reads. GDK-1455: the BCP 47 tag comes from localeTag()
+             — the mapping is owned by i18n, not re-spelled here. -->
         <div
           data-testid="feed-day"
           data-day={section.key}
           class="sticky top-0 z-10 flex h-row items-end gap-2 bg-bg-base/95 px-4 pb-1.5 backdrop-blur border-b border-border-subtle"
         >
           <span class="truncate text-micro font-medium uppercase tracking-wide text-text-muted">
-            {feedDayLabelText(section.label, t, locale())}
+            {feedDayLabelText(section.label, t, localeTag())}
           </span>
           <span class="h-px flex-1 self-center bg-border-subtle"></span>
           <!-- GDK-1590: two bare numbers side by side said nothing a hover could

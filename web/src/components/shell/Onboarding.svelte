@@ -102,6 +102,45 @@
     { id: 'paired', label: t('onboarding.sourcePaired'), aux: t('onboarding.sourcePairedAux') },
   ]
 
+  /*
+   * GDK-1324: role=radiogroup made the source picker promise the one gesture
+   * that role carries — arrows move the answer — while delivering nothing
+   * but a click target. The roving tabindex is the standard shape: one tab
+   * stop (the checked radio, or the first while nothing is checked, which is
+   * the GDK-1345 null state), arrows move selection and focus together, and
+   * the buttons are reached by bind:this rather than any document query
+   * (GDK-645).
+   */
+  // `$props.id()` must be a bare declaration initializer (the ScopePicker
+  // `uid` pattern); the template literal uses the bound name.
+  const sourceUid = $props.id()
+  const sourceQuestionId = `onboarding-source-question-${sourceUid}`
+  const sourceEls: Record<string, HTMLButtonElement | null> = {}
+  for (const s of SOURCES) sourceEls[s.id] = null
+
+  function onSourceKeydown(e: KeyboardEvent): void {
+    const dir =
+      e.key === 'ArrowRight' || e.key === 'ArrowDown'
+        ? 1
+        : e.key === 'ArrowLeft' || e.key === 'ArrowUp'
+          ? -1
+          : 0
+    if (!dir) return
+    e.preventDefault()
+    // The anchor is the focused radio, not the checked one: while nothing is
+    // checked (the GDK-1345 null state) focus is the only position the
+    // person has told us about, and an arrow from an unchecked radio moves
+    // relative to it, the way it reads. Once one is checked the two never
+    // diverge — selection and focus move together two lines down.
+    const focused = SOURCES.findIndex((s) => sourceEls[s.id] === document.activeElement)
+    const next =
+      focused < 0
+        ? SOURCES[dir > 0 ? 0 : SOURCES.length - 1]! // keys arrived with focus outside the radios
+        : SOURCES[(focused + dir + SOURCES.length) % SOURCES.length]!
+    source = next.id
+    sourceEls[next.id]?.focus()
+  }
+
   /* ── 1. connect ── */
   let site = $state('')
   let email = $state('')
@@ -404,13 +443,27 @@
     </div>
 
     {#if step === 1}
-      <p class="mt-5 text-body font-medium text-text-primary">{t('onboarding.whereQuestion')}</p>
-      <div class="mt-2 grid grid-cols-3 gap-2" role="radiogroup" data-testid="onboarding-source">
-        {#each SOURCES as s (s.id)}
+      <p class="mt-5 text-body font-medium text-text-primary" id={sourceQuestionId}>
+        {t('onboarding.whereQuestion')}
+      </p>
+      <!-- tabindex -1 on the container is the FieldEditor-listbox precedent:
+           the group itself is not a tab stop — the radios rove — and the
+           arrows arrive here by bubbling from whichever radio holds focus. -->
+      <div
+        class="mt-2 grid grid-cols-3 gap-2"
+        role="radiogroup"
+        aria-labelledby={sourceQuestionId}
+        data-testid="onboarding-source"
+        onkeydown={onSourceKeydown}
+        tabindex="-1"
+      >
+        {#each SOURCES as s, i (s.id)}
           <button
             type="button"
             role="radio"
             aria-checked={source === s.id}
+            tabindex={source === s.id || (!source && i === 0) ? 0 : -1}
+            bind:this={sourceEls[s.id]}
             data-testid="onboarding-source-{s.id}"
             class="flex flex-col items-start gap-0.5 rounded-md border px-2.5 py-2 text-left transition-colors {source === s.id
               ? 'border-accent bg-bg-active'

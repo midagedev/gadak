@@ -536,6 +536,29 @@ exported な Go 識別子を列挙します — 種となったスクリプト�
 イシューの説明とコメントの描画結果を HTML で出力し ([GDK-1518])、`scope-sheet.mjs`
 はデモスナップショットから電話のスコープシートを出力します ([GDK-1554])。
 
+web のツリーから、文書全体を探す最後の参照と、自分が書いたものを読む最後の effect が
+消えました。グローバルなショートカットはディスパッチ時に `document.querySelector` で
+標的を探していましたが、いまはコンポーネントが自分の要素を登録し、マウントされていない
+標的はディスパッチがすでに「消費しない」と扱う null で、keymap を例外として掘っていた
+GDK-645 のスイープに例外はなくなりました ([GDK-693])。スコープピッカーの文書レベルの
+クリックは共有の outside-click アクションを通って閉じ、スイープが次の
+`svelte:document onclick` を禁じます ([GDK-630])。ビューポートのレジームはアプリシェル
+と詳細パネルに `$state` がひとつずつありましたが、ひとつのモジュールが持ち、スイープが
+それを保ちます ([GDK-696])。イシューを選ぶと、選択が書かれるその場所で訪問を記録し
+既読にします — キーを見張って自分が読んだストアに書き戻す untracked effect 二つの
+代わりに ([GDK-941])。ドキュメントビューは読んでいるフィールドを null にするのでは
+なくノンスで focus-author の要求を消費し ([GDK-942])、BulkBar の五つのバッチ実行器は
+ひとつのループを共有します ([GDK-698])。小さなもの: イシュー一覧の行はドキュメント・
+履歴の行と同じ条件でタブが届きます ([GDK-829])。オンボーディングのソースピッカーは
+本物の radiogroup です — タブ停止はひとつ、矢印が選択とフォーカスを一緒に動かし、
+最初の e2e 実行が矢印が間違った基準点から動くのを捕まえました ([GDK-1324])。解決できない
+クロスワークスペース参照は素の span で、解決できるものは `<a>` です ([GDK-1326])。
+空の状態のヒントに一文が入る余地ができ ([GDK-1732])、閉じてもマウントが残る右パネルは
+開いているかを DOM で言います ([GDK-1187])。`index.html` の起動時トークンミラーは
+ランタイムと同じフォント軸を載せ、パリティテストが付き ([GDK-1101])、ロケールタグの
+持ち主はひとつです ([GDK-1455])。履歴ストアの境界は呼び出し元が四つあるため唯一の
+読み手側へ移さず、書き込み経路であるという事実を文書化しました ([GDK-1135])。
+
 ## v0.21.0 — 2026-09-08
 
 **離れていた間に何が起きたのかに、キャッシュから答えます。** ステータスの変更も
@@ -2198,3 +2221,16 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1546]: https://gadak.dev/backlog/#/?ks=GDK-1546
 [GDK-1518]: https://gadak.dev/backlog/#/?ks=GDK-1518
 [GDK-1554]: https://gadak.dev/backlog/#/?ks=GDK-1554
+[GDK-693]: https://gadak.dev/backlog/#/?ks=GDK-693
+[GDK-630]: https://gadak.dev/backlog/#/?ks=GDK-630
+[GDK-696]: https://gadak.dev/backlog/#/?ks=GDK-696
+[GDK-941]: https://gadak.dev/backlog/#/?ks=GDK-941
+[GDK-942]: https://gadak.dev/backlog/#/?ks=GDK-942
+[GDK-698]: https://gadak.dev/backlog/#/?ks=GDK-698
+[GDK-1324]: https://gadak.dev/backlog/#/?ks=GDK-1324
+[GDK-1326]: https://gadak.dev/backlog/#/?ks=GDK-1326
+[GDK-1732]: https://gadak.dev/backlog/#/?ks=GDK-1732
+[GDK-1187]: https://gadak.dev/backlog/#/?ks=GDK-1187
+[GDK-1101]: https://gadak.dev/backlog/#/?ks=GDK-1101
+[GDK-1455]: https://gadak.dev/backlog/#/?ks=GDK-1455
+[GDK-1135]: https://gadak.dev/backlog/#/?ks=GDK-1135

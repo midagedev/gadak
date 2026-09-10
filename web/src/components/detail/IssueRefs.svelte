@@ -9,6 +9,8 @@
    * the pointer is fine, this machine just does not mirror that workspace.
    */
   import { t } from '../../lib/i18n'
+  import { workspaceHref } from '../../lib/api'
+  import { workspaces } from '../../stores/workspaces.svelte'
   import type { IssueRef } from '../../lib/types'
 
   let { refs }: { refs: IssueRef[] } = $props()
@@ -30,6 +32,24 @@
     if (ref.workspace && ref.key) return `${ref.workspace}/${ref.key}`
     return ref.title || ref.url
   }
+
+  /*
+   * GDK-1326: a workspace/key row was styled exactly like the link beside it
+   * (accent, medium, mono) while going nowhere. Mirrored targets become real
+   * links — the switcher's own href (workspaceHref, so the primary resolves
+   * to `/` instead of the /w/<name>/ 404 of GitHub #85) with the issue
+   * deep-linked the way App restores it. Unmirrored targets demote to plain
+   * text: link-coloured mono that cannot navigate is a promise the pointer
+   * does not keep. Reads the workspace list, so it is reactive on the boot
+   * fetch — a detail opened before the list lands demotes for a moment and
+   * links once it arrives.
+   */
+  function refHref(ref: IssueRef): string | null {
+    if (!ref.workspace || !ref.key) return null
+    const w = workspaces.list.find((x) => x.name === ref.workspace)
+    if (!w) return null
+    return `${workspaceHref(w)}#/?issue=${encodeURIComponent(ref.key)}`
+  }
 </script>
 
 <ul class="flex flex-col gap-1" data-testid="issue-refs">
@@ -45,7 +65,14 @@
       <span class="min-w-0 flex-1">
         <span class="flex items-center gap-1.5">
           {#if ref.workspace && ref.key}
-            <span class="font-mono text-micro font-medium text-accent-text">{target(ref)}</span>
+            {#if refHref(ref)}
+              <a
+                href={refHref(ref)}
+                class="font-mono text-micro font-medium text-accent-text hover:underline">{target(ref)}</a
+              >
+            {:else}
+              <span class="font-mono text-micro text-text-secondary">{target(ref)}</span>
+            {/if}
           {:else}
             <a
               href={ref.url}

@@ -500,6 +500,28 @@ PRESERVED 인지 OVERWRITTEN 인지 말합니다 ([GDK-1546]). `adf-render.mjs` 
 설명과 코멘트가 렌더된 HTML 을 찍고 ([GDK-1518]), `scope-sheet.mjs` 는 데모 스냅숏에서
 폰의 스코프 시트를 찍습니다 ([GDK-1554]).
 
+웹 트리에서 문서 전체를 뒤지는 마지막 조회와, 자기가 쓴 것을 읽는 마지막 effect 가
+사라졌습니다. 전역 단축키는 디스패치 시점에 `document.querySelector` 로 타깃을 찾았는데,
+이제 컴포넌트가 자기 요소를 직접 등록하고, 마운트되지 않은 타깃은 디스패치가 이미
+"소비 안 함"으로 다루는 null 이며, keymap 을 예외로 파 두었던 GDK-645 스윕에는 예외가
+없어졌습니다 ([GDK-693]). 스코프 픽커의 문서 수준 클릭 닫기는 공유 outside-click
+액션을 타고, 스윕이 다음 `svelte:document onclick` 을 막습니다 ([GDK-630]). 뷰포트
+레짐은 앱 셸과 상세 패널에 `$state` 가 하나씩 있었는데 모듈 하나가 소유하고 스윕이 그
+상태를 지킵니다 ([GDK-696]). 이슈를 선택하면 선택이 쓰이는 그 자리에서 방문을 기록하고
+읽음으로 표시합니다 — 키를 지켜보다 자기가 읽은 스토어에 되쓰던 untracked effect 둘
+대신에 ([GDK-941]). 문서 뷰는 자기가 읽는 필드를 null 로 만드는 대신 논스로 focus-author
+요청을 소비하고 ([GDK-942]), BulkBar 의 배치 실행기 다섯은 루프 하나를 나눠 씁니다
+([GDK-698]). 작은 것들: 이슈 리스트의 행은 문서·방문기록 행과 같은 조건으로 탭이
+닿습니다 ([GDK-829]). 온보딩 소스 픽커는 진짜 radiogroup 입니다 — 탭 정지 하나, 화살표가
+선택과 포커스를 함께 옮기고, 첫 e2e 실행이 화살표가 틀린 기준점에서 움직이는 것을
+잡았습니다 ([GDK-1324]). 해석할 수 없는 교차 워크스페이스 참조는 평범한 span 이고
+해석되는 것은 `<a>` 입니다 ([GDK-1326]). 빈 상태 힌트에 한 문장이 들어갈 자리가 생겼고
+([GDK-1732]), 닫혀도 마운트가 남는 오른쪽 패널은 열림 여부를 DOM 에 말합니다
+([GDK-1187]). `index.html` 의 부트 토큰 미러는 런타임과 같은 폰트 축을 싣고 패리티
+테스트가 붙었으며 ([GDK-1101]), 로케일 태그의 소유자는 하나입니다 ([GDK-1455]). 방문기록
+스토어의 경계는 호출자가 넷이라 유일 독자 쪽으로 옮기지 않고 쓰기 경로라는 사실을
+문서화했습니다 ([GDK-1135]).
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -2084,3 +2106,16 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1546]: https://gadak.dev/backlog/#/?ks=GDK-1546
 [GDK-1518]: https://gadak.dev/backlog/#/?ks=GDK-1518
 [GDK-1554]: https://gadak.dev/backlog/#/?ks=GDK-1554
+[GDK-693]: https://gadak.dev/backlog/#/?ks=GDK-693
+[GDK-630]: https://gadak.dev/backlog/#/?ks=GDK-630
+[GDK-696]: https://gadak.dev/backlog/#/?ks=GDK-696
+[GDK-941]: https://gadak.dev/backlog/#/?ks=GDK-941
+[GDK-942]: https://gadak.dev/backlog/#/?ks=GDK-942
+[GDK-698]: https://gadak.dev/backlog/#/?ks=GDK-698
+[GDK-1324]: https://gadak.dev/backlog/#/?ks=GDK-1324
+[GDK-1326]: https://gadak.dev/backlog/#/?ks=GDK-1326
+[GDK-1732]: https://gadak.dev/backlog/#/?ks=GDK-1732
+[GDK-1187]: https://gadak.dev/backlog/#/?ks=GDK-1187
+[GDK-1101]: https://gadak.dev/backlog/#/?ks=GDK-1101
+[GDK-1455]: https://gadak.dev/backlog/#/?ks=GDK-1455
+[GDK-1135]: https://gadak.dev/backlog/#/?ks=GDK-1135

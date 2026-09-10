@@ -18,6 +18,7 @@
   import { isHostedDemo, originWritable } from '../../lib/config'
   import { commentDraftKey } from '../../lib/storage'
   import { DETAIL_TESTID } from '../../lib/commands'
+  import { asKeyTarget } from '../../lib/key-targets'
   import Icon from '../ui/Icon.svelte'
   import CommentSubmitFooter from './CommentSubmitFooter.svelte'
   import AdfContent from '../detail/AdfContent.svelte'
@@ -367,6 +368,7 @@
       onpaste={onPaste}
       rows="2"
       hidden={previewing}
+      use:asKeyTarget={DETAIL_TESTID.comment}
       data-testid={DETAIL_TESTID.comment}
       placeholder={me.identified || isHostedDemo() || originWritable()
         ? t('write.commentPlaceholder')

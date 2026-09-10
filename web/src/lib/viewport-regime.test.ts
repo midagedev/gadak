@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, test, vi } from 'vitest'
@@ -158,5 +158,48 @@ describe('overlay chrome is props on the shell (GDK-1585)', () => {
     expect(SRC.app).toMatch(/<MainColumn inert=\{overlayModal\}>/)
     expect(SRC.app).toMatch(/<RightPanel open=\{panelOpen\} modal=\{overlayModal\}>/)
     expect(SRC.app.includes('applyOverlayChrome')).toBe(false)
+  })
+})
+
+/*
+ * GDK-696: the live regime has one owner. App.svelte and DetailPanel.svelte
+ * each held a `$state` copy fed by their own subscribeViewportRegime call —
+ * duplicated state kept honest only by both subscriptions firing on the same
+ * matchMedia change. The value is now module state in
+ * viewport-regime.svelte.ts (which owns the one subscription); a component
+ * re-declaring the copy or subscribing for itself is the duplication coming
+ * back, and this sweep is what sees it.
+ *
+ * The state-invalid-export rule says the owner cannot be a reassigned
+ * `export let` — Svelte forbids exporting state that is written later — so
+ * the owner is a `$state` object mutated through `.regime`. A component
+ * re-declaring its copy would spell regime and $state on one line, whatever
+ * the binding is named; the one-line window is the contract, the owner files
+ * are exempt.
+ */
+describe('the live regime is module state, once (GDK-696)', () => {
+  const root = join(HERE, '..', '..')
+  const OWNERS = new Set([
+    'src/lib/viewport-regime.svelte.ts', // the state and its subscription
+    'src/lib/viewport-regime.ts', // the subscription plumbing itself
+    'src/lib/viewport-regime.test.ts', // this gate
+  ])
+
+  test('no component holds a second copy of the regime', () => {
+    const files = readdirSync(join(root, 'src'), { recursive: true, encoding: 'utf8' }).filter(
+      (f) => f.endsWith('.svelte') || f.endsWith('.ts'),
+    )
+    expect(files.length, 'the sweep found no sources to read').toBeGreaterThan(100)
+
+    const offenders: string[] = []
+    for (const rel of files) {
+      if (OWNERS.has(`src/${rel}`)) continue
+      const source = readFileSync(join(root, 'src', rel), 'utf8')
+      if (/[Rr]egime[^\n]{0,80}=\s*\$state|\$state[^\n]{0,80}[Rr]egime/.test(source)) {
+        offenders.push(rel)
+      }
+      if (source.includes('subscribeViewportRegime')) offenders.push(rel)
+    }
+    expect(offenders).toEqual([])
   })
 })

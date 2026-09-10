@@ -17,14 +17,23 @@
  *    document.body) used to be the one sanctioned hand-roll; since
  *    onOutsideClick grew `alsoInside` (GDK-1585) the action expresses it and
  *    the exception is gone — the sweep allows nothing.
- *  - ScopePicker still carries a svelte:document hand-roll of its own —
- *    outside this round's whitelist (GDK-630).
  *
  * GDK-645: a component must not look up its own tree (or a child's testid)
  * with document.querySelector. DetailPanel used to find comment-composer that
- * way; it now binds the CommentComposer instance. keymap.svelte.ts is the
- * remaining global-selector dispatcher, and it lives under lib/ because the
- * target may not be mounted — that seam is out of this file's scope.
+ * way; it now binds the CommentComposer instance. keymap.svelte.ts was the
+ * remaining global-selector dispatcher; since GDK-693 its chord targets come
+ * from the key-targets registry (components register the live element, the
+ * dispatch looks it up), so the sweep now reads .svelte.ts files too and
+ * allows nothing. Plain .ts stays outside this contract on purpose: the
+ * boot/style infra there (user-tokens, viewport-regime's token install,
+ * config's base[href]) owns document-level elements no component tree can
+ * bind to.
+ *
+ * GDK-630: a svelte:document onclick outside-close is the same hand-roll one
+ * level up. ScopePicker's was converted to onOutsideClick; the sweep below
+ * carries one documented exception — SidebarNav's delete-disarm, which must
+ * fire on *any* click (popover or not) and so has no boundary to hand the
+ * gesture to.
  */
 import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -227,11 +236,19 @@ describe('a component does not find its own child by a global selector (GDK-617b
   })
 })
 
+/* The sweeps below read what a component (or a runes module acting for one)
+ * can mount and bind. Plain .ts is not in that set — its document-level
+ * reaches (user-tokens' style tag, viewport-regime's token install, config's
+ * base[href]) are infra no component tree can bind to. */
+function componentFiles(): string[] {
+  return readdirSync(WEB_SRC, { recursive: true, encoding: 'utf8' }).filter((f) =>
+    f.endsWith('.svelte') || f.endsWith('.svelte.ts'),
+  )
+}
+
 describe('class blockade: window-level outside-close is dom-actions territory', () => {
   test('no component attaches its own mousedown outside-close', () => {
-    const files = readdirSync(WEB_SRC, { recursive: true, encoding: 'utf8' }).filter((f) =>
-      f.endsWith('.svelte'),
-    )
+    const files = componentFiles()
     expect(files.length, 'the sweep found no components to read').toBeGreaterThan(50)
 
     const offenders: string[] = []
@@ -249,16 +266,42 @@ describe('class blockade: window-level outside-close is dom-actions territory', 
 })
 
 describe('class blockade: a component does not query the document for its tree (GDK-645)', () => {
-  test('no file under web/src/components calls document.querySelector', () => {
-    const files = readdirSync(WEB_SRC, { recursive: true, encoding: 'utf8' }).filter((f) =>
-      f.endsWith('.svelte'),
-    )
+  test('no file under web/src reaches the document with querySelector', () => {
+    const files = componentFiles()
     expect(files.length, 'the sweep found no components to read').toBeGreaterThan(50)
 
     const offenders: string[] = []
     for (const rel of files) {
       const source = readFileSync(join(WEB_SRC, rel), 'utf8')
-      if (source.includes('document.querySelector')) offenders.push(rel)
+      // `document\s*\.\s*querySelector` rather than a literal: keymap's
+      // pre-GDK-693 form split the member access across lines
+      // (`document\n  .querySelector`), which the literal never saw — half
+      // its dispatch sites were invisible to the old matcher. A query scoped
+      // to a locally-held element (board-drag's ghost clone) is tree-local
+      // and does not match.
+      if (/document\s*\.\s*querySelector/.test(source)) offenders.push(rel)
+    }
+    expect(offenders).toEqual([])
+  })
+})
+
+describe('class blockade: a document-wide click hand is a boundary action (GDK-630)', () => {
+  test('no svelte:document onclick outside-close outside the exception list', () => {
+    const files = componentFiles()
+    expect(files.length, 'the sweep found no components to read').toBeGreaterThan(50)
+
+    // SidebarNav's delete-disarm: disarming an armed delete must fire on any
+    // click, popover or not — there is no boundary to hand the gesture to,
+    // so onOutsideClick would be the wrong owner for it. Everything else
+    // that listens to the whole document's clicks is re-implementing the
+    // outside-close the action already owns.
+    const sanctioned = new Set(['components/sidebar/SidebarNav.svelte'])
+
+    const offenders: string[] = []
+    for (const rel of files) {
+      const source = readFileSync(join(WEB_SRC, rel), 'utf8')
+      if (sanctioned.has(rel)) continue
+      if (/<svelte:document[^>]*\bonclick/.test(source)) offenders.push(rel)
     }
     expect(offenders).toEqual([])
   })

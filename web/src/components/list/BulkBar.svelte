@@ -278,81 +278,65 @@
     if (fail === 0) bulk.clear()
   }
 
-  async function runStatus(opt: StatusOption) {
+  /** One batch runner for every verb (GDK-698): gate, roster, tally, toast.
+   * The shared halves — menu close, write gate, key roster, concurrency,
+   * tallies, summary toast — were five copies of the same lines that had
+   * already drifted (assign's tallied no skips at all, so an issue that left
+   * the pool mid-batch read as a failure). The verb itself is per-issue and
+   * answers 'ok' | 'fail' | 'skip'; an issue missing from the pool is the
+   * runner's own 'skip', decided once for every verb. */
+  async function mutateEach(fn: (issue: IssueLite) => Promise<'ok' | 'fail' | 'skip'>) {
     closeMenu()
     if (!(await write.ensureWritable())) return
-    const keys = bulk.keys()
     let ok = 0
     let fail = 0
     let skip = 0
-    await runBatch(keys, async (key) => {
+    await runBatch(bulk.keys(), async (key) => {
       const issue = issues.pool.get(key)
       if (!issue) {
         skip++
         return
       }
+      const outcome = await fn(issue)
+      if (outcome === 'ok') ok++
+      else if (outcome === 'fail') fail++
+      else skip++
+    })
+    finish(ok, fail, skip)
+  }
+
+  function runStatus(opt: StatusOption) {
+    void mutateEach(async (issue) => {
       let list: Transition[] | null = write.transitionsFor(issue)
       if (!list) {
         // Empty local map → one remote check (not a new API).
         try {
-          list = (await api.getTransitions(key)).transitions
+          list = (await api.getTransitions(issue.issue_key)).transitions
         } catch {
           list = []
         }
       }
       const t = list?.find((x) => x.to_status === opt.to_status)
-      if (!t) {
-        skip++
-        return
-      }
-      const done = await write.transition(key, t)
-      if (done) ok++
-      else fail++
+      if (!t) return 'skip'
+      return (await write.transition(issue.issue_key, t)) ? 'ok' : 'fail'
     })
-    finish(ok, fail, skip)
   }
 
-  async function runPriority(p: PriorityOption | null) {
-    closeMenu()
-    if (!(await write.ensureWritable())) return
-    const keys = bulk.keys()
-    let ok = 0
-    let fail = 0
-    let skip = 0
-    await runBatch(keys, async (key) => {
-      const issue = issues.pool.get(key)
-      if (!issue) {
-        skip++
-        return
-      }
+  function runPriority(p: PriorityOption | null) {
+    void mutateEach(async (issue) => {
       if (p) {
-        if (issue.priority_id && issue.priority_id === p.id) {
-          skip++
-          return
-        }
+        if (issue.priority_id && issue.priority_id === p.id) return 'skip'
       } else if (!issue.priority && !issue.priority_id) {
-        skip++
-        return
+        return 'skip'
       }
-      const done = await write.setPriority(key, p)
-      if (done) ok++
-      else fail++
+      return (await write.setPriority(issue.issue_key, p)) ? 'ok' : 'fail'
     })
-    finish(ok, fail, skip)
   }
 
-  async function runAssign(user: JiraUser | null) {
-    closeMenu()
-    if (!(await write.ensureWritable())) return
-    const keys = bulk.keys()
-    let ok = 0
-    let fail = 0
-    await runBatch(keys, async (key) => {
-      const done = await write.assign(key, user)
-      if (done) ok++
-      else fail++
+  function runAssign(user: JiraUser | null) {
+    void mutateEach(async (issue) => {
+      return (await write.assign(issue.issue_key, user)) ? 'ok' : 'fail'
     })
-    finish(ok, fail, 0)
   }
 
   async function pickAssignee(c: AssigneeCand | null) {
@@ -365,60 +349,30 @@
       )
       return
     }
-    return runAssign(resolved.user)
+    runAssign(resolved.user)
   }
 
-  async function runAddLabel(raw: string) {
+  function runAddLabel(raw: string) {
     const v = normalizeLabel(raw)
     if (!v) return
-    closeMenu()
-    if (!(await write.ensureWritable())) return
-    const keys = bulk.keys()
-    let ok = 0
-    let fail = 0
-    let skip = 0
-    await runBatch(keys, async (key) => {
-      const issue = issues.pool.get(key)
-      if (!issue) {
-        skip++
-        return
-      }
-      if (issue.labels.includes(v)) {
-        skip++
-        return
-      }
-      const done = await write.setLabels(key, [...issue.labels, v])
-      if (done) ok++
-      else fail++
+    void mutateEach(async (issue) => {
+      if (issue.labels.includes(v)) return 'skip'
+      return (await write.setLabels(issue.issue_key, [...issue.labels, v])) ? 'ok' : 'fail'
     })
-    finish(ok, fail, skip)
   }
 
-  async function runRemoveLabel(label: string) {
-    closeMenu()
-    if (!(await write.ensureWritable())) return
-    const keys = bulk.keys()
-    let ok = 0
-    let fail = 0
-    let skip = 0
-    await runBatch(keys, async (key) => {
-      const issue = issues.pool.get(key)
-      if (!issue) {
-        skip++
-        return
-      }
-      if (!issue.labels.includes(label)) {
-        skip++
-        return
-      }
-      const done = await write.setLabels(
-        key,
-        issue.labels.filter((x) => x !== label),
+  function runRemoveLabel(label: string) {
+    void mutateEach(async (issue) => {
+      if (!issue.labels.includes(label)) return 'skip'
+      return (
+        await write.setLabels(
+          issue.issue_key,
+          issue.labels.filter((x) => x !== label),
+        )
       )
-      if (done) ok++
-      else fail++
+        ? 'ok'
+        : 'fail'
     })
-    finish(ok, fail, skip)
   }
 
   function onLabelKeydown(e: KeyboardEvent) {

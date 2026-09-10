@@ -22,11 +22,7 @@
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
   import { feature, isHostedDemo, isBuiltInWorkspace } from '../../lib/config'
-  import {
-    readViewportRegime,
-    subscribeViewportRegime,
-    type ViewportRegime,
-  } from '../../lib/viewport-regime'
+  import { viewport } from '../../lib/viewport-regime.svelte'
   import type { AdfNode } from '../../lib/types'
   import { cacheEpoch, getDetailCached, invalidate } from '../../lib/detail-cache.svelte'
   import { createResource } from '../../lib/resource.svelte'
@@ -73,16 +69,15 @@
 
   // GDK-463: overlay-regime detail covers the list. A named back control
   // returns to it; X and the scrim stay. Docked keeps the list beside the
-  // panel, so the control is absent there.
-  let viewportRegime = $state<ViewportRegime>(readViewportRegime())
-  onMount(() => subscribeViewportRegime((r) => (viewportRegime = r)))
+  // panel, so the control is absent there. The regime itself is the module
+  // state (GDK-696) — this panel no longer holds its own copy.
+  const overlay = $derived(viewport.regime === 'overlay')
 
   // The live session table, polled only while this panel is up (GDK-1162 /
   // GDK-1164-A): the ▶ needs to know which shell is on this issue, and the
   // header's mark needs to know that none is. Refcounted in the store, so the
   // poll stops when the last panel closes.
   onMount(() => shells.track())
-  const overlay = $derived(viewportRegime === 'overlay')
 
   // Load on selectedKey change; clear when selection clears.
   // watch detailNonce so cache updates (e.g. comment confirm) re-read

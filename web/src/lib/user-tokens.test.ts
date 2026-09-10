@@ -172,7 +172,25 @@ describe('the index.html boot script agrees with this module', () => {
 
   it('installs from a dims-only cache too, not just colors', () => {
     expect(html).toContain('udoc.dims')
-    expect(html).toContain("ucss += ':root{' + ddecl + '}'")
+    // GDK-1101: the trailing palette-agnostic rule grew a second contributor
+    // (fonts, below) — the pin follows the source and went red on the boot
+    // script's new line before this edit.
+    expect(html).toContain("ucss += ':root{' + ddecl + fdecl + '}'")
+  })
+
+  // GDK-1101: the boot mirror ignored the fonts axis, so a fonts-override
+  // user booted on the shipped typeface for the frames before the bundle.
+  // The pins below are the fonts halves of the dim pins above — name shape,
+  // value grammar (family count, length, ident/quoted alphabets, paired
+  // quotes), and the same single :root rule the TS side joins them into.
+  it('re-checks the font var name and stack grammar this module enforces', () => {
+    expect(html).toContain('/^--font-[a-z0-9-]+$/i')
+    expect(html).toContain('v.length === 0 || v.length > 256')
+    expect(html).toContain('families.length > 8')
+    expect(html).toContain('/^[A-Za-z][A-Za-z0-9-]{0,63}$/')
+    expect(html).toContain("/^[A-Za-z0-9 _-]{1,64}$/")
+    expect(html).toContain("f.charAt(f.length - 1) === f.charAt(0)")
+    expect(html).toContain('udoc.fonts')
   })
 })
 
