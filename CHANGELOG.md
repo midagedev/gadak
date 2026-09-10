@@ -594,6 +594,26 @@ the "origin too old" hint keys on a typed 501 instead of a substring
 ([GDK-1319]); and the refusal a Jira workspace gives without a site has a
 test ([GDK-1332]).
 
+The server stopped paying per request for things it could know once. The
+Jira issue pass fetched each issue's comment and changelog overflow one at a
+time; it now rides the same ordered fetch pool the Confluence pass already
+used, up to eight wide, with the 429 back-off wired to each fetch and one
+summary line saying how wide it actually ran ([GDK-1674]). `LastSessionEnd`
+walked three hundred thousand visits on every bootstrap and delta poll —
+113 ms a call; pinned to its index it is 1.3 ms, and an `EXPLAIN QUERY PLAN`
+test keeps the planner from wandering back ([GDK-1547]). The 700 ms probe
+budget lived in two files that had to agree by hand; `origin.ProbeTimeout`
+owns it and a test reads both sources ([GDK-1004]). The store learned to say
+how large the mirror's `-wal` sidecar is ([GDK-307]) and whether one priority
+holds seventy percent of the open work ([GDK-1413]) — helpers with their
+thresholds tested, waiting for `doctor` to print them. Two questions were
+answered by measurement rather than code: `mmap_size` buys about seven
+percent on a warm cache, so the DSN stays as it is ([GDK-978]); the cycle-time
+p85 costs 60 ms at fifty thousand closed issues, recorded as the number that
+would reopen the question ([GDK-1429]). And the teardown window the audit
+asked about no longer exists — the advertise file it worried about went with
+GDK-936 ([GDK-954]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2225,3 +2245,11 @@ priority sorting keyed on `priority_rank`.
 [GDK-1245]: https://gadak.dev/backlog/#/?ks=GDK-1245
 [GDK-1319]: https://gadak.dev/backlog/#/?ks=GDK-1319
 [GDK-1332]: https://gadak.dev/backlog/#/?ks=GDK-1332
+[GDK-1674]: https://gadak.dev/backlog/#/?ks=GDK-1674
+[GDK-1547]: https://gadak.dev/backlog/#/?ks=GDK-1547
+[GDK-1004]: https://gadak.dev/backlog/#/?ks=GDK-1004
+[GDK-307]: https://gadak.dev/backlog/#/?ks=GDK-307
+[GDK-1413]: https://gadak.dev/backlog/#/?ks=GDK-1413
+[GDK-978]: https://gadak.dev/backlog/#/?ks=GDK-978
+[GDK-1429]: https://gadak.dev/backlog/#/?ks=GDK-1429
+[GDK-954]: https://gadak.dev/backlog/#/?ks=GDK-954

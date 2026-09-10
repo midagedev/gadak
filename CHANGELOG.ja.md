@@ -501,6 +501,23 @@ import しなくなりました ([GDK-688])。Jira ライターの素通しラ�
 ([GDK-1245])。「origin が古い」の案内は部分文字列ではなく型付きの 501 に反応し
 ([GDK-1319])、サイトのない Jira ワークスペースの拒否にはテストが付きました ([GDK-1332])。
 
+サーバーは、一度知れば済むことをリクエストごとに買い直すのをやめました。Jira の
+イシューパスは各イシューのコメント・変更履歴の溢れ分を一件ずつ取っていましたが、
+いまは Confluence パスがすでに使っていた順序保持の fetch プールに乗って最大八並列で
+取り、429 のバックオフは fetch ひとつひとつに掛かり、実際に何並列で走ったかを要約
+一行が言います ([GDK-1674])。`LastSessionEnd` はブートストラップとデルタポーリングの
+たびに三十万件の訪問を歩いて一回 113 ms でした。インデックスに固定すると 1.3 ms で、
+`EXPLAIN QUERY PLAN` のテストがプランナーの後戻りを止めます ([GDK-1547])。700 ms の
+プローブ予算は手で揃える二つのファイルに住んでいましたが、`origin.ProbeTimeout` が
+持ち主になり、テストが両方のソースを読みます ([GDK-1004])。ストアはミラーの `-wal`
+サイドカーの大きさ ([GDK-307]) と、ひとつの優先度が未完了の七割を占めているか
+([GDK-1413]) を答えられるようになりました — 閾値までテストされたヘルパーで、`doctor`
+が表示するのは次の番です。二つの問いはコードではなく測定で答えました。`mmap_size` は
+ウォームキャッシュで七%ほどなので DSN はそのまま ([GDK-978])、サイクルタイム p85 は
+完了イシュー五万件で 60 ms — 問いを再び開く数字として記録しました ([GDK-1429])。
+監査が尋ねた teardown の窓はもうありません — 気にしていた advertise ファイルは GDK-936
+と一緒に消えました ([GDK-954])。
+
 ## v0.21.0 — 2026-09-08
 
 **離れていた間に何が起きたのかに、キャッシュから答えます。** ステータスの変更も
@@ -2144,3 +2161,11 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1245]: https://gadak.dev/backlog/#/?ks=GDK-1245
 [GDK-1319]: https://gadak.dev/backlog/#/?ks=GDK-1319
 [GDK-1332]: https://gadak.dev/backlog/#/?ks=GDK-1332
+[GDK-1674]: https://gadak.dev/backlog/#/?ks=GDK-1674
+[GDK-1547]: https://gadak.dev/backlog/#/?ks=GDK-1547
+[GDK-1004]: https://gadak.dev/backlog/#/?ks=GDK-1004
+[GDK-307]: https://gadak.dev/backlog/#/?ks=GDK-307
+[GDK-1413]: https://gadak.dev/backlog/#/?ks=GDK-1413
+[GDK-978]: https://gadak.dev/backlog/#/?ks=GDK-978
+[GDK-1429]: https://gadak.dev/backlog/#/?ks=GDK-1429
+[GDK-954]: https://gadak.dev/backlog/#/?ks=GDK-954

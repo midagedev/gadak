@@ -33,11 +33,11 @@ const (
 	throttleGrowAfter = 20
 )
 
-// FetchConcurrency is the configured width of the Confluence fetch pool,
-// set by `gadak sync --concurrency` and read once per pass (GDK-1673). A
-// package-level knob rather than an Options field because the CLI and the
-// server share the pass entry points; the Jira pass (GDK-1674) will read the
-// same knob. The pass clamps it to [1, MaxFetchConcurrency]; 1 is exactly
+// FetchConcurrency is the configured width of the fetch pools — the
+// Confluence pass (GDK-1673) and the Jira issue pass (GDK-1674) — set by
+// `gadak sync --concurrency` and read once per pass. A package-level knob
+// rather than an Options field because the CLI and the server share the pass
+// entry points. The pass clamps it to [1, MaxFetchConcurrency]; 1 is exactly
 // the serial pass of pre-1673, pause included.
 var FetchConcurrency = DefaultFetchConcurrency
 

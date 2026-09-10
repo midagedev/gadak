@@ -997,6 +997,31 @@ func (db *DB) LastVisits(ctx context.Context, kind, key string, n int) ([]Visit,
 // can accumulate.
 const lastSessionVisitsBound = 2000
 
+// lastSessionEndSQL is LastSessionEnd's read, its single owner shared with
+// the plan gate (local_session_plan_test.go, GDK-1547). It must stay an
+// index walk — walk visits_viewed_at newest-first, keep the rows that pass
+// the person-read filter, stop at the bound — which is why it pins the
+// index: left to the planner, the origin_epoch equality (a scalar-subquery
+// = comparison) looks like a narrowing constraint and it picks visits_epoch
+// + a temp B-tree sort over the whole table: 113–120ms per call on a
+// 300k-visit history (the measurement that opened GDK-1547), on a query
+// that runs on every bootstrap and every delta/304 response. The pinned
+// walk's worst case is a history whose newest rows are nearly all agent or
+// retired-epoch reads — then it walks as many index entries as it must to
+// find 2000 person reads, which is the full-index cost of the old plan
+// minus the sort, and never worse.
+//
+// The id tiebreak is deliberately absent too: the walk parses and re-sorts
+// stamps itself, and the return value is a time, not a row, so rows sharing
+// a millisecond stamp are interchangeable here — and a second sort key is
+// one more thing this single-column index cannot honor.
+const lastSessionEndSQL = `
+		SELECT viewed_at
+		FROM local.visits INDEXED BY visits_viewed_at
+		WHERE source IN ('ui','') AND origin_epoch = ` + currentEpochSQL + `
+		ORDER BY viewed_at DESC
+		LIMIT ?`
+
 // LastSessionEnd returns the viewed_at of the newest person read that is not
 // part of the session containing `now` — i.e. where the previous session
 // ended. nil when there is no previous session (zero visits, or only the
@@ -1015,12 +1040,7 @@ func (db *DB) LastSessionEnd(ctx context.Context, now time.Time, gap time.Durati
 	if gap <= 0 {
 		return nil, errors.New("gap must be > 0")
 	}
-	rows, err := db.sql.QueryContext(ctx, `
-		SELECT viewed_at
-		FROM local.visits
-		WHERE source IN ('ui','') AND origin_epoch = `+currentEpochSQL+`
-		ORDER BY viewed_at DESC, id DESC
-		LIMIT ?`, lastSessionVisitsBound)
+	rows, err := db.sql.QueryContext(ctx, lastSessionEndSQL, lastSessionVisitsBound)
 	if err != nil {
 		return nil, err
 	}

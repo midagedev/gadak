@@ -15,13 +15,19 @@ import (
 // Paired remote clients reach this machine's origin through this prefix.
 const RESTPrefix = "/api/v1/origin"
 
-// ProbePath and probeTimeout are how port_fallback and views open decide
-// whether a loopback port is a gadak UI serve (X-Gadak / X-Gadak-Profile).
-// They are not used to route origin writes. A leftover serve-origin.json
-// from a previous version is ignored (GDK-936).
+// ProbePath is how port_fallback and views open decide whether a loopback
+// port is a gadak UI serve (X-Gadak / X-Gadak-Profile). It is not used to
+// route origin writes. A leftover serve-origin.json from a previous version
+// is ignored (GDK-936).
 const ProbePath = "/api/v1/issues/sync/progress/"
 
-const probeTimeout = 700 * time.Millisecond
+// ProbeTimeout is the probe's budget and the single owner of the number
+// (GDK-1004): it used to live as a second literal in cmd/gadak's port
+// fallback, and nothing compared the two, so a tune on one side would leave
+// the other probing on a stale budget. Callers outside this package read
+// this constant; ProbeGadakOnPort applies it when handed timeout <= 0.
+// gdk1004_timeout_gate_test.go fails on any pair of copies that disagrees.
+const ProbeTimeout = 700 * time.Millisecond
 
 // OwnerStatus is the doctor line for a built-in workspace. There is no
 // exclusive persist owner after GDK-936 (WAL); leftover serve-origin.json
@@ -35,8 +41,8 @@ func OwnerStatus(cfg *config.Config) string {
 
 // GadakProbe classifies a loopback GET to the progress endpoint. Exported
 // so cmd/gadak's port fallback and views open use this single copy
-// (GDK-423). Guards: 700ms context, no Origin header, X-Gadak required,
-// profile from X-Gadak-Profile.
+// (GDK-423). Guards: ProbeTimeout context, no Origin header, X-Gadak
+// required, profile from X-Gadak-Profile.
 type GadakProbe struct {
 	IsGadak bool
 	Profile string
@@ -44,7 +50,7 @@ type GadakProbe struct {
 
 func ProbeGadakOnPort(port string, timeout time.Duration) GadakProbe {
 	if timeout <= 0 {
-		timeout = probeTimeout
+		timeout = ProbeTimeout
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()

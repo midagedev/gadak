@@ -467,6 +467,22 @@ Go 트리에서 자리가 틀린 코드가 제자리로 갔습니다. 이름으�
 501 에 걸리고 ([GDK-1319]), 사이트 없는 Jira 워크스페이스의 거절에는 테스트가 생겼습니다
 ([GDK-1332]).
 
+서버가 한 번 알면 되는 것을 요청마다 다시 사는 일을 그만뒀습니다. Jira 이슈 패스는
+이슈마다 코멘트·변경이력 넘침분을 하나씩 받아왔는데, 이제 Confluence 패스가 이미 쓰던
+순서 보존 fetch 풀을 같이 타서 최대 여덟 폭으로 받고, 429 백오프가 fetch 하나하나에
+걸리며, 실제로 몇 폭으로 돌았는지 요약 한 줄이 말합니다 ([GDK-1674]). `LastSessionEnd`
+는 부트스트랩과 델타 폴마다 방문 30만 행을 걸어 호출당 113 ms 였습니다. 인덱스에
+고정하니 1.3 ms 이고, `EXPLAIN QUERY PLAN` 테스트가 플래너가 되돌아가지 못하게 잡습니다
+([GDK-1547]). 700 ms 프로브 예산은 손으로 맞춰야 하는 두 파일에 살았는데
+`origin.ProbeTimeout` 이 소유자가 되고 테스트가 두 소스를 읽습니다 ([GDK-1004]).
+스토어는 미러의 `-wal` 사이드카가 얼마나 큰지 ([GDK-307]), 우선순위 하나가 열린 일의
+70% 를 쥐고 있는지 ([GDK-1413]) 답할 수 있게 됐습니다 — 임계까지 테스트된 헬퍼이고,
+`doctor` 가 찍는 것은 다음 차례입니다. 두 질문은 코드가 아니라 측정으로 답했습니다.
+`mmap_size` 는 웜 캐시에서 7% 남짓이라 DSN 은 그대로이고 ([GDK-978]), 사이클타임 p85
+는 닫힌 이슈 5만 건에서 60 ms — 질문을 다시 열 숫자로 기록해 두었습니다 ([GDK-1429]).
+감사가 물었던 teardown 창은 이제 없습니다 — 걱정하던 advertise 파일이 GDK-936 과 함께
+사라졌습니다 ([GDK-954]).
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -2032,3 +2048,11 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1245]: https://gadak.dev/backlog/#/?ks=GDK-1245
 [GDK-1319]: https://gadak.dev/backlog/#/?ks=GDK-1319
 [GDK-1332]: https://gadak.dev/backlog/#/?ks=GDK-1332
+[GDK-1674]: https://gadak.dev/backlog/#/?ks=GDK-1674
+[GDK-1547]: https://gadak.dev/backlog/#/?ks=GDK-1547
+[GDK-1004]: https://gadak.dev/backlog/#/?ks=GDK-1004
+[GDK-307]: https://gadak.dev/backlog/#/?ks=GDK-307
+[GDK-1413]: https://gadak.dev/backlog/#/?ks=GDK-1413
+[GDK-978]: https://gadak.dev/backlog/#/?ks=GDK-978
+[GDK-1429]: https://gadak.dev/backlog/#/?ks=GDK-1429
+[GDK-954]: https://gadak.dev/backlog/#/?ks=GDK-954

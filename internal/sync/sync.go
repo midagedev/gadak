@@ -293,6 +293,14 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	heartbeat := &progressHeartbeat{db: db, sourceID: SourceID}
 	pageBase := 0
 	unitDenom := -1
+	// The Jira fetch pool's controller, one for the whole pass — a halving
+	// earned on one page holds on the next (the Confluence pass's rule,
+	// GDK-1673). Width is the shared --concurrency knob, clamped here; the
+	// pool itself lives inside the page callback below. The throttle tally
+	// covers the whole pass, catalogs included — the meter snapshot is taken
+	// before any request this pass makes.
+	thr := newThrottle(clampFetchWidth(FetchConcurrency))
+	throttleBefore := c.Usage().Throttled
 	page := func(issues []jira.Issue) error {
 		// Stamp gate (GDK-1075, the pageFetchGate idea on the issue side): on
 		// an incremental pass, a hit the mirror already holds at exactly this
@@ -347,19 +355,43 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 		if localeRebuild || res.Full {
 			batch.Force = true
 		}
-		for _, iss := range issues {
+		// Catalog completion stays on the coordinator goroutine: cats is this
+		// callback's map and pool workers must not write it.
+		for i := range issues {
 			// A status the site list did not cover is still known from the issue
 			// itself, and a missing category can only lose a reopen.
-			if id := iss.Fields.Status.ID; id != "" {
+			if id := issues[i].Fields.Status.ID; id != "" {
 				if _, ok := cats[id]; !ok {
-					cats[id] = statuscat.Category(iss.Fields.Status.StatusCategory.Key)
+					cats[id] = statuscat.Category(issues[i].Fields.Status.StatusCategory.Key)
 				}
 			}
-			r, err := build(ctx, c, cfg, iss, agile)
-			if err != nil {
-				return err
+		}
+		// The Jira fetch pool (GDK-1674): build's per-issue GETs — the comment
+		// and changelog overflow reads the search response truncates, plus the
+		// dev-status and remote-link reads build makes — fan out over the same
+		// bounded worker set the Confluence pass uses (GDK-1673). The search
+		// chain stays serial (each page token is minted by the previous page,
+		// so it cannot fan out); fetchOrdered hands records to emit in listing
+		// order, so the upsert below and the watermark advance are unchanged.
+		// Width 1 is exactly the serial pass of pre-1674.
+		fetchOne := func(pctx context.Context, iss jira.Issue) (store.IssueRecord, error) {
+			// A 429 was already waited out inside the transport (Retry-After);
+			// the meter delta is how this fetch window tells the AIMD
+			// controller, the same rule the Confluence workers follow.
+			before := c.Usage().Throttled
+			r, err := build(pctx, c, cfg, iss, agile)
+			if c.Usage().Throttled > before {
+				thr.NoteThrottle()
+			} else {
+				thr.NoteClean()
 			}
+			return r, err
+		}
+		if err := fetchOrdered(ctx, thr, issues, fetchOne, func(_ int, r store.IssueRecord) error {
 			batch.Records = append(batch.Records, r)
+			return nil
+		}); err != nil {
+			return err
 		}
 		changed, err := db.UpsertIssues(ctx, batch)
 		if err != nil {
@@ -468,6 +500,15 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	if skips := devStatusSkips.Swap(0); skips > 0 {
 		opts.logf("dev-status: skipped on %d issues (the panel read is best-effort — Cloud marks the API internal)", skips)
 	}
+	// The fetch pool's one-line summary (GDK-1674), the Jira pass's own line
+	// in the Confluence pass's shape (GDK-1673): configured width, the lowest
+	// effective width AIMD sank to, and — only when the origin throttled —
+	// the 429 count.
+	sum := fmt.Sprintf("jira: concurrency=%d/%d", thr.Configured(), thr.MinEffective())
+	if n := c.Usage().Throttled - throttleBefore; n > 0 {
+		sum += fmt.Sprintf(" throttled=%d", n)
+	}
+	opts.logf("%s", sum)
 	if err := db.RecordSync(ctx, SourceID, store.SyncResult{Watermark: maxRaw, FullSync: res.Full, Locale: syncedLocale, Scope: scope}); err != nil {
 		return err
 	}
