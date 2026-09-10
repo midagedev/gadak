@@ -138,7 +138,7 @@
       refreshRoster()
     } catch (err) {
       // OfferScopeError: decoded fine, carries no mirror token — its
-      // message is the user's sentence (authored in lib/offer.ts).
+      // message is the catalog's sentence (app.offer*, GDK-1150).
       addError =
         err instanceof OfferScopeError
           ? err.message
@@ -265,7 +265,7 @@
 <Screen>
   {#snippet header()}
     <div class="head">
-      <h1 class="type-subject">Pairing</h1>
+      <h1 class="type-subject">{t('app.pairingTitle')}</h1>
     </div>
   {/snippet}
 
@@ -356,9 +356,9 @@
       </section>
 
       <section>
-        <h3>Mirror</h3>
+        <h3>{t('app.mirrorSection')}</h3>
         <p class="line">
-          <span>{app.issues.length} issues</span>
+          <span>{t('app.mirrorIssues', { n: app.issues.length })}</span>
           <span class="quiet">
             {#if app.offline}
               {t('app.offlineLastSync', {
@@ -367,9 +367,9 @@
                   : t('app.syncNever'),
               })}
             {:else if app.syncing}
-              syncing…
+              {t('sync.busy')}
             {:else if app.lastSyncAt}
-              synced {relTime(app.lastSyncAt.toISOString(), app.now)}
+              {t('sync.settledOk', { when: relTime(app.lastSyncAt.toISOString(), app.now) })}
             {:else}
               {t('app.notSyncedYet')}
             {/if}
@@ -379,7 +379,7 @@
       </section>
 
       <section>
-        <h3>Identity</h3>
+        <h3>{t('app.identitySection')}</h3>
         {#if hasIdentity(app.me)}
           <p class="big">{app.me?.name || app.me?.email}</p>
           {#if app.me?.email && app.me?.name}
@@ -405,7 +405,7 @@
           <p class="big">{app.terminal.label || host(app.terminal.endpoint)}</p>
           <p class="sub mono">{host(app.terminal.endpoint)}</p>
           <button class="unpair-shell" class:armed={termArmed} onclick={onUnpairTerminal}>
-            {termArmed ? 'Tap again to unpair' : 'Unpair the shell'}
+            {termArmed ? t('app.unpairConfirm') : t('app.unpairShell')}
           </button>
         {:else}
           <label class="lbl" for="term-offer">{t('app.terminalOffer')}</label>
@@ -435,14 +435,14 @@
             </button>
           {/if}
           {#if !DEV}
-            <button class="act" onclick={() => void scanTerminal()}>Scan</button>
+            <button class="act" onclick={() => void scanTerminal()}>{t('app.scan')}</button>
           {/if}
         {/if}
       </section>
 
       <section>
         <button class="unpair" class:armed onclick={onUnpair}>
-          {armed ? 'Tap again to unpair' : 'Unpair this phone'}
+          {armed ? t('app.unpairConfirm') : t('app.unpairPhone')}
         </button>
         <p class="sub center">{t('app.unpairWarn')}</p>
       </section>

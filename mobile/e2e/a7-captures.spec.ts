@@ -199,7 +199,12 @@ test('a video waits to be asked, and a file chip says it copies', async ({ page 
     origin: UI_ORIGIN,
   })
   await chip.click()
-  await expect(page.locator('.copied')).toBeVisible()
+  // GDK-1504 (2026-09-10) moved the acknowledgment off AdfBody's private
+  // `.copied` pill onto the app-level toast host, so the anchor is the host
+  // and its success kind — the claim is unchanged (the tap says it copied),
+  // and it is now measurable that a *refusal* would say something else.
+  const toast = page.locator('[data-testid="toast"][data-kind="success"]')
+  await expect(toast).toBeVisible()
   const copied = await page.evaluate(() => navigator.clipboard.readText())
   expect(copied).toBe(`${UI_ORIGIN}/api/v1/issues/${key}/attachments/gdk1503f/content/`)
 

@@ -224,7 +224,12 @@ Jira に遅れること、トークンの置き場所、拒否された書き込
 引数を直接整形します ([GDK-1560])。ダッシュボードのフレームは白ではなくアプリの背景色を敷き、
 タブを開くときに白く光りません ([GDK-1598])。パレットに正確な課題キーを入れると、空の検索行では
 なくその行が出ます ([GDK-1255])。オンボーディングは一つのダイアログの中で手元のコピーを一つの
-言葉で呼びます ([GDK-1323])。
+言葉で呼びます ([GDK-1323])。スマートフォンのコントロールはマークアップではなくカタログにあり、
+テンプレートとモジュールの両方を走査するテストがそれを保ちます ([GDK-1150])。サーバーが
+拒否したときは、どの拒否かを言います — この端末を知らない origin チェックか、拒否された
+ペアリングか、serve スコープのないオファーか ([GDK-1121])。コピーが失敗すれば、何も
+起きないのではなくトーストが出ます ([GDK-1504])。スマートフォンで読んだものも、
+ウィンドウが書くのと同じ訪問履歴に残ります ([GDK-1538])。
 
 ## v0.21.0 — 2026-09-08
 
@@ -1769,6 +1774,10 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1700]: https://gadak.dev/backlog/#/?ks=GDK-1700
 [GDK-1702]: https://gadak.dev/backlog/#/?ks=GDK-1702
 [GDK-1323]: https://gadak.dev/backlog/#/?ks=GDK-1323
+[GDK-1121]: https://gadak.dev/backlog/#/?ks=GDK-1121
+[GDK-1150]: https://gadak.dev/backlog/#/?ks=GDK-1150
+[GDK-1504]: https://gadak.dev/backlog/#/?ks=GDK-1504
+[GDK-1538]: https://gadak.dev/backlog/#/?ks=GDK-1538
 [GDK-1255]: https://gadak.dev/backlog/#/?ks=GDK-1255
 [GDK-1598]: https://gadak.dev/backlog/#/?ks=GDK-1598
 [GDK-1560]: https://gadak.dev/backlog/#/?ks=GDK-1560

@@ -104,8 +104,9 @@
    * Rendered only when the serve knows of a previous read AND something
    * happened after it. No previous visit → no card; nothing changed → no
    * card; and no empty state either — the absence is the reading. The phone
-   * posts no visit of its own yet, so on a workspace nobody opens at a desk
-   * both visit fields stay absent and this stays silent, which is honest.
+   * feeds this itself now (GDK-1538: store.recordVisit posts every open on
+   * the desk's own route), so a workspace nobody opens at a desk gets the
+   * card from its second visit on.
    *
    * Dismissal is local to this screen, and explicit: the desk's card is a
    * button whose click reveals the change log, and the phone has no change
@@ -467,11 +468,11 @@
   <Screen>
     {#snippet header()}
       <div class="bar">
-        <button class="back" onclick={closeIssue} aria-label="Back">
+        <button class="back" onclick={closeIssue} aria-label={t('app.back')}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M15 18l-6-6 6-6" />
           </svg>
-          <span>Back</span>
+          <span>{t('app.back')}</span>
         </button>
         <span class="bar-key">{issueKey}</span>
         <span class="bar-pad" aria-hidden="true"></span>
@@ -535,10 +536,10 @@
             </svg>
           </button>
           <span aria-hidden="true">·</span>
-          updated {relTime(lite.updated_at, app.now)}
+          {t('detail.updatedWhen', { when: relTime(lite.updated_at, app.now) })}
           {#if lite.reporter}
             <span aria-hidden="true">·</span>
-            by {lite.reporter}
+            {t('detail.byline', { name: lite.reporter })}
           {/if}
         </p>
       </article>
@@ -633,7 +634,7 @@
           <input
             bind:value={comment}
             disabled={writesOff}
-            placeholder="Comment…"
+            placeholder={t('write.commentPlaceholder')}
             enterkeyhint="send"
             onkeydown={(e) => {
               if (e.key === 'Enter') void send()
@@ -645,7 +646,7 @@
             disabled={writesOff || comment.trim() === '' || sending}
             onclick={() => void send()}
           >
-            {sending ? 'Sending…' : 'Send'}
+            {sending ? t('write.commentPosting') : t('write.commentButton')}
           </button>
           {#if sendError && !writesOff}
             <p class="send-error">{sendError}</p>
@@ -676,8 +677,8 @@
             <button class="t-row" disabled={blocked || applying !== null} onclick={() => void applyTransition(tr)}>
               <span class="dot dot-{tr.to_category}" aria-hidden="true"></span>
               <span class="t-text">
-                <span class="t-name">{applying === tr.id ? 'Applying…' : tr.name}</span>
-                <span class="t-to">→ {tr.to_status}{blocked ? ' · needs fields — use desktop' : ''}</span>
+                <span class="t-name">{applying === tr.id ? t('common.applying') : tr.name}</span>
+                <span class="t-to">→ {tr.to_status}{blocked ? ' · ' + t('write.transitionNeedsFields') : ''}</span>
                 {#if failedId === tr.id && transitionError}
                   <span class="t-err">{transitionError}</span>
                 {/if}
@@ -709,7 +710,7 @@
             oninput={(e) => onUserQuery(e.currentTarget.value)}
           />
           {#if searching}
-            <p class="none">Searching…</p>
+            <p class="none">{t('common.searching')}</p>
           {:else if userQuery.trim().length >= 2 && users.length === 0}
             <p class="none">{t('write.userNotFound')}</p>
           {/if}

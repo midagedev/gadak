@@ -3,6 +3,8 @@
 // exported functions.
 
 import { configureApi, request, isPairingDead, ApiError } from './api'
+import { t } from './i18n'
+import { VISIT_DEBOUNCE_MS } from '../../../web/src/lib/history'
 import { setDemoSession } from './demo'
 import {
   SCOPE_MY_WORK,
@@ -580,15 +582,12 @@ export async function pair(offer: {
   if (serveToken === null) {
     // Refuse before anything is written. A terminal-only offer is a real
     // thing (the desktop's second-step flow prints those) but it opens a
-    // shell, not the mirror — this is the front door's field.
+    // shell, not the mirror — this is the front door's field. The sentences
+    // are catalog keys (GDK-1150); the catch sites render err.message.
     if (terminalTokenOf(offer) !== null) {
-      throw new OfferScopeError(
-        'This offer carries only a terminal token: it opens a shell on the desktop, not the issue mirror. Mint a serve-scope offer (`gadak pairing mint --label phone --scope serve,terminal`) and pair again.',
-      )
+      throw new OfferScopeError(t('app.offerTerminalOnly'))
     }
-    throw new OfferScopeError(
-      'This offer carries no token for the issue mirror. Mint a serve-scope offer on the desktop and pair again.',
-    )
+    throw new OfferScopeError(t('app.offerNoMirrorToken'))
   }
   // Probe with the offered credential before storing anything.
   await request<Me>('auth/me/', { session: { endpoint: offer.endpoint, token: serveToken } })
@@ -930,12 +929,60 @@ export function terminalSession(): { endpoint: string; token: string | null } {
 
 /* ── navigation ── */
 
+/*
+ * One owner for "the phone looked at this" (GDK-1538). Before this the
+ * phone read details and posted nothing, so `last_visited_at` /
+ * `previous_visit_at` on the detail response — which the serve computes
+ * from recorded visits — stayed empty on a workspace nobody opens at a
+ * desk, and the resume card (Detail.svelte ③) was permanently silent.
+ *
+ * The route is the desk's own (POST /api/v1/issues/history/visits/,
+ * internal/server/server.go:234 — every serve route sits under the
+ * `issues/` base, which the phone's API_V1 does not include, so the path
+ * spelled here carries it) and the *server* decides the source: the POST body has no
+ * field for it, so the phone is recorded as `ui` like every other client
+ * and retro aggregation keeps one meaning per row. That is why no server
+ * change rides with this — a phone-specific `source` would be a wire
+ * contract change for a distinction nothing reads yet.
+ *
+ * Fire and forget: a visit is a side effect of opening, never a gate on
+ * it. Offline, refused, or demo, the screen opens exactly the same.
+ * The debounce window is the desk's constant, imported rather than
+ * re-picked (web/src/lib/history.ts VISIT_DEBOUNCE_MS) — a remount inside
+ * it is the same read; A → B → A is two visits of A.
+ */
+let lastVisitId: string | null = null
+let lastVisitAt = 0
+
+export function recordVisit(kind: 'issue' | 'page', key: string, now = Date.now()): void {
+  if (key === '' || app.demo) return
+  const id = `${kind}:${key}`
+  if (lastVisitId === id && now - lastVisitAt < VISIT_DEBOUNCE_MS) return
+  lastVisitId = id
+  lastVisitAt = now
+  void request('issues/history/visits/', {
+    method: 'POST',
+    body: { kind, key },
+  }).catch(() => {
+    // A visit that did not land is not a failure the reader must see: the
+    // only thing it costs is one resume boundary. Never a toast.
+  })
+}
+
+/** Test seam: forget the debounce so a spec can post the same key twice. */
+export function resetVisitDebounce(): void {
+  lastVisitId = null
+  lastVisitAt = 0
+}
+
 export function openIssue(key: string): void {
   app.detail = { kind: 'issue', key }
+  recordVisit('issue', key)
 }
 
 export function openPage(key: string): void {
   app.detail = { kind: 'page', key }
+  recordVisit('page', key)
 }
 
 export function closeIssue(): void {

@@ -403,17 +403,16 @@ Consequences and the division of labor:
 Product voice, sentence case, verbs on buttons ("Pair", "Send", "Unpair").
 Jira vocabulary only (§8 UX_PRINCIPLES): status, priority, comment,
 transition — no invented nouns. **Names come from the catalog, not from
-here** (§3.6): "Issues", "My issues", "All open", "Sync now", "Cancel"
-and the picker's section labels are `t()` calls and are Korean and Japanese
-without further work. What is still authored here is the connective prose,
-in English: the Search and Pairing tab labels, "Offline — showing the last
-synced snapshot.", "Nothing open is assigned to you.", "This serve has no
-identity to filter by.", "Nothing here" / "No issues on this mirror match
-this scope.", "Open on the desktop", "Show all N", and the pairing screen.
-Those are the candidates for the next catalog keys — "Open on the desktop"
-first, since it is the one refusal a Korean reader meets in English. Errors
-say what to do next ("Pairing was refused — mint a new offer on your desktop
-and pair again."), never apologize, never quote server internals.
+here** (§3.6): "Issues", "My issues", "All open", "Sync now", "Cancel",
+the picker's section labels — and, since GDK-1150, every control label,
+placeholder, aria-label and connective sentence this app draws (the old
+English-debt list — tab labels, the offline banner, the empty states, the
+pairing screen — is all keys now). The only literals a template may carry
+outside `t()` are the ones a locale cannot change: the `gadak` brand token,
+CLI commands shown verbatim (`gadak pairing mint`), the version footer, and
+`DEV`-gated instrumentation. Errors say what to do next ("Pairing was
+refused — mint a new offer on your desktop and pair again."), never
+apologize, never quote server internals.
 
 ## 9. Gates
 
@@ -469,6 +468,34 @@ and pair again."), never apologize, never quote server internals.
   same check must exclude that file, which necessarily spells the banned words:
   `grep -rn --exclude=vocabulary.test.ts "Queue\|'Mine'\|>Mine<\|>All<" src e2e`
   → no hits.
+
+- **Cataloged copy (§8, GDK-1150)** — `src/lib/template-copy.test.ts` in
+  `npm test`. Walks every `.svelte` template with a real tokenizer (handler
+  attributes contain `=>` and quotes; `t('key', {n})` spans braces — a
+  naive tag-split reads those as prose) and fails on any English literal in
+  a copy attribute (`aria-label`, `placeholder`, `title`) or text node,
+  including quoted literals inside `{…}` text expressions (`{sending ?
+  'Posting…' : t('write.commentButton')}` scans the first arm). Brand
+  tokens, CLI commands shown verbatim, the version footer and `DEV`-gated
+  probes sit in the test's allowlist with reasons; everything user-facing
+  belongs in the catalog. A second case in the same file closes the other
+  half: no `.ts` module may return an English *sentence* (three-plus words
+  ending in sentence punctuation) — `api.ts` errorMessage's five-arm table
+  and the two store-thrown offer-scope refusals became keys with this
+  round. Fragments and single words in `.ts` are the honest limit; the
+  template case covers their rendered form.
+
+- **Visits are fed, not only read (GDK-1538)** — `src/lib/visit.test.ts`
+  in `npm test` and `e2e/visit.spec.ts` in the viewport gate. The phone
+  reads `last_visited_at` / `previous_visit_at` off the detail response and
+  now writes the rows they are computed from: `store.recordVisit` posts
+  every open to the desk's own route (POST
+  `/api/v1/issues/history/visits/`), debounced by the desk's own constant.
+  The unit measures the route, the body and the debounce; the e2e measures
+  the half a mock cannot — that this serve accepts what the phone sends and
+  hands the boundary back on the next read. (It caught a real one: the
+  first path was missing the `issues/` base every serve route sits under
+  and answered 404, invisibly, because a visit never blocks a screen.)
 
 - **Webview CSP `connect-src` (GDK-1137)** — `src/lib/csp.test.ts` in
   `npm test`. The packaged webview may only `connect` to its own origin:
@@ -583,3 +610,20 @@ without waiting out the backoff schedule, and the ring replay is the first
 binary frame. Past the grace the session is gone and the phone says so and
 offers a new one — the same ended-state contract the desktop pane has, just
 reached far more often.
+
+### 10.5 A refusal keeps its own sentence (GDK-1121)
+
+The shared classifier (`web/src/lib/terminal/protocol.ts`) folds every
+401/403 into one `forbidden` cause — right for the web, which never meets
+`forbidden_origin`; wrong here, because the phone is the host whose packaged
+requests the origin guard refuses (GDK-1120: every POST answered 403
+`forbidden_origin` while the strip said the network line, and the server
+side keeps one guard log line — the screen is the only user-visible
+diagnostic). So `lib/terminal/refusal.ts` is a second, phone-side owner:
+`(status, code)` → one of four catalog sentences (origin / pairing / scope
+/ other). The terminal strip renders it ahead of the cause's generic line,
+and `errorMessage()` reads the same map, so a refusal reads identically on
+every surface. Measured per status by `src/lib/terminal/refusal.test.ts`.
+Honest limit: only the REST create path carries the status — a browser
+WebSocket close event has none, so a 403 on the upgrade itself still reads
+as `network`.

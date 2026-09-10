@@ -143,8 +143,10 @@ export interface DetailResponse {
   /**
    * The two newest person reads of this issue from the serve's local.db.
    * Absent when the issue was never opened in an app, or local.db cannot be
-   * read — never a zero value. The phone posts no visit of its own, so on a
-   * phone-only workspace both stay absent and no card renders.
+   * read — never a zero value. Since GDK-1538 the phone posts its own opens
+   * to the same route the desk uses, so a phone-only workspace fills these
+   * too; the newest read may be this very open, which is what pickSince's
+   * freshness window is for (lib/domain resumeSince).
    */
   last_visited_at?: string
   previous_visit_at?: string

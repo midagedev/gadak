@@ -12,6 +12,7 @@
   import Detail from './screens/Detail.svelte'
   import PageDetail from './screens/PageDetail.svelte'
   import TabBar from './ui/TabBar.svelte'
+  import ToastHost from './ui/ToastHost.svelte'
 
   // Vocabulary has one owner (DESIGN.md §3.6): pick the locale once, before
   // the first render, so every t() below reads the same catalog table.
@@ -91,6 +92,10 @@
       {/key}
     </div>
   {/if}
+  <!-- The app-level announcer (GDK-1504): one host for every transient
+       verdict, above the detail layer so a copy from a description or a
+       page body is visible wherever it happened. Empty in itself. -->
+  <ToastHost />
 {/if}
 
 <style>

@@ -115,14 +115,20 @@ describe('GDK-908 bar-key flush barrier', () => {
 })
 
 describe('GDK-908 pairing: two unpair actions, one of them destructive', () => {
+  // GDK-1150 (2026-09-10) moved the two labels into the catalog
+  // (app.unpairShell / app.unpairPhone), so the anchor is the t() key each
+  // button renders, not the English sentence. The claim is unchanged: the
+  // destructive unpair is a different weight from unpairing the shell.
+  // FAIL-first: the old literals failed this test the moment the keys
+  // landed (scratch/w3-phone/gdk1150-mobile-test.txt).
   it('Unpair this phone and Unpair the shell do not share a class', () => {
-    const buttonBefore = (label: string): string => {
-      const i = pairing.indexOf(label)
-      expect(i, label).toBeGreaterThan(-1)
+    const buttonBefore = (anchor: string): string => {
+      const i = pairing.indexOf(anchor)
+      expect(i, anchor).toBeGreaterThan(-1)
       return pairing.slice(pairing.lastIndexOf('<button', i), i)
     }
-    const shellBtn = buttonBefore('Unpair the shell')
-    const phoneBtn = buttonBefore('Unpair this phone')
+    const shellBtn = buttonBefore("t('app.unpairShell')")
+    const phoneBtn = buttonBefore("t('app.unpairPhone')")
     const shellClass = shellBtn.match(/class="([^"]+)"/)?.[1] ?? ''
     const phoneClass = phoneBtn.match(/class="([^"]+)"/)?.[1] ?? ''
     expect(shellClass).not.toBe('')

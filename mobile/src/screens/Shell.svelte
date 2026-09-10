@@ -68,6 +68,7 @@
     UnavailableCause,
   } from '../../../web/src/lib/terminal/protocol'
   import { ApiError } from '../lib/api'
+  import { classifyRefusal, REFUSAL_KEYS, type RefusalKind } from '../lib/terminal/refusal'
 
   // Copied from web/src/lib/terminal/session.ts — that module imports the
   // wails transport, which the phone must not resolve. The behavior
@@ -83,7 +84,11 @@
     | { kind: 'reconnecting' }
     | { kind: 'exited'; code: number }
     | { kind: 'dropped'; reason: DroppedReason }
-    | { kind: 'unavailable'; cause: UnavailableCause; detail?: string }
+    // `refusal` (GDK-1121) names which "no" the server said, when it said
+    // one — the sentence comes from REFUSAL_KEYS and outranks the cause's
+    // generic line; `cause` stays because restartability is a property of
+    // the cause, not of the refusal.
+    | { kind: 'unavailable'; cause: UnavailableCause; detail?: string; refusal?: RefusalKind }
 
   const DROPPED_KEYS: Record<DroppedReason, 'terminal.dropped.slow_client' | 'terminal.dropped.token_revoked' | 'terminal.dropped.idle_timeout' | 'terminal.dropped.server_shutdown' | 'terminal.dropped.closed'> = {
     slow_client: 'terminal.dropped.slow_client',
@@ -542,16 +547,20 @@
   }
 
   // The phone's adapter onto the shared classifier. A scope_rejected here is
-  // the common one: a serve QR scanned into the terminal slot.
+  // the common one: a serve QR scanned into the terminal slot. A refusal
+  // (GDK-1121) keeps its own sentence — the shared classifier folds every
+  // 401/403 into 'forbidden', which is what hid the GDK-1120 incident
+  // (every POST 403 forbidden_origin, screen said 'network').
   function onCreateFail(err?: unknown): void {
     if (cancelled) return
     phase = 'unavailable'
     if (err instanceof ApiError) {
       const cause = classifyUnavailable(err.status, err.code)
+      const refusal = classifyRefusal(err.status, err.code)
       status =
         cause === 'failed'
           ? { kind: 'unavailable', cause, detail: err.message }
-          : { kind: 'unavailable', cause }
+          : { kind: 'unavailable', cause, ...(refusal ? { refusal } : {}) }
     } else {
       status = { kind: 'unavailable', cause: 'network' }
     }
@@ -1183,7 +1192,9 @@
             <span class="hint"> · {t('terminal.mintHint')}</span>
           {/if}
         {:else}
-          {#if status.cause === 'failed'}
+          {#if status.refusal}
+            {t(REFUSAL_KEYS[status.refusal])}
+          {:else if status.cause === 'failed'}
             {t('terminal.unavailable.failed', { message: status.detail ?? '' })}
           {:else}
             {t(UNAVAILABLE_KEYS[status.cause])}

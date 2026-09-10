@@ -201,7 +201,12 @@ serve 플래그를 유닛에 그대로 싣고, 설치 시점에 serve 파서로 
 직접 포맷합니다 ([GDK-1560]). 대시보드 프레임은 흰색 대신 앱 배경을 깔아 탭을 열 때
 번쩍이지 않습니다 ([GDK-1598]). 팔레트에 정확한 이슈 키를 넣으면 빈 검색 줄 대신 그 행이
 나오고 ([GDK-1255]), 온보딩은 한 다이얼로그 안에서 로컬 사본을 한 단어로 부릅니다
-([GDK-1323]).
+([GDK-1323]). 폰의 컨트롤은 마크업이 아니라 카탈로그에
+있습니다. 템플릿과 모듈을 함께 훑는 테스트가 그 자리를 지킵니다 ([GDK-1150]).
+서버가 거절하면 어떤 거절인지 말합니다 — 이 폰을 모르는 origin 검사인지, 거절된
+페어링인지, serve 스코프가 없는 오퍼인지 ([GDK-1121]). 복사가 실패하면 아무 일도
+없던 대신 토스트가 뜹니다 ([GDK-1504]). 폰에서 읽은 것도 창이 쓰는 것과 같은 방문
+기록에 남습니다 ([GDK-1538]).
 
 ## v0.21.0 — 2026-09-08
 
@@ -1668,6 +1673,10 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1700]: https://gadak.dev/backlog/#/?ks=GDK-1700
 [GDK-1702]: https://gadak.dev/backlog/#/?ks=GDK-1702
 [GDK-1323]: https://gadak.dev/backlog/#/?ks=GDK-1323
+[GDK-1121]: https://gadak.dev/backlog/#/?ks=GDK-1121
+[GDK-1150]: https://gadak.dev/backlog/#/?ks=GDK-1150
+[GDK-1504]: https://gadak.dev/backlog/#/?ks=GDK-1504
+[GDK-1538]: https://gadak.dev/backlog/#/?ks=GDK-1538
 [GDK-1255]: https://gadak.dev/backlog/#/?ks=GDK-1255
 [GDK-1598]: https://gadak.dev/backlog/#/?ks=GDK-1598
 [GDK-1560]: https://gadak.dev/backlog/#/?ks=GDK-1560

@@ -34,7 +34,7 @@
       await pair(offer)
     } catch (err) {
       // OfferScopeError: decoded fine, carries no mirror token — its
-      // message is the user's sentence (authored in lib/offer.ts).
+      // message is the catalog's sentence (app.offer*, GDK-1150).
       error =
         err instanceof OfferScopeError
           ? err.message

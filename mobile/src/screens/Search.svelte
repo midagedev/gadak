@@ -98,7 +98,7 @@
 <Screen>
   {#snippet header()}
     <div class="head">
-      <h1 class="type-subject">Search</h1>
+      <h1 class="type-subject">{t('app.searchTitle')}</h1>
     </div>
     <div class="field">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
@@ -109,7 +109,7 @@
         bind:value={query}
         oninput={onInput}
         type="search"
-        placeholder="Key, summary, comment…"
+        placeholder={t('app.searchPlaceholder')}
         autocapitalize="off"
         autocorrect="off"
         spellcheck="false"
@@ -124,7 +124,7 @@
   {#if plate === 'idle'}
     <div class="idle">
       {#if recents.length > 0}
-        <p class="idle-label">Recent</p>
+        <p class="idle-label">{t('personal.recent')}</p>
         {#each recents as r (r)}
           <button class="recent" onclick={() => runRecent(r)}>
             <span class="r-q">{r}</span>

@@ -351,4 +351,12 @@ export const common = {
     ko: '알 수 없음',
     ja: '不明',
   },
+  // GDK-1150: the phone transition sheet's in-flight row label — the
+  // progressive of common.apply one screen over. ko/ja are en placeholders
+  // until the lead writes them (ALLOWED_BYTE_EQUAL entry in catalog.test.ts).
+  'common.applying': {
+    en: 'Applying…',
+    ko: '적용 중…',
+    ja: '適用中…',
+  },
 } as const satisfies Record<string, Message>

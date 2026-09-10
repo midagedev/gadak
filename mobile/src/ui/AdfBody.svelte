@@ -12,13 +12,13 @@
    * bodyParagraphs' blank-line split, no markdown parser.
    */
   import { onDestroy } from 'svelte'
-  import { fade } from 'svelte/transition'
   import { renderAdf } from '../../../web/src/lib/adf'
   import { API_V1, absoluteApiUrl, requestBlob } from '../lib/api'
   import { classifyAdfTarget, formatAttachmentSize } from '../lib/adf-links'
   import { openIssue } from '../lib/store.svelte'
   import { bodyParagraphs } from '../lib/domain'
   import { t } from '../lib/i18n'
+  import { showToast } from '../lib/toast.svelte'
   import type { AdfNode, DetailAttachment } from '../lib/types'
   import AttachmentViewer from './AttachmentViewer.svelte'
 
@@ -207,22 +207,20 @@
    * classifier decides what a tap means. Issue → the same openIssue a list
    * row uses; anything else with an href → never navigate (the phone has no
    * opener plugin; adding one is a bigger decision than this round), copy
-   * the URL and say so.
+   * the URL and say so — both ways, on the app-level toast host (GDK-1504):
+   * a link that did not copy must not read like one that did.
    */
-  let copied = $state(false)
-  let copiedTimer: ReturnType<typeof setTimeout> | undefined
-  onDestroy(() => clearTimeout(copiedTimer))
-
   async function copyHref(href: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(href)
-      copied = true
-      clearTimeout(copiedTimer)
-      copiedTimer = setTimeout(() => (copied = false), 1600)
+      showToast(t('detail.linkCopied'), 'success')
     } catch {
-      // Clipboard refused (no gesture, no permission): the link simply
-      // stays unopened. The phone has no second channel to announce
-      // through yet — a toast host is a lead decision.
+      // Clipboard refused (no gesture, no permission): the failure gets
+      // its own sentence — this catch used to be silent, and the only
+      // difference the person could see was nothing at all. The desk
+      // already owns this exact sentence (§3.6): DetailHeader and
+      // copy-view-link toast the same key on the same refusal.
+      showToast(t('clipboard.copyFailed'), 'error')
     }
   }
 
@@ -320,9 +318,6 @@
   {#each paragraphs as p, i (i)}
     <p class="adf-plain">{p}</p>
   {/each}
-{/if}
-{#if copied}
-  <span class="copied" transition:fade={{ duration: 100 }} role="status">{t('detail.linkCopied')}</span>
 {/if}
 {#if viewer}
   <AttachmentViewer name={viewer.name} src={viewer.src} onclose={() => (viewer = null)} />
@@ -695,21 +690,5 @@
   }
   .adf-plain:last-child {
     margin-bottom: 0;
-  }
-
-  /* Copy acknowledgment: a quiet pill above the composer slab. The inset
-     rides the --safe-bottom token (app.css owns env() alone — §4.1). */
-  .copied {
-    position: fixed;
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: calc(max(var(--safe-bottom), 12px) + 76px);
-    z-index: 40;
-    padding: 6px 12px;
-    border-radius: 9999px;
-    border: 1px solid var(--color-border-subtle);
-    background: var(--color-bg-elevated);
-    font-size: var(--text-micro);
-    color: var(--color-text-primary);
   }
 </style>

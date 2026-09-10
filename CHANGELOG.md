@@ -285,7 +285,13 @@ the app's background rather than white, so opening the tab no longer flashes
 ([GDK-1598]). An exact issue key in the palette resolves to that row instead
 of an empty search line ([GDK-1255]), and onboarding calls the local copy a
 cache throughout rather than switching between two words for it inside one
-dialog ([GDK-1323]).
+dialog ([GDK-1323]). The phone's controls live in the catalog rather than in its
+markup, and a test that walks both the templates and the modules is what keeps
+them there ([GDK-1150]). A server that refuses now says which refusal it was —
+an origin check that does not know this phone, a rejected pairing, an offer
+carrying no serve scope ([GDK-1121]) — and a copy that fails raises a toast
+instead of nothing at all ([GDK-1504]). What you read on the phone lands in the
+same visit history the window writes ([GDK-1538]).
 
 ## v0.21.0 — 2026-09-08
 
@@ -1818,6 +1824,10 @@ priority sorting keyed on `priority_rank`.
 [GDK-1700]: https://gadak.dev/backlog/#/?ks=GDK-1700
 [GDK-1702]: https://gadak.dev/backlog/#/?ks=GDK-1702
 [GDK-1323]: https://gadak.dev/backlog/#/?ks=GDK-1323
+[GDK-1121]: https://gadak.dev/backlog/#/?ks=GDK-1121
+[GDK-1150]: https://gadak.dev/backlog/#/?ks=GDK-1150
+[GDK-1504]: https://gadak.dev/backlog/#/?ks=GDK-1504
+[GDK-1538]: https://gadak.dev/backlog/#/?ks=GDK-1538
 [GDK-1255]: https://gadak.dev/backlog/#/?ks=GDK-1255
 [GDK-1598]: https://gadak.dev/backlog/#/?ks=GDK-1598
 [GDK-1560]: https://gadak.dev/backlog/#/?ks=GDK-1560

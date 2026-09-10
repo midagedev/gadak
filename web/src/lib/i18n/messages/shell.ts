@@ -165,6 +165,32 @@ export const shell = {
     ko: '셸 연결이 열리지 않았습니다.',
     ja: 'シェル接続が開きませんでした。',
   },
+  // GDK-1121: the phone's refusal sentences, one per "no" the server can
+  // say (mobile/src/lib/terminal/refusal.ts is the owner; the web's
+  // unavailable.forbidden stays the web's one-sentence version — the phone
+  // is the host that meets forbidden_origin). ko/ja are en placeholders
+  // until the lead writes them (ALLOWED_BYTE_EQUAL entries in
+  // catalog.test.ts).
+  'terminal.refusal.origin': {
+    en: 'The server refused this app’s requests — its origin check does not know this phone. Update gadak on the desktop and pair again.',
+    ko: '서버가 이 앱의 요청을 거절했습니다. 서버의 origin 검사가 이 폰을 모릅니다. 데스크톱의 gadak을 업데이트하고 다시 페어링하세요.',
+    ja: 'サーバーがこのアプリのリクエストを拒否しました。サーバーの origin チェックがこの端末を認識していません。デスクトップの gadak を更新して、もう一度ペアリングしてください。',
+  },
+  'terminal.refusal.pairing': {
+    en: 'Pairing was refused. Mint a new offer on the desktop and pair again.',
+    ko: '페어링이 거절됐습니다. 데스크톱에서 오퍼를 새로 만들어 다시 페어링하세요.',
+    ja: 'ペアリングが拒否されました。デスクトップでオファーを発行し直して、もう一度ペアリングしてください。',
+  },
+  'terminal.refusal.scope': {
+    en: 'This pairing cannot read the mirror. Pair again with a serve-scope offer.',
+    ko: '이 페어링으로는 미러를 읽을 수 없습니다. serve 스코프 오퍼로 다시 페어링하세요.',
+    ja: 'このペアリングではミラーを読めません。serve スコープのオファーでもう一度ペアリングしてください。',
+  },
+  'terminal.refusal.other': {
+    en: 'The server refused this request.',
+    ko: '서버가 이 요청을 거절했습니다.',
+    ja: 'サーバーがこのリクエストを拒否しました。',
+  },
   'terminal.restartHint': {
     en: 'Press Enter to start a new shell',
     ko: 'Enter 키로 새 셸을 시작합니다',
@@ -1267,5 +1293,111 @@ export const shell = {
     en: 'About gadak',
     ko: 'gadak 소개',
     ja: 'gadak について',
+  },
+  // GDK-1150: the phone's hardcoded controls joined the catalog. ko/ja are
+  // the en value as a placeholder until the lead writes them — each key is
+  // listed in the report's "리드가 쓸 문자열" and allowlisted in
+  // catalog.test.ts ALLOWED_BYTE_EQUAL for that reason.
+  'app.back': {
+    en: 'Back',
+    ko: '뒤로',
+    ja: '戻る',
+  },
+  'app.searchTitle': {
+    en: 'Search',
+    ko: '검색',
+    ja: '検索',
+  },
+  'app.searchPlaceholder': {
+    en: 'Key, summary, comment…',
+    ko: '키, 제목, 댓글…',
+    ja: 'キー、要約、コメント…',
+  },
+  'app.pairingTitle': {
+    en: 'Pairing',
+    ko: '페어링',
+    ja: 'ペアリング',
+  },
+  'app.tabs': {
+    en: 'Tabs',
+    ko: '탭',
+    ja: 'タブ',
+  },
+  'app.offline': {
+    en: 'Offline',
+    ko: '오프라인',
+    ja: 'オフライン',
+  },
+  'app.mirrorSection': {
+    en: 'Mirror',
+    ko: '미러',
+    ja: 'ミラー',
+  },
+  'app.mirrorIssues': {
+    en: '{n} issues',
+    ko: '이슈 {n}건',
+    ja: '課題 {n} 件',
+  },
+  'app.identitySection': {
+    en: 'Identity',
+    ko: '신원',
+    ja: 'アカウント',
+  },
+  'app.unpairPhone': {
+    en: 'Unpair this phone',
+    ko: '이 폰 페어링 해제',
+    ja: 'この端末のペアリングを解除',
+  },
+  'app.unpairShell': {
+    en: 'Unpair the shell',
+    ko: '셸 페어링 해제',
+    ja: 'シェルのペアリングを解除',
+  },
+  'app.unpairConfirm': {
+    en: 'Tap again to unpair',
+    ko: '한 번 더 누르면 해제됩니다',
+    ja: 'もう一度タップで解除',
+  },
+  'app.scan': {
+    en: 'Scan',
+    ko: '스캔',
+    ja: 'スキャン',
+  },
+  // The two offer-scope refusals store.pair() throws (GDK-1498 round left
+  // them as literals in lib because that round was read-only on web/src).
+  'app.offerTerminalOnly': {
+    en: 'This offer carries only a terminal token: it opens a shell on the desktop, not the issue mirror. Mint a serve-scope offer (`gadak pairing mint --label phone --scope serve,terminal`) and pair again.',
+    ko: '이 오퍼에는 터미널 토큰만 들어 있습니다. 데스크톱에서 셸은 열리지만 이슈 미러는 열리지 않습니다. serve 스코프 오퍼를 만들어(`gadak pairing mint --label phone --scope serve,terminal`) 다시 페어링하세요.',
+    ja: 'このオファーにはターミナルトークンしか入っていません。デスクトップのシェルは開けますが、課題ミラーは開けません。serve スコープのオファーを発行して(`gadak pairing mint --label phone --scope serve,terminal`)、もう一度ペアリングしてください。',
+  },
+  // GDK-1150 (2026-09-10): the phone's api.ts error table joined the
+  // catalog — it was the last English-sentence table in the app. ko/ja are
+  // en placeholders until the lead writes them (ALLOWED_BYTE_EQUAL entries
+  // in catalog.test.ts). The catch-all arm has no key of its own: it says
+  // the same sentence as terminal.refusal.other and uses that key.
+  'app.errorNetwork': {
+    en: 'Cannot reach the server.',
+    ko: '서버에 닿지 못했습니다.',
+    ja: 'サーバーに接続できません。',
+  },
+  'app.errorNotFound': {
+    en: 'Not found on the server.',
+    ko: '서버에 없습니다.',
+    ja: 'サーバーに見つかりません。',
+  },
+  'app.errorNoCredential': {
+    en: 'This serve has no origin credential, so writes are off. Add one on the desktop.',
+    ko: '이 serve에는 origin 자격증명이 없어 쓰기가 꺼져 있습니다. 데스크톱에서 추가하세요.',
+    ja: 'この serve には origin の認証情報がないため、書き込みは無効です。デスクトップで追加してください。',
+  },
+  'app.errorBadResponse': {
+    en: 'The server sent an unreadable reply.',
+    ko: '서버가 읽을 수 없는 응답을 보냈습니다.',
+    ja: 'サーバーが解釈できない応答を返しました。',
+  },
+  'app.offerNoMirrorToken': {
+    en: 'This offer carries no token for the issue mirror. Mint a serve-scope offer on the desktop and pair again.',
+    ko: '이 오퍼에는 이슈 미러용 토큰이 없습니다. 데스크톱에서 serve 스코프 오퍼를 만들어 다시 페어링하세요.',
+    ja: 'このオファーには課題ミラー用のトークンがありません。デスクトップで serve スコープのオファーを発行して、もう一度ペアリングしてください。',
   },
 } as const satisfies Record<string, Message>

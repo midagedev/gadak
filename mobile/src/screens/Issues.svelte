@@ -333,7 +333,7 @@
         disabled={creating || createSummary.trim() === '' || createWritesOff}
         onclick={() => void createTheIssue()}
       >
-        {creating ? 'Creating…' : t('write.newIssue')}
+        {creating ? t('common.creating') : t('write.newIssue')}
       </button>
       {#if createError}
         <p class="err">{createError}</p>

@@ -14,6 +14,7 @@
 import { demoRequest, isDemoSession } from './demo'
 import { inDialScope } from './dial-scope'
 import { t } from './i18n'
+import { classifyRefusal, REFUSAL_KEYS } from './terminal/refusal'
 
 const IS_DEV = import.meta.env.DEV
 
@@ -218,28 +219,36 @@ export async function requestBlob(path: string, opts: RequestOpts = {}): Promise
 
 /** Server codes → copy. Never includes server text or the token. */
 export function errorMessage(err: unknown): string {
+  // Refusals (401/403) go through the one owner (GDK-1121) — the same map
+  // the terminal strip renders, so a refusal reads identically everywhere
+  // and forbidden_origin is never the generic line again.
+  if (err instanceof ApiError) {
+    const refusal = classifyRefusal(err.status, err.code)
+    if (refusal) return t(REFUSAL_KEYS[refusal])
+  }
   const code = err instanceof ApiError ? err.code : 'network'
+  // Every arm is a catalog key (GDK-1150). This function was the last
+  // English-sentence table in the app: the template gate could not see it
+  // (a .ts file ships no markup), and these lines reach the reader on the
+  // same screens the cataloged ones do — a Korean detail screen whose
+  // error line is English is the defect, wherever the string was authored.
   switch (code) {
     case 'network':
-      return 'Cannot reach the server.'
+      return t('app.errorNetwork')
     case 'endpoint_out_of_scope':
-      // The only localized sentence so far: it names a cause the generic
-      // 'network' line cannot ("the server is down" vs "this app never
-      // sent the request"), so it rides the shared catalog (GDK-1048).
+      // Names a cause the generic 'network' line cannot ("the server is
+      // down" vs "this app never sent the request") — GDK-1048.
       return t('app.endpointScope')
-    case 'pairing_rejected':
-      return 'Pairing was refused. Mint a new offer on the desktop and pair again.'
-    case 'forbidden_host':
-    case 'scope_rejected':
-      return 'This pairing cannot read the mirror. Pair again with a serve-scope offer.'
     case 'not_found':
-      return 'Not found on the server.'
+      return t('app.errorNotFound')
     case 'credential_required':
-      return 'This serve has no origin credential, so writes are off. Add one on the desktop.'
+      return t('app.errorNoCredential')
     case 'bad_response':
-      return 'The server sent an unreadable reply.'
+      return t('app.errorBadResponse')
     default:
-      return 'The server refused this request.'
+      // Same sentence as the catch-all refusal one branch up, so it is the
+      // same key — a second copy would be a second thing to translate.
+      return t(REFUSAL_KEYS.other)
   }
 }
 

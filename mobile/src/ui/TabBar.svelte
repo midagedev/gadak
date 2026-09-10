@@ -4,23 +4,24 @@
   import { app, switchTab, type Tab } from '../lib/store.svelte'
 
   // The tab is the object, not a metaphor: the desktop's word for what this
-  // list holds is `doc.issues` (DESIGN.md §3.6). Search and Pairing have no
-  // catalog equivalent yet and stay phone-only copy. The Shell tab is absent
-  // until a terminal pairing is stored (DESIGN.md §10); its label is the
-  // catalog's word for the same object (`sidebar.terminal`).
+  // list holds is `doc.issues` (DESIGN.md §3.6). Search and Pairing got
+  // catalog keys with GDK-1150 (`app.searchTitle` / `app.pairingTitle`), so
+  // every tab label is catalog copy now. The Shell tab is absent until a
+  // terminal pairing is stored (DESIGN.md §10); its label is the catalog's
+  // word for the same object (`sidebar.terminal`).
   const tabs = $derived(
     (
       [
         { id: 'issues' as Tab, label: t('doc.issues') },
-        { id: 'search' as Tab, label: 'Search' },
+        { id: 'search' as Tab, label: t('app.searchTitle') },
         ...(app.terminal ? [{ id: 'shell' as Tab, label: t('sidebar.terminal') }] : []),
-        { id: 'pairing' as Tab, label: 'Pairing' },
+        { id: 'pairing' as Tab, label: t('app.pairingTitle') },
       ]
     ),
   )
 </script>
 
-<nav class="safe-bottom" aria-label="Tabs">
+<nav class="safe-bottom" aria-label={t('app.tabs')}>
   {#each tabs as item (item.id)}
     <button
       class="tab"
@@ -46,7 +47,7 @@
       </svg>
       <span>{item.label}</span>
       {#if item.id === 'pairing' && app.offline}
-        <span class="dot" aria-label="Offline"></span>
+        <span class="dot" aria-label={t('app.offline')}></span>
       {/if}
     </button>
   {/each}

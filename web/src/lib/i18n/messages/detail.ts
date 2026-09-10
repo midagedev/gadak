@@ -1178,4 +1178,18 @@ export const detail = {
     ko: '기본은 접힘입니다. 여덟 행에 열두 열은 처음 읽을 것이 아니기 때문입니다.',
     ja: '既定では畳んであります。8 行 × 12 列は、最初に読むものではないからです。',
   },
+  // GDK-1150: the phone Detail header's byline fragments. Lowercase en on
+  // purpose — they read as run-ins inside the meta line, not sentences.
+  // ko/ja are en placeholders until the lead writes them (see the
+  // ALLOWED_BYTE_EQUAL entry in catalog.test.ts).
+  'detail.updatedWhen': {
+    en: 'updated {when}',
+    ko: '{when} 갱신',
+    ja: '{when} 更新',
+  },
+  'detail.byline': {
+    en: 'by {name}',
+    ko: '{name}',
+    ja: '{name}',
+  },
 } as const satisfies Record<string, Message>

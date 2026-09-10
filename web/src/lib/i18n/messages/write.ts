@@ -919,4 +919,12 @@ export const write = {
     ko: '워크스페이스를 시작하지 못했습니다: {message}',
     ja: 'ワークスペースを開始できませんでした: {message}',
   },
+  // GDK-1150: the phone transition sheet's blocked-row tail. ko/ja are en
+  // placeholders until the lead writes them (ALLOWED_BYTE_EQUAL entry in
+  // catalog.test.ts).
+  'write.transitionNeedsFields': {
+    en: 'needs fields — use desktop',
+    ko: '입력할 항목이 있습니다 — 데스크톱에서',
+    ja: '入力項目があります — デスクトップで',
+  },
 } as const satisfies Record<string, Message>
