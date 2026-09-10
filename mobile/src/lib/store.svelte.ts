@@ -9,6 +9,7 @@ import { setDemoSession } from './demo'
 import {
   SCOPE_MY_WORK,
   feedAfterRead,
+  foldVisit,
   migrateScopeId,
   relatchBoundary,
   sessionDelta,
@@ -42,6 +43,7 @@ import { probeShellPairing } from './terminal/api'
 import { serveTokenOf, terminalTokenOf, OfferScopeError, type OfferToken } from './offer'
 import type {
   BootstrapResponse,
+  CredentialDoc,
   FlowSummary,
   IssueLite,
   Me,
@@ -51,6 +53,7 @@ import type {
   SavedViewDoc,
   SourceViewDoc,
   ViewsResponse,
+  VisitedRow,
 } from './types'
 
 // The six host-scoped session keys (META/TERM_META/CACHE/VIEWS/PAGES/SCOPE)
@@ -87,6 +90,14 @@ export const app = $state({
    * Keychain call below is gated on it being false.
    */
   demo: false,
+  /**
+   * Whether this serve can write to origin (GDK-952): GET credential/'s
+   * `configured` bit, probed on every session entrance (sync's cycle; the
+   * demo's own transport). 'unknown' — probe not answered — draws like
+   * 'on': a paint cannot conjure a credential, and the refusal sentence
+   * stays one honest tap away.
+   */
+  writes: 'unknown' as 'unknown' | 'on' | 'off',
 
   issues: [] as IssueLite[],
   me: null as Me | null,
@@ -134,6 +145,16 @@ export const app = $state({
    * resetSessionState().
    */
   lastViewedIssueKey: null as string | null,
+  /**
+   * The visit ledger the serve folded (GDK-875): one row per issue key at
+   * its newest visit, newest first — the Search idle plate's issue half.
+   * Claimed by sync() (GET issues/history/visited/?kind=issue — the desk's
+   * own route), folded locally by recordVisit on the same write the serve
+   * gets, so the plate agrees with the resume boundary's arithmetic. RAM
+   * only, like lastViewedIssueKey: a ledger that outlived its workspace
+   * would suggest another pool's keys.
+   */
+  recentVisits: [] as VisitedRow[],
   /** Terminal pairing metadata — never the token. Null → no Shell tab. */
   terminal: null as PairMeta | null,
   /** Ticks every 30s so relative times stay honest while the app is open. */
@@ -451,6 +472,25 @@ async function enterPaired(meta: PairMeta, token: string): Promise<void> {
 
 /* ── sync ── */
 
+/**
+ * The writability verdict's one derivation (GDK-952): GET credential/'s
+ * `configured` bit — the same fact the serve's own 409 credential_required
+ * gate reads, answered from the mirror's own config with no origin round
+ * trip. Detail consumes it through `app.writes`; a write refused
+ * mid-session still latches the screen's own fallback (a credential can
+ * disappear between cycles). Called from sync() and enterDemo() — every
+ * session entrance — and re-unknowned by resetSessionState().
+ */
+async function probeWrites(): Promise<void> {
+  try {
+    const res = await request<CredentialDoc>('credential/')
+    app.writes = res.body?.configured ? 'on' : 'off'
+  } catch {
+    // Not worth a failed sync: 'unknown' draws like 'on', and a refused
+    // write still latches the screen-local fallback.
+  }
+}
+
 export async function sync(): Promise<void> {
   // The demo snapshot is frozen bytes: nothing to re-sync, and the real
   // sync path below must not run — it would overwrite CACHE/VIEWS/PAGES
@@ -485,6 +525,9 @@ export async function sync(): Promise<void> {
     } catch {
       // Identity is optional (builtIn serves have none); the list falls back.
     }
+    // Rides the same cycle as identity (GDK-952): the composer's verdict
+    // should be settled by the first paint, not by the first refused tap.
+    await probeWrites()
     try {
       // The names the scope picker wears. Read-only: the phone consumes the
       // desk's view list and never POSTs one (DESIGN.md §5).
@@ -509,6 +552,16 @@ export async function sync(): Promise<void> {
       }
     } catch {
       // Keep whatever we already painted (offline). No pages → no section.
+    }
+    try {
+      // The idle plate's issue half (GDK-875): the visit ledger the serve
+      // already folds, read over the desk's own route. The demo transport
+      // has no such route (404) and older serves neither — absent section,
+      // never error chrome, the same stance pages take.
+      const res = await request<{ items: VisitedRow[] }>('issues/history/visited/?kind=issue')
+      if (res.body) app.recentVisits = res.body.items ?? []
+    } catch {
+      // Keep whatever was painted (offline); no ledger → no section.
     }
     try {
       // The glance strip's data (GDK-871): what moved while the phone was
@@ -619,6 +672,7 @@ export async function pair(offer: {
     writeJSON(scopedKey(TERM_META_KEY), meta)
     terminalToken = termToken
     app.terminal = meta
+    await armShellPairing(meta.endpoint, host.id)
   }
   await enterPaired(meta, serveToken)
 }
@@ -745,10 +799,15 @@ function resetSessionState(): void {
   app.offline = false
   app.lastSyncAt = null
   app.rejected = false
+  // The writability verdict belongs to the host being entered, never the
+  // one being left (GDK-952).
+  app.writes = 'unknown'
   app.detail = null
   // Issue keys are workspace-scoped: a key remembered on one host's pool
-  // must not suggest itself into another host's session sheet (GDK-1527).
+  // must not suggest itself into another host's session sheet (GDK-1527)
+  // — and the visit ledger is the same class of key (GDK-875).
   app.lastViewedIssueKey = null
+  app.recentVisits = []
   app.tab = 'issues'
   app.terminal = null
   // The boundary and the threshold belong to the host being left, not to the
@@ -776,6 +835,10 @@ export async function enterDemo(): Promise<void> {
     clearInterval(syncTimer)
     syncTimer = null
   }
+  // The same probe a paired session gets (GDK-952): the demo transport
+  // answers credential/ as not configured — synthesized, so it answers even
+  // when the bundle itself failed to load.
+  await probeWrites()
   try {
     const res = await request<BootstrapResponse>('issues/bootstrap/')
     if (res.body) {
@@ -813,6 +876,28 @@ function devShellArmed(): boolean {
   return import.meta.env.DEV && import.meta.env.VITE_DEV_SHELL === '1'
 }
 
+/**
+ * Arms the native shell dial (GDK-897). The packaged shell socket is dialled
+ * by the shell_ws_* commands in src-tauri/src/shell.rs, from the pairing
+ * this call stores — after this, the JS side of a dial supplies a session
+ * id and nothing else: no URL, no header. Every road that arms the Shell
+ * tab calls it (loadTerminal's stored read, pair's terminal half,
+ * pairTerminal), so the native pairing can never point somewhere this
+ * phone's own pairing state does not. Dev never crosses the boundary —
+ * its socket is a plain browser WebSocket on the vite proxy. Errors are
+ * swallowed on purpose: connect is where a refusal belongs (the pane shows
+ * it), and the stored meta/token above is what the next arm re-reads.
+ */
+async function armShellPairing(endpoint: string, host: string): Promise<void> {
+  if (import.meta.env.DEV) return
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('shell_pair_set', { endpoint, host })
+  } catch {
+    /* connect surfaces the refusal; pairing state is stored either way */
+  }
+}
+
 async function loadTerminal(): Promise<void> {
   // The terminal meta lives in the active host's namespace (B2); the legacy
   // read covers a phone whose rename could not be verified.
@@ -824,13 +909,17 @@ async function loadTerminal(): Promise<void> {
   // the serve session. Legacy fallback covers a phone whose migration
   // did not complete.
   let token: string | null = null
+  let hostId = 'local'
   if (meta) {
-    const hostId = await hostIdForEndpoint(meta.endpoint)
+    hostId = await hostIdForEndpoint(meta.endpoint)
     token = (await tokenGet('terminal', hostId)) ?? (await tokenGet('terminal'))
   }
   if (token && meta) {
     terminalToken = token
     app.terminal = meta
+    // The stored read at boot is one of the roads that arm the native dial
+    // (GDK-897) — pair and pairTerminal are the other two.
+    await armShellPairing(meta.endpoint, hostId)
     return
   }
   terminalToken = null
@@ -904,9 +993,20 @@ export async function pairTerminal(offer: {
   writeJSON(scopedKey(TERM_META_KEY), meta)
   terminalToken = termToken
   app.terminal = meta
+  await armShellPairing(meta.endpoint, host.id)
 }
 
 export async function unpairTerminal(): Promise<void> {
+  // Kill the native socket before the state under it goes (GDK-897). The
+  // Rust-side pairing itself is left to die with the token: the dial re-reads
+  // storage at connect time, so a stale pairing with a deleted token dials
+  // bearer-less and the gate refuses it — fail-closed without a fifth
+  // command. Dev has no native socket to close.
+  if (!import.meta.env.DEV) {
+    void import('@tauri-apps/api/core')
+      .then(({ invoke }) => invoke('shell_ws_close'))
+      .catch(() => {})
+  }
   // The terminal token's slot is derived from the terminal meta's own
   // endpoint (loadTerminal's rule) — read before the meta is dropped.
   const termMeta =
@@ -977,7 +1077,14 @@ export function recordVisit(kind: 'issue' | 'page', key: string, now = Date.now(
   // this", so a remembered key can never disagree with what the serve's
   // resume boundary will be computed from. A page read records too, but
   // must not eat the remembered issue.
-  if (kind === 'issue') app.lastViewedIssueKey = key
+  if (kind === 'issue') {
+    app.lastViewedIssueKey = key
+    // The ledger folds here too (GDK-875), on the same write the serve gets,
+    // so the idle plate and the resume boundary can never disagree about
+    // what was read when. Synchronous on purpose — the POST below stays the
+    // fire-and-forget half.
+    app.recentVisits = foldVisit(app.recentVisits, key, new Date().toISOString())
+  }
   void request('issues/history/visits/', {
     method: 'POST',
     body: { kind, key },

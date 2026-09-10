@@ -11,8 +11,10 @@ import type {
   Me,
   PageLite,
   SavedViewDoc,
+  SearchMatch,
   SourceViewDoc,
   ViewFilters,
+  VisitedRow,
 } from './types'
 
 /*
@@ -63,6 +65,8 @@ import {
 } from '../../../web/src/lib/resume-card'
 import { isSamePerson, type PersonRef } from '../../../web/src/lib/person-match'
 import { builtinViews } from '../../../web/src/lib/builtin-views'
+import { highlightSegments } from '../../../web/src/lib/format'
+import { formatAbs, localZone } from '../../../web/src/lib/calendar'
 
 export { relatchBoundary, SESSION_GAP_MS }
 export type { AgeBasis, ResumeDelta, SessionDelta }
@@ -742,6 +746,36 @@ export function mergeSearch(local: IssueLite[], serverKeys: string[], all: Issue
 }
 
 /*
+ * A doc row's snippet line (GDK-890) — the phone rendering of the web's
+ * matchEvidence rule (web/src/lib/search-match.ts). The serve's FTS snippet
+ * for a title hit IS the title, so drawing it under the title spends the
+ * row's second line saying the same thing twice — "Pairing runbook · In
+ * GDK · Pairing runbook" was a real row shape. When the query is already
+ * visible in the title the row carries its own reason and the snippet
+ * drops; the meta clauses (author · time · space) come back in its place.
+ *
+ * The "does the title show the query" verdict is the web's own word-match,
+ * imported from the web module rather than re-spelled, so the two surfaces
+ * cannot drift on what that means — including its conservatism: the
+ * server matches each token separately while this checks whole words, so
+ * a multi-word query can hit on the server yet leave the title silent;
+ * that row keeps its snippet, exactly as on the web. The one difference
+ * from matchEvidence is deliberate: the web DROPS a row whose evidence is
+ * null, the phone keeps it and shows meta — a row the user can still tap
+ * is not noise to hide, and Search never fed this a row the server did
+ * not return.
+ */
+export function docSnippet(
+  match: SearchMatch | null | undefined,
+  title: string,
+  q: string,
+): string {
+  const query = q.trim()
+  if (query !== '' && highlightSegments(title, query).some((seg) => seg.hit)) return ''
+  return match?.snippet ?? ''
+}
+
+/*
  * Month-day labels follow the active locale: `Aug 12` / `8월 12일` /
  * `8月12日` (GDK-1704 — this was a hardcoded English MONTHS array, so ko/ja
  * phones read English months in every row folio). Formatters are cached per
@@ -808,6 +842,27 @@ export function offerExpiry(iso: string, localeTag: string = locale()): string {
   const ts = new Date(iso)
   if (isNaN(ts.getTime())) return ''
   return ts.toLocaleDateString(localeTag, { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+/**
+ * Due-date label (GDK-875). duedate is a *date* kind — YYYY-MM-DD stored as
+ * written — and this must never `new Date(ymd)` it: that reads UTC midnight,
+ * which a western zone renders as the previous calendar day. The desk's
+ * calendar module owns that rule and the absolute form (year + 2-digit
+ * month/day, per locale); the phone borrows the formatter rather than the
+ * format, so the two surfaces cannot say different days.
+ */
+export function dueDateLabel(ymd: string | null | undefined, localeTag: string = locale()): string {
+  return formatAbs(ymd, 'date', localZone(), localeTag)
+}
+
+/**
+ * The visit ledger after one more read (GDK-875): the key moves to the front
+ * at `at` — its newest visit — and everything else keeps its order and its
+ * stamp. Pure on purpose: the store assigns the return; it never pushes.
+ */
+export function foldVisit(visits: VisitedRow[], key: string, at: string): VisitedRow[] {
+  return [{ key, viewed_at: at }, ...visits.filter((v) => v.key !== key)]
 }
 
 /** Status token for the ink spine: reopened rows override their category. */

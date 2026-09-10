@@ -154,6 +154,22 @@ button {
   min-height: var(--spacing-control);
 }
 
+/*
+  The armed fill, one owner (GDK-1525, after GDK-934 made the rule for the
+  composer's Send): a `.save`/`.send` button wears the accent only while
+  armed, and no disabled state dims it back — disabled is a fact about the
+  handler, not a second visual state the accent has to survive. The
+  description editor's Save re-offended through a local `.save:disabled`
+  opacity dim, which is exactly the drift a per-screen pair invites, so
+  both local pairs in Detail.svelte were deleted for this rule. Tokens
+  only (no hex in this file); resting bases stay per-control.
+*/
+.save.armed,
+.send.armed {
+  background: var(--color-accent);
+  color: var(--color-bg-base);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -13,6 +13,10 @@ type Measure = {
   navBottomFlush: number | null
   rowCount: number
   rowH: number | null
+  /** GDK-1550: min/max of the row heights the median was taken over. */
+  rowHSpread: { min: number; max: number } | null
+  /** GDK-1550: the main's client height — the dividend of the density print. */
+  mainH: number | null
   rowsPerScreen: number | null
   inputsUnder16: { tag: string; fs: string }[]
   buttonsUnder44pt: number
@@ -47,7 +51,22 @@ async function measure(page: Page, label: string): Promise<Measure> {
     const nav = document.querySelector('nav.safe-bottom')
     const navBox = nav ? nav.getBoundingClientRect() : null
     const main = pane?.querySelector('main')
-    const rowH = rows.length ? rows[0].getBoundingClientRect().height : null
+    // GDK-1550: the row height is the MEDIAN of the painted rows, not
+    // rows[0]. Sampling the first row tied the density reading to whichever
+    // row the fixture happened to sort first — a one-line rows[0] (59.58px)
+    // among a two-line-majority list would report 12/screen where the list
+    // the reader scrolls is 9 (baseline 2026-09-11: issues median of 368 =
+    // 83.77px, spread 60.58–83.77). The median is the typical row; the
+    // spread and the main's height ride along so a moved number can
+    // explain itself in the run log.
+    const heights = rows
+      .map((r) => r.getBoundingClientRect().height)
+      .filter((h) => h > 0)
+      .sort((a, b) => a - b)
+    const rowH = heights.length ? heights[Math.floor(heights.length / 2)] : null
+    const rowHSpread =
+      heights.length > 0 ? { min: heights[0], max: heights[heights.length - 1] } : null
+    const mainH = main ? main.clientHeight : null
     const rowsPerScreen =
       rowH && main && rowH > 0 ? Math.floor(main.clientHeight / rowH) : null
     const under44 = [...document.querySelectorAll('button')]
@@ -68,6 +87,8 @@ async function measure(page: Page, label: string): Promise<Measure> {
       navBottomFlush: navBox ? window.innerHeight - (navBox.y + navBox.height) : null,
       rowCount: rows.length,
       rowH,
+      rowHSpread,
+      mainH,
       rowsPerScreen,
       inputsUnder16: inputs.filter((i) => parseFloat(i.fs) < 16),
       buttonsUnder44pt: under44.length,
@@ -237,7 +258,10 @@ test('viewport geometry at 402×874', async ({ page }) => {
   // Why the density number moved is invisible from the assertion alone, so
   // print the geometry it is derived from every run (GDK-1543 debuggability).
   for (const r of report) {
-    if (r.rowH !== null) console.log(`[viewport] ${r.label}: rowH ${r.rowH}px → ${r.rowsPerScreen}/screen`)
+    if (r.rowH !== null) {
+      const spread = r.rowHSpread ? ` (median of ${r.rowCount}, ${r.rowHSpread.min}–${r.rowHSpread.max})` : ''
+      console.log(`[viewport] ${r.label}: rowH ${r.rowH}px${spread} → ${r.rowsPerScreen}/screen (main ${r.mainH}px)`)
+    }
   }
   // GDK-1543, 2026-09-07 — re-derived, not loosened.
   //
@@ -265,6 +289,24 @@ test('viewport geometry at 402×874', async ({ page }) => {
   const docs = report.find((r) => r.label === 'docs')
   expect(docs, 'docs measurement').toBeTruthy()
   expect(docs!.rowsPerScreen, 'docs rows per screen').toBeGreaterThanOrEqual(12)
+  const search = report.find((r) => r.label === 'search-results')
+  expect(search, 'search-results measurement').toBeTruthy()
+  // GDK-1550, 2026-09-11 — the one plate this gate never floored.
+  //
+  // The floor is the worst case of the SAME row grammar the issues floor
+  // pins (GDK-1543): a Row clamps its summary at two lines — 83.77px, the
+  // median of this run's own rows — but the search pane pays the query
+  // field block out of the same main. Measured: the issues main is 757px
+  // and 9 two-line rows fill it with 3px slack; the search main is 700px
+  // (the field block's 57px), and floor(700/83.77) = 8 — so the search
+  // bound is one row short of the issues floor, 8, with 32px of slack
+  // before it would fall to 7. A one-line answer still reads 12; 8 is the
+  // all-two-line bound, not a number chosen to pass. If the field grows
+  // chrome, or the row grammar gets taller, this trips here first — before
+  // the issues floor, whose 3px slack is nearly gone.
+  // FAIL-first (asserting the issues floor's 9 here, same source):
+  //   Error: search-results rows per screen … Expected: >= 9, Received: 8
+  expect(search!.rowsPerScreen, 'search-results rows per screen').toBeGreaterThanOrEqual(8)
   // GDK-911: a sheet inside .detail-layer is the bottom-most painted
   // surface and clears the home indicator by the same formula .safe-bottom
   // gives the tab bar — max(reported inset, floor), the number owned by

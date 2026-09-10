@@ -4,6 +4,7 @@
   import AdfBody from '../ui/AdfBody.svelte'
   import { app, closeIssue, openIssue, sync } from '../lib/store.svelte'
   import {
+    dueDateLabel,
     overlayComments,
     pendingComment,
     relTime,
@@ -22,7 +23,7 @@
     searchUsers,
   } from '../lib/writes'
   import { keyboardInset } from '../lib/keyboard'
-  import { t } from '../lib/i18n'
+  import { t, fieldLabel } from '../lib/i18n'
   import type {
     DetailComment,
     DetailResponse,
@@ -53,8 +54,15 @@
   let transitions = $state<TransitionDoc[] | null>(null)
   let transitionError = $state<string | null>(null)
   let applying = $state<string | null>(null)
-  /** Serve-level: GET/POST origin writes 409 credential_required. Sticky for this screen. */
-  let writesOff = $state(false)
+  /**
+   * Writability, one verdict with two roads (GDK-952): the store's probe of
+   * GET credential/ (sync's cycle — settled by the first paint), or this
+   * screen's own 409 latch for a credential that disappeared mid-session.
+   * The screen never assigns the verdict — a refusal here only latches, so
+   * the store stays the single owner of what "writable" means.
+   */
+  let refused = $state(false)
+  const writesOff = $derived(app.writes === 'off' || refused)
   let failedId = $state<string | null>(null)
 
   /* ── A2 header writes: assignee, priority, summary, description ── */
@@ -230,7 +238,7 @@
     } catch (err) {
       transitionError = errorMessage(err)
       if (isCredentialRequired(err)) {
-        writesOff = true
+        refused = true
         return
       }
       sheetOpen = true
@@ -254,7 +262,7 @@
       transitionError = errorMessage(err)
       failedId = doc.id
       if (isCredentialRequired(err)) {
-        writesOff = true
+        refused = true
         sheetOpen = false
       }
     } finally {
@@ -281,7 +289,7 @@
       if (comment.trim() === '') comment = text
       sendError = errorMessage(err)
       if (isCredentialRequired(err)) {
-        writesOff = true
+        refused = true
         transitionError = sendError
       }
     } finally {
@@ -295,7 +303,7 @@
 
   function refuseWrite(err: unknown): boolean {
     if (!isCredentialRequired(err)) return false
-    writesOff = true
+    refused = true
     transitionError = errorMessage(err)
     assigneeOpen = false
     priorityOpen = false
@@ -498,7 +506,7 @@
                 if (e.key === 'Enter') void saveSummary()
               }}
             />
-            <button class="save" disabled={summarySaving || summaryDraft.trim() === ''} onclick={() => void saveSummary()}>
+            <button class="save" class:armed={summaryDraft.trim() !== ''} disabled={summarySaving || summaryDraft.trim() === ''} onclick={() => void saveSummary()}>
               {t('common.save')}
             </button>
             <button class="ghost" onclick={() => (summaryEditing = false)}>{t('common.cancel')}</button>
@@ -536,6 +544,14 @@
             </svg>
           </button>
           <span aria-hidden="true">·</span>
+          {#if lite.duedate}
+            <!-- Data, not a control (GDK-875): the deadline rides the meta
+                 line in the desk's own absolute form — the calendar module's
+                 date kind, which keeps the written day whatever zone this
+                 phone sits in. Label from the shared field catalog. -->
+            <span class="due">{fieldLabel('due')}: {dueDateLabel(lite.duedate)}</span>
+            <span aria-hidden="true">·</span>
+          {/if}
           {t('detail.updatedWhen', { when: relTime(lite.updated_at, app.now) })}
           {#if lite.reporter}
             <span aria-hidden="true">·</span>
@@ -627,6 +643,11 @@
             </span>
             {#if writesOff && transitionError}
               <span class="status-err">{transitionError}</span>
+            {:else if writesOff}
+              <!-- The store's probe said credential-less before any write
+                   was refused (GDK-952): say why, with the same sentence a
+                   refusal gets — the api.ts copy for credential_required. -->
+              <span class="status-err">{t('app.errorNoCredential')}</span>
             {/if}
           </button>
         {/if}
@@ -815,7 +836,7 @@
         {#if descForceAsk}
           <p class="error">{t('write.descriptionForceAsk')}</p>
           <div class="desc-actions">
-            <button class="save" disabled={descSaving} onclick={() => void saveDescription(true)}>
+            <button class="save" class:armed={!writesOff} disabled={descSaving} onclick={() => void saveDescription(true)}>
               {t('write.descriptionReplace')}
             </button>
             <button class="ghost" onclick={() => (descForceAsk = false)}>{t('common.cancel')}</button>
@@ -1026,15 +1047,9 @@
     background: var(--color-bg-elevated);
     color: var(--color-text-primary);
   }
-  /* Same pair the composer's Send uses (GDK-934): resting Save is elevated
-     bg, the armed one is the accent fill — no new colours. */
-  .save.armed {
-    background: var(--color-accent);
-    color: var(--color-bg-base);
-  }
-  .save:disabled {
-    opacity: 0.45;
-  }
+  /* The armed accent fill lives in app.css now (GDK-1525): one owner for
+     .save/.send, and no disabled dim on either — the local `.save.armed`
+     pair plus its `.save:disabled` opacity is what this issue removed. */
   .ghost {
     flex: none;
     min-height: var(--spacing-control);
@@ -1278,10 +1293,8 @@
     background: var(--color-bg-elevated);
     color: var(--color-text-muted);
   }
-  .send.armed {
-    background: var(--color-accent);
-    color: var(--color-bg-base);
-  }
+  /* .send.armed moved to app.css with .save.armed (GDK-1525) — one rule,
+     no per-screen pair left to fork the grammar again. */
   .send-error {
     flex: 1 0 100%;
     margin: 0;

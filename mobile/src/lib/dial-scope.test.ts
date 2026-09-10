@@ -179,7 +179,17 @@ describe('capability corpus shape: what the shipped ACL is made of (GDK-1581)', 
   // unchanged and still lists three entries. The exhaustive shape of this
   // list is the point: a grant that arrives without a line of reasoning
   // here turns it red.
-  it('the permission identifier set is exactly the five grants', () => {
+  //
+  // 2026-09-11 — GDK-897: websocket:default LEFT the set, and this test was
+  // the red that proved the removal shipped. That grant was the hole: the
+  // websocket plugin's permission carried no URL allowlist at all, so
+  // anything in the webview could dial any host — the shell socket now goes
+  // through the shell_ws_* Rust commands (src-tauri/src/shell.rs), which
+  // validate against this same corpus's http list before connecting and
+  // need no webview permission to do it. Narrowed, not re-widened: the
+  // remaining four grants are unchanged, and the shell dial's own scope
+  // gate is shell.rs's endpoint_in_scope tests plus the verdict table above.
+  it('the permission identifier set is exactly the four grants', () => {
     const ids = new Set<string>()
     for (const doc of readCapabilityDocs().values()) {
       for (const p of doc.permissions) {
@@ -191,7 +201,6 @@ describe('capability corpus shape: what the shipped ACL is made of (GDK-1581)', 
       'core:default',
       'deep-link:default',
       'http:default',
-      'websocket:default',
     ])
   })
 

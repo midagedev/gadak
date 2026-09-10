@@ -4,11 +4,9 @@
 // (reqwest — no Origin header, no CORS preflight). The serve gate answers
 // webview fetch with forbidden_origin and serves no CORS headers, so native
 // HTTP is the only packaged-app path (docs/decisions/0003). Its URL scope
-// lives in capabilities/default.json. tauri-plugin-websocket is the same
-// split for PTY bytes: a webview WebSocket cannot set Authorization and
-// its origin is not the serve's. The plugin has no URL allowlist, and
-// src/lib/terminal/transport.ts only restates one in JS — a correctness
-// guard, not a boundary, because the grant is process-wide (GDK-897).
+// lives in capabilities/default.json. The PTY socket is the shell module
+// (GDK-897): the websocket plugin and its process-wide grant are gone, and
+// src/shell.rs dials from the stored pairing itself.
 //
 // Secure storage: tauri-plugin-secure-storage (community — iOS Keychain /
 // Android Keystore / desktop keyring). The app does not use the plugin's
@@ -19,6 +17,8 @@
 // barcode-scanner is the QR pairing scan: src/screens/PairGate.svelte and
 // src/screens/PairingTab.svelte import the plugin where the scan starts.
 // The camera usage string rides in Info.ios.plist.
+mod shell;
+
 use tauri_plugin_secure_storage::{OptionsRequest, SecureStorageExt};
 
 /// Secure-store entry for the serve-scope pairing token. Frozen: renaming
@@ -61,7 +61,10 @@ fn valid_host_id(host: &str) -> bool {
 /// host → the frozen legacy key (the address every pre-B1 phone's pairing
 /// lives at); a valid roster host id → "<key>@<hostId>". An invalid host
 /// id is an error, never a silent fallback to the legacy slot.
-fn token_slot(kind: Option<&str>, host: Option<&str>) -> Result<String, String> {
+///
+/// pub(crate) for shell.rs: the shell dial reads the terminal token
+/// itself (GDK-897) so the Bearer never rides an invoke argument.
+pub(crate) fn token_slot(kind: Option<&str>, host: Option<&str>) -> Result<String, String> {
     let base = token_key(kind)?;
     match host {
         None => Ok(base.to_string()),
@@ -72,7 +75,7 @@ fn token_slot(kind: Option<&str>, host: Option<&str>) -> Result<String, String> 
 
 /// Built through serde so this compiles regardless of the plugin's field
 /// visibility; keys are the camelCase wire names of its OptionsRequest.
-fn token_options(key: &str) -> OptionsRequest {
+pub(crate) fn token_options(key: &str) -> OptionsRequest {
     serde_json::from_value(serde_json::json!({
         "prefixedKey": key,
         "sync": false,
@@ -138,9 +141,16 @@ async fn token_del(
 pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
-        .plugin(tauri_plugin_websocket::init())
         .plugin(tauri_plugin_secure_storage::init())
-        .invoke_handler(tauri::generate_handler![token_get, token_set, token_del]);
+        .invoke_handler(tauri::generate_handler![
+            token_get,
+            token_set,
+            token_del,
+            shell::shell_pair_set,
+            shell::shell_ws_connect,
+            shell::shell_ws_send,
+            shell::shell_ws_close
+        ]);
 
     // Mobile-only crate (its lib is #![cfg(mobile)] — an empty shell on
     // desktop), so the registration itself is mobile-gated.

@@ -1,8 +1,10 @@
 // Phone shell transport (GDK-865). Same split as lib/api.ts, for the same
 // reason: a webview WebSocket cannot set Authorization and its origin is
 // not the serve's. Dev rides the vite /api proxy (loopback, no bearer).
-// Packaged uses tauri-plugin-websocket with a Bearer the terminal gate
-// accepts, after assertPairedWsUrl has refused any other origin.
+// Packaged crosses the Rust dial boundary (GDK-897): the websocket plugin
+// and its allowlist-free grant are gone, and the shell_ws_* commands in
+// src-tauri/src/shell.rs own the URL, the scope verdict and the Bearer —
+// this module supplies a session id and parses the events that come back.
 //
 // Wire vocabulary is web/src/lib/terminal/protocol.ts — not re-spelled.
 // The token never appears in a log, an error, or a URL.
@@ -29,10 +31,7 @@ export interface NativeWs {
   disconnect(): Promise<void>
 }
 
-export type NativeConnect = (
-  url: string,
-  config?: { headers?: [string, string][] },
-) => Promise<NativeWs>
+export type NativeConnect = (sessionId: string) => Promise<NativeWs>
 
 export interface BrowserSocket {
   readyState: number
@@ -49,7 +48,7 @@ export interface ShellSocketOpts {
   dev?: boolean
   /** Test seam: browser WebSocket constructor. */
   webSocket?: new (url: string) => BrowserSocket
-  /** Test seam: plugin WebSocket.connect. */
+  /** Test seam: the packaged dial (the Rust boundary's adapter). */
   connectNative?: NativeConnect
 }
 
@@ -249,14 +248,78 @@ function openDevSocket(id: string, handlers: SocketHandlers, opts: ShellSocketOp
   }
 }
 
+/**
+ * The Rust dial boundary's JS half (GDK-897). shell_ws_connect
+ * (src-tauri/src/shell.rs) owns the URL, the scope verdict and the Bearer
+ * — the session id below is the only dial input this side ever supplies —
+ * and answers with `shell-ws` events in the plugin's old message shapes,
+ * so the parsing downstream did not move. Frames that arrive before the
+ * first addListener are buffered and flushed on attach: the caller
+ * registers its listener after connect resolves, and the serve's ring
+ * replay starts the moment the socket opens.
+ */
+async function rustConnect(sessionId: string): Promise<NativeWs> {
+  const { invoke } = await import('@tauri-apps/api/core')
+  const { listen } = await import('@tauri-apps/api/event')
+  const listeners: Array<(msg: NativeWsMessage) => void> = []
+  let queued: NativeWsMessage[] | null = []
+  let closed = false
+  const unlisten = await listen<NativeWsMessage>('shell-ws', (ev) => {
+    if (closed) return
+    if (listeners.length === 0) {
+      queued?.push(ev.payload)
+      return
+    }
+    for (const cb of listeners) cb(ev.payload)
+  })
+  try {
+    await invoke('shell_ws_connect', { sessionId })
+  } catch (err) {
+    unlisten()
+    throw err
+  }
+  return {
+    addListener(cb) {
+      listeners.push(cb)
+      if (queued) {
+        const backlog = queued
+        queued = null
+        for (const msg of backlog) for (const cb2 of listeners) cb2(msg)
+      }
+      return () => {
+        const i = listeners.indexOf(cb)
+        if (i >= 0) listeners.splice(i, 1)
+      }
+    },
+    async send(message) {
+      if (closed) return
+      await invoke('shell_ws_send', { message }).catch(() => {})
+    },
+    async disconnect() {
+      if (closed) return
+      closed = true
+      // The plugin surfaced its close frame through the same listener; the
+      // pane's close path relies on that event, and the native one arrives
+      // only after this adapter has already stopped listening.
+      for (const cb of listeners) cb({ type: 'Close' })
+      unlisten()
+      await invoke('shell_ws_close').catch(() => {})
+    },
+  }
+}
+
 function openPackagedSocket(
   id: string,
   handlers: SocketHandlers,
   opts: ShellSocketOpts,
 ): SocketHandle {
+  // Pre-flight only (GDK-897): this predicts the same refusal the Rust
+  // boundary makes, so obvious garbage dies in JS without an IPC
+  // round-trip. The URL build, the paired-origin pin and the Bearer are
+  // decided in src-tauri/src/shell.rs — opts.token is deliberately not
+  // read here anymore; the native side reads the token out of secure
+  // storage itself, so it never rides an invoke argument.
   assertAllowedShellEndpoint(opts.endpoint)
-  const url = shellWsUrl(opts.endpoint, id, false)
-  assertPairedWsUrl(opts.endpoint, url)
 
   let native: NativeWs | null = null
   let opened = false
@@ -282,17 +345,9 @@ function openPackagedSocket(
     if (msg.type === 'Close') finishClose()
   }
 
-  const headers: [string, string][] = []
-  if (opts.token) headers.push(['Authorization', `Bearer ${opts.token}`])
+  const connect: NativeConnect = opts.connectNative ?? rustConnect
 
-  const connect: NativeConnect =
-    opts.connectNative ??
-    (async (connectUrl, config) => {
-      const mod = await import('@tauri-apps/plugin-websocket')
-      return mod.default.connect(connectUrl, config)
-    })
-
-  void connect(url, headers.length > 0 ? { headers } : undefined)
+  void connect(id)
     .then((ws) => {
       if (wantClose || closed) {
         void ws.disconnect().catch(() => {})

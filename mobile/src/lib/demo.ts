@@ -95,6 +95,14 @@ function demoSynthetic(path: string): Response {
     // Same refusal, same road, for the A2 write sheets' catalog reads.
     return errorResponse('credential_required', 409)
   }
+  if (path === 'credential/') {
+    // The demo has no origin at all, so the store's writability probe
+    // (GDK-952) reads not-configured — same road as a credential-less
+    // serve, and synthesized, which also means it answers even when the
+    // bundle itself failed to load. First paint recedes instead of
+    // waiting for a refused tap.
+    return jsonResponse({ configured: false })
+  }
   // v1 demo has no wiki pages, and search is local-first over the snapshot:
   // the web hosted demo answers both of these 404 as well.
   return errorResponse('not_found', 404)

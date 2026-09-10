@@ -9,8 +9,9 @@ import { describe, expect, it } from 'vitest'
  * The measured consumer map (tauri 2.11.5, this app):
  *
  *   - demo bundle + dev /api proxy — window.fetch on same-origin URLs
- *   - packaged API + terminal WS — @tauri-apps/plugin-http /
- *     plugin-websocket, native and outside CSP entirely
+ *   - packaged API + terminal WS — @tauri-apps/plugin-http for the API,
+ *     and the shell_ws_* Rust commands for the WS (GDK-897; before it,
+ *     plugin-websocket) — both native and outside CSP entirely
  *   - tauri's own IPC on iOS — ipc://localhost fetch is refused by this same
  *     policy and falls back to window.ipc.postMessage (scripts/ipc-protocol.js
  *     in the tauri crate), so 'self' costs nothing there either

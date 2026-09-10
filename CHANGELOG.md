@@ -760,6 +760,25 @@ alike ([GDK-1760]); the probe budget's second literal is gone ([GDK-1004]);
 `IssueLite`'s field names are checked by reflection ([GDK-722]); and the
 integrations probe reads exit 0 through a runner seam ([GDK-723]).
 
+The phone's network boundary moved into Rust. The websocket dial used to be
+a JavaScript allowlist over a process-wide `websocket:default` grant; the
+grant and the plugin are gone, and `shell.rs` owns the URL, the scope
+verdict, the dial and the bearer, with the webview passing only a session id
+([GDK-897]). The search plate shows what the snapshot already carried — a
+due date on the detail meta line and the last five issues you looked at
+([GDK-875]) — and a document row whose title already shows the query no
+longer repeats that title as its snippet, by the same rule the web uses
+([GDK-890]). A serve without a credential is read as read-only from the
+bootstrap, not after the first refusal ([GDK-952]); the description editor's
+Save wears the accent only when armed ([GDK-1525]). The viewport gate reads
+a median row height instead of the first row, and the search-results plate
+has a density floor of its own ([GDK-1550]); the shell spec waits on the PTY
+echo through CDP frames rather than a page-side poll that starved the socket
+([GDK-1552]). Two audit items were already closed on HEAD — per-session
+scrollback ([GDK-1529]) and separate slots for a session's name and its
+bound key ([GDK-1530]) — and the document row keeps one line, since none of
+the fixture's 71 titles truncates ([GDK-1551]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2101,6 +2120,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-870]: https://gadak.dev/backlog/#/?ks=GDK-870
 [GDK-871]: https://gadak.dev/backlog/#/?ks=GDK-871
 [GDK-873]: https://gadak.dev/backlog/#/?ks=GDK-873
+[GDK-875]: https://gadak.dev/backlog/#/?ks=GDK-875
 [GDK-879]: https://gadak.dev/backlog/#/?ks=GDK-879
 [GDK-880]: https://gadak.dev/backlog/#/?ks=GDK-880
 [GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883
@@ -2109,8 +2129,10 @@ priority sorting keyed on `priority_rank`.
 [GDK-886]: https://gadak.dev/backlog/#/?ks=GDK-886
 [GDK-887]: https://gadak.dev/backlog/#/?ks=GDK-887
 [GDK-888]: https://gadak.dev/backlog/#/?ks=GDK-888
+[GDK-890]: https://gadak.dev/backlog/#/?ks=GDK-890
 [GDK-892]: https://gadak.dev/backlog/#/?ks=GDK-892
 [GDK-895]: https://gadak.dev/backlog/#/?ks=GDK-895
+[GDK-897]: https://gadak.dev/backlog/#/?ks=GDK-897
 [GDK-899]: https://gadak.dev/backlog/#/?ks=GDK-899
 [GDK-905]: https://gadak.dev/backlog/#/?ks=GDK-905
 [GDK-906]: https://gadak.dev/backlog/#/?ks=GDK-906
@@ -2129,6 +2151,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-946]: https://gadak.dev/backlog/#/?ks=GDK-946
 [GDK-947]: https://gadak.dev/backlog/#/?ks=GDK-947
 [GDK-950]: https://gadak.dev/backlog/#/?ks=GDK-950
+[GDK-952]: https://gadak.dev/backlog/#/?ks=GDK-952
 [GDK-954]: https://gadak.dev/backlog/#/?ks=GDK-954
 [GDK-956]: https://gadak.dev/backlog/#/?ks=GDK-956
 [GDK-960]: https://gadak.dev/backlog/#/?ks=GDK-960
@@ -2349,8 +2372,11 @@ priority sorting keyed on `priority_rank`.
 [GDK-1520]: https://gadak.dev/backlog/#/?ks=GDK-1520
 [GDK-1521]: https://gadak.dev/backlog/#/?ks=GDK-1521
 [GDK-1524]: https://gadak.dev/backlog/#/?ks=GDK-1524
+[GDK-1525]: https://gadak.dev/backlog/#/?ks=GDK-1525
 [GDK-1527]: https://gadak.dev/backlog/#/?ks=GDK-1527
 [GDK-1528]: https://gadak.dev/backlog/#/?ks=GDK-1528
+[GDK-1529]: https://gadak.dev/backlog/#/?ks=GDK-1529
+[GDK-1530]: https://gadak.dev/backlog/#/?ks=GDK-1530
 [GDK-1534]: https://gadak.dev/backlog/#/?ks=GDK-1534
 [GDK-1535]: https://gadak.dev/backlog/#/?ks=GDK-1535
 [GDK-1537]: https://gadak.dev/backlog/#/?ks=GDK-1537
@@ -2362,6 +2388,9 @@ priority sorting keyed on `priority_rank`.
 [GDK-1547]: https://gadak.dev/backlog/#/?ks=GDK-1547
 [GDK-1548]: https://gadak.dev/backlog/#/?ks=GDK-1548
 [GDK-1549]: https://gadak.dev/backlog/#/?ks=GDK-1549
+[GDK-1550]: https://gadak.dev/backlog/#/?ks=GDK-1550
+[GDK-1551]: https://gadak.dev/backlog/#/?ks=GDK-1551
+[GDK-1552]: https://gadak.dev/backlog/#/?ks=GDK-1552
 [GDK-1554]: https://gadak.dev/backlog/#/?ks=GDK-1554
 [GDK-1560]: https://gadak.dev/backlog/#/?ks=GDK-1560
 [GDK-1561]: https://gadak.dev/backlog/#/?ks=GDK-1561

@@ -24,7 +24,9 @@ import {
   issuesBootKind,
   openIssue,
   pair,
+  recordVisit,
   removeRosterHost,
+  resetVisitDebounce,
   searchPaint,
   showOfflineBanner,
   switchHost,
@@ -829,5 +831,54 @@ describe('sync() — the session boundary rides a header, so a 304 still carries
 
     expect(app.session.boundary).toBeNull()
     expect(app.session.delta).toBeNull()
+  })
+})
+
+describe('recently viewed — the idle plate’s ledger (GDK-875)', () => {
+  /** bootstrap + the visited ledger; every other path answers empty. */
+  function serve(visits: { key: string; viewed_at: string }[]): void {
+    vi.mocked(request).mockImplementation(async (path: string) => {
+      if (path === 'issues/bootstrap/')
+        return {
+          status: 200,
+          etag: '"sv-1"',
+          body: { issues: [issue({ issue_key: 'STD-2' })], server_time: '2026-09-11T00:00:00Z', sync_version: 1 },
+        } as never
+      if (path === 'issues/history/visited/?kind=issue')
+        return { status: 200, etag: null, body: { items: visits } } as never
+      if (path === 'auth/me/') return { status: 200, etag: null, body: null } as never
+      if (path === 'issues/views/') return { status: 200, etag: null, body: { views: [], source: [] } } as never
+      if (path === 'issues/pages/') return { status: 200, etag: null, body: { pages: [] } } as never
+      throw new Error(`unexpected path ${path}`)
+    })
+  }
+
+  it('sync() claims the ledger the serve folded, newest first', async () => {
+    app.recentVisits = []
+    serve([
+      { key: 'STD-7', viewed_at: '2026-09-10T00:00:00Z' },
+      { key: 'STD-8', viewed_at: '2026-09-09T00:00:00Z' },
+    ])
+    await sync()
+    expect(app.recentVisits.map((v) => v.key)).toEqual(['STD-7', 'STD-8'])
+  })
+
+  it('leaves the ledger empty when the serve has no history route — absent, not broken', async () => {
+    app.recentVisits = [{ key: 'STD-1', viewed_at: null }]
+    vi.mocked(request).mockRejectedValue(new ApiError('network', 0))
+    await sync()
+    // A failed probe keeps what was painted (offline stance, like pages).
+    expect(app.recentVisits).toEqual([{ key: 'STD-1', viewed_at: null }])
+  })
+
+  it('recordVisit folds the opened key to the front locally, no re-fetch', async () => {
+    app.recentVisits = []
+    vi.mocked(request).mockImplementation(async () => ({ status: 200, etag: null, body: {} }) as never)
+    resetVisitDebounce()
+    recordVisit('issue', 'STD-5')
+    expect(app.recentVisits[0]?.key).toBe('STD-5')
+    expect(app.recentVisits[0]?.viewed_at).toBeTruthy()
+    // The fold is synchronous — the POST is the fire-and-forget half.
+    expect(vi.mocked(request).mock.calls.filter((c) => c[0] === 'issues/history/visits/')).toHaveLength(1)
   })
 })

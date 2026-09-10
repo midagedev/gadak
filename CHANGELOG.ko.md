@@ -595,6 +595,19 @@ serve 의 버전을 기록하고, serve 의 모든 응답에 `X-Gadak-Version` �
 예산의 두 번째 리터럴은 사라졌고 ([GDK-1004]), `IssueLite` 의 필드 이름은 리플렉션으로
 대조되며 ([GDK-722]), 통합 프로브는 runner 시임을 통해 exit 0 을 읽습니다 ([GDK-723]).
 
+폰의 네트워크 경계가 Rust 로 갔습니다. 웹소켓 다이얼은 프로세스 전역 `websocket:default`
+그랜트 위의 JavaScript 허용목록이었는데, 그랜트와 플러그인이 사라지고 `shell.rs` 가 URL·
+스코프 판정·다이얼·bearer 를 소유하며 웹뷰는 세션 id 만 건넵니다 ([GDK-897]). 검색 플레이트는
+스냅숏이 이미 갖고 있던 것을 보여줍니다 — 상세 메타 줄의 마감일과 마지막으로 본 이슈 다섯
+([GDK-875]) — 그리고 제목이 이미 질의를 보여주는 문서 행은 웹과 같은 규칙으로 그 제목을
+스니펫에 되풀이하지 않습니다 ([GDK-890]). 자격증명 없는 serve 는 첫 거절 뒤가 아니라
+부트스트랩에서 읽기 전용으로 읽히고 ([GDK-952]), 설명 편집기의 Save 는 무장됐을 때만 액센트를
+입습니다 ([GDK-1525]). 뷰포트 게이트는 첫 행 대신 행 높이의 중앙값을 읽고 검색 결과 플레이트에도
+밀도 하한이 생겼으며 ([GDK-1550]), 셸 스펙은 소켓을 굶기던 페이지 쪽 폴 대신 CDP 프레임으로 PTY
+에코를 기다립니다 ([GDK-1552]). 감사 항목 둘은 HEAD 에서 이미 닫혀 있었습니다 — 세션별 스크롤백
+([GDK-1529])과 세션 이름·바인딩 키의 분리된 슬롯 ([GDK-1530]). 문서 행은 한 줄을 유지합니다 —
+픽스처의 제목 71개 중 잘리는 것이 하나도 없어서입니다 ([GDK-1551]).
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -1870,6 +1883,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-870]: https://gadak.dev/backlog/#/?ks=GDK-870
 [GDK-871]: https://gadak.dev/backlog/#/?ks=GDK-871
 [GDK-873]: https://gadak.dev/backlog/#/?ks=GDK-873
+[GDK-875]: https://gadak.dev/backlog/#/?ks=GDK-875
 [GDK-879]: https://gadak.dev/backlog/#/?ks=GDK-879
 [GDK-880]: https://gadak.dev/backlog/#/?ks=GDK-880
 [GDK-883]: https://gadak.dev/backlog/#/?ks=GDK-883
@@ -1878,8 +1892,10 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-886]: https://gadak.dev/backlog/#/?ks=GDK-886
 [GDK-887]: https://gadak.dev/backlog/#/?ks=GDK-887
 [GDK-888]: https://gadak.dev/backlog/#/?ks=GDK-888
+[GDK-890]: https://gadak.dev/backlog/#/?ks=GDK-890
 [GDK-892]: https://gadak.dev/backlog/#/?ks=GDK-892
 [GDK-895]: https://gadak.dev/backlog/#/?ks=GDK-895
+[GDK-897]: https://gadak.dev/backlog/#/?ks=GDK-897
 [GDK-899]: https://gadak.dev/backlog/#/?ks=GDK-899
 [GDK-905]: https://gadak.dev/backlog/#/?ks=GDK-905
 [GDK-906]: https://gadak.dev/backlog/#/?ks=GDK-906
@@ -1898,6 +1914,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-946]: https://gadak.dev/backlog/#/?ks=GDK-946
 [GDK-947]: https://gadak.dev/backlog/#/?ks=GDK-947
 [GDK-950]: https://gadak.dev/backlog/#/?ks=GDK-950
+[GDK-952]: https://gadak.dev/backlog/#/?ks=GDK-952
 [GDK-954]: https://gadak.dev/backlog/#/?ks=GDK-954
 [GDK-956]: https://gadak.dev/backlog/#/?ks=GDK-956
 [GDK-960]: https://gadak.dev/backlog/#/?ks=GDK-960
@@ -2118,8 +2135,11 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1520]: https://gadak.dev/backlog/#/?ks=GDK-1520
 [GDK-1521]: https://gadak.dev/backlog/#/?ks=GDK-1521
 [GDK-1524]: https://gadak.dev/backlog/#/?ks=GDK-1524
+[GDK-1525]: https://gadak.dev/backlog/#/?ks=GDK-1525
 [GDK-1527]: https://gadak.dev/backlog/#/?ks=GDK-1527
 [GDK-1528]: https://gadak.dev/backlog/#/?ks=GDK-1528
+[GDK-1529]: https://gadak.dev/backlog/#/?ks=GDK-1529
+[GDK-1530]: https://gadak.dev/backlog/#/?ks=GDK-1530
 [GDK-1534]: https://gadak.dev/backlog/#/?ks=GDK-1534
 [GDK-1535]: https://gadak.dev/backlog/#/?ks=GDK-1535
 [GDK-1537]: https://gadak.dev/backlog/#/?ks=GDK-1537
@@ -2131,6 +2151,9 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1547]: https://gadak.dev/backlog/#/?ks=GDK-1547
 [GDK-1548]: https://gadak.dev/backlog/#/?ks=GDK-1548
 [GDK-1549]: https://gadak.dev/backlog/#/?ks=GDK-1549
+[GDK-1550]: https://gadak.dev/backlog/#/?ks=GDK-1550
+[GDK-1551]: https://gadak.dev/backlog/#/?ks=GDK-1551
+[GDK-1552]: https://gadak.dev/backlog/#/?ks=GDK-1552
 [GDK-1554]: https://gadak.dev/backlog/#/?ks=GDK-1554
 [GDK-1560]: https://gadak.dev/backlog/#/?ks=GDK-1560
 [GDK-1561]: https://gadak.dev/backlog/#/?ks=GDK-1561

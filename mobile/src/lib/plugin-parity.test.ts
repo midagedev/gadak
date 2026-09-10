@@ -13,12 +13,15 @@ import { describe, expect, it } from 'vitest'
  * a red unit test before any build.
  *
  * Parity pairs are exactly the plugins with a JS binding in this app:
- * http, websocket, barcode-scanner, deep-link. Excluded on purpose:
+ * http, barcode-scanner, deep-link. Excluded on purpose:
  *   - tauri-plugin-secure-storage: Rust-only by design — lib.rs's
  *     token_get/token_set/token_del commands are the only door to the
  *     token, and no @tauri-apps/plugin-secure-storage is installed.
  *   - tauri-plugin-fs: Rust/build-side, no JS binding in dependencies.
  *   - @tauri-apps/api: the JS runtime, no version-paired crate.
+ *   - @tauri-apps/plugin-websocket: see JS_ONLY_LEFTOVERS below — the
+ *     plugin left the app entirely (GDK-897); only its npm binding is
+ *     still installed, pending a dependency removal this round cannot run.
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -27,10 +30,22 @@ const CARGO_LOCK = join(HERE, '../../src-tauri/Cargo.lock')
 
 const PARITY_PAIRS: Array<{ npm: string; crate: string }> = [
   { npm: '@tauri-apps/plugin-http', crate: 'tauri-plugin-http' },
-  { npm: '@tauri-apps/plugin-websocket', crate: 'tauri-plugin-websocket' },
   { npm: '@tauri-apps/plugin-barcode-scanner', crate: 'tauri-plugin-barcode-scanner' },
   { npm: '@tauri-apps/plugin-deep-link', crate: 'tauri-plugin-deep-link' },
 ]
+
+/*
+ * 2026-09-11 — GDK-897. tauri-plugin-websocket left Cargo.toml and
+ * Cargo.lock: the PTY socket is dialled by the shell_ws_* commands in
+ * src-tauri/src/shell.rs now, so there is no plugin crate to keep in
+ * lockstep with. The npm binding is still installed only because this
+ * round cannot run npm (node_modules is a symlink to the main tree) — it
+ * is a declared leftover until the lead drops the dependency, and that
+ * commit deletes this row so the two assertions below go back to exact
+ * equality. FAIL-first: with the old pair row still in place this went
+ * red as "tauri-plugin-websocket missing from mobile/src-tauri/Cargo.lock".
+ */
+const JS_ONLY_LEFTOVERS = ['@tauri-apps/plugin-websocket']
 
 function npmVersion(name: string): string {
   const lock = JSON.parse(readFileSync(PACKAGE_LOCK, 'utf8')) as {
@@ -66,6 +81,8 @@ describe('plugin parity: npm and Cargo.lock carry the same plugin versions (GDK-
     // The guard against the guard rotting: if a new @tauri-apps/plugin-*
     // lands in package-lock.json without a row above, this goes red — the
     // alternative is a plugin silently outside the lockstep check.
+    // JS_ONLY_LEFTOVERS are bindings with no crate on purpose (GDK-897);
+    // the list is exhaustive the same way the pairs are.
     const lock = JSON.parse(readFileSync(PACKAGE_LOCK, 'utf8')) as {
       packages?: Record<string, unknown>
     }
@@ -73,6 +90,6 @@ describe('plugin parity: npm and Cargo.lock carry the same plugin versions (GDK-
       .filter((k) => k.startsWith('node_modules/@tauri-apps/plugin-'))
       .map((k) => k.replace('node_modules/', ''))
       .sort()
-    expect(installed).toEqual(PARITY_PAIRS.map((p) => p.npm).sort())
+    expect(installed).toEqual([...PARITY_PAIRS.map((p) => p.npm), ...JS_ONLY_LEFTOVERS].sort())
   })
 })

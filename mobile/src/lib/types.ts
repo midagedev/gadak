@@ -46,6 +46,7 @@ import type {
   SearchMatch as WebSearchMatch,
   SearchResponse as WebSearchResponse,
   SourceView as WebSourceView,
+  JiraCredential as WebJiraCredential,
 } from '../../../web/src/lib/types'
 export type { AdfNode, DetailAttachment, FlowSummary, HistoryEntry }
 
@@ -212,6 +213,28 @@ export interface PairMeta {
   endpoint: string
   label: string
   expires_at: string
+}
+
+/**
+ * GET `credential/` (GDK-952) — the writability verdict's whole surface.
+ * The owner carries more (email, token hint); the phone Picks `configured`
+ * alone, the same bit the serve's own 409 credential_required gate keys on.
+ * Nothing else in that doc is the phone's business.
+ */
+export type CredentialDoc = Pick<WebJiraCredential, 'configured'>
+
+/**
+ * One row of the visit ledger (GDK-875) — GET
+ * `issues/history/visited/?kind=issue` answers `{items, truncated}`, one row
+ * per key at its newest visit, newest first (the serve folds and caps the
+ * raw visits itself). The phone drops `kind` (it asked for issues) and
+ * `truncated` (the plate caps at 5 long before the cap matters). `viewed_at`
+ * is null on a serve whose local.db has a key but no stamp for it — the row
+ * still claims its place in the order.
+ */
+export interface VisitedRow {
+  key: string
+  viewed_at: string | null
 }
 
 /* ── Writes (internal/server/write.go) — the subset the phone sends ── */

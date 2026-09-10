@@ -4,7 +4,7 @@
   import DocRow from '../ui/DocRow.svelte'
   import EmptyState from '../ui/EmptyState.svelte'
   import { app, recentSearches, rememberSearch, searchPaint } from '../lib/store.svelte'
-  import { matchLocal, mergeSearch } from '../lib/domain'
+  import { matchLocal, mergeSearch, docSnippet } from '../lib/domain'
   import { request } from '../lib/api'
   import { t } from '../lib/i18n'
   import type { SearchResponse, IssueLite, PageLite, SearchMatch } from '../lib/types'
@@ -25,6 +25,17 @@
   // Page hits arrive only with the server reply — they are not in the issue snapshot.
   const local = $derived(matchLocal(app.issues, query))
   const results = $derived<IssueLite[]>(mergeSearch(local, serverKeys, app.issues))
+  // The idle plate's issue half (GDK-875): the store's visit ledger joined
+  // to the pool — the ledger's order wins, a key the pool no longer carries
+  // skips silently, and the cap is the same 5 the query recents take, so the
+  // plate is one grammar. Row navigates itself.
+  const recentIssueRows = $derived.by<IssueLite[]>(() => {
+    const byKey = new Map(app.issues.map((i) => [i.issue_key, i]))
+    return app.recentVisits
+      .map((v) => byKey.get(v.key))
+      .filter((row): row is IssueLite => row !== undefined)
+      .slice(0, 5)
+  })
   const plate = $derived(
     searchPaint({
       query,
@@ -123,6 +134,16 @@
 
   {#if plate === 'idle'}
     <div class="idle">
+      {#if recentIssueRows.length > 0}
+        <!-- Issues first (GDK-875): a row is the plate's primary affordance —
+             it opens the issue — where a query chip only re-fills the field.
+             Absent when the serve has no ledger (demo, older serves), which
+             is absence, not an error. -->
+        <p class="idle-label">{t('palette.recent')}</p>
+        {#each recentIssueRows as issue (issue.issue_key)}
+          <Row {issue} showAssignee={true} />
+        {/each}
+      {/if}
       {#if recents.length > 0}
         <p class="idle-label">{t('personal.recent')}</p>
         {#each recents as r (r)}
@@ -131,7 +152,7 @@
             <span class="r-go" aria-hidden="true">↑</span>
           </button>
         {/each}
-      {:else}
+      {:else if recentIssueRows.length === 0}
         <p class="idle-hint">{t('list.searchIdleHint', { n: app.issues.length })}</p>
       {/if}
     </div>
@@ -145,7 +166,16 @@
         <span class="n">{serverPages.length}</span>
       </div>
       {#each serverPages as page (page.key)}
-        <DocRow {page} showSpace={true} showExcerpt={false} snippet={serverMatches[page.key]?.snippet ?? ''} />
+        <!-- The snippet line is earned, not repeated: a title hit's FTS
+             snippet is the title itself, so the row would say it twice
+             (GDK-890 — docSnippet applies the web's matchEvidence rule;
+             the title keeps the reason, the meta clauses keep the line). -->
+        <DocRow
+          {page}
+          showSpace={true}
+          showExcerpt={false}
+          snippet={docSnippet(serverMatches[page.key], page.title, query)}
+        />
       {/each}
     {/if}
   {:else if plate === 'searching'}

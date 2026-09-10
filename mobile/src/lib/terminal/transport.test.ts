@@ -345,26 +345,32 @@ describe('openShellSocket packaged branch', () => {
     }
   }
 
-  it('dials the paired origin with a Bearer header and no token in the URL', async () => {
+  /*
+   * 2026-09-11 — GDK-897. This used to assert the packaged dial carried the
+   * right URL and Bearer header, which was assertable here only because the
+   * JS side built both. The dial boundary is Rust now: shell_ws_connect
+   * (src-tauri/src/shell.rs) owns the URL, the scope verdict and the Bearer,
+   * and the URL mapping + session-id charset are pinned by that module's own
+   * tests. What remains this side's contract — and what this pins — is the
+   * shape of the ask: a session id, and nothing else. No URL means no URL
+   * to leak a token into; the token field of ShellSocketOpts is unread on
+   * this branch.
+   */
+  it('hands the dial a session id and nothing else', async () => {
     const fake = new FakeNative()
-    const calls: { url: string; headers?: [string, string][] }[] = []
+    const dialled: string[] = []
     const rec = recorder()
     openShellSocket(
       'sess-1',
       rec.handlers(),
-      packagedOpts(async (url, config) => {
-        calls.push({ url, headers: config?.headers })
+      packagedOpts(async (sessionId) => {
+        dialled.push(sessionId)
         return fake
       }),
     )
     await settle()
     expect(FakeWS.instances).toHaveLength(0)
-    expect(calls).toHaveLength(1)
-    expect(calls[0].url).toBe(
-      'wss://home.example.ts.net/api/v1/terminal/sessions/sess-1/ws/',
-    )
-    expect(calls[0].url).not.toContain(TOKEN)
-    expect(calls[0].headers).toEqual([['Authorization', `Bearer ${TOKEN}`]])
+    expect(dialled).toEqual(['sess-1'])
     expect(rec.opens).toBe(1)
   })
 

@@ -269,14 +269,143 @@ describe('GDK-934 resting Send is not the accent thread', () => {
     const sendBlock = styles.match(/\.send\s*\{[^}]+\}/)?.[0]
     expect(sendBlock).toBeTruthy()
     expect(sendBlock).not.toMatch(/--color-accent/)
-    const armed = styles.match(/\.send\.armed\s*\{[^}]+\}/)?.[0]
-    expect(armed).toBeTruthy()
-    expect(armed).toMatch(/background:\s*var\(--color-accent\)/)
+    // GDK-1525 (2026-09-11): re-pointed, not loosened. The armed fill moved
+    // from Detail's local `.send.armed` pair to the one app.css owner both
+    // button names share (the description Save had already forked the
+    // grammar with its own `.save:disabled` dim — the drift a per-screen
+    // pair invites). This still demands accent-on-armed; it reads the owner.
+    const owner = read('app.css').match(/\.save\.armed,\s*\.send\.armed\s*\{[^}]+\}/)?.[0]
+    expect(owner).toBeTruthy()
+    expect(owner).toMatch(/background:\s*var\(--color-accent\)/)
   })
 
   it('does not recede a disabled Send by fading the accent fill', () => {
     const disabled = styles.match(/\.send:disabled\s*\{[^}]+\}/)?.[0] ?? ''
     expect(disabled).not.toMatch(/opacity/)
+  })
+})
+
+describe('GDK-1525 the armed fill is one grammar, owned once', () => {
+  const detail = read('screens/Detail.svelte')
+  const styles = detail.slice(detail.indexOf('<style>'))
+
+  it('declares the accent pair for both button names in one app.css rule', () => {
+    // GDK-934 made the rule for Send; the description editor's Save then
+    // re-offended on a second surface — `.save:disabled { opacity: .45 }`
+    // dimmed the armed fill exactly the way Send's dim was removed for. The
+    // fix is ownership, not another local patch: one rule in app.css covers
+    // every `.save`/`.send` button, and no disabled state dims either.
+    const owner = read('app.css').match(/\.save\.armed,\s*\.send\.armed\s*\{[^}]+\}/)?.[0]
+    expect(owner).toBeTruthy()
+    expect(owner).toMatch(/background:\s*var\(--color-accent\)/)
+    expect(owner).toMatch(/color:\s*var\(--color-bg-base\)/)
+    expect(owner).not.toMatch(/--color-status-/)
+  })
+
+  it('keeps no local armed fill and no disabled dim on either button', () => {
+    // Braces required: a comment that names the removed rule is not the
+    // rule (same principle as the markup() helper).
+    expect(styles).not.toMatch(/\.save\.armed\s*\{/)
+    expect(styles).not.toMatch(/\.send\.armed\s*\{/)
+    // The dim is the defect this issue exists for: a disabled armed Save
+    // must keep its fill (disabled is a fact about the handler, not a
+    // second visual state the accent has to survive).
+    expect(styles).not.toMatch(/\.save:disabled\s*\{/)
+    expect(styles).not.toMatch(/\.send:disabled\s*\{/)
+  })
+
+  it('arms every Save on the screen, so the two Saves are one grammar', () => {
+    // The title inline-edit Save wore no fill at all while the description
+    // sheet's did, so the two read as different controls. All three `.save`
+    // buttons (title Save, format-loss Replace, description Save) declare
+    // armed now; Send keeps its own pin in the GDK-934 block above.
+    expect(detail.match(/class="save" class:armed=/g)?.length).toBe(3)
+  })
+})
+
+describe('GDK-952 writability is owned by the store, read by Detail', () => {
+  const detail = read('screens/Detail.svelte')
+  const store = read('lib/store.svelte.ts')
+
+  it("derives the screen's flag from the store's verdict plus its own refusal", () => {
+    // Before this, the first paint looked writable against a credential-less
+    // serve and only a refused tap said otherwise — the verdict was derived
+    // from failure. The store now probes GET credential/ on every session
+    // entrance; the screen's own 409 latch survives only as the mid-session
+    // fallback (a credential can disappear between cycles).
+    expect(store).toMatch(/writes: 'unknown' as 'unknown' \| 'on' \| 'off'/)
+    expect(detail).toMatch(/const writesOff = \$derived\(app\.writes === 'off' \|\| refused\)/)
+    // The screen never assigns the verdict — only latches its refusal.
+    expect(detail).not.toMatch(/writesOff = true/)
+    // Every 409 road on the screen latches: the transition sheet's two asks,
+    // the comment send, and the shared refuseWrite of the A2 controls.
+    expect(detail.match(/refused = true/g)?.length).toBe(4)
+  })
+
+  it('probes GET credential/ — the same bit the 409 gate reads', () => {
+    expect(read('lib/types.ts')).toMatch(/CredentialDoc = Pick<\s*WebJiraCredential,\s*'configured'/)
+    expect(store).toMatch(/request<CredentialDoc>\('credential\/'\)/)
+    // Leaving a host re-unknowns the verdict: the answer belongs to the
+    // host being entered, never the one being left.
+    const reset = store.slice(store.indexOf('function resetSessionState'))
+    expect(reset.slice(0, reset.indexOf('\n}'))).toMatch(/app\.writes = 'unknown'/)
+  })
+
+  it('answers the demo as credential-less through the same transport', () => {
+    const demo = read('lib/demo.ts')
+    expect(demo.slice(demo.indexOf('function demoSynthetic'))).toMatch(
+      /path === 'credential\/'[\s\S]{0,500}configured: false/,
+    )
+  })
+
+  it('says why first paint receded — the sentence, not a silent dim', () => {
+    const slab = detail.indexOf('composer-slab')
+    const chip = detail.indexOf('{#if writesOff && transitionError}', slab)
+    expect(chip).toBeGreaterThan(slab)
+    const after = detail.slice(chip, chip + 500)
+    expect(after).toMatch(/\{:else if writesOff\}/)
+    expect(after).toMatch(/t\('app\.errorNoCredential'\)/)
+  })
+})
+
+describe('GDK-875 due date on the meta line, recently viewed on the idle plate', () => {
+  it('labels the due date with the desk calendar owner, never a local Date parse', () => {
+    // duedate is a *date* kind: YYYY-MM-DD stored as written. Date.parsing
+    // it reads UTC midnight, which prints the previous day in the Americas
+    // (web/src/lib/calendar.ts owns that rule). The phone borrows the same
+    // absolute formatter the desk's detail fields use.
+    const domain = read('lib/domain.ts')
+    expect(domain).toMatch(
+      /import \{[^}]*formatAbs[^}]*\} from '\.\.\/\.\.\/\.\.\/web\/src\/lib\/calendar'/,
+    )
+    expect(domain).toMatch(/export function dueDateLabel\(/)
+    expect(domain).toMatch(/formatAbs\(ymd, 'date', localZone\(\), localeTag\)/)
+  })
+
+  it('renders the due date on the Detail meta line with the shared field label', () => {
+    const detail = read('screens/Detail.svelte')
+    expect(detail).toMatch(/\{#if lite\.duedate\}/)
+    expect(detail).toMatch(/fieldLabel\('due'\)/)
+    expect(detail).toMatch(/dueDateLabel\(lite\.duedate\)/)
+    // fieldLabel rides the one i18n seam — the phone does not re-spell labels.
+    expect(read('lib/i18n.ts')).toMatch(/export \{[^}]*fieldLabel[^}]*\}/)
+  })
+
+  it('owns the visit ledger in the store and folds a read into it', () => {
+    const store = read('lib/store.svelte.ts')
+    expect(store).toMatch(/recentVisits: \[\] as VisitedRow\[\]/)
+    expect(store).toMatch(/'issues\/history\/visited\/\?kind=issue'/)
+    expect(store).toMatch(/foldVisit\(app\.recentVisits, key, /)
+    const reset = store.slice(store.indexOf('function resetSessionState'))
+    expect(reset.slice(0, reset.indexOf('\n}'))).toMatch(/app\.recentVisits = \[\]/)
+  })
+
+  it('joins the ledger to the pool on the Search idle plate, capped like query recents', () => {
+    const search = read('screens/Search.svelte')
+    expect(search).toContain("t('palette.recent')")
+    expect(search).toMatch(/recentIssueRows/)
+    // 5 is the query-recents cap (rememberSearch): one grammar for the plate.
+    expect(search).toMatch(/\.slice\(0, 5\)/)
   })
 })
 
@@ -379,10 +508,12 @@ describe('GDK-1497 A2 — the header is a control surface', () => {
     const rest = sheet.slice(sheet.indexOf('{:else}'))
     expect(rest).toMatch(/class="save" class:armed=/)
     expect(rest).not.toContain('class="ghost"')
-    const styles = detail.slice(detail.indexOf('<style>'))
-    expect(styles.match(/\.save\.armed\s*\{[^}]+\}/)?.[0]).toMatch(
-      /background:\s*var\(--color-accent\)/,
-    )
+    // GDK-1525 (2026-09-11): the fill itself moved to the one app.css owner
+    // (`.save.armed, .send.armed`) — this pin reads that owner now instead
+    // of a local pair, so the sheet's Save cannot regrow a private accent
+    // rule. Re-pointed with FAIL-first evidence in the round report.
+    const owner = read('app.css').match(/\.save\.armed,\s*\.send\.armed\s*\{[^}]+\}/)?.[0]
+    expect(owner).toMatch(/background:\s*var\(--color-accent\)/)
   })
 
   it('does not give a loading placeholder the same class as a button', () => {

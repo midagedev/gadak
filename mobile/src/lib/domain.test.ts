@@ -8,9 +8,12 @@ import {
   buildList,
   buildScopes,
   defaultScopeId,
+  docSnippet,
   docsSpaceScopeId,
   effectiveCategory,
   groupByPriority,
+  dueDateLabel,
+  foldVisit,
   matchLocal,
   migrateScopeId,
   mergeSearch,
@@ -438,6 +441,44 @@ describe('search', () => {
   })
 })
 
+describe('docSnippet — a snippet line the row has not already said (GDK-890)', () => {
+  const titleHit = { field: 'title' as const, snippet: 'Pairing runbook' }
+  const bodyHit = { field: 'body' as const, snippet: '…scan the QR the desktop prints…' }
+
+  it('drops the snippet when the title already shows the query', () => {
+    // The defect's own shape: FTS matched the title, so its snippet IS the
+    // title — row2 would read the title back under itself. Before GDK-890,
+    // Search.svelte passed serverMatches[page.key]?.snippet through
+    // unconditionally and rendered exactly that row.
+    expect(docSnippet(titleHit, 'Pairing runbook', 'runbook')).toBe('')
+  })
+
+  it('matches a query word case-insensitively, like the web rule', () => {
+    expect(docSnippet(titleHit, 'Pairing Runbook', 'RUNBOOK')).toBe('')
+  })
+
+  it('keeps the snippet when the match is in another field', () => {
+    expect(docSnippet(bodyHit, 'Pairing runbook', 'qr')).toBe(bodyHit.snippet)
+  })
+
+  it('keeps the snippet when the server matched but the title does not show it', () => {
+    // The web rule's own conservative case (search-match.ts): the server
+    // matches each token separately, the title check needs whole words —
+    // "qr scan" hit on the server, neither word is in the title, so the
+    // snippet is the only reason this row has.
+    expect(docSnippet(bodyHit, 'Pairing runbook', 'qr scan')).toBe(bodyHit.snippet)
+  })
+
+  it('keeps the snippet when there is no query to judge against', () => {
+    expect(docSnippet(bodyHit, 'Pairing runbook', '   ')).toBe(bodyHit.snippet)
+  })
+
+  it('returns empty for no match at all', () => {
+    expect(docSnippet(undefined, 'Pairing runbook', 'runbook')).toBe('')
+    expect(docSnippet(null, 'Pairing runbook', 'elsewhere')).toBe('')
+  })
+})
+
 describe('relTime', () => {
   const now = new Date('2026-08-25T12:00:00Z')
   it('steps now → m → h → d → date', () => {
@@ -714,5 +755,54 @@ describe('no duplicate built-in scope (GDK-1542)', () => {
       expect(twin, `${scope.id} and ${twin} carry identical filters`).toBeUndefined()
       seen.set(s, scope.id)
     }
+  })
+})
+
+describe('foldVisit — the ledger after one more read (GDK-875)', () => {
+  it('moves the opened key to the front at the new stamp, keeping the rest in order', () => {
+    const ledger = [
+      { key: 'STD-1', viewed_at: '2026-09-01T00:00:00Z' },
+      { key: 'STD-2', viewed_at: '2026-09-02T00:00:00Z' },
+      { key: 'STD-3', viewed_at: '2026-09-03T00:00:00Z' },
+    ]
+    const next = foldVisit(ledger, 'STD-2', '2026-09-11T00:00:00Z')
+    expect(next.map((v) => v.key)).toEqual(['STD-2', 'STD-1', 'STD-3'])
+    expect(next[0]?.viewed_at).toBe('2026-09-11T00:00:00Z')
+    // Input not mutated — the store assigns the return, not a push.
+    expect(ledger).toHaveLength(3)
+    expect(ledger[0]?.key).toBe('STD-1')
+  })
+
+  it('appends a key the ledger has never seen', () => {
+    const next = foldVisit([], 'STD-9', '2026-09-11T00:00:00Z')
+    expect(next).toEqual([{ key: 'STD-9', viewed_at: '2026-09-11T00:00:00Z' }])
+  })
+})
+
+describe('dueDateLabel — a date-kind value keeps its calendar day (GDK-875)', () => {
+  it('formats YYYY-MM-DD in the asked locale, year included', () => {
+    // 2-digit month/day is the desk's absolute form (formatAbs, date kind).
+    expect(dueDateLabel('2026-09-30', 'en-US')).toBe('09/30/2026')
+    expect(dueDateLabel('2026-09-30', 'ja')).toBe('2026/09/30')
+  })
+
+  it('never shifts a date-only value across a zone boundary', () => {
+    // The Americas trap: `new Date('2026-09-30')` is UTC midnight, which
+    // a western zone renders as 09/29. The date-kind branch builds local
+    // midnight from the YMD parts instead, so the label is the same day
+    // whichever zone this machine sits in — asserted on both edges.
+    expect(dueDateLabel('2026-09-30', 'en-US')).toBe('09/30/2026')
+    expect(dueDateLabel('2026-01-01', 'en-US')).toBe('01/01/2026')
+  })
+
+  it('answers empty for missing input, and echoes junk like the owner does', () => {
+    // null/'' → '' (formatAbs's own first line). Unparseable junk is echoed
+    // raw, also the owner's branch (`if (!day) return raw`): the point of
+    // borrowing the desk's formatter is that the two surfaces never say
+    // different things about the same bytes — a phone-side '' would be a
+    // second, stricter contract the desk does not hold.
+    expect(dueDateLabel(null)).toBe('')
+    expect(dueDateLabel('')).toBe('')
+    expect(dueDateLabel('not a date')).toBe('not a date')
   })
 })

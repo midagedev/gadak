@@ -11,6 +11,95 @@ import { SERVE_ORIGIN } from '../playwright.config'
 // own @playwright/test install too.
 import { readTerm } from '../../e2e/term-read'
 
+/*
+ * Signal-first PTY wait (GDK-1552). `expect.poll(readTerm(page))` walked the
+ * whole xterm buffer on every tick, and under parallel load those evaluate
+ * round-trips competed with the pane's own WS message handling — the poll
+ * starved the very socket it was waiting on, and gdk865-echo timed out with
+ * the bytes already on the wire. Playwright hands websocket frames to the
+ * test as CDP events, outside the page's runtime, so the WAIT rides those:
+ * construct this before the socket can open (the pane attaches later), and
+ * waitFor resolves when received frames' bytes contain the needle. Frames
+ * already seen satisfy a later waitFor. Frame CONTENT is never printed —
+ * PTY bytes are whatever the shell chose to say — so the timeout reports
+ * socket/frame/byte counts, which is the diagnosis that matters (0 sockets
+ * = attach never happened; 0 frames = connection dead; bytes but no needle
+ * = echo never came). The DOM is read only after the signal, as a bounded
+ * confirmation that the renderer painted what arrived — never as the wait.
+ */
+class PtyFrames {
+  private static readonly CAP = 1 << 20
+  private all = ''
+  /** Bytes dropped by the cap, so cursors stay absolute across it. */
+  private base = 0
+  private bytes = 0
+  private frames = 0
+  private sockets = 0
+  private waiters: { needle: string; from: number; resolve: () => void }[] = []
+
+  constructor(page: Page) {
+    page.on('websocket', (ws) => {
+      this.sockets += 1
+      ws.on('framereceived', (frame) => {
+        // latin1, not utf8: PTY bytes are arbitrary, and the needles are
+        // ASCII — a decoding error on junk bytes must not lose the needle.
+        const chunk =
+          typeof frame.payload === 'string' ? frame.payload : frame.payload.toString('latin1')
+        this.frames += 1
+        this.bytes += chunk.length
+        this.all += chunk
+        if (this.all.length > PtyFrames.CAP) {
+          const drop = this.all.length - (PtyFrames.CAP >> 1)
+          this.all = this.all.slice(drop)
+          this.base += drop
+        }
+        this.waiters = this.waiters.filter((w) => {
+          const hay = w.from <= this.base ? this.all : this.all.slice(w.from - this.base)
+          if (!hay.includes(w.needle)) return true
+          w.resolve()
+          return false
+        })
+      })
+    })
+  }
+
+  /** Position in the received-byte stream — waitFor({from}) matches only
+   *  bytes that arrive after it, which is how a replay is told from the
+   *  original delivery of the same text. */
+  cursor(): number {
+    return this.base + this.all.length
+  }
+
+  waitFor(needle: string, opts: { timeout?: number; from?: number } = {}): Promise<void> {
+    const timeout = opts.timeout ?? 20_000
+    const from = opts.from ?? 0
+    const seen = () => {
+      const hay = from <= this.base ? this.all : this.all.slice(from - this.base)
+      return hay.includes(needle)
+    }
+    if (seen()) return Promise.resolve()
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.waiters = this.waiters.filter((w) => w.resolve !== resolve)
+        reject(
+          new Error(
+            `no PTY frame carried "${needle}" after ${timeout}ms — ` +
+              `${this.sockets} websocket(s), ${this.frames} frame(s), ${this.bytes} byte(s) received`,
+          ),
+        )
+      }, timeout)
+      this.waiters.push({
+        needle,
+        from,
+        resolve: () => {
+          clearTimeout(timer)
+          resolve()
+        },
+      })
+    })
+  }
+}
+
 /**
  * Evidence captures for this file are env-gated (v0.21 release audit,
  * capture-hygiene finding): they used to write /tmp/gadak-865c/ on every run
@@ -104,6 +193,7 @@ test.describe('shell tab', () => {
   }) => {
     // Protects: first activation creates a session, attaches, and typed
     // bytes come back as PTY echo — not a fake local terminal.
+    const frames = new PtyFrames(page)
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     await waitPaired(page)
     await pairShell(page)
@@ -111,7 +201,10 @@ test.describe('shell tab', () => {
     await expect(page.getByRole('heading', { name: 'This Mac (dev)' })).toBeVisible()
 
     await typeLine(page, "printf 'gdk865-echo\\n'")
-    await expect.poll(async () => readTerm(page), { timeout: 20_000 }).toContain('gdk865-echo')
+    await frames.waitFor('gdk865-echo')
+    // The one DOM confirmation (GDK-1552): the signal says the bytes arrived
+    // over the socket; this bounded poll says the renderer painted them.
+    await expect.poll(async () => readTerm(page), { timeout: 5_000 }).toContain('gdk865-echo')
 
     await shootShell(page, 'shell-keyboard-down.png')
   })
@@ -119,13 +212,17 @@ test.describe('shell tab', () => {
   test('a key-bar Ctrl+c interrupts a running command', async ({ page }) => {
     // Protects: sticky Ctrl looks armed, then a letter sends the control
     // byte, and a running command is interrupted rather than typed through.
+    const frames = new PtyFrames(page)
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     await waitPaired(page)
     await pairShell(page)
     await openShell(page)
 
     await typeLine(page, 'sleep 60')
-    await expect.poll(async () => readTerm(page), { timeout: 10_000 }).toMatch(/sleep 60/)
+    // Signal-only (GDK-1552): this wait just proves the command started —
+    // the PTY's own echo of the typed line is the signal. The DOM below is
+    // read once, for the printf the interrupt must have made possible.
+    await frames.waitFor('sleep 60', { timeout: 10_000 })
 
     const ctrl = page.getByRole('button', { name: 'Ctrl' })
     await ctrl.click()
@@ -135,7 +232,8 @@ test.describe('shell tab', () => {
     await expect(ctrl).toHaveAttribute('aria-pressed', 'false')
 
     await typeLine(page, "printf 'gdk865-int\\n'")
-    await expect.poll(async () => readTerm(page), { timeout: 20_000 }).toContain('gdk865-int')
+    await frames.waitFor('gdk865-int')
+    await expect.poll(async () => readTerm(page), { timeout: 5_000 }).toContain('gdk865-int')
   })
 
   test('the pane recovers after the socket drops and replayed scrollback still holds earlier output', async ({
@@ -143,14 +241,22 @@ test.describe('shell tab', () => {
   }) => {
     // Protects: a dropped socket (the normal case on a phone) reattaches
     // inside the grace, and the ring replay still shows what was typed.
+    const frames = new PtyFrames(page)
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     await waitPaired(page)
     await pairShell(page)
     await openShell(page)
 
     await typeLine(page, "printf 'gdk865-keep\\n'")
-    await expect.poll(async () => readTerm(page), { timeout: 20_000 }).toContain('gdk865-keep')
+    await frames.waitFor('gdk865-keep')
 
+    // Cursor BEFORE the drop, not after reattach (GDK-1552): the replay can
+    // start the instant the new socket opens, so a cursor read after
+    // `data-attached` would already be past it. The dying socket sends
+    // nothing between here and the drop, so everything past this cursor is
+    // reattach traffic — and the replay arrives on the NEW socket as the
+    // SAME text a second time, which is exactly what `from` must isolate.
+    const replayFrom = frames.cursor()
     await page.evaluate(() => {
       ;(window as unknown as { __gadakShellDrop?: () => void }).__gadakShellDrop?.()
     })
@@ -158,7 +264,10 @@ test.describe('shell tab', () => {
     await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-attached', 'true', {
       timeout: 20_000,
     })
-    await expect.poll(async () => readTerm(page), { timeout: 20_000 }).toContain('gdk865-keep')
+    // The DOM confirm is the test's actual claim: the ring replay paints,
+    // not just arrives.
+    await frames.waitFor('gdk865-keep', { from: replayFrom })
+    await expect.poll(async () => readTerm(page), { timeout: 5_000 }).toContain('gdk865-keep')
   })
 
   test('no horizontal overflow, and the key bar sits above the bottom chrome', async ({

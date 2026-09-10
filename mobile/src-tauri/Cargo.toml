@@ -6,10 +6,12 @@ edition = "2021"
 
 # Default create-tauri-app v2 shape: the lib target is what iOS/Android build,
 # main.rs is the desktop entry. Plugins (GDK-800 A-native): http is the
-# packaged app's transport (webview fetch dies at the serve gate); websocket
-# is the packaged PTY socket (webview WebSocket cannot set Authorization);
+# packaged app's transport (webview fetch dies at the serve gate);
 # secure-storage backs the token commands; barcode-scanner is the QR pairing
 # scan, called by src/screens/PairGate.svelte and src/screens/PairingTab.svelte.
+# The PTY socket is not a plugin anymore (GDK-897): src/shell.rs dials it
+# with tokio-tungstenite from the stored pairing — the websocket plugin's
+# process-wide, allowlist-free grant was the hole that command closed.
 [lib]
 name = "gadak_mobile_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
@@ -22,7 +24,15 @@ tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-http = "2"
-tauri-plugin-websocket = "2"
+# The shell dial (GDK-897), pinned to the 0.26 line this was built and
+# type-checked against (its Message::Text/Binary already carry the
+# Utf8Bytes/Bytes newtypes — conversions in shell.rs are explicit).
+# webpki-roots because the endpoints are ts.net's Let's Encrypt certs and
+# loopback — no system trust store needed, and none of the native-tls
+# linking on iOS.
+tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
+futures-util = "0.3"
+tokio = { version = "1", features = ["sync", "macros"] }
 # Community plugin on its own version line — 1.x never tracked tauri's major
 # and 1.5.0 (2026-05-05) is the newest published; it declares tauri ^2.6.2.
 # Not drift (GDK-1469). Exit condition unchanged: swap when plugins-workspace

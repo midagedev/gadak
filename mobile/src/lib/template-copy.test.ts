@@ -79,12 +79,18 @@ function template(path: string): string {
 
 const ENGLISH_WORD = /[A-Za-z]{2,}/
 
-/** Balanced-paren removal of `t(…)` calls, so their keys are not "copy". */
-function withoutTCalls(expr: string): string {
+/** Balanced-paren removal of catalog-key calls — `t(…)` and `fieldLabel(…)`
+ *  — so their key arguments are not read as copy. Both take a catalog key,
+ *  never a reader-facing word; fieldLabel joined t() in templates with
+ *  GDK-875's due-date meta line (2026-09-11), and this gate failed on that
+ *  source first — the key 'due' flagged as English text — before this
+ *  taught it the accessor family. Same accepted tradeoff as t(): the
+ *  argument is trusted as a key; vocabulary.test.ts catches invented ones. */
+function withoutKeyCalls(expr: string): string {
   let out = expr
   let guard = 0
   while (guard++ < 50) {
-    const start = out.search(/\bt\s*\(/)
+    const start = out.search(/\b(?:t|fieldLabel)\s*\(/)
     if (start === -1) break
     let depth = 0
     let end = -1
@@ -158,7 +164,7 @@ function copyLiterals(path: string): { kind: 'attr' | 'text'; value: string }[] 
           if (depth === 0) break
         }
       }
-      const expr = withoutTCalls(src.slice(i + 1, j)).replace(COMPARE_LITERAL, '')
+      const expr = withoutKeyCalls(src.slice(i + 1, j)).replace(COMPARE_LITERAL, '')
       for (const q of expr.matchAll(/'([^']*)'|"([^"]*)"/g)) {
         const value = q[1] ?? q[2] ?? ''
         if (ENGLISH_WORD.test(value)) out.push({ kind: 'text', value })
