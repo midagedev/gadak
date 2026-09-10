@@ -153,14 +153,11 @@ type JiraOptions struct {
 }
 
 // JiraReport is the run's honest half, in the Linear report's shape:
-// counts, the mapping applied, and what did not travel.
+// counts, the mapping applied, and what did not travel (reportCore).
 type JiraReport struct {
-	Project     string      `json:"project"`
-	DryRun      bool        `json:"dry_run"`
-	Counts      []VerifyRow `json:"counts"`
-	Mapping     []string    `json:"mapping"`
-	NotMigrated []string    `json:"not_migrated"`
-	Warnings    []string    `json:"warnings,omitempty"`
+	Project string `json:"project"`
+	DryRun  bool   `json:"dry_run"`
+	reportCore
 }
 
 // jiraLinkName normalizes a source link-type name for matching against the
@@ -287,6 +284,12 @@ func jiraMigrateJQL(project string) string {
 // ToJira emits doc into project opt.ProjectKey through client. st is the
 // Build stats (for the not-migrated rows). Only doc.Issues travel; wiki
 // pages would need a Confluence space and are reported instead.
+//
+// The run is a seven-stage pipeline on jiraRun: loadSource and sourceReport
+// are the network-free dry-run product, and past the dry-run gate
+// preflightTarget, scanExisting, createIssues, completeIssues and createLinks
+// run in that order. counts closes the report either way. The stage methods
+// carry the per-step rationale.
 func ToJira(ctx context.Context, client *jira.Client, doc *Doc, st *Stats, opt JiraOptions) (*JiraReport, error) {
 	if opt.ProjectKey == "" {
 		return nil, fmt.Errorf("migrate: --project <KEY> is required for --to jira")
@@ -296,211 +299,297 @@ func ToJira(ctx context.Context, client *jira.Client, doc *Doc, st *Stats, opt J
 	if progress == nil {
 		progress = io.Discard
 	}
-
-	issues, keyset, droppedParents, droppedLinks := scopeIssues(doc.Issues, opt.Limit)
-	tally := tallyIssues(issues)
-	relations := foldRelations(issues, jiraLinkName, jiraSymmetricLink)
-
-	names := map[string]string{}
-	for _, u := range doc.Users {
-		names[u.AccountID] = u.DisplayName
+	r := &jiraRun{ctx: ctx, client: client, doc: doc, st: st, opt: opt, rep: rep, progress: progress}
+	r.loadSource()
+	r.sourceReport()
+	if opt.DryRun {
+		r.counts(nil, nil)
+		return rep, nil
 	}
-	typeName := map[string]string{}
-	for _, t := range doc.IssueTypes {
-		typeName[t.ID] = t.Name
+
+	// --- network from here on ---
+	if err := r.preflightTarget(); err != nil {
+		return nil, err
 	}
-	cats := map[string]bool{}
+	if err := r.scanExisting(); err != nil {
+		return nil, err
+	}
+	if err := r.createIssues(); err != nil {
+		return nil, err
+	}
+	if err := r.completeIssues(); err != nil {
+		return nil, err
+	}
+	if err := r.createLinks(); err != nil {
+		return nil, err
+	}
+	r.counts(r.created, r.skipped)
+	return rep, nil
+}
+
+// jiraRun is one ToJira execution: the inputs it started from, the report it
+// fills, and the state one pipeline stage hands the next. See ToJira for the
+// stage order.
+type jiraRun struct {
+	ctx      context.Context
+	client   *jira.Client
+	doc      *Doc
+	st       *Stats
+	opt      JiraOptions
+	rep      *JiraReport
+	progress io.Writer
+
+	// loadSource: the migrated set and the source-side numbers.
+	issues         []Issue
+	keyset         map[string]bool
+	droppedParents int
+	droppedLinks   int
+	tally          sourceTally
+	relations      []relation
+	names          map[string]string
+	typeName       map[string]string
+	cats           map[string]bool
+	labelSet       map[string]bool
+	rankList       []int
+
+	// preflightTarget: the target's catalogs and what was mapped onto them.
+	types         []jira.CreateMetaIssueType
+	defaultType   jira.CreateMetaIssueType
+	priorities    []jira.NamedID
+	srcPriorities int
+	linkTypeID    map[string]string
+	relatesID     string
+
+	// the write stages' tallies.
+	existing  map[string]string // source key → target key
+	created   map[string]int
+	skipped   map[string]int
+	newLabels map[string]bool
+	oldLabels map[string]bool
+	target    map[string]string
+}
+
+// loadSource is stage 1: cut the doc to the migrated set and tally every
+// source-side number the report and the count table need. No network.
+func (r *jiraRun) loadSource() {
+	r.issues, r.keyset, r.droppedParents, r.droppedLinks = scopeIssues(r.doc.Issues, r.opt.Limit)
+	r.tally = tallyIssues(r.issues)
+	r.relations = foldRelations(r.issues, jiraLinkName, jiraSymmetricLink)
+
+	r.names = map[string]string{}
+	for _, u := range r.doc.Users {
+		r.names[u.AccountID] = u.DisplayName
+	}
+	r.typeName = map[string]string{}
+	for _, t := range r.doc.IssueTypes {
+		r.typeName[t.ID] = t.Name
+	}
+	r.cats = map[string]bool{}
 	ranks := map[int]bool{}
-	labelSet := map[string]bool{}
-	linkNames := map[string]bool{}
-	for _, is := range issues {
-		cats[is.StatusCategory] = true
+	r.labelSet = map[string]bool{}
+	for _, is := range r.issues {
+		r.cats[is.StatusCategory] = true
 		ranks[is.PriorityRank] = true
 		for _, l := range is.Labels {
-			labelSet[l] = true
-		}
-		for _, l := range is.Links {
-			linkNames[jiraLinkName(l.Type)] = true
+			r.labelSet[l] = true
 		}
 	}
-
-	rankList := make([]int, 0, len(ranks))
-	for r := range ranks {
-		rankList = append(rankList, r)
+	r.rankList = make([]int, 0, len(ranks))
+	for rk := range ranks {
+		r.rankList = append(r.rankList, rk)
 	}
-	sort.Ints(rankList)
+	sort.Ints(r.rankList)
+}
 
-	for _, c := range slices.Sorted(maps.Keys(cats)) {
-		rep.Mapping = append(rep.Mapping, fmt.Sprintf("status_category %-10s → one transition into a target status of the same category (names are never matched)", c))
+// sourceReport is stage 2: the network-free half of the report — the
+// mapping lines that need no target catalog, and everything that did not
+// travel.
+func (r *jiraRun) sourceReport() {
+	for _, c := range slices.Sorted(maps.Keys(r.cats)) {
+		r.rep.Mapping = append(r.rep.Mapping, fmt.Sprintf("status_category %-10s → one transition into a target status of the same category (names are never matched)", c))
 	}
-	rep.Mapping = append(rep.Mapping,
+	r.rep.Mapping = append(r.rep.Mapping,
 		"priority_rank   → the same position in the target site's priority catalog (proportional when the two catalogs differ in length)",
 		"issue type      → the target project's type of the same name; otherwise the project's default type",
 		"link types      → the target site's link type of the same name; otherwise Relates",
 		"comments        → body prefixed with a bold `author · time` line (Jira posts as the credential's user)",
 		"description     → the origin's ADF plus a `gadak-migrate: <KEY>` footer (the idempotency key)",
-		fmt.Sprintf("labels          → carried as-is (%d distinct)", len(labelSet)))
+		fmt.Sprintf("labels          → carried as-is (%d distinct)", len(r.labelSet)))
 
-	rep.NotMigrated = append(rep.NotMigrated,
-		fmt.Sprintf("history %d (Jira has no changelog write API — reopen counts and time-in-status start over at the target)", tally.history),
-		fmt.Sprintf("authorship: the reporter and the authors of %d comments are text in the body; the credential's own user is the creator, and created/updated are the migration's own", tally.comments),
-		fmt.Sprintf("assignees %d (the source's account ids do not exist on the target site; assign after the move)", tally.assigned))
-	if opt.SkipAttachments && tally.attachments > 0 {
-		rep.NotMigrated = append(rep.NotMigrated, fmt.Sprintf("attachment bytes %d (--skip-attachments: the count table shows them as not uploaded)", tally.attachments))
+	r.rep.NotMigrated = append(r.rep.NotMigrated,
+		fmt.Sprintf("history %d (Jira has no changelog write API — reopen counts and time-in-status start over at the target)", r.tally.history),
+		fmt.Sprintf("authorship: the reporter and the authors of %d comments are text in the body; the credential's own user is the creator, and created/updated are the migration's own", r.tally.comments),
+		fmt.Sprintf("assignees %d (the source's account ids do not exist on the target site; assign after the move)", r.tally.assigned))
+	if r.opt.SkipAttachments && r.tally.attachments > 0 {
+		r.rep.NotMigrated = append(r.rep.NotMigrated, fmt.Sprintf("attachment bytes %d (--skip-attachments: the count table shows them as not uploaded)", r.tally.attachments))
 	}
-	if st != nil {
-		if st.Pages > 0 {
-			rep.NotMigrated = append(rep.NotMigrated, fmt.Sprintf("wiki pages %d (this verb writes issues; a Confluence space is not a migrate destination)", st.Pages))
+	if r.st != nil {
+		if r.st.Pages > 0 {
+			r.rep.NotMigrated = append(r.rep.NotMigrated, fmt.Sprintf("wiki pages %d (this verb writes issues; a Confluence space is not a migrate destination)", r.st.Pages))
 		}
-		if st.DevLinks+st.CustomIssues+st.SprintIssues > 0 {
-			rep.NotMigrated = append(rep.NotMigrated, fmt.Sprintf("dev links %d, issues with custom fields %d, issues with sprints %d", st.DevLinks, st.CustomIssues, st.SprintIssues))
+		if r.st.DevLinks+r.st.CustomIssues+r.st.SprintIssues > 0 {
+			r.rep.NotMigrated = append(r.rep.NotMigrated, fmt.Sprintf("dev links %d, issues with custom fields %d, issues with sprints %d", r.st.DevLinks, r.st.CustomIssues, r.st.SprintIssues))
 		}
 	}
-	if droppedParents+droppedLinks > 0 {
-		rep.NotMigrated = append(rep.NotMigrated, fmt.Sprintf("parents %d and links %d pointing outside the migrated set", droppedParents, droppedLinks))
+	if r.droppedParents+r.droppedLinks > 0 {
+		r.rep.NotMigrated = append(r.rep.NotMigrated, fmt.Sprintf("parents %d and links %d pointing outside the migrated set", r.droppedParents, r.droppedLinks))
 	}
+}
 
-	attachSource := tally.attachments
-	counts := func(created, skipped map[string]int) {
-		row := func(metric string, source int) {
-			rep.Counts = append(rep.Counts, VerifyRow{Metric: metric, Source: source,
-				Migrated: created[metric] + skipped[metric], Skipped: skipped[metric]})
-		}
-		row("issues", len(issues))
-		row("comments", tally.comments)
-		row("parents", tally.parents)
-		row("links", len(relations))
-		row("labels", len(labelSet))
-		row("attachments", attachSource)
-	}
-	if opt.DryRun {
-		counts(nil, nil)
-		return rep, nil
-	}
+// counts appends the count table, the report's last rows in a dry run and
+// in a real one (nil maps in the dry run: nothing was created or skipped).
+func (r *jiraRun) counts(created, skipped map[string]int) {
+	r.rep.addCountRow("issues", len(r.issues), created, skipped)
+	r.rep.addCountRow("comments", r.tally.comments, created, skipped)
+	r.rep.addCountRow("parents", r.tally.parents, created, skipped)
+	r.rep.addCountRow("links", len(r.relations), created, skipped)
+	r.rep.addCountRow("labels", len(r.labelSet), created, skipped)
+	r.rep.addCountRow("attachments", r.tally.attachments, created, skipped)
+}
 
-	// --- network from here on ---
-	metas, err := client.CreateMeta(ctx, []string{opt.ProjectKey})
+// preflightTarget is stage 3: read the target's catalogs before the first
+// write — creatable issue types, the priority catalog, link types — and
+// append the mapping lines that could only be written once those were read.
+func (r *jiraRun) preflightTarget() error {
+	metas, err := r.client.CreateMeta(r.ctx, []string{r.opt.ProjectKey})
 	if err != nil {
-		return nil, fmt.Errorf("createmeta for project %s: %w", opt.ProjectKey, err)
+		return fmt.Errorf("createmeta for project %s: %w", r.opt.ProjectKey, err)
 	}
-	var types []jira.CreateMetaIssueType
 	for _, m := range metas {
-		if strings.EqualFold(m.Key, opt.ProjectKey) {
-			types = m.IssueTypes
+		if strings.EqualFold(m.Key, r.opt.ProjectKey) {
+			r.types = m.IssueTypes
 		}
 	}
-	if len(types) == 0 {
-		return nil, fmt.Errorf("migrate: project %s has no creatable issue type for this credential", opt.ProjectKey)
+	if len(r.types) == 0 {
+		return fmt.Errorf("migrate: project %s has no creatable issue type for this credential", r.opt.ProjectKey)
 	}
 	// The default is the first non-subtask type: a sub-task cannot be
 	// created without a parent, so it can never be the fallback.
-	defaultType := types[0]
-	for _, t := range types {
+	r.defaultType = r.types[0]
+	for _, t := range r.types {
 		if !t.Subtask {
-			defaultType = t
+			r.defaultType = t
 			break
 		}
 	}
-	typeIDFor := func(sourceType string) (string, string) {
-		want := typeName[sourceType]
-		if want != "" {
-			for _, t := range types {
-				if strings.EqualFold(t.Name, want) || strings.EqualFold(t.UntranslatedName, want) {
-					return t.ID, t.Name
-				}
-			}
-		}
-		return defaultType.ID, defaultType.Name
-	}
 	typeMapped := map[string]string{}
-	for _, is := range issues {
+	for _, is := range r.issues {
 		if _, seen := typeMapped[is.Type]; seen {
 			continue
 		}
-		_, to := typeIDFor(is.Type)
-		from := typeName[is.Type]
+		_, to := r.typeIDFor(is.Type)
+		from := r.typeName[is.Type]
 		if from == "" {
 			from = "(none)"
 		}
 		typeMapped[is.Type] = to
-		rep.Mapping = append(rep.Mapping, fmt.Sprintf("issue type %-14s → %q", from, to))
+		r.rep.Mapping = append(r.rep.Mapping, fmt.Sprintf("issue type %-14s → %q", from, to))
 	}
 
-	priorities, err := client.PriorityCatalog(ctx)
+	priorities, err := r.client.PriorityCatalog(r.ctx)
 	if err != nil {
-		return nil, fmt.Errorf("priority catalog: %w", err)
+		return fmt.Errorf("priority catalog: %w", err)
 	}
-	srcPriorities := len(doc.Priorities)
-	if srcPriorities == 0 {
-		for _, r := range rankList {
-			if r > srcPriorities {
-				srcPriorities = r
+	r.priorities = priorities
+	r.srcPriorities = len(r.doc.Priorities)
+	if r.srcPriorities == 0 {
+		for _, rk := range r.rankList {
+			if rk > r.srcPriorities {
+				r.srcPriorities = rk
 			}
 		}
 	}
-	priorityIDFor := func(rank int) (string, string) {
-		i := jiraPriorityIndex(rank, srcPriorities, len(priorities))
-		if i < 0 {
-			return "", ""
-		}
-		return priorities[i].ID, priorities[i].Name
-	}
-	for _, r := range rankList {
-		_, name := priorityIDFor(r)
+	for _, rk := range r.rankList {
+		_, name := r.priorityIDFor(rk)
 		if name == "" {
-			rep.Mapping = append(rep.Mapping, fmt.Sprintf("priority_rank %d → (unset — the project's default)", r))
+			r.rep.Mapping = append(r.rep.Mapping, fmt.Sprintf("priority_rank %d → (unset — the project's default)", rk))
 			continue
 		}
-		rep.Mapping = append(rep.Mapping, fmt.Sprintf("priority_rank %d → %q", r, name))
+		r.rep.Mapping = append(r.rep.Mapping, fmt.Sprintf("priority_rank %d → %q", rk, name))
 	}
 
-	linkTypes, err := client.IssueLinkTypes(ctx)
+	linkTypes, err := r.client.IssueLinkTypes(r.ctx)
 	if err != nil {
-		return nil, fmt.Errorf("issue link types: %w", err)
+		return fmt.Errorf("issue link types: %w", err)
 	}
-	linkTypeID := map[string]string{}
+	r.linkTypeID = map[string]string{}
 	for _, lt := range linkTypes {
-		linkTypeID[jiraLinkName(lt.Name)] = lt.ID
+		r.linkTypeID[jiraLinkName(lt.Name)] = lt.ID
 	}
-	relatesID := linkTypeID["relates"]
+	r.relatesID = r.linkTypeID["relates"]
+	return nil
+}
 
-	// Existing rows by footer — the idempotency scan.
-	existing := map[string]string{} // source key → target key
-	err = client.Search(ctx, jiraMigrateJQL(opt.ProjectKey), []string{"description"}, false, func(page []jira.Issue) error {
+// typeIDFor maps a source issue type onto a creatable target type: the
+// project's type of the same name (createmeta's own spelling, translated or
+// untranslated), otherwise the project's default type.
+func (r *jiraRun) typeIDFor(sourceType string) (string, string) {
+	want := r.typeName[sourceType]
+	if want != "" {
+		for _, t := range r.types {
+			if strings.EqualFold(t.Name, want) || strings.EqualFold(t.UntranslatedName, want) {
+				return t.ID, t.Name
+			}
+		}
+	}
+	return r.defaultType.ID, r.defaultType.Name
+}
+
+// priorityIDFor maps a source priority_rank onto the target site's priority
+// catalog (jiraPriorityIndex); "" means leave unset and land on the default.
+func (r *jiraRun) priorityIDFor(rank int) (string, string) {
+	i := jiraPriorityIndex(rank, r.srcPriorities, len(r.priorities))
+	if i < 0 {
+		return "", ""
+	}
+	return r.priorities[i].ID, r.priorities[i].Name
+}
+
+// scanExisting is stage 4: the idempotency scan — every issue in the target
+// project whose description carries the migrate footer, keyed by source key.
+func (r *jiraRun) scanExisting() error {
+	r.existing = map[string]string{} // source key → target key
+	err := r.client.Search(r.ctx, jiraMigrateJQL(r.opt.ProjectKey), []string{"description"}, false, func(page []jira.Issue) error {
 		for _, ji := range page {
 			if k := parseMigrateFooter(adf.PlainText(ji.Fields.Description)); k != "" {
-				existing[k] = ji.Key
+				r.existing[k] = ji.Key
 			}
 		}
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("scan %s for already-migrated issues: %w", opt.ProjectKey, err)
+		return fmt.Errorf("scan %s for already-migrated issues: %w", r.opt.ProjectKey, err)
 	}
+	return nil
+}
 
-	created := map[string]int{}
-	skipped := map[string]int{}
-	newLabels := map[string]bool{}
-	oldLabels := map[string]bool{}
-	target := map[string]string{} // source key → target key
-	for k, tk := range existing {
-		if keyset[k] {
-			target[k] = tk
+// createIssues is stage 5: create the not-yet-migrated issues parent-first
+// (the parent field rides the create call), then account the labels against
+// what this run's creates actually carried.
+func (r *jiraRun) createIssues() error {
+	r.created = map[string]int{}
+	r.skipped = map[string]int{}
+	r.newLabels = map[string]bool{}
+	r.oldLabels = map[string]bool{}
+	r.target = map[string]string{} // source key → target key
+	for k, tk := range r.existing {
+		if r.keyset[k] {
+			r.target[k] = tk
 		}
 	}
 
 	var pending []*Issue
-	for i := range issues {
-		is := &issues[i]
-		if _, ok := existing[is.Key]; ok {
+	for i := range r.issues {
+		is := &r.issues[i]
+		if _, ok := r.existing[is.Key]; ok {
 			// Counted as "already there": the whole issue and everything
 			// under it. An earlier run's own misses stay visible in the
 			// mismatch column rather than being re-attempted.
-			skipped["issues"]++
-			skipped["comments"] += len(is.Comments)
-			skipped["attachments"] += len(is.Attachments)
+			r.skipped["issues"]++
+			r.skipped["comments"] += len(is.Comments)
+			r.skipped["attachments"] += len(is.Attachments)
 			if is.Parent != "" {
-				skipped["parents"]++
+				r.skipped["parents"]++
 			}
 			continue
 		}
@@ -512,18 +601,18 @@ func ToJira(ctx context.Context, client *jira.Client, doc *Doc, st *Stats, opt J
 		var rest []*Issue
 		progressed := false
 		for _, is := range pending {
-			if is.Parent != "" && target[is.Parent] == "" {
+			if is.Parent != "" && r.target[is.Parent] == "" {
 				rest = append(rest, is)
 				continue
 			}
-			typeID, _ := typeIDFor(is.Type)
+			typeID, _ := r.typeIDFor(is.Type)
 			fields := map[string]any{
-				"project":     map[string]any{"key": opt.ProjectKey},
+				"project":     map[string]any{"key": r.opt.ProjectKey},
 				"summary":     is.Summary,
 				"description": jiraDescription(*is),
 				"issuetype":   map[string]any{"id": typeID},
 			}
-			if id, _ := priorityIDFor(is.PriorityRank); id != "" {
+			if id, _ := r.priorityIDFor(is.PriorityRank); id != "" {
 				fields["priority"] = map[string]any{"id": id}
 			}
 			if len(is.Labels) > 0 {
@@ -533,155 +622,168 @@ func ToJira(ctx context.Context, client *jira.Client, doc *Doc, st *Stats, opt J
 				fields["duedate"] = is.Duedate
 			}
 			if is.Parent != "" {
-				fields["parent"] = map[string]any{"key": target[is.Parent]}
+				fields["parent"] = map[string]any{"key": r.target[is.Parent]}
 			}
-			key, err := client.CreateIssue(ctx, fields)
+			key, err := r.client.CreateIssue(r.ctx, fields)
 			if err != nil {
-				return nil, fmt.Errorf("create %s: %w", is.Key, err)
+				return fmt.Errorf("create %s: %w", is.Key, err)
 			}
-			target[is.Key] = key
-			created["issues"]++
+			r.target[is.Key] = key
+			r.created["issues"]++
 			if is.Parent != "" {
-				created["parents"]++
+				r.created["parents"]++
 			}
-			fmt.Fprintf(progress, "%s → %s\n", is.Key, key)
+			fmt.Fprintf(r.progress, "%s → %s\n", is.Key, key)
 			progressed = true
 		}
 		if !progressed {
 			for _, is := range rest {
-				droppedParents++
+				r.droppedParents++
 				is.Parent = ""
 			}
-			rep.Warnings = append(rep.Warnings, fmt.Sprintf("%d parents could not be ordered and were dropped", len(rest)))
+			r.rep.Warnings = append(r.rep.Warnings, fmt.Sprintf("%d parents could not be ordered and were dropped", len(rest)))
 		}
 		pending = rest
 	}
-
-	isNew := func(k string) bool { _, was := existing[k]; return !was && target[k] != "" }
 
 	// Labels are a field on the create call, so they exist the moment the
 	// issue does. A label counts as created only when it rode an issue this
 	// run made; one that appears solely on already-migrated issues is
 	// "already there", which is what a partial re-run has to show.
-	for _, is := range issues {
+	for _, is := range r.issues {
 		for _, l := range is.Labels {
-			if isNew(is.Key) {
-				if !newLabels[l] {
-					newLabels[l] = true
-					created["labels"]++
+			if r.isNew(is.Key) {
+				if !r.newLabels[l] {
+					r.newLabels[l] = true
+					r.created["labels"]++
 				}
-			} else if !oldLabels[l] {
-				oldLabels[l] = true
+			} else if !r.oldLabels[l] {
+				r.oldLabels[l] = true
 			}
 		}
 	}
-	for l := range oldLabels {
-		if !newLabels[l] {
-			skipped["labels"]++
+	for l := range r.oldLabels {
+		if !r.newLabels[l] {
+			r.skipped["labels"]++
 		}
 	}
+	return nil
+}
 
-	for i := range issues {
-		is := &issues[i]
-		if !isNew(is.Key) {
+// isNew says an issue was created by this run: not there at the scan, and
+// holding a target key now.
+func (r *jiraRun) isNew(k string) bool {
+	_, was := r.existing[k]
+	return !was && r.target[k] != ""
+}
+
+// completeIssues is stage 6: the per-issue writes that need the issue to
+// exist — the status transition, the comments, the attachments.
+func (r *jiraRun) completeIssues() error {
+	for i := range r.issues {
+		is := &r.issues[i]
+		if !r.isNew(is.Key) {
 			continue
 		}
-		key := target[is.Key]
+		key := r.target[is.Key]
 
 		// Status: one transition into a status of the same category. The
 		// name is never compared — it is localized per account, and this is
 		// exactly the trap data-model.md names.
 		if cat := statuscat.Category(is.StatusCategory); cat != "new" {
-			trs, err := client.Transitions(ctx, key)
+			trs, err := r.client.Transitions(r.ctx, key)
 			if err != nil {
-				return nil, fmt.Errorf("transitions for %s: %w", key, err)
+				return fmt.Errorf("transitions for %s: %w", key, err)
 			}
 			moved := false
 			for _, tr := range trs {
 				if statuscat.Category(tr.To.StatusCategory.Key) != cat {
 					continue
 				}
-				if err := client.Transition(ctx, key, tr.ID, nil, nil); err != nil {
-					return nil, fmt.Errorf("transition %s to %s: %w", key, cat, err)
+				if err := r.client.Transition(r.ctx, key, tr.ID, nil, nil); err != nil {
+					return fmt.Errorf("transition %s to %s: %w", key, cat, err)
 				}
 				moved = true
 				break
 			}
 			if !moved {
-				rep.Warnings = append(rep.Warnings,
+				r.rep.Warnings = append(r.rep.Warnings,
 					fmt.Sprintf("%s (%s) has no transition into status_category %q from the project's initial status — it stays where it landed", key, is.Key, cat))
 			}
 		}
 
 		for _, c := range is.Comments {
-			who := names[c.Author]
+			who := r.names[c.Author]
 			if who == "" {
 				who = c.Author
 			}
-			if _, err := client.AddComment(ctx, key, jiraCommentBody(strings.TrimSpace(who+" · "+c.Created), c), nil, false); err != nil {
-				return nil, fmt.Errorf("comment on %s: %w", is.Key, err)
+			if _, err := r.client.AddComment(r.ctx, key, jiraCommentBody(strings.TrimSpace(who+" · "+c.Created), c), nil, false); err != nil {
+				return fmt.Errorf("comment on %s: %w", is.Key, err)
 			}
-			created["comments"]++
+			r.created["comments"]++
 		}
 
-		if opt.SkipAttachments {
+		if r.opt.SkipAttachments {
 			continue
 		}
 		for _, a := range is.Attachments {
-			src, warn, err := jiraAttachmentSource(ctx, opt.Fetch, a)
+			src, warn, err := jiraAttachmentSource(r.ctx, r.opt.Fetch, a)
 			if err != nil {
-				return nil, fmt.Errorf("attachment %q on %s: %w", a.Filename, is.Key, err)
+				return fmt.Errorf("attachment %q on %s: %w", a.Filename, is.Key, err)
 			}
 			if warn != "" {
-				rep.Warnings = append(rep.Warnings, fmt.Sprintf("attachment %q on %s: %s", a.Filename, is.Key, warn))
+				r.rep.Warnings = append(r.rep.Warnings, fmt.Sprintf("attachment %q on %s: %s", a.Filename, is.Key, warn))
 			}
 			if src == nil {
 				continue
 			}
-			_, err = client.Upload(ctx, key, a.Filename, src)
+			_, err = r.client.Upload(r.ctx, key, a.Filename, src)
 			src.Close()
 			if err != nil {
-				return nil, fmt.Errorf("attachment %q on %s: %w", a.Filename, is.Key, err)
+				return fmt.Errorf("attachment %q on %s: %w", a.Filename, is.Key, err)
 			}
-			created["attachments"]++
+			r.created["attachments"]++
 		}
 	}
+	return nil
+}
 
+// createLinks is stage 7: the relations, typed against the target site's
+// link catalog with Relates as the fallback.
+func (r *jiraRun) createLinks() error {
 	// A pair whose both ends pre-existed was linked by the run that created
 	// them; only pairs with a new end are new.
 	unlinkable := map[string]bool{}
 	fellBack := map[string]bool{}
-	for _, r := range relations {
-		if !isNew(r.from) && !isNew(r.to) {
-			skipped["links"]++
+	for _, rel := range r.relations {
+		if !r.isNew(rel.from) && !r.isNew(rel.to) {
+			r.skipped["links"]++
 			continue
 		}
-		id := linkTypeID[r.typ]
+		id := r.linkTypeID[rel.typ]
 		note := ""
 		if id == "" {
-			id, note = relatesID, r.typ
+			id, note = r.relatesID, rel.typ
 		}
 		if id == "" {
-			unlinkable[r.typ] = true
+			unlinkable[rel.typ] = true
 			continue
 		}
-		if err := client.LinkIssues(ctx, id, target[r.from], target[r.to]); err != nil {
-			return nil, fmt.Errorf("link %s %s %s: %w", r.from, r.typ, r.to, err)
+		if err := r.client.LinkIssues(r.ctx, id, r.target[rel.from], r.target[rel.to]); err != nil {
+			return fmt.Errorf("link %s %s %s: %w", rel.from, rel.typ, rel.to, err)
 		}
 		if note != "" && !fellBack[note] {
 			fellBack[note] = true
-			rep.Warnings = append(rep.Warnings, fmt.Sprintf("link type %q has no counterpart on the target site — linked as Relates", note))
+			r.rep.Warnings = append(r.rep.Warnings, fmt.Sprintf("link type %q has no counterpart on the target site — linked as Relates", note))
 		}
-		created["links"]++
+		r.created["links"]++
 	}
 	if len(unlinkable) > 0 {
-		rep.NotMigrated = append(rep.NotMigrated,
+		r.rep.NotMigrated = append(r.rep.NotMigrated,
 			fmt.Sprintf("links of %d type(s) absent from the target site, which also has no Relates type: %s",
 				len(unlinkable), strings.Join(slices.Sorted(maps.Keys(unlinkable)), ", ")))
 	}
-
-	counts(created, skipped)
-	return rep, nil
+	return nil
 }
 
 // jiraAttachmentSource opens the bytes one attachment uploads: the source

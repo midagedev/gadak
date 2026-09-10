@@ -61,6 +61,30 @@ const displayNameSQLTrap = "status, priority, and issue type names localize per 
 
 // helps is the per-command help table. Summaries recycle the top-level usage
 // constant; positionals and examples match the real cmdXxx implementations.
+// aliasHelp derives an alias's help from the noun it stands for, so the two
+// entries cannot drift (GDK-1781: the wiki block was a byte-for-byte copy of
+// page with the noun swapped). Usage and examples get the noun replaced;
+// the alias's own summary and seeAlso are the only text it owns.
+func aliasHelp(base cmdHelp, from, to, summary string, seeAlso ...string) cmdHelp {
+	out := base
+	out.summary = summary
+	out.usage = strings.ReplaceAll(base.usage, from+" ", to+" ")
+	out.examples = make([]string, 0, len(base.examples))
+	for _, ex := range base.examples {
+		out.examples = append(out.examples, strings.ReplaceAll(ex, "gadak "+from+" ", "gadak "+to+" "))
+	}
+	out.seeAlso = seeAlso
+	return out
+}
+
+func init() {
+	// The wiki's own noun — the verb a session reading or writing
+	// pages reaches for when it doesn't remember `page`.
+	helps["wiki"] = aliasHelp(helps["page"], "page", "wiki",
+		"alias of page — wiki pages read from the mirror (get, list; no network), written through the origin (create, edit, comment)",
+		"gadak page", "gadak search", "gadak open")
+}
+
 var helps = map[string]cmdHelp{
 	"init": {
 		summary: initSummary,
@@ -724,31 +748,6 @@ var helps = map[string]cmdHelp{
 			"gadak page comment 12345 -m \"question on the retention section\"",
 		},
 		seeAlso: []string{"gadak search", "gadak open"},
-	},
-	// The wiki's own noun — the verb a session reading or writing
-	// pages reaches for when it doesn't remember `page`.
-	"wiki": {
-		summary: "alias of page — wiki pages read from the mirror (get, list; no network), written through the origin (create, edit, comment)",
-		usage: "gadak [--workspace <name>] wiki get <ID> [--json]\n" +
-			"| wiki list [--space K] [--limit N] [--json|--csv|--no-header]\n" +
-			"| wiki create|edit|comment [<ID>]\n" +
-			"[--space K] [--title T] [-m <text|->] [--adf-file F]\n" +
-			"[--parent ID] [--version N] [--force] [--json]",
-		options: []helpOption{
-			{name: "space", desc: "create in this space key (create); list only this space (list)"},
-			{name: "limit", desc: "maximum rows to list (default 30) (list)"},
-			{name: "json", desc: "one JSON object for get; one per row for list"},
-			{name: "csv", desc: "emit CSV with a header row (list)"},
-			{name: "no-header", desc: "omit the TSV/CSV header row (list)"},
-		},
-		examples: []string{
-			"gadak wiki get 12345",
-			"gadak wiki list --space ENG",
-			"gadak wiki create --space ENG --title \"Retention notes\" -m \"first draft\"",
-			"gadak wiki edit 12345 --title \"Renamed page\"",
-			"gadak wiki comment 12345 -m \"question on the retention section\"",
-		},
-		seeAlso: []string{"gadak page", "gadak search", "gadak open"},
 	},
 	"ref": {
 		summary: "point this issue at an issue in another workspace (built-in tracker, here or paired) — the list hydrates the target's live state from that workspace's own mirror, no network",

@@ -590,36 +590,8 @@ func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.
 
 	/* sessions */
 
-	counted := make([]visit, 0, len(visits))
-	for _, v := range visits {
-		if v.source == store.VisitSourceUI || v.source == "" {
-			counted = append(counted, v)
-		}
-	}
-	if len(counted) == 0 {
-		for _, v := range visits {
-			if v.source == store.VisitSourceCLI {
-				counted = append(counted, v)
-			}
-		}
-		rep.CLIFallback = len(counted) > 0
-	}
-	sort.SliceStable(counted, func(i, j int) bool { return counted[i].at.Before(counted[j].at) })
-
-	type session struct {
-		start     time.Time
-		issueKeys map[string]bool
-	}
-	var sessions []session
-	for i, v := range counted {
-		newSession := i == 0 || v.at.Sub(counted[i-1].at) > gap
-		if newSession {
-			sessions = append(sessions, session{start: v.at, issueKeys: map[string]bool{}})
-		}
-		if v.kind == store.VisitKindIssue {
-			sessions[len(sessions)-1].issueKeys[v.key] = true
-		}
-	}
+	sessions, cliFallback := buildSessions(visits, gap)
+	rep.CLIFallback = cliFallback
 
 	for bi := range rep.Buckets {
 		b := &rep.Buckets[bi]
@@ -798,6 +770,49 @@ func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.
 		return rep, err
 	}
 	return rep, nil
+}
+
+// session is one gap-delimited run of counted visits. Only start and
+// issueKeys are read, by Compute's resume walk; buildSessions is the sole
+// constructor.
+type session struct {
+	start     time.Time
+	issueKeys map[string]bool
+}
+
+// buildSessions folds visits into gap-delimited sessions. Counting prefers
+// UI (and legacy source-less) visits and falls back to CLI visits only when
+// no UI visit exists — the second return says that fallback fired, for the
+// report footer. Non-issue visit kinds still advance the gap walk; only
+// issue visits seed a session's issueKeys.
+func buildSessions(visits []visit, gap time.Duration) ([]session, bool) {
+	counted := make([]visit, 0, len(visits))
+	for _, v := range visits {
+		if v.source == store.VisitSourceUI || v.source == "" {
+			counted = append(counted, v)
+		}
+	}
+	cliFallback := false
+	if len(counted) == 0 {
+		for _, v := range visits {
+			if v.source == store.VisitSourceCLI {
+				counted = append(counted, v)
+			}
+		}
+		cliFallback = len(counted) > 0
+	}
+	sort.SliceStable(counted, func(i, j int) bool { return counted[i].at.Before(counted[j].at) })
+	var sessions []session
+	for i, v := range counted {
+		newSession := i == 0 || v.at.Sub(counted[i-1].at) > gap
+		if newSession {
+			sessions = append(sessions, session{start: v.at, issueKeys: map[string]bool{}})
+		}
+		if v.kind == store.VisitKindIssue {
+			sessions[len(sessions)-1].issueKeys[v.key] = true
+		}
+	}
+	return sessions, cliFallback
 }
 
 /* ── per-table loaders ──

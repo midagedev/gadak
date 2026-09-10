@@ -456,15 +456,63 @@ func (c *Client) Issue(ctx context.Context, idOrIdentifier string) (Issue, error
 	return *res.Issue, nil
 }
 
-// maxCommentFollowUps caps CompleteComments so a stuck HasNextPage cannot
-// loop forever. 40 extra pages is 2000 comments on top of the inline 50.
-const maxCommentFollowUps = 40
+// maxConnFollowUps caps every Complete* follow loop so a stuck HasNextPage
+// cannot loop forever. 40 extra pages is 2000 comments on top of the inline
+// 50; one number keeps the three connections from drifting.
+const maxConnFollowUps = 40
 
-// maxLabelFollowUps and maxAttachmentFollowUps are the same cap for the
-// sibling Complete* methods. A shared number keeps the three connections
-// from drifting; named constants keep each follow loop readable.
-const maxLabelFollowUps = 40
-const maxAttachmentFollowUps = 40
+// connPage is the JSON shape every Linear connection shares: the cursor
+// envelope plus a node slice. The named *Conn types in types.go carry the
+// same two fields; a follow-up page does not need their names to decode.
+type connPage[T any] struct {
+	PageInfo PageInfo `json:"pageInfo"`
+	Nodes    []T      `json:"nodes"`
+}
+
+// fetchConn runs one after-cursor page fetch against a nested issue
+// connection. Every connection answers the same issue → <field> envelope,
+// so only the query document, the field name, and the node type differ; the
+// two-step decode (field map, then the typed page) is what lets one generic
+// body serve all three. A null issue is the caller's "not found".
+func fetchConn[T any](ctx context.Context, c *Client, query, field, issueID, after string) (connPage[T], error) {
+	var env struct {
+		Issue map[string]json.RawMessage `json:"issue"`
+	}
+	if err := c.gql(ctx, query, map[string]any{"id": issueID, "after": after}, &env); err != nil {
+		return connPage[T]{}, err
+	}
+	raw := env.Issue[field]
+	if len(raw) == 0 {
+		return connPage[T]{}, fmt.Errorf("linear: issue %q not found", issueID)
+	}
+	var page connPage[T]
+	return page, json.Unmarshal(raw, &page)
+}
+
+// followConn drives one connection's cursor pagination on an issue: while
+// the page envelope says more nodes exist (and the follow-up cap holds),
+// fetch the next page and append it. page and nodes point into the issue's
+// connection field, so the loop's writes land exactly where the three
+// per-connection loops wrote before. An empty page ends the walk with
+// HasNextPage cleared — the envelope is not trusted to converge on its own.
+func followConn[T any](ctx context.Context, c *Client, query, field, issueID string, maxFollowUps int, page *PageInfo, nodes *[]T) error {
+	for n := 0; page.HasNextPage; n++ {
+		if n >= maxFollowUps || page.EndCursor == "" {
+			break
+		}
+		next, err := fetchConn[T](ctx, c, query, field, issueID, page.EndCursor)
+		if err != nil {
+			return err
+		}
+		if len(next.Nodes) == 0 {
+			page.HasNextPage = false
+			break
+		}
+		*nodes = append(*nodes, next.Nodes...)
+		*page = next.PageInfo
+	}
+	return nil
+}
 
 // CompleteComments follows Issue.Comments.PageInfo until HasNextPage is false
 // (or the follow-up cap). The inline page is kept; later nodes are appended.
@@ -474,37 +522,8 @@ func (c *Client) CompleteComments(ctx context.Context, iss *Issue) error {
 	if iss == nil {
 		return nil
 	}
-	for n := 0; iss.Comments.PageInfo.HasNextPage; n++ {
-		if n >= maxCommentFollowUps || iss.Comments.PageInfo.EndCursor == "" {
-			break
-		}
-		page, err := c.commentsAfter(ctx, iss.ID, iss.Comments.PageInfo.EndCursor)
-		if err != nil {
-			return err
-		}
-		if len(page.Nodes) == 0 {
-			iss.Comments.PageInfo.HasNextPage = false
-			break
-		}
-		iss.Comments.Nodes = append(iss.Comments.Nodes, page.Nodes...)
-		iss.Comments.PageInfo = page.PageInfo
-	}
-	return nil
-}
-
-func (c *Client) commentsAfter(ctx context.Context, issueID, after string) (CommentConn, error) {
-	var res struct {
-		Issue *struct {
-			Comments CommentConn `json:"comments"`
-		} `json:"issue"`
-	}
-	if err := c.gql(ctx, queryIssueComments, map[string]any{"id": issueID, "after": after}, &res); err != nil {
-		return CommentConn{}, err
-	}
-	if res.Issue == nil {
-		return CommentConn{}, fmt.Errorf("linear: issue %q not found", issueID)
-	}
-	return res.Issue.Comments, nil
+	return followConn(ctx, c, queryIssueComments, "comments", iss.ID, maxConnFollowUps,
+		&iss.Comments.PageInfo, &iss.Comments.Nodes)
 }
 
 // CompleteLabels follows Issue.Labels.PageInfo the same way CompleteComments
@@ -513,37 +532,8 @@ func (c *Client) CompleteLabels(ctx context.Context, iss *Issue) error {
 	if iss == nil {
 		return nil
 	}
-	for n := 0; iss.Labels.PageInfo.HasNextPage; n++ {
-		if n >= maxLabelFollowUps || iss.Labels.PageInfo.EndCursor == "" {
-			break
-		}
-		page, err := c.labelsAfter(ctx, iss.ID, iss.Labels.PageInfo.EndCursor)
-		if err != nil {
-			return err
-		}
-		if len(page.Nodes) == 0 {
-			iss.Labels.PageInfo.HasNextPage = false
-			break
-		}
-		iss.Labels.Nodes = append(iss.Labels.Nodes, page.Nodes...)
-		iss.Labels.PageInfo = page.PageInfo
-	}
-	return nil
-}
-
-func (c *Client) labelsAfter(ctx context.Context, issueID, after string) (LabelConn, error) {
-	var res struct {
-		Issue *struct {
-			Labels LabelConn `json:"labels"`
-		} `json:"issue"`
-	}
-	if err := c.gql(ctx, queryIssueLabels, map[string]any{"id": issueID, "after": after}, &res); err != nil {
-		return LabelConn{}, err
-	}
-	if res.Issue == nil {
-		return LabelConn{}, fmt.Errorf("linear: issue %q not found", issueID)
-	}
-	return res.Issue.Labels, nil
+	return followConn(ctx, c, queryIssueLabels, "labels", iss.ID, maxConnFollowUps,
+		&iss.Labels.PageInfo, &iss.Labels.Nodes)
 }
 
 // CompleteAttachments follows Issue.Attachments.PageInfo the same way
@@ -553,37 +543,8 @@ func (c *Client) CompleteAttachments(ctx context.Context, iss *Issue) error {
 	if iss == nil {
 		return nil
 	}
-	for n := 0; iss.Attachments.PageInfo.HasNextPage; n++ {
-		if n >= maxAttachmentFollowUps || iss.Attachments.PageInfo.EndCursor == "" {
-			break
-		}
-		page, err := c.attachmentsAfter(ctx, iss.ID, iss.Attachments.PageInfo.EndCursor)
-		if err != nil {
-			return err
-		}
-		if len(page.Nodes) == 0 {
-			iss.Attachments.PageInfo.HasNextPage = false
-			break
-		}
-		iss.Attachments.Nodes = append(iss.Attachments.Nodes, page.Nodes...)
-		iss.Attachments.PageInfo = page.PageInfo
-	}
-	return nil
-}
-
-func (c *Client) attachmentsAfter(ctx context.Context, issueID, after string) (AttachmentConn, error) {
-	var res struct {
-		Issue *struct {
-			Attachments AttachmentConn `json:"attachments"`
-		} `json:"issue"`
-	}
-	if err := c.gql(ctx, queryIssueAttachments, map[string]any{"id": issueID, "after": after}, &res); err != nil {
-		return AttachmentConn{}, err
-	}
-	if res.Issue == nil {
-		return AttachmentConn{}, fmt.Errorf("linear: issue %q not found", issueID)
-	}
-	return res.Issue.Attachments, nil
+	return followConn(ctx, c, queryIssueAttachments, "attachments", iss.ID, maxConnFollowUps,
+		&iss.Attachments.PageInfo, &iss.Attachments.Nodes)
 }
 
 // LooksLikeID reports whether s is a Linear UUID (the shape issues.assignee_id

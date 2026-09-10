@@ -9,34 +9,8 @@ import (
 //
 // Requests counts every HTTP attempt, including retries: that is the unit that
 // draws from Confluence's rate budget.
-type Usage = atlhttp.Usage
-
-// Usage returns the current counters without resetting them.
-func (c *Client) Usage() Usage {
-	if c == nil {
-		return Usage{}
-	}
-	return c.usage.Snapshot()
-}
-
-// TakeUsage returns the current counters and zeroes the numeric fields so a
-// flusher can accumulate into daily totals without double-counting.
 //
-// LastThrottledAt is a timestamp, not a counter: it is included in the
-// snapshot but is NOT cleared.
-func (c *Client) TakeUsage() Usage {
-	if c == nil {
-		return Usage{}
-	}
-	return c.usage.Take()
-}
-
-// TakeRequestBreakdown returns the per-kind request tally since the last
-// take, zeroing it — the accumulate-once shape of TakeUsage, feeding the
-// sync pass's "sync: requests …" line.
-func (c *Client) TakeRequestBreakdown() atlhttp.BreakdownSnapshot {
-	if c == nil {
-		return atlhttp.BreakdownSnapshot{}
-	}
-	return c.breakdown.Take()
-}
+// Usage, TakeUsage and TakeRequestBreakdown promote from the embedded
+// atlhttp.UsageBox (GDK-1780): one owner for the meter reads both
+// Atlassian-family clients share.
+type Usage = atlhttp.Usage

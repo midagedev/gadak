@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"unicode/utf8"
 )
 
@@ -113,22 +114,18 @@ func commentSnippet(bodyText, bodyADF string) string {
 // judge bots through the connector's one judgement function, never here —
 // the store is source-neutral.
 func (db *DB) UserCatalog(ctx context.Context) ([]UserAccount, error) {
-	rows, err := db.sql.QueryContext(ctx, `
-		SELECT account_id, COALESCE(name, ''), COALESCE(email, ''), COALESCE(account_type, '')
-		FROM users ORDER BY source_id, account_id`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 	out := []UserAccount{}
-	for rows.Next() {
-		var u UserAccount
-		if err := rows.Scan(&u.AccountID, &u.Name, &u.Email, &u.AccountType); err != nil {
-			return nil, err
-		}
-		out = append(out, u)
-	}
-	return out, rows.Err()
+	return out, each(ctx, db.sql, `
+		SELECT account_id, COALESCE(name, ''), COALESCE(email, ''), COALESCE(account_type, '')
+		FROM users ORDER BY source_id, account_id`,
+		func(rows *sql.Rows) error {
+			var u UserAccount
+			if err := rows.Scan(&u.AccountID, &u.Name, &u.Email, &u.AccountType); err != nil {
+				return err
+			}
+			out = append(out, u)
+			return nil
+		})
 }
 
 // IssueActor is one touch of one issue by one account: a comment, a
@@ -160,43 +157,35 @@ type ActorPerson struct {
 // It reads six narrow columns instead of the full IssueLite row set; the
 // JQL resolver deduplicates in memory (people count ≪ issue count).
 func (db *DB) QueryActorPeople(ctx context.Context) ([]ActorPerson, error) {
-	rows, err := db.sql.QueryContext(ctx, `
+	out := []ActorPerson{}
+	return out, each(ctx, db.sql, `
 		SELECT COALESCE(assignee, ''), COALESCE(assignee_email, ''), COALESCE(assignee_id, ''),
 		       COALESCE(reporter, ''), COALESCE(reporter_email, ''), COALESCE(reporter_id, '')
-		FROM issues`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []ActorPerson{}
-	for rows.Next() {
-		var p ActorPerson
-		if err := rows.Scan(&p.AssigneeName, &p.AssigneeEmail, &p.AssigneeID,
-			&p.ReporterName, &p.ReporterEmail, &p.ReporterID); err != nil {
-			return nil, err
-		}
-		out = append(out, p)
-	}
-	return out, rows.Err()
+		FROM issues`,
+		func(rows *sql.Rows) error {
+			var p ActorPerson
+			if err := rows.Scan(&p.AssigneeName, &p.AssigneeEmail, &p.AssigneeID,
+				&p.ReporterName, &p.ReporterEmail, &p.ReporterID); err != nil {
+				return err
+			}
+			out = append(out, p)
+			return nil
+		})
 }
 
 // QueryIssueActors returns every (issue, actor) touch, unordered. The set is
 // small — bounded by comments + changelog + dev_links rows — and the caller
 // (buildView) only folds it into a map, so no LIMIT.
 func (db *DB) QueryIssueActors(ctx context.Context) ([]IssueActor, error) {
-	rows, err := db.sql.QueryContext(ctx, `
-		SELECT issue_key, source_id, actor_id, COALESCE(actor_name, ''), via FROM issue_actors`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 	out := []IssueActor{}
-	for rows.Next() {
-		var a IssueActor
-		if err := rows.Scan(&a.IssueKey, &a.SourceID, &a.ActorID, &a.ActorName, &a.Via); err != nil {
-			return nil, err
-		}
-		out = append(out, a)
-	}
-	return out, rows.Err()
+	return out, each(ctx, db.sql, `
+		SELECT issue_key, source_id, actor_id, COALESCE(actor_name, ''), via FROM issue_actors`,
+		func(rows *sql.Rows) error {
+			var a IssueActor
+			if err := rows.Scan(&a.IssueKey, &a.SourceID, &a.ActorID, &a.ActorName, &a.Via); err != nil {
+				return err
+			}
+			out = append(out, a)
+			return nil
+		})
 }

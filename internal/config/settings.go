@@ -501,37 +501,27 @@ func buildSettings() []Setting {
 				return ApplyAppearance(c, a)
 			},
 		},
-		{
-			Path:        "appearance.theme",
-			Root:        "appearance",
-			Description: "UI theme: system, light, dark, or a lowercase palette id",
-			Get:         func(c *Config) any { return c.EffectiveTheme() },
-			Set: func(c *Config, raw json.RawMessage) error {
-				s, err := decodeString(raw, "appearance.theme")
-				if err != nil {
-					return err
-				}
+		stringSetting("appearance.theme", "appearance",
+			"UI theme: system, light, dark, or a lowercase palette id",
+			func(c *Config) string { return c.EffectiveTheme() },
+			nil,
+			func(c *Config, s string) error {
 				next := c.appearanceOrZero()
 				next.Theme = s
 				return ApplyAppearance(c, next)
 			},
-		},
-		{
-			Path: "appearance.terminal",
-			Root: "appearance",
-			Description: "terminal dock appearance: dark (default — the dock paints the dark palette " +
+		),
+		stringSetting("appearance.terminal", "appearance",
+			"terminal dock appearance: dark (default — the dock paints the dark palette "+
 				"under every app theme) or follow (the dock takes the app palette)",
-			Get: func(c *Config) any { return c.EffectiveTerminalAppearance() },
-			Set: func(c *Config, raw json.RawMessage) error {
-				s, err := decodeString(raw, "appearance.terminal")
-				if err != nil {
-					return err
-				}
+			func(c *Config) string { return c.EffectiveTerminalAppearance() },
+			nil,
+			func(c *Config, s string) error {
 				next := c.appearanceOrZero()
 				next.Terminal = s
 				return ApplyAppearance(c, next)
 			},
-		},
+		),
 		{
 			Path: "ui.tokens",
 			Root: "ui",
@@ -634,26 +624,18 @@ func buildSettings() []Setting {
 				return ApplyUIConfig(c, next)
 			},
 		},
-		{
-			Path: "ui.tokens.catalog",
-			Root: "ui",
-			Description: "read-only color-token catalog (name, cssVar, tier, rules, per-palette values) — " +
+		refuseSetting("ui.tokens.catalog", "ui",
+			"read-only color-token catalog (name, cssVar, tier, rules, per-palette values) — "+
 				"the discovery path for ui.tokens keys",
-			Get: func(c *Config) any { return tokencheck.CatalogTokens() },
-			Set: func(*Config, json.RawMessage) error {
-				return fmt.Errorf("ui.tokens.catalog is read-only — it ships with the binary; set ui.tokens instead")
-			},
-		},
-		{
-			Path: "ui.tokens.dim-catalog",
-			Root: "ui",
-			Description: "read-only dimension-token catalog (axis, name, cssVar, tier, default, range, " +
+			func(c *Config) any { return tokencheck.CatalogTokens() },
+			"ui.tokens.catalog is read-only — it ships with the binary; set ui.tokens instead",
+		),
+		refuseSetting("ui.tokens.dim-catalog", "ui",
+			"read-only dimension-token catalog (axis, name, cssVar, tier, default, range, "+
 				"relations) — the discovery path for ui.tokens spacing/layout/type keys",
-			Get: func(c *Config) any { return dimCatalogEntries() },
-			Set: func(*Config, json.RawMessage) error {
-				return fmt.Errorf("ui.tokens.dim-catalog is read-only — it ships with the binary; set ui.tokens instead")
-			},
-		},
+			func(c *Config) any { return dimCatalogEntries() },
+			"ui.tokens.dim-catalog is read-only — it ships with the binary; set ui.tokens instead",
+		),
 		{
 			Path: "terminal",
 			Root: "terminal",
@@ -671,46 +653,28 @@ func buildSettings() []Setting {
 				return applyTerminal(c, t)
 			},
 		},
-		{
-			Path: "terminal.shell",
-			Root: "terminal",
-			Description: "absolute shell path for new terminal sessions (empty = $SHELL, else /bin/sh; " +
+		stringSetting("terminal.shell", "terminal",
+			"absolute shell path for new terminal sessions (empty = $SHELL, else /bin/sh; "+
 				"existence is not checked here — a missing shell fails at create, by name)",
-			Get: func(c *Config) any { return c.EffectiveTerminal().Shell },
-			Set: func(c *Config, raw json.RawMessage) error {
-				s, err := decodeString(raw, "terminal.shell")
-				if err != nil {
-					return err
-				}
-				v, err := validateTerminalShell(s)
-				if err != nil {
-					return err
-				}
+			func(c *Config) string { return c.EffectiveTerminal().Shell },
+			validateTerminalShell,
+			func(c *Config, v string) error {
 				next := c.terminalOrZero()
 				next.Shell = v
 				return applyTerminal(c, next)
 			},
-		},
-		{
-			Path: "terminal.workingDir",
-			Root: "terminal",
-			Description: "absolute starting directory for new terminal sessions (empty = the workspace " +
+		),
+		stringSetting("terminal.workingDir", "terminal",
+			"absolute starting directory for new terminal sessions (empty = the workspace "+
 				"dir; a directory missing at create time falls back to it with a log line)",
-			Get: func(c *Config) any { return c.EffectiveTerminal().WorkingDir },
-			Set: func(c *Config, raw json.RawMessage) error {
-				s, err := decodeString(raw, "terminal.workingDir")
-				if err != nil {
-					return err
-				}
-				v, err := validateTerminalWorkingDir(s)
-				if err != nil {
-					return err
-				}
+			func(c *Config) string { return c.EffectiveTerminal().WorkingDir },
+			validateTerminalWorkingDir,
+			func(c *Config, v string) error {
 				next := c.terminalOrZero()
 				next.WorkingDir = v
 				return applyTerminal(c, next)
 			},
-		},
+		),
 		intSetting("terminal.scrollback", "terminal",
 			"scrollback lines a terminal pane keeps (0 = default 5000; 200–100000 when set)",
 			func(c *Config) int { return c.EffectiveTerminal().Scrollback },
@@ -778,22 +742,13 @@ func buildSettings() []Setting {
 				return nil
 			},
 		),
-		{
-			Path: "retro.sessionGap",
-			Root: "retro",
-			Description: "the read-gap that splits person reads into sessions for gadak retro and the " +
-				"retro endpoint: a Go duration, 5m to 24h (empty = 30m; the --session-gap flag and the " +
+		stringSetting("retro.sessionGap", "retro",
+			"the read-gap that splits person reads into sessions for gadak retro and the "+
+				"retro endpoint: a Go duration, 5m to 24h (empty = 30m; the --session-gap flag and the "+
 				"session_gap parameter override it per run)",
-			Get: func(c *Config) any { return c.EffectiveRetroSessionGap() },
-			Set: func(c *Config, raw json.RawMessage) error {
-				s, err := decodeString(raw, "retro.sessionGap")
-				if err != nil {
-					return err
-				}
-				v, err := validateRetroSessionGap(s)
-				if err != nil {
-					return err
-				}
+			func(c *Config) string { return c.EffectiveRetroSessionGap() },
+			validateRetroSessionGap,
+			func(c *Config, v string) error {
 				if v == "" {
 					c.Retro = nil
 					return nil
@@ -801,7 +756,7 @@ func buildSettings() []Setting {
 				c.Retro = &RetroConfig{SessionGap: v}
 				return nil
 			},
-		},
+		),
 		boolSetting("notify", "notify",
 			"OS desktop notifications from the watch loop (default true)",
 			func(c *Config) bool { return c.NotifyEnabled() },
@@ -814,23 +769,12 @@ func buildSettings() []Setting {
 				c.Notify = &f
 			},
 		),
-		{
-			Path: "devStatus",
-			Root: "devStatus",
-			Description: "mirror Jira's internal development-status (dev-status) API into dev_links; " +
+		boolSetting("devStatus", "devStatus",
+			"mirror Jira's internal development-status (dev-status) API into dev_links; "+
 				"adds a per-issue request to each sync (default false)",
-			Get: func(c *Config) any {
-				return c != nil && c.DevStatus
-			},
-			Set: func(c *Config, raw json.RawMessage) error {
-				b, err := decodeBool(raw, "devStatus")
-				if err != nil {
-					return err
-				}
-				c.DevStatus = b
-				return nil
-			},
-		},
+			func(c *Config) bool { return c != nil && c.DevStatus },
+			func(c *Config, b bool) { c.DevStatus = b },
+		),
 		{
 			Path: "actor",
 			Root: "actor",
@@ -900,45 +844,22 @@ func buildSettings() []Setting {
 				return nil
 			},
 		},
-		{
-			Path: "locale",
-			Root: "locale",
-			Description: "display-name language of a built-in workspace's origin: \"\", en, ko, ja, de " +
-				"(empty = English). Status / issue-type / field names and agent aliases follow it; " +
-				"priority names stay English, like a live Cloud site (GDK-597). Changing it rebuilds " +
-				"the mirror on the next sync — display names are cached. A connected workspace " +
+		stringSetting("locale", "locale",
+			"display-name language of a built-in workspace's origin: \"\", en, ko, ja, de "+
+				"(empty = English). Status / issue-type / field names and agent aliases follow it; "+
+				"priority names stay English, like a live Cloud site (GDK-597). Changing it rebuilds "+
+				"the mirror on the next sync — display names are cached. A connected workspace "+
 				"ignores it: its language is the Atlassian account's",
-			Get: func(c *Config) any { return c.Locale },
-			Set: func(c *Config, raw json.RawMessage) error {
-				s, err := decodeString(raw, "locale")
-				if err != nil {
-					return err
-				}
-				v, err := validateLocale(s)
-				if err != nil {
-					return err
-				}
-				c.Locale = v
-				return nil
-			},
-		},
-		{
-			Path: "frozen",
-			Root: "frozen",
-			Description: "freeze this workspace: no request leaves for the origin — pulls and " +
+			func(c *Config) string { return c.Locale },
+			validateLocale,
+			func(c *Config, v string) error { c.Locale = v; return nil },
+		),
+		boolSetting("frozen", "frozen",
+			"freeze this workspace: no request leaves for the origin — pulls and "+
 				"writes alike (demo / scrubbed-fixture latch, GDK-181/GDK-507); mirror reads still work",
-			Get: func(c *Config) any {
-				return c.SyncFrozen()
-			},
-			Set: func(c *Config, raw json.RawMessage) error {
-				b, err := decodeBool(raw, "frozen")
-				if err != nil {
-					return err
-				}
-				c.Frozen = b
-				return nil
-			},
-		},
+			func(c *Config) bool { return c.SyncFrozen() },
+			func(c *Config, b bool) { c.Frozen = b },
+		),
 		intSetting("attachmentCacheMB", "attachmentCacheMB",
 			"on-disk attachment cache cap in megabytes (0 = package default 512)",
 			func(c *Config) int { return c.AttachmentCacheMB },
@@ -980,92 +901,36 @@ func buildSettings() []Setting {
 		featureLeaf("deploy", "deploy column and filters"),
 		featureLeaf("qa", "QA column, filters, and inline field edit"),
 		featureLeaf("teamGroups", "team/group taxonomy surfaces"),
-		{
-			Path:        "projects",
-			Root:        "projects",
-			Description: "Jira project keys to mirror (empty = every project this account can see)",
-			Get:         func(c *Config) any { return sliceOrEmpty(c.Projects) },
-			Set: func(c *Config, raw json.RawMessage) error {
-				v, err := decodeStrings(raw, "projects")
-				if err != nil {
-					return err
-				}
-				v, err = ValidateProjectKeys(v)
-				if err != nil {
-					return err
-				}
-				c.Projects = v
-				return nil
-			},
-		},
-		{
-			Path:        "defaultProject",
-			Root:        "defaultProject",
-			Description: "project key used when create omits --project / project_key (empty = unset)",
-			Get:         func(c *Config) any { return c.DefaultProject },
-			Set: func(c *Config, raw json.RawMessage) error {
-				s, err := decodeString(raw, "defaultProject")
-				if err != nil {
-					return err
-				}
-				v, err := ValidateDefaultProject(s)
-				if err != nil {
-					return err
-				}
-				c.DefaultProject = v
-				return nil
-			},
-		},
-		{
-			Path:        "defaultIssueTypeId",
-			Root:        "defaultIssueTypeId",
-			Description: "Jira issue type id used when create omits --type / issue_type (empty = unset; not a display name)",
-			Get:         func(c *Config) any { return c.DefaultIssueTypeID },
-			Set: func(c *Config, raw json.RawMessage) error {
-				s, err := decodeString(raw, "defaultIssueTypeId")
-				if err != nil {
-					return err
-				}
-				v, err := ValidateDefaultIssueTypeID(s)
-				if err != nil {
-					return err
-				}
-				c.DefaultIssueTypeID = v
-				return nil
-			},
-		},
-		{
-			Path:        "defaultIssueType",
-			Root:        "defaultIssueType",
-			Description: "optional display label for defaultIssueTypeId; create never resolves against this name",
-			Get:         func(c *Config) any { return c.DefaultIssueType },
-			Set: func(c *Config, raw json.RawMessage) error {
-				s, err := decodeString(raw, "defaultIssueType")
-				if err != nil {
-					return err
-				}
-				v, err := validateDefaultIssueType(s)
-				if err != nil {
-					return err
-				}
-				c.DefaultIssueType = v
-				return nil
-			},
-		},
-		{
-			Path:        "qaDashboardUrl",
-			Root:        "qaDashboardUrl",
-			Description: "external QA dashboard origin for issue-to-test-run links",
-			Get:         func(c *Config) any { return c.QaDashboardURL },
-			Set: func(c *Config, raw json.RawMessage) error {
-				s, err := decodeString(raw, "qaDashboardUrl")
-				if err != nil {
-					return err
-				}
-				c.QaDashboardURL = s
-				return nil
-			},
-		},
+		stringsSetting("projects", "projects",
+			"Jira project keys to mirror (empty = every project this account can see)",
+			func(c *Config) []string { return sliceOrEmpty(c.Projects) },
+			ValidateProjectKeys,
+			func(c *Config, v []string) error { c.Projects = v; return nil },
+		),
+		stringSetting("defaultProject", "defaultProject",
+			"project key used when create omits --project / project_key (empty = unset)",
+			func(c *Config) string { return c.DefaultProject },
+			ValidateDefaultProject,
+			func(c *Config, v string) error { c.DefaultProject = v; return nil },
+		),
+		stringSetting("defaultIssueTypeId", "defaultIssueTypeId",
+			"Jira issue type id used when create omits --type / issue_type (empty = unset; not a display name)",
+			func(c *Config) string { return c.DefaultIssueTypeID },
+			ValidateDefaultIssueTypeID,
+			func(c *Config, v string) error { c.DefaultIssueTypeID = v; return nil },
+		),
+		stringSetting("defaultIssueType", "defaultIssueType",
+			"optional display label for defaultIssueTypeId; create never resolves against this name",
+			func(c *Config) string { return c.DefaultIssueType },
+			validateDefaultIssueType,
+			func(c *Config, v string) error { c.DefaultIssueType = v; return nil },
+		),
+		stringSetting("qaDashboardUrl", "qaDashboardUrl",
+			"external QA dashboard origin for issue-to-test-run links",
+			func(c *Config) string { return c.QaDashboardURL },
+			nil,
+			func(c *Config, s string) error { c.QaDashboardURL = s; return nil },
+		),
 		{
 			Path:        "confluence",
 			Root:        "confluence",
@@ -1090,43 +955,27 @@ func buildSettings() []Setting {
 				return ApplyConfluence(c, &b, spaces)
 			},
 		},
-		{
-			Path:        "confluence.spaces",
-			Root:        "confluence",
-			Description: "mirrored wiki space keys (rejected while the source is off); alias: wiki.spaces",
-			Get: func(c *Config) any {
+		stringsSetting("confluence.spaces", "confluence",
+			"mirrored wiki space keys (rejected while the source is off); alias: wiki.spaces",
+			func(c *Config) []string {
 				if c.Confluence == nil {
 					return []string{}
 				}
 				return sliceOrEmpty(c.Confluence.Spaces)
 			},
-			Set: func(c *Config, raw json.RawMessage) error {
-				v, err := decodeStrings(raw, "confluence.spaces")
-				if err != nil {
-					return err
-				}
-				return ApplyConfluence(c, nil, v)
-			},
-		},
-		{
-			Path:        "memory.space",
-			Root:        "memory",
-			Description: "space key the memory verbs own (empty = built-in's seeded space; connected refuses until set; the sync joins it into scope even outside confluence.spaces, so a full sync keeps its pages)",
-			Get: func(c *Config) any {
+			nil,
+			func(c *Config, v []string) error { return ApplyConfluence(c, nil, v) },
+		),
+		stringSetting("memory.space", "memory",
+			"space key the memory verbs own (empty = built-in's seeded space; connected refuses until set; the sync joins it into scope even outside confluence.spaces, so a full sync keeps its pages)",
+			func(c *Config) string {
 				if c.Memory == nil {
 					return ""
 				}
 				return c.Memory.Space
 			},
-			Set: func(c *Config, raw json.RawMessage) error {
-				s, err := decodeString(raw, "memory.space")
-				if err != nil {
-					return err
-				}
-				v, err := validateMemorySpace(s)
-				if err != nil {
-					return err
-				}
+			validateMemorySpace,
+			func(c *Config, v string) error {
 				if v == "" {
 					c.Memory = nil
 					return nil
@@ -1134,7 +983,7 @@ func buildSettings() []Setting {
 				c.Memory = &MemoryConfig{Space: v}
 				return nil
 			},
-		},
+		),
 		{
 			Path:        "fields",
 			Root:        "fields",
@@ -1149,38 +998,22 @@ func buildSettings() []Setting {
 				return nil
 			},
 		},
-		{
-			Path:        "fieldMap",
-			Root:        "fieldMap",
-			Description: "legacy alias→custom-field id map; LoadFor synthesizes into fields and clears it (set refuses — use fields)",
-			Get:         func(c *Config) any { return mapOrEmpty(c.FieldMap) },
-			Set: func(*Config, json.RawMessage) error {
-				return fmt.Errorf(`use "fields" instead — fieldMap is a legacy shape that is migrated away on the next load`)
-			},
-		},
-		{
-			Path:        "bodyFields",
-			Root:        "bodyFields",
-			Description: "ADF custom-field ids folded into full-text search",
-			Get:         func(c *Config) any { return sliceOrEmpty(c.BodyFields) },
-			Set: func(c *Config, raw json.RawMessage) error {
-				v, err := decodeStrings(raw, "bodyFields")
-				if err != nil {
-					return err
-				}
-				c.BodyFields = v
-				return nil
-			},
-		},
-		{
-			Path:        "editableFields",
-			Root:        "editableFields",
-			Description: "legacy alias→field id write allowlist; LoadFor overlays onto fields and clears it (set refuses — use fields)",
-			Get:         func(c *Config) any { return mapOrEmpty(c.EditableFields) },
-			Set: func(*Config, json.RawMessage) error {
-				return fmt.Errorf(`use "fields" instead — editableFields is a legacy shape that is migrated away on the next load`)
-			},
-		},
+		refuseSetting("fieldMap", "fieldMap",
+			"legacy alias→custom-field id map; LoadFor synthesizes into fields and clears it (set refuses — use fields)",
+			func(c *Config) any { return mapOrEmpty(c.FieldMap) },
+			`use "fields" instead — fieldMap is a legacy shape that is migrated away on the next load`,
+		),
+		stringsSetting("bodyFields", "bodyFields",
+			"ADF custom-field ids folded into full-text search",
+			func(c *Config) []string { return sliceOrEmpty(c.BodyFields) },
+			nil,
+			func(c *Config, v []string) error { c.BodyFields = v; return nil },
+		),
+		refuseSetting("editableFields", "editableFields",
+			"legacy alias→field id write allowlist; LoadFor overlays onto fields and clears it (set refuses — use fields)",
+			func(c *Config) any { return mapOrEmpty(c.EditableFields) },
+			`use "fields" instead — editableFields is a legacy shape that is migrated away on the next load`,
+		),
 		{
 			Path:        "members",
 			Root:        "members",
@@ -1227,34 +1060,16 @@ func buildSettings() []Setting {
 				return nil
 			},
 		},
-		{
-			Path:        "groupLabels",
-			Root:        "groupLabels",
-			Description: "group key → display label",
-			Get:         func(c *Config) any { return mapOrEmpty(c.GroupLabels) },
-			Set: func(c *Config, raw json.RawMessage) error {
-				v, err := decodeStringMap(raw, "groupLabels")
-				if err != nil {
-					return err
-				}
-				c.GroupLabels = v
-				return nil
-			},
-		},
-		{
-			Path:        "groupColors",
-			Root:        "groupColors",
-			Description: "group key → hex color",
-			Get:         func(c *Config) any { return mapOrEmpty(c.GroupColors) },
-			Set: func(c *Config, raw json.RawMessage) error {
-				v, err := decodeStringMap(raw, "groupColors")
-				if err != nil {
-					return err
-				}
-				c.GroupColors = v
-				return nil
-			},
-		},
+		stringMapSetting("groupLabels", "groupLabels",
+			"group key → display label",
+			func(c *Config) map[string]string { return mapOrEmpty(c.GroupLabels) },
+			func(c *Config, v map[string]string) error { c.GroupLabels = v; return nil },
+		),
+		stringMapSetting("groupColors", "groupColors",
+			"group key → hex color",
+			func(c *Config) map[string]string { return mapOrEmpty(c.GroupColors) },
+			func(c *Config, v map[string]string) error { c.GroupColors = v; return nil },
+		),
 		{
 			Path:        "productByGroup",
 			Root:        "productByGroup",
@@ -1327,6 +1142,87 @@ func boolSetting(path, root, desc string, get func(*Config) bool, set func(*Conf
 			}
 			set(c, b)
 			return nil
+		},
+	}
+}
+
+// stringSetting is a plain string catalog entry: decode, validate, assign.
+// validate may be nil (no rule beyond the wire type); the setter owns any
+// richer assignment (a nested block, an apply pass) and returns its error,
+// so a leaf that applies rather than stores keeps its refusal behavior.
+func stringSetting(path, root, desc string, get func(*Config) string, validate func(string) (string, error), set func(*Config, string) error) Setting {
+	return Setting{
+		Path:        path,
+		Root:        root,
+		Description: desc,
+		Get:         func(c *Config) any { return get(c) },
+		Set: func(c *Config, raw json.RawMessage) error {
+			s, err := decodeString(raw, path)
+			if err != nil {
+				return err
+			}
+			if validate != nil {
+				if s, err = validate(s); err != nil {
+					return err
+				}
+			}
+			return set(c, s)
+		},
+	}
+}
+
+// stringsSetting is the []string sibling of stringSetting (projects,
+// bodyFields, confluence.spaces); validate may be nil.
+func stringsSetting(path, root, desc string, get func(*Config) []string, validate func([]string) ([]string, error), set func(*Config, []string) error) Setting {
+	return Setting{
+		Path:        path,
+		Root:        root,
+		Description: desc,
+		Get:         func(c *Config) any { return get(c) },
+		Set: func(c *Config, raw json.RawMessage) error {
+			v, err := decodeStrings(raw, path)
+			if err != nil {
+				return err
+			}
+			if validate != nil {
+				if v, err = validate(v); err != nil {
+					return err
+				}
+			}
+			return set(c, v)
+		},
+	}
+}
+
+// stringMapSetting is the map[string]string sibling (groupLabels,
+// groupColors). No validator exists for these yet, so none is taken.
+func stringMapSetting(path, root, desc string, get func(*Config) map[string]string, set func(*Config, map[string]string) error) Setting {
+	return Setting{
+		Path:        path,
+		Root:        root,
+		Description: desc,
+		Get:         func(c *Config) any { return get(c) },
+		Set: func(c *Config, raw json.RawMessage) error {
+			v, err := decodeStringMap(raw, path)
+			if err != nil {
+				return err
+			}
+			return set(c, v)
+		},
+	}
+}
+
+// refuseSetting is a read-only leaf: Get shows what the migration or the
+// binary owns, Set refuses with msg. The legacy-shape leaves (fieldMap,
+// editableFields) and the token catalogs share it.
+func refuseSetting(path, root, desc string, get func(*Config) any, msg string) Setting {
+	return Setting{
+		Path:        path,
+		Root:        root,
+		Description: desc,
+		Get:         get,
+		Set: func(*Config, json.RawMessage) error {
+			return fmt.Errorf("%s", msg)
 		},
 	}
 }

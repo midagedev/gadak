@@ -181,69 +181,9 @@ func Run(ctx context.Context, cfg *config.Config, db *store.DB, opts Options) (R
 
 // runJiraPass is the Jira-specific body inside the shared runSource skeleton.
 func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *store.DB, opts Options, state store.SyncState, res *Result) error {
-	// Discovery mode: no configured custom fields yet — first full sync pulls
-	// *all so raw carries every custom value for auto-configuration.
-	discoveryMode := len(cfg.Fields) == 0 && len(cfg.FieldMap) == 0
-
-	// Upgrade path for GDK-241: built-in mirrors written before the id
-	// namespace existed hold `jira:N` rows whose keys the pass is about to
-	// re-insert as `standalone-jira:N` — same (source_id, key), different id,
-	// which the UNIQUE(source_id, key) index rejects. The mirror is a
-	// disposable cache: drop the legacy rows and let this pass re-mirror them
-	// under the new namespace. No tombstones — the keys come right back.
-	//
-	// The purge deletes; an incremental pass then asks only for what changed
-	// since the watermark, so every purged issue older than it would simply
-	// be gone (GDK-1609). Deleting rows forces a full pass, exactly as a
-	// locale change and a scope change below do.
-	if cfg.HasBuiltInOrigin() {
-		if n, err := db.PurgeIssueIDsOutsideNamespace(ctx, SourceID, itemNS(cfg)); err != nil {
-			return record(ctx, cfg, db, SourceID, err)
-		} else if n > 0 {
-			res.Full = true
-			opts.logf("purged %d pre-namespace built-in rows: one full pass — the watermark hides what was just deleted (GDK-241, GDK-1609)", n)
-		}
-	}
-
-	// Locale rebuild (GDK-597): the mirror caches origin display names and
-	// this pass is watermark-incremental — a locale change with no origin
-	// mutation would leave untouched rows in the old language (a mixed
-	// mirror). The mirror is a disposable cache; the origin is the record,
-	// so the fix is a full refetch, never a name rewrite on this side.
-	// Built-in only: a connected workspace's language is the Atlassian
-	// account's, not this setting. A NULL marker (pre-v35 mirror) reads as
-	// "" — same effective value as "en", so upgrading does not rebuild.
-	// Scope change (GDK-1400): the incremental floor is one watermark per
-	// source_id, not per project. Adding a project to the scope therefore
-	// leaves every issue that project already had behind a cursor that has
-	// long passed them — invisible to every future incremental pass. The
-	// store-side signature is the owner rather than `config set projects`
-	// because it catches every path that widens scope: the command, a
-	// hand-edited config.json, a workspace copied from another machine, a
-	// team config pushed in. An unrecorded signature (a pre-v44 mirror)
-	// forces nothing — this pass records it, and the two-way reconcile
-	// covers that mirror in the meantime.
-	scope := scopeSignature(cfg.Projects)
-	if !res.Full && state.ScopeHash != "" && state.ScopeHash != scope {
-		res.Full = true
-		opts.logf("scope changed %s → %s: one full pass — an incremental one cannot see what the new scope already had (GDK-1400)",
-			state.ScopeHash, scope)
-	}
-
-	syncedLocale := ""
-	localeRebuild := false
-	if cfg.HasBuiltInOrigin() {
-		syncedLocale = cfg.EffectiveLocale()
-		stored := state.Locale
-		if stored == "" {
-			stored = "en"
-		}
-		if !res.Full && stored != syncedLocale {
-			res.Full = true
-			localeRebuild = true
-			opts.logf("locale changed %s → %s: rebuilding the mirror — display names follow the workspace language (GDK-597)",
-				stored, syncedLocale)
-		}
+	pre, err := fullPassReasons(ctx, cfg, db, opts, state, res)
+	if err != nil {
+		return err
 	}
 
 	// Status, priority and link-type catalogs load lazily, on the first page
@@ -352,7 +292,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 		// that promises the mirror is rebuilt from the payload, and a derived
 		// column whose rule changed since the row's last edit is only
 		// recomputed if the row is rewritten.
-		if localeRebuild || res.Full {
+		if pre.localeRebuild || res.Full {
 			batch.Force = true
 		}
 		// Catalog completion stays on the coordinator goroutine: cats is this
@@ -488,7 +428,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	} else {
 		jql := incrementalJQL(cfg.Projects, state.Watermark)
 		beginSearch("incremental: "+scopeLabel(cfg)+" — changes since "+sinceLabel(state.Watermark), "", false)
-		if discoveryMode && !cfg.HasBuiltInOrigin() {
+		if pre.discoveryMode && !cfg.HasBuiltInOrigin() {
 			opts.logf("tip: run `gadak sync --full` once to auto-configure custom fields")
 		}
 		if err := c.Search(ctx, jql, fieldIDs, true, page); err != nil {
@@ -509,7 +449,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 		sum += fmt.Sprintf(" throttled=%d", n)
 	}
 	opts.logf("%s", sum)
-	if err := db.RecordSync(ctx, SourceID, store.SyncResult{Watermark: maxRaw, FullSync: res.Full, Locale: syncedLocale, Scope: scope}); err != nil {
+	if err := db.RecordSync(ctx, SourceID, store.SyncResult{Watermark: maxRaw, FullSync: res.Full, Locale: pre.syncedLocale, Scope: pre.scope}); err != nil {
 		return err
 	}
 
@@ -565,7 +505,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	}
 
 	// Custom-field discovery / field_usage refresh (before the done line).
-	if discoveryMode && res.Full {
+	if pre.discoveryMode && res.Full {
 		if err := runDiscovery(ctx, c, cfg, db, opts); err != nil {
 			// cfg.Save failure propagates; other discovery errors are warnings.
 			return err
@@ -590,6 +530,93 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	// mirror rename signature (GDK-973) is observable in passing.
 	warnProjectScopeMismatch(ctx, cfg, db, opts)
 	return nil
+}
+
+// jiraPreflight is what runJiraPass's preflight decided: whether this pass
+// runs in discovery mode, the locale and scope stamps the closing RecordSync
+// must persist so the next pass can diff against them, and whether the full
+// pass a locale change forced is still running.
+type jiraPreflight struct {
+	discoveryMode bool
+	syncedLocale  string
+	localeRebuild bool
+	scope         string
+}
+
+// fullPassReasons is the preflight that can flip an incremental pass to a
+// full one before any page is fetched, and collects the stamps that decision
+// compared against. Three reasons exist, each forcing exactly one full pass:
+// the built-in id-namespace purge (GDK-241 — the deleted rows sit behind the
+// watermark), a scope change (GDK-1400 — one watermark per source means an
+// incremental pass cannot see what a newly added project already had), and a
+// locale change (GDK-597 — display names are cached in the mirror). A
+// purge-origin failure is returned already recorded, like the inline code
+// did.
+func fullPassReasons(ctx context.Context, cfg *config.Config, db *store.DB, opts Options, state store.SyncState, res *Result) (jiraPreflight, error) {
+	var pre jiraPreflight
+	// Discovery mode: no configured custom fields yet — first full sync pulls
+	// *all so raw carries every custom value for auto-configuration.
+	pre.discoveryMode = len(cfg.Fields) == 0 && len(cfg.FieldMap) == 0
+
+	// Upgrade path for GDK-241: built-in mirrors written before the id
+	// namespace existed hold `jira:N` rows whose keys the pass is about to
+	// re-insert as `standalone-jira:N` — same (source_id, key), different id,
+	// which the UNIQUE(source_id, key) index rejects. The mirror is a
+	// disposable cache: drop the legacy rows and let this pass re-mirror them
+	// under the new namespace. No tombstones — the keys come right back.
+	//
+	// The purge deletes; an incremental pass then asks only for what changed
+	// since the watermark, so every purged issue older than it would simply
+	// be gone (GDK-1609). Deleting rows forces a full pass, exactly as a
+	// locale change and a scope change below do.
+	if cfg.HasBuiltInOrigin() {
+		if n, err := db.PurgeIssueIDsOutsideNamespace(ctx, SourceID, itemNS(cfg)); err != nil {
+			return pre, record(ctx, cfg, db, SourceID, err)
+		} else if n > 0 {
+			res.Full = true
+			opts.logf("purged %d pre-namespace built-in rows: one full pass — the watermark hides what was just deleted (GDK-241, GDK-1609)", n)
+		}
+	}
+
+	// Scope change (GDK-1400): the incremental floor is one watermark per
+	// source_id, not per project. Adding a project to the scope therefore
+	// leaves every issue that project already had behind a cursor that has
+	// long passed them — invisible to every future incremental pass. The
+	// store-side signature is the owner rather than `config set projects`
+	// because it catches every path that widens scope: the command, a
+	// hand-edited config.json, a workspace copied from another machine, a
+	// team config pushed in. An unrecorded signature (a pre-v44 mirror)
+	// forces nothing — this pass records it, and the two-way reconcile
+	// covers that mirror in the meantime.
+	pre.scope = scopeSignature(cfg.Projects)
+	if !res.Full && state.ScopeHash != "" && state.ScopeHash != pre.scope {
+		res.Full = true
+		opts.logf("scope changed %s → %s: one full pass — an incremental one cannot see what the new scope already had (GDK-1400)",
+			state.ScopeHash, pre.scope)
+	}
+
+	// Locale rebuild (GDK-597): the mirror caches origin display names and
+	// this pass is watermark-incremental — a locale change with no origin
+	// mutation would leave untouched rows in the old language (a mixed
+	// mirror). The mirror is a disposable cache; the origin is the record,
+	// so the fix is a full refetch, never a name rewrite on this side.
+	// Built-in only: a connected workspace's language is the Atlassian
+	// account's, not this setting. A NULL marker (pre-v35 mirror) reads as
+	// "" — same effective value as "en", so upgrading does not rebuild.
+	if cfg.HasBuiltInOrigin() {
+		pre.syncedLocale = cfg.EffectiveLocale()
+		stored := state.Locale
+		if stored == "" {
+			stored = "en"
+		}
+		if !res.Full && stored != pre.syncedLocale {
+			res.Full = true
+			pre.localeRebuild = true
+			opts.logf("locale changed %s → %s: rebuilding the mirror — display names follow the workspace language (GDK-597)",
+				stored, pre.syncedLocale)
+		}
+	}
+	return pre, nil
 }
 
 // ProjectScopeMismatch is the single owner of the project-key rename/typo

@@ -188,116 +188,9 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 		}
 	}
 
-	spaces := cfg.Confluence.Spaces
-	// GDK-1484: path ② only — which configured keys the origin actually has.
-	// Path ① builds its scope from the origin's own listing, so it cannot
-	// name a space the origin does not have.
-	var configured, resolved int
-	var missing []string
-	if len(spaces) == 0 {
-		listed, err := c.Spaces(ctx)
-		if err != nil {
-			return record(ctx, cfg, db, ConfluenceSourceID, err)
-		}
-		// Path ①: empty config → Spaces() listing carries key/name/type/homepage.
-		var spaceRows []store.SpaceRow
-		for _, s := range listed {
-			if s.Key == "" {
-				continue
-			}
-			// An empty config means "the team's wiki", not "every space I can
-			// see": Cloud gives each user a personal space, so an unfiltered
-			// listing is mostly ~accountid noise that also blows up CQL URLs.
-			// Personal spaces stay reachable by naming them in config.spaces
-			// (path ② upserts those). Upserting them here just so prune can
-			// delete them would bump version every Watch cycle.
-			// GDK-1302: the exclusion is personal, not "anything but global" —
-			// Cloud later added team space types (collaboration,
-			// knowledge_base) and an allowlist dropped whole team spaces.
-			if s.Type == "personal" {
-				continue
-			}
-			row := store.SpaceRow{Key: s.Key, Name: s.Name, Kind: s.Type}
-			if s.Homepage != nil {
-				row.HomepageID = s.Homepage.ID
-			}
-			spaceRows = append(spaceRows, row)
-			spaces = append(spaces, s.Key)
-		}
-		if err := db.UpsertSpaces(ctx, ConfluenceSourceID, spaceRows); err != nil {
-			return err
-		}
-	} else {
-		// Path ②: config lists spaces explicitly — no Spaces() listing, so
-		// fetch each space once per run for name/kind/homepage. A bad key or
-		// permission error is logged and skipped; the page pass still runs.
-		var spaceRows []store.SpaceRow
-		for _, key := range spaces {
-			if key == "" {
-				continue
-			}
-			configured++
-			s, err := c.Space(ctx, key)
-			if err != nil {
-				// A bad/restricted key is skippable; a rejected credential is
-				// not — continuing would 401 again on SearchPages.
-				if IsRejectedCredential(err) {
-					return record(ctx, cfg, db, ConfluenceSourceID, err)
-				}
-				opts.logf("confluence: space %s: %v", key, err)
-				missing = append(missing, key)
-				continue
-			}
-			resolved++
-			row := store.SpaceRow{Key: s.Key, Name: s.Name, Kind: s.Type}
-			if row.Key == "" {
-				row.Key = key
-			}
-			if s.Homepage != nil {
-				row.HomepageID = s.Homepage.ID
-			}
-			spaceRows = append(spaceRows, row)
-		}
-		if err := db.UpsertSpaces(ctx, ConfluenceSourceID, spaceRows); err != nil {
-			return err
-		}
-	}
-	// GDK-1079: memory.space joins the pass's scope whichever path built it,
-	// and behind path ①'s global filter — a personal memory space must not be
-	// dropped by a filter that exists to drop exactly those.
-	spaces, joined, err := joinMemorySpace(ctx, c, cfg, opts, spaces)
+	spaces, err := resolveSpaceScope(ctx, c, cfg, db, opts)
 	if err != nil {
-		return record(ctx, cfg, db, ConfluenceSourceID, err)
-	}
-	if joined != nil {
-		if err := db.UpsertSpaces(ctx, ConfluenceSourceID, []store.SpaceRow{*joined}); err != nil {
-			return err
-		}
-	}
-	// GDK-1484: a configured space the origin does not have mirrors nothing,
-	// and every later pass repeats that for free. One operator line names the
-	// keys; when NOTHING in the scope resolved, the pass fails instead of
-	// reporting a zero-page success — no amount of syncing repairs a stale
-	// space list, and the measured host reported success 81 times in a row
-	// with confluence.spaces still naming the built-in default (LOC)
-	// after `gadak migrate` replaced that origin's content.
-	if len(missing) > 0 {
-		inScope := resolved
-		if joined != nil {
-			// memory.space is a real, resolvable member of the scope
-			// (joinMemorySpace) — the pass still has something to mirror.
-			inScope++
-		}
-		head := fmt.Sprintf("confluence: %d of %d configured spaces exist upstream (%s)",
-			resolved, configured, strings.Join(missing, ", "))
-		if inScope > 0 {
-			opts.logf("%s — those keys mirror nothing", head)
-		} else {
-			opts.logf(`%s — no page mirrored; run `+"`"+`gadak config set confluence.spaces "[]"`+"`"+` to mirror every space the origin has`, head)
-			return record(ctx, cfg, db, ConfluenceSourceID, fmt.Errorf(
-				`sync: %d of %d configured confluence spaces exist upstream (%s) — no page mirrored; run: gadak config set confluence.spaces "[]"`,
-				resolved, configured, strings.Join(missing, ", ")))
-		}
+		return err
 	}
 	if len(spaces) == 0 {
 		opts.logf("confluence: no spaces in scope")
@@ -595,6 +488,123 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 		return err
 	}
 	return nil
+}
+
+// resolveSpaceScope interprets cfg.Confluence.Spaces into the pass's space
+// key scope, upserting the space rows the interpretation learned. Path ①
+// (empty config) builds the scope from the origin's own Spaces() listing, so
+// it cannot name a space the origin does not have; path ② (config lists
+// keys) fetches each space once for name/kind/homepage and accounts the keys
+// the origin does not have. Either way memory.space joins the scope
+// (GDK-1079), and a configured-but-missing key that leaves NOTHING in scope
+// fails the pass instead of reporting a zero-page success (GDK-1484).
+//
+// Errors come back exactly as the inline code returned them: origin failures
+// and the fatal scope error already went through record (last_error
+// written, watermark untouched), store failures are bare.
+func resolveSpaceScope(ctx context.Context, c *confluence.Client, cfg *config.Config, db *store.DB, opts Options) ([]string, error) {
+	spaces := cfg.Confluence.Spaces
+	var configured, resolved int
+	var missing []string
+	if len(spaces) == 0 {
+		listed, err := c.Spaces(ctx)
+		if err != nil {
+			return nil, record(ctx, cfg, db, ConfluenceSourceID, err)
+		}
+		// Path ①: empty config → Spaces() listing carries key/name/type/homepage.
+		var spaceRows []store.SpaceRow
+		for _, s := range listed {
+			if s.Key == "" {
+				continue
+			}
+			// An empty config means "the team's wiki", not "every space I can
+			// see": Cloud gives each user a personal space, so an unfiltered
+			// listing is mostly ~accountid noise that also blows up CQL URLs.
+			// Personal spaces stay reachable by naming them in config.spaces
+			// (path ② upserts those). Upserting them here just so prune can
+			// delete them would bump version every Watch cycle.
+			// GDK-1302: the exclusion is personal, not "anything but global" —
+			// Cloud later added team space types (collaboration,
+			// knowledge_base) and an allowlist dropped whole team spaces.
+			if s.Type == "personal" {
+				continue
+			}
+			row := store.SpaceRow{Key: s.Key, Name: s.Name, Kind: s.Type}
+			if s.Homepage != nil {
+				row.HomepageID = s.Homepage.ID
+			}
+			spaceRows = append(spaceRows, row)
+			spaces = append(spaces, s.Key)
+		}
+		if err := db.UpsertSpaces(ctx, ConfluenceSourceID, spaceRows); err != nil {
+			return nil, err
+		}
+	} else {
+		// Path ②: config lists spaces explicitly — no Spaces() listing, so
+		// fetch each space once per run for name/kind/homepage. A bad key or
+		// permission error is logged and skipped; the page pass still runs.
+		var spaceRows []store.SpaceRow
+		for _, key := range spaces {
+			if key == "" {
+				continue
+			}
+			configured++
+			s, err := c.Space(ctx, key)
+			if err != nil {
+				// A bad/restricted key is skippable; a rejected credential is
+				// not — continuing would 401 again on SearchPages.
+				if IsRejectedCredential(err) {
+					return nil, record(ctx, cfg, db, ConfluenceSourceID, err)
+				}
+				opts.logf("confluence: space %s: %v", key, err)
+				missing = append(missing, key)
+				continue
+			}
+			resolved++
+			row := store.SpaceRow{Key: s.Key, Name: s.Name, Kind: s.Type}
+			if row.Key == "" {
+				row.Key = key
+			}
+			if s.Homepage != nil {
+				row.HomepageID = s.Homepage.ID
+			}
+			spaceRows = append(spaceRows, row)
+		}
+		if err := db.UpsertSpaces(ctx, ConfluenceSourceID, spaceRows); err != nil {
+			return nil, err
+		}
+	}
+	// GDK-1079: memory.space joins the pass's scope whichever path built it,
+	// and behind path ①'s global filter — a personal memory space must not be
+	// dropped by a filter that exists to drop exactly those.
+	spaces, joined, err := joinMemorySpace(ctx, c, cfg, opts, spaces)
+	if err != nil {
+		return nil, record(ctx, cfg, db, ConfluenceSourceID, err)
+	}
+	if joined != nil {
+		if err := db.UpsertSpaces(ctx, ConfluenceSourceID, []store.SpaceRow{*joined}); err != nil {
+			return nil, err
+		}
+	}
+	if len(missing) > 0 {
+		inScope := resolved
+		if joined != nil {
+			// memory.space is a real, resolvable member of the scope
+			// (joinMemorySpace) — the pass still has something to mirror.
+			inScope++
+		}
+		head := fmt.Sprintf("confluence: %d of %d configured spaces exist upstream (%s)",
+			resolved, configured, strings.Join(missing, ", "))
+		if inScope > 0 {
+			opts.logf("%s — those keys mirror nothing", head)
+		} else {
+			opts.logf(`%s — no page mirrored; run `+"`"+`gadak config set confluence.spaces "[]"`+"`"+` to mirror every space the origin has`, head)
+			return nil, record(ctx, cfg, db, ConfluenceSourceID, fmt.Errorf(
+				`sync: %d of %d configured confluence spaces exist upstream (%s) — no page mirrored; run: gadak config set confluence.spaces "[]"`,
+				resolved, configured, strings.Join(missing, ", ")))
+		}
+	}
+	return spaces, nil
 }
 
 // joinMemorySpace appends cfg.MemorySpace() to the pass's scope keys when it

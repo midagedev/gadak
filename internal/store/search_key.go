@@ -89,62 +89,50 @@ func (db *DB) lookupKeyHits(ctx context.Context, q string, limit int) ([]keyHit,
 		if err != nil {
 			return nil, err
 		}
-		for _, h := range hits {
-			if seen[h.key] {
-				continue
-			}
-			seen[h.key] = true
-			h.reason = "key-exact"
-			exact = append(exact, h)
-		}
+		exact = appendUnseen(exact, hits, seen, "key-exact")
 	}
 	if digits != "" {
 		hits, err := db.keysNumberEqual(ctx, digits, limit)
 		if err != nil {
 			return nil, err
 		}
-		for _, h := range hits {
-			if seen[h.key] {
-				continue
-			}
-			seen[h.key] = true
-			h.reason = "key-exact"
-			exact = append(exact, h)
-		}
+		exact = appendUnseen(exact, hits, seen, "key-exact")
 	}
 	for _, form := range forms {
 		hits, err := db.keysPrefix(ctx, form, limit)
 		if err != nil {
 			return nil, err
 		}
-		for _, h := range hits {
-			if seen[h.key] {
-				continue
-			}
-			seen[h.key] = true
-			h.reason = "key-prefix"
-			prefix = append(prefix, h)
-		}
+		prefix = appendUnseen(prefix, hits, seen, "key-prefix")
 	}
 	if digits != "" {
 		hits, err := db.keysNumberPrefix(ctx, digits, limit)
 		if err != nil {
 			return nil, err
 		}
-		for _, h := range hits {
-			if seen[h.key] {
-				continue
-			}
-			seen[h.key] = true
-			h.reason = "key-prefix"
-			prefix = append(prefix, h)
-		}
+		prefix = appendUnseen(prefix, hits, seen, "key-prefix")
 	}
 	out := append(exact, prefix...)
 	if len(out) > limit {
 		out = out[:limit]
 	}
 	return out, nil
+}
+
+// appendUnseen folds one lookup's hits into out, skipping keys an earlier
+// form already contributed and stamping the reason this stage found them —
+// the dedup axis of lookupKeyHits, where the exact forms, the digit form,
+// and the prefixes all race for the same keys.
+func appendUnseen(out, hits []keyHit, seen map[string]bool, reason string) []keyHit {
+	for _, h := range hits {
+		if seen[h.key] {
+			continue
+		}
+		seen[h.key] = true
+		h.reason = reason
+		out = append(out, h)
+	}
+	return out
 }
 
 func (db *DB) keysEqual(ctx context.Context, key string) ([]keyHit, error) {

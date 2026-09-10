@@ -638,6 +638,18 @@ serve가 자기보다 새 경로에 501로 답하면 이제 그것을 일시 장
 아홉 개로 보고서를 모으며, `init`은 자격증명 해석을 자기 함수로 뺐습니다
 ([GDK-1778], [GDK-1771], [GDK-1775], [GDK-1772]).
 
+같은 감사가 복잡도 조사도 말 그대로 받았습니다. Jira로 가는 `gadak migrate`와
+Linear로 가는 것은 각각 분기 백 개에 가까운 함수 하나였는데, 지금은 둘 다
+읽기·보고·사전점검·기존 스캔·생성·완료·연결·집계로 단계가 나뉜 파이프라인이고,
+검증 보고서의 집계는 둘이 함께 씁니다 ([GDK-1774]). Jira와 Confluence
+클라이언트가 같은 사용량 계측 메서드를 두 벌 들고 있던 것은 `UsageBox` 하나가
+소유하고 둘이 임베드합니다 ([GDK-1780]). Linear 클라이언트는 손으로 복사한
+세 개 대신 제네릭 따라가기 루프 하나로 연결을 넘기고 ([GDK-1779]), 같은
+스무 줄을 반복하던 문자열 설정 리프는 작은 헬퍼 넷을 지나며 ([GDK-1777]),
+Confluence 동기화·Jira 동기화·retro 패스는 각자 가장 긴 구간을 함수로 뺐고
+([GDK-1773]), `gadak wiki` 도움말은 `page` 것에서 파생되므로 별칭이 본래
+명사와 어긋날 수 없습니다 ([GDK-1781]).
+
 900px 아래에는 좁은 레짐이 하나입니다. 사이드바의 좁은 폭이 760px 미디어 쿼리 아래 다섯
 자리에 재선언돼 있어서 800px 창은 272px 사이드바를 유지하고 리스트는 남는 만큼만 받았습니다.
 이제 좁은 값은 인라인 토큰 설치에 실리고, `app.css` 는 `--layout-sidebar` 를 어디에도 정의하지
@@ -2314,5 +2326,11 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1769]: https://gadak.dev/backlog/#/?ks=GDK-1769
 [GDK-1771]: https://gadak.dev/backlog/#/?ks=GDK-1771
 [GDK-1772]: https://gadak.dev/backlog/#/?ks=GDK-1772
+[GDK-1773]: https://gadak.dev/backlog/#/?ks=GDK-1773
+[GDK-1774]: https://gadak.dev/backlog/#/?ks=GDK-1774
 [GDK-1775]: https://gadak.dev/backlog/#/?ks=GDK-1775
+[GDK-1777]: https://gadak.dev/backlog/#/?ks=GDK-1777
 [GDK-1778]: https://gadak.dev/backlog/#/?ks=GDK-1778
+[GDK-1779]: https://gadak.dev/backlog/#/?ks=GDK-1779
+[GDK-1780]: https://gadak.dev/backlog/#/?ks=GDK-1780
+[GDK-1781]: https://gadak.dev/backlog/#/?ks=GDK-1781

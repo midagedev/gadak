@@ -818,6 +818,20 @@ its own, `agent.go` is five files by topic with every declaration kept, and
 credential resolution a function of its own ([GDK-1778], [GDK-1771],
 [GDK-1775], [GDK-1772]).
 
+The same pass took the complexity census at its word. `gadak migrate` to
+Jira and to Linear each ran as one function near a hundred branches deep;
+both are now a staged pipeline — load, report, preflight, scan, create,
+complete, link, count — with the verify report's counting shared between them
+([GDK-1774]). The Jira and Confluence clients carried the same usage-meter
+methods twice; one `UsageBox` owns them and both embed it ([GDK-1780]). The
+Linear client pages its connections through one generic follow loop instead
+of three hand-copied ones ([GDK-1779]); the string-valued settings leaves
+that repeated the same twenty lines each go through four small helpers
+([GDK-1777]); the Confluence sync, the Jira sync and the retro pass each gave
+their longest stretch a function of its own ([GDK-1773]); and the help entry
+for `gadak wiki` is derived from the one for `page`, so the alias cannot
+drift from its noun ([GDK-1781]).
+
 Under 900 pixels there is one narrow regime. The sidebar's narrow width was
 redeclared in five places under a 760-pixel media query, so an 800-pixel
 window kept a 272-pixel sidebar and squeezed the list into what was left;
@@ -2566,5 +2580,11 @@ priority sorting keyed on `priority_rank`.
 [GDK-1769]: https://gadak.dev/backlog/#/?ks=GDK-1769
 [GDK-1771]: https://gadak.dev/backlog/#/?ks=GDK-1771
 [GDK-1772]: https://gadak.dev/backlog/#/?ks=GDK-1772
+[GDK-1773]: https://gadak.dev/backlog/#/?ks=GDK-1773
+[GDK-1774]: https://gadak.dev/backlog/#/?ks=GDK-1774
 [GDK-1775]: https://gadak.dev/backlog/#/?ks=GDK-1775
+[GDK-1777]: https://gadak.dev/backlog/#/?ks=GDK-1777
 [GDK-1778]: https://gadak.dev/backlog/#/?ks=GDK-1778
+[GDK-1779]: https://gadak.dev/backlog/#/?ks=GDK-1779
+[GDK-1780]: https://gadak.dev/backlog/#/?ks=GDK-1780
+[GDK-1781]: https://gadak.dev/backlog/#/?ks=GDK-1781

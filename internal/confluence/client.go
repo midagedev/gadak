@@ -109,14 +109,12 @@ type Client struct {
 	// pause would only add latency on top. Nil keeps the pause always on.
 	PauseDecide func() bool
 
-	// usage is process-local call volume; see Usage / TakeUsage. Never blocks
-	// a request on instrumentation failure (counters are atomic).
-	usage atlhttp.Meter
-
-	// breakdown is the per-kind request tally behind the sync pass's
-	// "sync: requests …" line; see TakeRequestBreakdown. It also
-	// carries the PauseBetween sleep, which no request meter sees.
-	breakdown atlhttp.Breakdown
+	// UsageBox is the process-local instrument pair — call volume and the
+	// per-kind request tally behind the sync pass's "sync: requests …"
+	// line. Usage / TakeUsage / TakeRequestBreakdown promote from it. The
+	// breakdown also carries the PauseBetween sleep, which no request
+	// meter sees. Never blocks a request (counters are atomic).
+	atlhttp.UsageBox
 }
 
 // New builds a client. site is the Atlassian origin (no /wiki suffix).
@@ -147,8 +145,8 @@ func (c *Client) transport() atlhttp.Config {
 		Retries:   c.Retries,
 		Backoff:   c.Backoff,
 		ErrPrefix: "confluence",
-		Usage:     &c.usage,
-		Breakdown: &c.breakdown,
+		Usage:     &c.UsageBox.Meter,
+		Breakdown: &c.UsageBox.Breakdown,
 	}
 }
 
@@ -377,7 +375,7 @@ func (c *Client) Page(ctx context.Context, id string) (Page, error) {
 			// The politeness sleep is invisible to every request meter; the
 			// breakdown carries it so the pass line accounts for it (45.7 s
 			// of one first-sync benchmark).
-			c.breakdown.NoteSleep(c.PauseBetween)
+			c.UsageBox.Breakdown.NoteSleep(c.PauseBetween)
 		}
 	}
 	return out, nil
@@ -435,17 +433,20 @@ func (c *Client) Comments(ctx context.Context, pageID string) ([]Comment, error)
 	return out, nil
 }
 
-func (c *Client) childComments(ctx context.Context, contentID string) ([]Comment, error) {
-	out := []Comment{}
+// pageChildren walks one content-child listing's start/limit pages until a
+// short (or empty) page ends the walk — the shared body of childComments
+// and Attachments, whose loops differed only in route and row type. path is
+// the query-string-carrying route with no start= parameter; each page
+// appends its own.
+func pageChildren[T any](ctx context.Context, c *Client, path string) ([]T, error) {
+	out := []T{}
 	for start := 0; ; {
 		var page struct {
-			Results []Comment `json:"results"`
-			Size    int       `json:"size"`
-			Limit   int       `json:"limit"`
+			Results []T `json:"results"`
+			Size    int `json:"size"`
+			Limit   int `json:"limit"`
 		}
-		p := fmt.Sprintf("%s/content/%s/child/comment?expand=body.atlas_doc_format,version&limit=100&start=%d",
-			apiPath, url.PathEscape(contentID), start)
-		if err := c.do(ctx, http.MethodGet, p, nil, &page); err != nil {
+		if err := c.do(ctx, http.MethodGet, fmt.Sprintf("%s&start=%d", path, start), nil, &page); err != nil {
 			return nil, err
 		}
 		out = append(out, page.Results...)
@@ -456,29 +457,18 @@ func (c *Client) childComments(ctx context.Context, contentID string) ([]Comment
 	}
 }
 
+func (c *Client) childComments(ctx context.Context, contentID string) ([]Comment, error) {
+	return pageChildren[Comment](ctx, c, fmt.Sprintf("%s/content/%s/child/comment?expand=body.atlas_doc_format,version&limit=100",
+		apiPath, url.PathEscape(contentID)))
+}
+
 // Attachments lists a page's file attachments — child/attachment with the
 // same start/limit paging childComments uses. The rows carry metadata only;
 // the bytes come from content/{id}/download, which is the proxy's route, not
 // a stored URL (GDK-1541).
 func (c *Client) Attachments(ctx context.Context, pageID string) ([]Attachment, error) {
-	out := []Attachment{}
-	for start := 0; ; {
-		var page struct {
-			Results []Attachment `json:"results"`
-			Size    int          `json:"size"`
-			Limit   int          `json:"limit"`
-		}
-		p := fmt.Sprintf("%s/content/%s/child/attachment?limit=100&start=%d",
-			apiPath, url.PathEscape(pageID), start)
-		if err := c.do(ctx, http.MethodGet, p, nil, &page); err != nil {
-			return nil, err
-		}
-		out = append(out, page.Results...)
-		if len(page.Results) == 0 || len(page.Results) < 100 {
-			return out, nil
-		}
-		start += len(page.Results)
-	}
+	return pageChildren[Attachment](ctx, c, fmt.Sprintf("%s/content/%s/child/attachment?limit=100",
+		apiPath, url.PathEscape(pageID)))
 }
 
 // nextPath turns a _links.next value into a path relative to c.base.

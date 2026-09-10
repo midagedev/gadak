@@ -19,6 +19,26 @@ type VerifyRow struct {
 	Skipped int `json:"skipped,omitempty"`
 }
 
+// reportCore is the half of a write-destination report every destination
+// shares: the count table, the mapping applied, and what did not travel.
+// JiraReport and LinearReport embed it; VerifyMirror's rows are the
+// built-in destination's version of the same table.
+type reportCore struct {
+	Counts      []VerifyRow `json:"counts"`
+	Mapping     []string    `json:"mapping"`
+	NotMigrated []string    `json:"not_migrated"`
+	Warnings    []string    `json:"warnings,omitempty"`
+}
+
+// addCountRow appends one axis of the count table: what the source export
+// carried against what this run created plus what the idempotency scan
+// found already at the target (nil maps in a dry run — nothing was created
+// or skipped there).
+func (r *reportCore) addCountRow(metric string, source int, created, skipped map[string]int) {
+	r.Counts = append(r.Counts, VerifyRow{Metric: metric, Source: source,
+		Migrated: created[metric] + skipped[metric], Skipped: skipped[metric]})
+}
+
 // VerifyMirror re-counts the exported axes on the target mirror. The
 // derived rows (reopens, epic keys) matter most: they are never stored in
 // the fixture, so equality proves the migrated changelog reproduces them.

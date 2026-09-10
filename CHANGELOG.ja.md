@@ -684,6 +684,17 @@ serve が自分より新しいルートに 501 で答えたら、それを一時
 資格情報の解決を自分の関数に出しました ([GDK-1778], [GDK-1771], [GDK-1775],
 [GDK-1772])。
 
+同じ監査は複雑度の調査も言葉どおりに受け取りました。Jira 行きと Linear 行きの
+`gadak migrate` はそれぞれ分岐が百近いひとつの関数でしたが、いまは読み込み・報告・
+事前確認・既存の走査・作成・完了・リンク・集計に段階が分かれたパイプラインで、検証
+報告の集計は両者で共有します ([GDK-1774])。Jira と Confluence のクライアントが同じ
+使用量計測メソッドを二組抱えていたのは、ひとつの `UsageBox` が所有して両方が埋め込み
+ます ([GDK-1780])。Linear クライアントは手で写した三つの代わりにジェネリックな追従
+ループひとつで接続をめくり ([GDK-1779])、同じ二十行を繰り返していた文字列設定の葉は
+小さなヘルパー四つを通り ([GDK-1777])、Confluence 同期・Jira 同期・retro パスは
+それぞれ最も長い区間を関数に出し ([GDK-1773])、`gadak wiki` のヘルプは `page` の
+ものから派生するので、別名が元の名詞からずれることはありません ([GDK-1781])。
+
 900px より下では狭いレジームがひとつです。サイドバーの狭い幅が 760px のメディアクエリの
 下で五か所に再宣言されていたため、800px の窓は 272px のサイドバーを保ち、一覧は残りだけを
 受け取っていました。いまは狭い値がインラインのトークン設置に載り、`app.css` は
@@ -2440,5 +2451,11 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1769]: https://gadak.dev/backlog/#/?ks=GDK-1769
 [GDK-1771]: https://gadak.dev/backlog/#/?ks=GDK-1771
 [GDK-1772]: https://gadak.dev/backlog/#/?ks=GDK-1772
+[GDK-1773]: https://gadak.dev/backlog/#/?ks=GDK-1773
+[GDK-1774]: https://gadak.dev/backlog/#/?ks=GDK-1774
 [GDK-1775]: https://gadak.dev/backlog/#/?ks=GDK-1775
+[GDK-1777]: https://gadak.dev/backlog/#/?ks=GDK-1777
 [GDK-1778]: https://gadak.dev/backlog/#/?ks=GDK-1778
+[GDK-1779]: https://gadak.dev/backlog/#/?ks=GDK-1779
+[GDK-1780]: https://gadak.dev/backlog/#/?ks=GDK-1780
+[GDK-1781]: https://gadak.dev/backlog/#/?ks=GDK-1781

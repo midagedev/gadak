@@ -48,15 +48,12 @@ type LinearOptions struct {
 }
 
 // LinearReport is the run's honest half: counts, the mapping applied, and
-// what did not travel. Counts reuse VerifyRow with Skipped = already
-// present at the target before this run.
+// what did not travel (reportCore). Counts reuse VerifyRow with Skipped =
+// already present at the target before this run.
 type LinearReport struct {
-	Team        string      `json:"team"`
-	DryRun      bool        `json:"dry_run"`
-	Counts      []VerifyRow `json:"counts"`
-	Mapping     []string    `json:"mapping"`
-	NotMigrated []string    `json:"not_migrated"`
-	Warnings    []string    `json:"warnings,omitempty"`
+	Team   string `json:"team"`
+	DryRun bool   `json:"dry_run"`
+	reportCore
 }
 
 var footerRe = regexp.MustCompile(`(?m)^gadak-migrate: (\S+)\s*$`)
@@ -168,6 +165,12 @@ func linearTime(s string) string {
 // ToLinear emits doc into the team opt.TeamKey through client. st is the
 // Build stats (for the not-migrated rows). Only doc.Issues travel; pages
 // have no Linear counterpart.
+//
+// The run is a pipeline on linearRun, the Linear sibling of ToJira's seven
+// stages with one more write step: loadSource and sourceReport are the
+// network-free dry-run product, and past the dry-run gate preflightTarget,
+// scanExisting, ensureLabels, createIssues, completeIssues and
+// createRelations run in that order. counts closes the report either way.
 func ToLinear(ctx context.Context, client *linear.Client, doc *Doc, st *Stats, opt LinearOptions) (*LinearReport, error) {
 	if opt.TeamKey == "" {
 		return nil, fmt.Errorf("migrate: --team <KEY> is required for --to linear")
@@ -177,371 +180,462 @@ func ToLinear(ctx context.Context, client *linear.Client, doc *Doc, st *Stats, o
 	if progress == nil {
 		progress = io.Discard
 	}
-
-	// Limit and the re-cut of parents/links to the kept set are shared with
-	// the Jira destination (jira.go, scopeIssues).
-	issues, keyset, droppedParents, droppedLinks := scopeIssues(doc.Issues, opt.Limit)
-
-	// Source-side tallies and the mapping table (network-free).
-	names := map[string]string{}
-	emails := map[string]string{}
-	for _, is := range issues {
-		if is.Assignee != "" && is.AssigneeEmail != "" {
-			emails[is.Assignee] = is.AssigneeEmail
-		}
-	}
-	for _, u := range doc.Users {
-		names[u.AccountID] = u.DisplayName
-		if u.Email != "" {
-			emails[u.AccountID] = u.Email
-		}
-	}
-	typeName := map[string]string{}
-	for _, t := range doc.IssueTypes {
-		typeName[t.ID] = t.Name
-	}
-	tally := tallyIssues(issues)
-	comments, parents, attachments, assigned := tally.comments, tally.parents, tally.attachments, tally.assigned
-	historyRows := tally.history
-	var collapsed int
-	labelSet := map[string]bool{migrateLabel: true}
-	cats := map[string]bool{}
-	ranks := map[int]bool{}
-	for _, is := range issues {
-		if _, c := linearPriority(is.PriorityRank); c {
-			collapsed++
-		}
-		cats[is.StatusCategory] = true
-		ranks[is.PriorityRank] = true
-		for _, l := range is.Labels {
-			labelSet[l] = true
-		}
-		if n := typeName[is.Type]; n != "" {
-			labelSet[n] = true
-		}
-	}
-	relations := linearRelations(issues)
-
-	for _, c := range slices.Sorted(maps.Keys(cats)) {
-		rep.Mapping = append(rep.Mapping, fmt.Sprintf("status_category %-10s → the team's lowest workflow state in that category", c))
-	}
-	rankList := make([]int, 0, len(ranks))
-	for r := range ranks {
-		rankList = append(rankList, r)
-	}
-	sort.Ints(rankList)
-	for _, r := range rankList {
-		p, c := linearPriority(r)
-		note := ""
-		if c {
-			note = "  (collapsed)"
-		}
-		rep.Mapping = append(rep.Mapping, fmt.Sprintf("priority_rank %d → priority %d%s", r, p, note))
-	}
-	for _, t := range doc.IssueTypes {
-		rep.Mapping = append(rep.Mapping, fmt.Sprintf("issue type %-12s → label %q", t.Name, t.Name))
-	}
-	rep.Mapping = append(rep.Mapping,
-		"link types      → relation blocks|duplicate|related (others → related; Linear moves a duplicate into its Duplicate state)",
-		"comments        → body prefixed with `author · time` (Linear cannot post as someone else)",
-		"description     → plain text + footer `gadak-migrate: <KEY>` (the idempotency key)")
-
-	rep.NotMigrated = append(rep.NotMigrated,
-		fmt.Sprintf("history %d (Linear has no changelog write API — reopen counts and time-in-status start over)", historyRows),
-		fmt.Sprintf("authorship: reporter and the authors of %d comments are text in the body; the API key's user is the creator (timestamps are backdated)", comments),
-		fmt.Sprintf("attachment bytes %d (linked by URL to the source when it has one; never uploaded)", attachments))
-	if st != nil {
-		if st.Pages > 0 {
-			rep.NotMigrated = append(rep.NotMigrated, fmt.Sprintf("wiki pages %d (Linear has no wiki)", st.Pages))
-		}
-		if st.DevLinks+st.CustomIssues+st.SprintIssues > 0 {
-			rep.NotMigrated = append(rep.NotMigrated, fmt.Sprintf("dev links %d, issues with custom fields %d, issues with sprints %d", st.DevLinks, st.CustomIssues, st.SprintIssues))
-		}
-	}
-	if collapsed > 0 {
-		rep.NotMigrated = append(rep.NotMigrated, fmt.Sprintf("priority ranks past 4 on %d issues collapsed to Low", collapsed))
-	}
-	if droppedParents+droppedLinks > 0 {
-		rep.NotMigrated = append(rep.NotMigrated, fmt.Sprintf("parents %d and links %d pointing outside the migrated set", droppedParents, droppedLinks))
-	}
-
-	counts := func(created, skipped map[string]int) {
-		row := func(metric string, source int) {
-			rep.Counts = append(rep.Counts, VerifyRow{Metric: metric, Source: source,
-				Migrated: created[metric] + skipped[metric], Skipped: skipped[metric]})
-		}
-		row("issues", len(issues))
-		row("comments", comments)
-		row("parents", parents)
-		row("relations", len(relations))
-		row("labels", len(labelSet))
-		row("attachments", attachments)
-		row("assignees", assigned)
-	}
+	r := &linearRun{ctx: ctx, client: client, doc: doc, st: st, opt: opt, rep: rep, progress: progress}
+	r.loadSource()
+	r.sourceReport()
 	if opt.DryRun {
-		counts(nil, nil)
+		r.counts(nil, nil)
 		return rep, nil
 	}
 
 	// --- network from here on ---
-	teams, err := client.Teams(ctx)
-	if err != nil {
+	if err := r.preflightTarget(); err != nil {
 		return nil, err
 	}
-	teamID := ""
-	for _, t := range teams {
-		if t.Key == opt.TeamKey {
-			teamID = t.ID
+	if err := r.scanExisting(); err != nil {
+		return nil, err
+	}
+	if err := r.ensureLabels(); err != nil {
+		return nil, err
+	}
+	if err := r.createIssues(); err != nil {
+		return nil, err
+	}
+	if err := r.completeIssues(); err != nil {
+		return nil, err
+	}
+	if err := r.createRelations(); err != nil {
+		return nil, err
+	}
+	// GDK-1318: the assignee skips the run could not verify are a report
+	// row, not a silent gap — the assignees count row shows the mismatch
+	// either way; this line says which part of it is "the lookup errored"
+	// and not "the person is not on Linear".
+	if len(r.userLookupFailed) > 0 {
+		rep.NotMigrated = append(rep.NotMigrated,
+			fmt.Sprintf("assignee lookups failed for %d accounts (%s) — their issues migrated unassigned; a lookup error, not a confirmed miss",
+				len(r.userLookupFailed), strings.Join(slices.Sorted(maps.Keys(r.userLookupFailed)), ", ")))
+	}
+	r.counts(r.created, r.skipped)
+	return rep, nil
+}
+
+// linearRun is one ToLinear execution: the inputs it started from, the
+// report it fills, and the state one pipeline stage hands the next. See
+// ToLinear for the stage order.
+type linearRun struct {
+	ctx      context.Context
+	client   *linear.Client
+	doc      *Doc
+	st       *Stats
+	opt      LinearOptions
+	rep      *LinearReport
+	progress io.Writer
+
+	// loadSource: the migrated set and the source-side numbers.
+	issues         []Issue
+	keyset         map[string]bool
+	droppedParents int
+	droppedLinks   int
+	tally          sourceTally
+	relations      []relation
+	names          map[string]string
+	emails         map[string]string
+	typeName       map[string]string
+	labelSet       map[string]bool
+	cats           map[string]bool
+	rankList       []int
+	collapsed      int
+
+	// preflightTarget / ensureLabels: the team and what was mapped onto it.
+	teamID   string
+	stateFor map[string]string
+	labelID  map[string]string
+
+	// the write stages' state.
+	existing         map[string]linear.Issue
+	created          map[string]int
+	skipped          map[string]int
+	userID           map[string]string // account id → Linear user id ("" = miss or failed)
+	userLookupFailed map[string]bool
+	ids              map[string]string // source key → Linear issue id
+	isNew            map[string]bool
+}
+
+// loadSource is stage 1: cut the doc to the migrated set and tally every
+// source-side number the report and the count table need — the Jira
+// destination's loadSource plus the axes only Linear has (emails for
+// assignees, type names as labels). No network.
+func (r *linearRun) loadSource() {
+	r.issues, r.keyset, r.droppedParents, r.droppedLinks = scopeIssues(r.doc.Issues, r.opt.Limit)
+
+	r.names = map[string]string{}
+	r.emails = map[string]string{}
+	for _, is := range r.issues {
+		if is.Assignee != "" && is.AssigneeEmail != "" {
+			r.emails[is.Assignee] = is.AssigneeEmail
 		}
 	}
-	if teamID == "" {
-		return nil, fmt.Errorf("migrate: no Linear team with key %q", opt.TeamKey)
+	for _, u := range r.doc.Users {
+		r.names[u.AccountID] = u.DisplayName
+		if u.Email != "" {
+			r.emails[u.AccountID] = u.Email
+		}
 	}
-	states, err := client.WorkflowStates(ctx, teamID)
+	r.typeName = map[string]string{}
+	for _, t := range r.doc.IssueTypes {
+		r.typeName[t.ID] = t.Name
+	}
+	r.tally = tallyIssues(r.issues)
+	r.labelSet = map[string]bool{migrateLabel: true}
+	r.cats = map[string]bool{}
+	ranks := map[int]bool{}
+	for _, is := range r.issues {
+		if _, c := linearPriority(is.PriorityRank); c {
+			r.collapsed++
+		}
+		r.cats[is.StatusCategory] = true
+		ranks[is.PriorityRank] = true
+		for _, l := range is.Labels {
+			r.labelSet[l] = true
+		}
+		if n := r.typeName[is.Type]; n != "" {
+			r.labelSet[n] = true
+		}
+	}
+	r.relations = linearRelations(r.issues)
+	r.rankList = make([]int, 0, len(ranks))
+	for rk := range ranks {
+		r.rankList = append(r.rankList, rk)
+	}
+	sort.Ints(r.rankList)
+}
+
+// sourceReport is stage 2: the network-free half of the report — the
+// mapping lines that need no target catalog, and everything that did not
+// travel.
+func (r *linearRun) sourceReport() {
+	for _, c := range slices.Sorted(maps.Keys(r.cats)) {
+		r.rep.Mapping = append(r.rep.Mapping, fmt.Sprintf("status_category %-10s → the team's lowest workflow state in that category", c))
+	}
+	for _, rk := range r.rankList {
+		p, c := linearPriority(rk)
+		note := ""
+		if c {
+			note = "  (collapsed)"
+		}
+		r.rep.Mapping = append(r.rep.Mapping, fmt.Sprintf("priority_rank %d → priority %d%s", rk, p, note))
+	}
+	for _, t := range r.doc.IssueTypes {
+		r.rep.Mapping = append(r.rep.Mapping, fmt.Sprintf("issue type %-12s → label %q", t.Name, t.Name))
+	}
+	r.rep.Mapping = append(r.rep.Mapping,
+		"link types      → relation blocks|duplicate|related (others → related; Linear moves a duplicate into its Duplicate state)",
+		"comments        → body prefixed with `author · time` (Linear cannot post as someone else)",
+		"description     → plain text + footer `gadak-migrate: <KEY>` (the idempotency key)")
+
+	r.rep.NotMigrated = append(r.rep.NotMigrated,
+		fmt.Sprintf("history %d (Linear has no changelog write API — reopen counts and time-in-status start over)", r.tally.history),
+		fmt.Sprintf("authorship: reporter and the authors of %d comments are text in the body; the API key's user is the creator (timestamps are backdated)", r.tally.comments),
+		fmt.Sprintf("attachment bytes %d (linked by URL to the source when it has one; never uploaded)", r.tally.attachments))
+	if r.st != nil {
+		if r.st.Pages > 0 {
+			r.rep.NotMigrated = append(r.rep.NotMigrated, fmt.Sprintf("wiki pages %d (Linear has no wiki)", r.st.Pages))
+		}
+		if r.st.DevLinks+r.st.CustomIssues+r.st.SprintIssues > 0 {
+			r.rep.NotMigrated = append(r.rep.NotMigrated, fmt.Sprintf("dev links %d, issues with custom fields %d, issues with sprints %d", r.st.DevLinks, r.st.CustomIssues, r.st.SprintIssues))
+		}
+	}
+	if r.collapsed > 0 {
+		r.rep.NotMigrated = append(r.rep.NotMigrated, fmt.Sprintf("priority ranks past 4 on %d issues collapsed to Low", r.collapsed))
+	}
+	if r.droppedParents+r.droppedLinks > 0 {
+		r.rep.NotMigrated = append(r.rep.NotMigrated, fmt.Sprintf("parents %d and links %d pointing outside the migrated set", r.droppedParents, r.droppedLinks))
+	}
+}
+
+// counts appends the count table, the report's last rows in a dry run and
+// in a real one (nil maps in the dry run: nothing was created or skipped).
+func (r *linearRun) counts(created, skipped map[string]int) {
+	r.rep.addCountRow("issues", len(r.issues), created, skipped)
+	r.rep.addCountRow("comments", r.tally.comments, created, skipped)
+	r.rep.addCountRow("parents", r.tally.parents, created, skipped)
+	r.rep.addCountRow("relations", len(r.relations), created, skipped)
+	r.rep.addCountRow("labels", len(r.labelSet), created, skipped)
+	r.rep.addCountRow("attachments", r.tally.attachments, created, skipped)
+	r.rep.addCountRow("assignees", r.tally.assigned, created, skipped)
+}
+
+// preflightTarget is stage 3: resolve the team and map each source
+// status_category onto one of its workflow states — the target's catalogs
+// before the first write.
+func (r *linearRun) preflightTarget() error {
+	teams, err := r.client.Teams(r.ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	stateFor := map[string]string{}
-	for c := range cats {
+	for _, t := range teams {
+		if t.Key == r.opt.TeamKey {
+			r.teamID = t.ID
+		}
+	}
+	if r.teamID == "" {
+		return fmt.Errorf("migrate: no Linear team with key %q", r.opt.TeamKey)
+	}
+	states, err := r.client.WorkflowStates(r.ctx, r.teamID)
+	if err != nil {
+		return err
+	}
+	r.stateFor = map[string]string{}
+	for c := range r.cats {
 		s := pickLinearState(states, c)
 		if s.ID == "" {
-			return nil, fmt.Errorf("migrate: team %s has no workflow state in status_category %q (no state whose type maps there)", opt.TeamKey, c)
+			return fmt.Errorf("migrate: team %s has no workflow state in status_category %q (no state whose type maps there)", r.opt.TeamKey, c)
 		}
-		stateFor[c] = s.ID
-		rep.Mapping = append(rep.Mapping, fmt.Sprintf("status_category %-10s → %q (%s)", c, s.Name, s.Type))
+		r.stateFor[c] = s.ID
+		r.rep.Mapping = append(r.rep.Mapping, fmt.Sprintf("status_category %-10s → %q (%s)", c, s.Name, s.Type))
 	}
+	return nil
+}
 
-	// Existing rows by footer — the idempotency scan.
-	existing := map[string]linear.Issue{}
-	err = client.Issues(ctx, linear.IssueOpts{TeamID: teamID, IncludeArchived: true, PageSize: 250}, func(page []linear.Issue) error {
+// scanExisting is stage 4: the idempotency scan — every issue on the team
+// whose description carries the migrate footer, keyed by source key.
+func (r *linearRun) scanExisting() error {
+	r.existing = map[string]linear.Issue{}
+	err := r.client.Issues(r.ctx, linear.IssueOpts{TeamID: r.teamID, IncludeArchived: true, PageSize: 250}, func(page []linear.Issue) error {
 		for _, li := range page {
 			if k := parseMigrateFooter(li.Description); k != "" {
-				existing[k] = li
+				r.existing[k] = li
 			}
 		}
 		return nil
 	})
-	if err != nil {
-		return nil, err
-	}
+	return err
+}
 
-	// Labels: reuse by name, create the rest on the team.
-	created := map[string]int{}
-	skipped := map[string]int{}
-	labelID := map[string]string{}
-	all, err := client.Labels(ctx)
+// ensureLabels is stage 5, the first write: reuse the labels the team
+// already has by name and create the rest on the team.
+func (r *linearRun) ensureLabels() error {
+	r.created = map[string]int{}
+	r.skipped = map[string]int{}
+	r.labelID = map[string]string{}
+	all, err := r.client.Labels(r.ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for _, l := range all {
-		labelID[strings.ToLower(l.Name)] = l.ID
+		r.labelID[strings.ToLower(l.Name)] = l.ID
 	}
-	for _, name := range slices.Sorted(maps.Keys(labelSet)) {
-		if labelID[strings.ToLower(name)] != "" {
-			skipped["labels"]++
+	for _, name := range slices.Sorted(maps.Keys(r.labelSet)) {
+		if r.labelID[strings.ToLower(name)] != "" {
+			r.skipped["labels"]++
 			continue
 		}
-		if err := pace(ctx, client); err != nil {
-			return nil, err
+		if err := pace(r.ctx, r.client); err != nil {
+			return err
 		}
-		l, err := client.CreateLabel(ctx, teamID, name)
+		l, err := r.client.CreateLabel(r.ctx, r.teamID, name)
 		if err != nil {
-			return nil, fmt.Errorf("create label %q: %w", name, err)
+			return fmt.Errorf("create label %q: %w", name, err)
 		}
-		labelID[strings.ToLower(name)] = l.ID
-		created["labels"]++
+		r.labelID[strings.ToLower(name)] = l.ID
+		r.created["labels"]++
 	}
+	return nil
+}
 
-	// Assignees by email; a miss leaves the issue unassigned. A failed
-	// lookup used to be indistinguishable from a miss (any error skipped
-	// the assignment and the run reported success, GDK-1318) — the issue
-	// still migrates, because one person must not fail the whole run, but
-	// the account is remembered and the report names it, so a transport
-	// error never masquerades as "no such user" in the assignees row's
-	// mismatch.
-	userID := map[string]string{} // account id → Linear user id ("" = miss or failed)
-	userLookupFailed := map[string]bool{}
-	resolveUser := func(acct string) string {
-		if id, ok := userID[acct]; ok {
-			return id
-		}
-		id := ""
-		if email := emails[acct]; email != "" {
-			users, err := client.Users(ctx, email)
-			if err != nil {
-				userLookupFailed[acct] = true
-			} else {
-				for _, u := range users {
-					if strings.EqualFold(u.Email, email) {
-						id = u.ID
-					}
+// resolveUser maps a source account id onto a Linear user id by email; a
+// miss leaves the issue unassigned. A failed lookup used to be
+// indistinguishable from a miss (any error skipped the assignment and the
+// run reported success, GDK-1318) — the issue still migrates, because one
+// person must not fail the whole run, but the account is remembered and the
+// report names it, so a transport error never masquerades as "no such
+// user" in the assignees row's mismatch.
+func (r *linearRun) resolveUser(acct string) string {
+	if id, ok := r.userID[acct]; ok {
+		return id
+	}
+	id := ""
+	if email := r.emails[acct]; email != "" {
+		users, err := r.client.Users(r.ctx, email)
+		if err != nil {
+			r.userLookupFailed[acct] = true
+		} else {
+			for _, u := range users {
+				if strings.EqualFold(u.Email, email) {
+					id = u.ID
 				}
 			}
 		}
-		userID[acct] = id
-		return id
 	}
+	r.userID[acct] = id
+	return id
+}
 
-	// Create in parent-first order so parentId rides the create call.
-	ids := map[string]string{} // source key → Linear issue id
-	for k, li := range existing {
-		if keyset[k] {
-			ids[k] = li.ID
+// createIssues is stage 6: create the not-yet-migrated issues in
+// parent-first order so parentId rides the create call, assigning by email
+// as it goes.
+func (r *linearRun) createIssues() error {
+	r.userID = map[string]string{}
+	r.userLookupFailed = map[string]bool{}
+	r.ids = map[string]string{} // source key → Linear issue id
+	for k, li := range r.existing {
+		if r.keyset[k] {
+			r.ids[k] = li.ID
 		}
 	}
 	var newKeys []string
-	pending := make([]*Issue, 0, len(issues))
-	for i := range issues {
-		if li, ok := existing[issues[i].Key]; ok {
+	pending := make([]*Issue, 0, len(r.issues))
+	for i := range r.issues {
+		if li, ok := r.existing[r.issues[i].Key]; ok {
 			// Counted from what the scan saw on the Linear row, not from
 			// the source — an earlier run's misses stay visible.
-			skipped["issues"]++
-			skipped["comments"] += len(li.Comments.Nodes)
-			skipped["attachments"] += len(li.Attachments.Nodes)
+			r.skipped["issues"]++
+			r.skipped["comments"] += len(li.Comments.Nodes)
+			r.skipped["attachments"] += len(li.Attachments.Nodes)
 			if li.Parent != nil {
-				skipped["parents"]++
+				r.skipped["parents"]++
 			}
 			if li.Assignee != nil {
-				skipped["assignees"]++
+				r.skipped["assignees"]++
 			}
 			continue
 		}
-		pending = append(pending, &issues[i])
+		pending = append(pending, &r.issues[i])
 	}
 	createdAtChecked := false
 	for len(pending) > 0 {
 		var rest []*Issue
 		progressed := false
 		for _, is := range pending {
-			if is.Parent != "" && ids[is.Parent] == "" {
+			if is.Parent != "" && r.ids[is.Parent] == "" {
 				rest = append(rest, is)
 				continue
 			}
-			if err := pace(ctx, client); err != nil {
-				return nil, err
+			if err := pace(r.ctx, r.client); err != nil {
+				return err
 			}
 			in := linear.IssueCreate{
-				TeamID:      teamID,
+				TeamID:      r.teamID,
 				Title:       is.Summary,
 				Description: is.Description + migrateFooter(is.Key),
-				StateID:     stateFor[is.StatusCategory],
-				ParentID:    ids[is.Parent],
+				StateID:     r.stateFor[is.StatusCategory],
+				ParentID:    r.ids[is.Parent],
 				CreatedAt:   linearTime(is.Created),
 				DueDate:     is.Duedate,
 			}
 			p, _ := linearPriority(is.PriorityRank)
 			in.Priority = &p
-			in.LabelIDs = []string{labelID[strings.ToLower(migrateLabel)]}
+			in.LabelIDs = []string{r.labelID[strings.ToLower(migrateLabel)]}
 			for _, l := range is.Labels {
-				in.LabelIDs = append(in.LabelIDs, labelID[strings.ToLower(l)])
+				in.LabelIDs = append(in.LabelIDs, r.labelID[strings.ToLower(l)])
 			}
-			if n := typeName[is.Type]; n != "" {
-				in.LabelIDs = append(in.LabelIDs, labelID[strings.ToLower(n)])
+			if n := r.typeName[is.Type]; n != "" {
+				in.LabelIDs = append(in.LabelIDs, r.labelID[strings.ToLower(n)])
 			}
 			if is.Assignee != "" {
-				if in.AssigneeID = resolveUser(is.Assignee); in.AssigneeID != "" {
-					created["assignees"]++
+				if in.AssigneeID = r.resolveUser(is.Assignee); in.AssigneeID != "" {
+					r.created["assignees"]++
 				}
 			}
-			li, err := client.CreateIssue(ctx, in)
+			li, err := r.client.CreateIssue(r.ctx, in)
 			if err != nil {
-				return nil, fmt.Errorf("create %s: %w", is.Key, err)
+				return fmt.Errorf("create %s: %w", is.Key, err)
 			}
 			if !createdAtChecked && in.CreatedAt != "" {
 				createdAtChecked = true
 				if linearTime(li.CreatedAt) != in.CreatedAt {
-					rep.Warnings = append(rep.Warnings, "Linear did not honor createdAt on issueCreate — issues carry the migration time")
+					r.rep.Warnings = append(r.rep.Warnings, "Linear did not honor createdAt on issueCreate — issues carry the migration time")
 				}
 			}
-			ids[is.Key] = li.ID
+			r.ids[is.Key] = li.ID
 			newKeys = append(newKeys, is.Key)
-			created["issues"]++
+			r.created["issues"]++
 			if is.Parent != "" {
-				created["parents"]++
+				r.created["parents"]++
 			}
-			fmt.Fprintf(progress, "%s → %s\n", is.Key, li.Identifier)
+			fmt.Fprintf(r.progress, "%s → %s\n", is.Key, li.Identifier)
 			progressed = true
 		}
 		if !progressed {
 			// Parent chain cannot resolve (a cycle, or a parent whose
 			// create failed silently); file the rest as roots and say so.
 			for _, is := range rest {
-				droppedParents++
+				r.droppedParents++
 				is.Parent = ""
 			}
-			rep.Warnings = append(rep.Warnings, fmt.Sprintf("%d parents could not be ordered and were dropped", len(rest)))
+			r.rep.Warnings = append(r.rep.Warnings, fmt.Sprintf("%d parents could not be ordered and were dropped", len(rest)))
 		}
 		pending = rest
 	}
-
-	// Children of the issues created this run.
-	isNew := map[string]bool{}
+	r.isNew = map[string]bool{}
 	for _, k := range newKeys {
-		isNew[k] = true
+		r.isNew[k] = true
 	}
-	for i := range issues {
-		is := &issues[i]
-		if !isNew[is.Key] {
+	return nil
+}
+
+// completeIssues is stage 7: the per-issue writes that need the issue to
+// exist — comments (backdated) and attachment links.
+func (r *linearRun) completeIssues() error {
+	for i := range r.issues {
+		is := &r.issues[i]
+		if !r.isNew[is.Key] {
 			continue
 		}
 		for _, c := range is.Comments {
-			if err := pace(ctx, client); err != nil {
-				return nil, err
+			if err := pace(r.ctx, r.client); err != nil {
+				return err
 			}
-			who := names[c.Author]
+			who := r.names[c.Author]
 			if who == "" {
 				who = c.Author
 			}
 			body := fmt.Sprintf("**%s · %s**\n\n%s", who, c.Created, c.Body)
-			if _, err := client.CreateCommentAt(ctx, ids[is.Key], body, linearTime(c.Created)); err != nil {
-				return nil, fmt.Errorf("comment on %s: %w", is.Key, err)
+			if _, err := r.client.CreateCommentAt(r.ctx, r.ids[is.Key], body, linearTime(c.Created)); err != nil {
+				return fmt.Errorf("comment on %s: %w", is.Key, err)
 			}
-			created["comments"]++
+			r.created["comments"]++
 		}
 		for _, a := range is.Attachments {
 			url := a.SourceURL
-			if url == "" && opt.AttachmentURL != nil {
-				url = opt.AttachmentURL(a.ContentID)
+			if url == "" && r.opt.AttachmentURL != nil {
+				url = r.opt.AttachmentURL(a.ContentID)
 			}
 			if url == "" {
 				continue
 			}
-			if err := pace(ctx, client); err != nil {
-				return nil, err
+			if err := pace(r.ctx, r.client); err != nil {
+				return err
 			}
-			if _, err := client.CreateAttachment(ctx, ids[is.Key], url, a.Filename); err != nil {
-				return nil, fmt.Errorf("attachment on %s: %w", is.Key, err)
+			if _, err := r.client.CreateAttachment(r.ctx, r.ids[is.Key], url, a.Filename); err != nil {
+				return fmt.Errorf("attachment on %s: %w", is.Key, err)
 			}
-			created["attachments"]++
+			r.created["attachments"]++
 		}
 	}
+	return nil
+}
+
+// createRelations is stage 8: the relations, typed
+// blocks|duplicate|related.
+func (r *linearRun) createRelations() error {
 	// A relation whose both ends pre-existed was made by the run that
 	// created them; only pairs with a new end are new.
-	for _, r := range relations {
-		if !isNew[r.from] && !isNew[r.to] {
-			skipped["relations"]++
+	for _, rel := range r.relations {
+		if !r.isNew[rel.from] && !r.isNew[rel.to] {
+			r.skipped["relations"]++
 			continue
 		}
-		if err := pace(ctx, client); err != nil {
-			return nil, err
+		if err := pace(r.ctx, r.client); err != nil {
+			return err
 		}
-		if err := client.CreateRelation(ctx, ids[r.from], ids[r.to], r.typ); err != nil {
-			return nil, fmt.Errorf("relation %s %s %s: %w", r.from, r.typ, r.to, err)
+		if err := r.client.CreateRelation(r.ctx, r.ids[rel.from], r.ids[rel.to], rel.typ); err != nil {
+			return fmt.Errorf("relation %s %s %s: %w", rel.from, rel.typ, rel.to, err)
 		}
-		created["relations"]++
+		r.created["relations"]++
 	}
-
-	// GDK-1318: the assignee skips the run could not verify are a report
-	// row, not a silent gap — the assignees count row shows the mismatch
-	// either way; this line says which part of it is "the lookup errored"
-	// and not "the person is not on Linear".
-	if len(userLookupFailed) > 0 {
-		rep.NotMigrated = append(rep.NotMigrated,
-			fmt.Sprintf("assignee lookups failed for %d accounts (%s) — their issues migrated unassigned; a lookup error, not a confirmed miss",
-				len(userLookupFailed), strings.Join(slices.Sorted(maps.Keys(userLookupFailed)), ", ")))
-	}
-	counts(created, skipped)
-	return rep, nil
+	return nil
 }
 
 // pace waits for the request window to reset when the server-stated budget

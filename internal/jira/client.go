@@ -61,13 +61,12 @@ type Client struct {
 	Retries int
 	Backoff time.Duration
 
-	// usage is process-local call volume; see Usage / TakeUsage. Never blocks
-	// a request on instrumentation failure (counters are atomic).
-	usage atlhttp.Meter
-
-	// breakdown is the per-kind request tally behind the sync pass's
-	// "sync: requests …" line; see TakeRequestBreakdown.
-	breakdown atlhttp.Breakdown
+	// UsageBox is the process-local instrument pair — call volume and the
+	// per-kind request tally behind the sync pass's "sync: requests …"
+	// line. Usage / TakeUsage / TakeRequestBreakdown promote from it.
+	// Never blocks a request on instrumentation failure (counters are
+	// atomic).
+	atlhttp.UsageBox
 
 	// budget spaces requests proactively from Jira Data Center's
 	// X-RateLimit-* budget headers (GDK-1646). Only NewServer allocates
@@ -147,7 +146,7 @@ func NewServer(base, token string) *Client {
 	// The one constructor that throttles proactively (GDK-1646): DC states
 	// its token bucket on every authenticated response, and the meter is
 	// the client's own so budget waits show up in Usage like retry waits.
-	c.budget = &httppolicy.RateBudget{Meter: &c.usage}
+	c.budget = &httppolicy.RateBudget{Meter: &c.UsageBox.Meter}
 	return c
 }
 
@@ -187,8 +186,8 @@ func (c *Client) transport() atlhttp.Config {
 		Retries:   c.Retries,
 		Backoff:   c.Backoff,
 		ErrPrefix: "jira",
-		Usage:     &c.usage,
-		Breakdown: &c.breakdown,
+		Usage:     &c.UsageBox.Meter,
+		Breakdown: &c.UsageBox.Breakdown,
 		Budget:    c.budget,
 	}
 }
