@@ -56,7 +56,10 @@ sidecars), or `sqlite3 origin/issuetap.db ".backup dest.db"`. `gadak backup` doe
 (`docs/runbooks/backup-restore.md`). The storage
 schema is documented, and the part of it you can build on is promised across
 versions (`specs/000-product/data-model.md`); the code is Apache-2.0, and the
-mirror is plain SQLite readable by anything. There is no gadak account and
+mirror is plain SQLite readable by anything. There is also a way out that is
+not a file copy: `gadak --workspace <jira workspace> migrate --from
+<workspace> --to jira --project <KEY>` writes the issues into a real Jira
+project, and `--to linear --team <KEY>` into a Linear team. There is no gadak account and
 no gadak server. If the project stops tomorrow, a Jira workspace's data
 was never in it; the built-in tracker's data is that SQLite file.
 

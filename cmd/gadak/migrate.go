@@ -13,6 +13,7 @@ import (
 	"github.com/midagedev/gadak/internal/atomicfile"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/fsperm"
+	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/linear"
 	"github.com/midagedev/gadak/internal/migrate"
 	"github.com/midagedev/gadak/internal/origin"
@@ -21,7 +22,8 @@ import (
 )
 
 const migrateUsage = "usage: gadak --workspace <new name> migrate --from <workspace> [--projects A,B] [--spaces X,Y] [--skip-attachments] [--json]\n" +
-	"       gadak --workspace <linear workspace> migrate --from <workspace> --to linear --team <KEY> [--projects A,B] [--limit N] [--dry-run] [--json]"
+	"       gadak --workspace <linear workspace> migrate --from <workspace> --to linear --team <KEY> [--projects A,B] [--limit N] [--dry-run] [--json]\n" +
+	"       gadak --workspace <jira workspace> migrate --from <workspace> --to jira --project <KEY> [--projects A,B] [--limit N] [--skip-attachments] [--dry-run] [--json]"
 
 // cmdMigrate exports a workspace's mirror into a brand-new built-in
 // workspace (GDK-1264): mirror → issuetap fixture YAML → one-shot seed →
@@ -35,10 +37,11 @@ func cmdMigrate(args []string) error {
 	projectsFlag := fs.String("projects", "", "comma-separated project keys (default: every project in the source mirror)")
 	spacesFlag := fs.String("spaces", "", "comma-separated wiki space keys (default: every mirrored space)")
 	skipAttach := fs.Bool("skip-attachments", false, "keep attachment metadata only; skip the byte download")
-	to := fs.String("to", "", "destination: the built-in tracker (default, a new workspace) or `linear` (the Linear workspace this command runs in)")
+	to := fs.String("to", "", "destination: the built-in tracker (default, a new workspace), `linear`, or `jira` (the workspace this command runs in)")
 	team := fs.String("team", "", "Linear team key that receives the issues (--to linear)")
-	limit := fs.Int("limit", 0, "migrate only the first N issues by key (--to linear)")
-	dryRun := fs.Bool("dry-run", false, "print the mapping and counts without writing anything (--to linear)")
+	project := fs.String("project", "", "Jira project key that receives the issues (--to jira)")
+	limit := fs.Int("limit", 0, "migrate only the first N issues by key (--to linear, --to jira)")
+	dryRun := fs.Bool("dry-run", false, "print the mapping and counts without writing anything (--to linear, --to jira)")
 	jsonOut := fs.Bool("json", false, "emit JSON")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("migrate", fs))
@@ -53,10 +56,26 @@ func cmdMigrate(args []string) error {
 	}
 
 	target := config.Profile()
+	// --team and --project name the destination's own unit; each belongs to
+	// exactly one --to, and saying which is the fix beats a usage dump.
 	switch *to {
 	case "linear":
+		if *project != "" {
+			return fmt.Errorf("--project is the Jira destination's flag; --to linear takes --team <KEY>")
+		}
 		return migrateToLinear(target, *from, *team, *projectsFlag, *limit, *dryRun, *jsonOut)
+	case "jira":
+		if *team != "" {
+			return fmt.Errorf("--team is the Linear destination's flag; --to jira takes --project <KEY>")
+		}
+		if *project == "" {
+			return fmt.Errorf("--to jira needs the project that receives the issues: --project <KEY>")
+		}
+		return migrateToJira(target, *from, *project, *projectsFlag, *limit, *skipAttach, *dryRun, *jsonOut)
 	case "":
+		if *team != "" || *project != "" {
+			return fmt.Errorf("--team and --project name a destination's unit — add --to linear or --to jira (the default destination is a new built-in workspace)")
+		}
 	default:
 		return usageError("migrate", migrateUsage)
 	}
@@ -295,34 +314,9 @@ func migrateToLinear(target, from, team, projects string, limit int, dryRun, jso
 			"workspace": target, "from": from, "to": "linear", "stats": stats, "report": rep,
 		})
 	}
-	w := os.Stdout
-	verb := "migrated"
-	if rep.DryRun {
-		verb = "dry-run:"
-	}
-	fmt.Fprintf(w, "%s %s → Linear team %s (workspace %q)\n", verb, from, rep.Team, target)
-	fmt.Fprintf(w, "projects: %s\n\nmapping:\n", strings.Join(stats.Projects, ", "))
-	for _, m := range rep.Mapping {
-		fmt.Fprintf(w, "  %s\n", m)
-	}
-	fmt.Fprintf(w, "\n%-12s %8s %8s %16s\n", "metric", "source", "migrated", "already there")
-	for _, r := range rep.Counts {
-		mark := ""
-		if !rep.DryRun && r.Source != r.Migrated {
-			mark = "  MISMATCH"
-		}
-		fmt.Fprintf(w, "%-12s %8d %8d %16d%s\n", r.Metric, r.Source, r.Migrated, r.Skipped, mark)
-	}
-	fmt.Fprintln(w, "\nnot migrated:")
-	for _, n := range rep.NotMigrated {
-		fmt.Fprintf(w, "  %s\n", n)
-	}
-	for _, wn := range rep.Warnings {
-		fmt.Fprintf(w, "warning: %s\n", wn)
-	}
-	if !rep.DryRun {
-		fmt.Fprintf(w, "\nnext: gadak --workspace %s sync\n", target)
-	}
+	printMigrateToReport(os.Stdout, from, target,
+		fmt.Sprintf("Linear team %s", rep.Team), rep.DryRun,
+		stats.Projects, rep.Mapping, rep.Counts, rep.NotMigrated, rep.Warnings)
 	return nil
 }
 
@@ -406,4 +400,132 @@ func printMigrateReport(w *os.File, target, from, locale string, st *migrate.Sta
 		fmt.Fprintf(w, "accounts no longer in the user catalog (kept as ghost users): %s\n", strings.Join(st.MissingUsers, ", "))
 	}
 	fmt.Fprintf(w, "\nnext: gadak --workspace %s status\n", target)
+}
+
+// migrateToJira is the third destination (GDK-378): the source mirror
+// leaves through the Jira write verbs into project `project` of the Jira
+// workspace this command runs in. It is the exit `init --replace-local`
+// never had — that verb deletes locally originated issues from the mirror,
+// this one carries them out first. No workspace is created; Jira is the
+// origin already, and `gadak sync` fills its mirror afterwards. --dry-run
+// makes no network call.
+func migrateToJira(target, from, project, projects string, limit int, skipAttach, dryRun, jsonOut bool) error {
+	if target == from {
+		return fmt.Errorf("--from %s names the target workspace itself", from)
+	}
+	tcfg, err := config.LoadFor(target)
+	if err != nil {
+		return err
+	}
+	if !config.JiraFamily(tcfg.OriginType()) {
+		return fmt.Errorf("workspace %q is not a Jira workspace (origin: %s) — --to jira writes through the Jira credential of the workspace it runs in", target, tcfg.OriginType())
+	}
+	srcCfg, err := config.LoadFor(from)
+	if err != nil {
+		return err
+	}
+	srcDBPath, err := config.DBPathFor(from)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(srcDBPath); err != nil {
+		return fmt.Errorf("source workspace %q has no mirror yet — run `gadak --workspace %s sync` first", from, from)
+	}
+	srcDB, err := store.OpenReadOnly(srcDBPath)
+	if err != nil {
+		return err
+	}
+	defer srcDB.Close()
+
+	ctx := context.Background()
+	doc, stats, err := migrate.Build(ctx, srcDB, migrate.Options{Projects: originbind.ParseProjectKeys(projects)})
+	if err != nil {
+		return err
+	}
+
+	var client *jira.Client
+	if !dryRun {
+		if client, err = origin.Client(tcfg); err != nil {
+			return err
+		}
+	}
+
+	// Attachment bytes come from the source origin, streamed into each
+	// upload as the writer reaches it (the GDK-1618 shape; GDK-1275: a
+	// warning here let a run report success with empty files, because the
+	// count table counts rows and the bytes are what went missing).
+	var fetch migrate.StreamFetch
+	if !dryRun && !skipAttach && stats.Attachments > 0 {
+		srcClient, cerr := origin.Client(srcCfg)
+		if cerr != nil {
+			return fmt.Errorf("cannot read attachment bytes from %q: %w\n"+
+				"  %d attachments would migrate as empty metadata, and the count table would not say so\n"+
+				"  to bring the bytes: make the source reachable (a frozen workspace: `gadak --workspace %s config set frozen false`)\n"+
+				"  to migrate without them on purpose: --skip-attachments",
+				from, cerr, stats.Attachments, from)
+		}
+		fetch = func(ctx context.Context, id string) (int, int64, io.ReadCloser, error) {
+			res, err := srcClient.Stream(ctx, "GET", "/rest/api/3/attachment/content/"+url.PathEscape(id), nil)
+			if err != nil {
+				return 0, 0, nil, err
+			}
+			if res.StatusCode != 200 {
+				_ = res.Body.Close()
+				return res.StatusCode, 0, nil, nil
+			}
+			return res.StatusCode, res.ContentLength, res.Body, nil
+		}
+	}
+
+	rep, err := migrate.ToJira(ctx, client, doc, stats, migrate.JiraOptions{
+		ProjectKey: project, Limit: limit, DryRun: dryRun,
+		SkipAttachments: skipAttach, Progress: os.Stderr, Fetch: fetch,
+	})
+	if err != nil {
+		return err
+	}
+	if jsonOut {
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{
+			"workspace": target, "from": from, "to": "jira", "stats": stats, "report": rep,
+		})
+	}
+	printMigrateToReport(os.Stdout, from, target,
+		fmt.Sprintf("Jira project %s", rep.Project), rep.DryRun,
+		stats.Projects, rep.Mapping, rep.Counts, rep.NotMigrated, rep.Warnings)
+	return nil
+}
+
+// printMigrateToReport is the human report both write destinations share:
+// where it went, the mapping, the source-vs-migrated count table, and what
+// stayed behind. A row whose migrated count differs from the source is
+// marked, because that is the line a reader has to act on.
+func printMigrateToReport(w *os.File, from, target, dest string, dryRun bool,
+	projects, mapping []string, counts []migrate.VerifyRow, notMigrated, warnings []string) {
+	verb := "migrated"
+	if dryRun {
+		verb = "dry-run:"
+	}
+	fmt.Fprintf(w, "%s %s → %s (workspace %q)\n", verb, from, dest, target)
+	fmt.Fprintf(w, "projects: %s\n\nmapping:\n", strings.Join(projects, ", "))
+	for _, m := range mapping {
+		fmt.Fprintf(w, "  %s\n", m)
+	}
+	fmt.Fprintf(w, "\n%-12s %8s %8s %16s\n", "metric", "source", "migrated", "already there")
+	for _, r := range counts {
+		mark := ""
+		if !dryRun && r.Source != r.Migrated {
+			mark = "  MISMATCH"
+		}
+		fmt.Fprintf(w, "%-12s %8d %8d %16d%s\n", r.Metric, r.Source, r.Migrated, r.Skipped, mark)
+	}
+	fmt.Fprintln(w, "\nnot migrated:")
+	for _, n := range notMigrated {
+		fmt.Fprintf(w, "  %s\n", n)
+	}
+	for _, wn := range warnings {
+		fmt.Fprintf(w, "warning: %s\n", wn)
+	}
+	if !dryRun {
+		fmt.Fprintf(w, "\nnext: gadak --workspace %s sync\n", target)
+	}
 }

@@ -144,30 +144,11 @@ func linearRelationType(linkType string) string {
 
 type relation struct{ from, to, typ string }
 
-// linearRelations folds each issue's link rows into one relation per pair:
-// outward on A = A→target, inward = target→A; symmetric types are
-// order-normalized so a pair stored on both ends emits once.
+// linearRelations folds each issue's link rows into one relation per pair;
+// the fold itself is shared with the Jira destination (jira.go,
+// foldRelations) and only the vocabulary is Linear's.
 func linearRelations(issues []Issue) []relation {
-	seen := map[relation]bool{}
-	var out []relation
-	for _, is := range issues {
-		for _, l := range is.Links {
-			r := relation{typ: linearRelationType(l.Type)}
-			if l.Outward != "" {
-				r.from, r.to = is.Key, l.Outward
-			} else {
-				r.from, r.to = l.Inward, is.Key
-			}
-			if r.typ == "related" && r.from > r.to {
-				r.from, r.to = r.to, r.from
-			}
-			if !seen[r] {
-				seen[r] = true
-				out = append(out, r)
-			}
-		}
-	}
-	return out
+	return foldRelations(issues, linearRelationType, func(t string) bool { return t == "related" })
 }
 
 // linearTime normalizes a mirror timestamp (UTC ms, or Jira's ±hhmm
@@ -195,33 +176,9 @@ func ToLinear(ctx context.Context, client *linear.Client, doc *Doc, st *Stats, o
 		progress = io.Discard
 	}
 
-	issues := doc.Issues
-	if opt.Limit > 0 && opt.Limit < len(issues) {
-		issues = issues[:opt.Limit]
-	}
-	keyset := map[string]bool{}
-	for _, is := range issues {
-		keyset[is.Key] = true
-	}
-	// Re-cut parents and links to the (possibly limited) set; Build already
-	// did this for the project set, so this only bites under --limit.
-	droppedParents, droppedLinks := 0, 0
-	for i := range issues {
-		is := &issues[i]
-		if is.Parent != "" && !keyset[is.Parent] {
-			droppedParents++
-			is.Parent = ""
-		}
-		kept := is.Links[:0:0]
-		for _, l := range is.Links {
-			if keyset[l.Inward+l.Outward] {
-				kept = append(kept, l)
-			} else {
-				droppedLinks++
-			}
-		}
-		is.Links = kept
-	}
+	// Limit and the re-cut of parents/links to the kept set are shared with
+	// the Jira destination (jira.go, scopeIssues).
+	issues, keyset, droppedParents, droppedLinks := scopeIssues(doc.Issues, opt.Limit)
 
 	// Source-side tallies and the mapping table (network-free).
 	names := map[string]string{}
@@ -241,20 +198,14 @@ func ToLinear(ctx context.Context, client *linear.Client, doc *Doc, st *Stats, o
 	for _, t := range doc.IssueTypes {
 		typeName[t.ID] = t.Name
 	}
-	var comments, parents, attachments, assigned, collapsed, historyRows int
+	tally := tallyIssues(issues)
+	comments, parents, attachments, assigned := tally.comments, tally.parents, tally.attachments, tally.assigned
+	historyRows := tally.history
+	var collapsed int
 	labelSet := map[string]bool{migrateLabel: true}
 	cats := map[string]bool{}
 	ranks := map[int]bool{}
 	for _, is := range issues {
-		comments += len(is.Comments)
-		attachments += len(is.Attachments)
-		historyRows += len(is.History)
-		if is.Parent != "" {
-			parents++
-		}
-		if is.Assignee != "" {
-			assigned++
-		}
 		if _, c := linearPriority(is.PriorityRank); c {
 			collapsed++
 		}

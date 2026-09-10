@@ -423,6 +423,17 @@ seed file as the writer reaches them, the size cap and the missing-file
 accounting are unchanged, and a test pins that memory does not grow with the
 archive ([GDK-1618]).
 
+There is a way out of the built-in tracker that deletes nothing. Until
+now the only path from a locally originated backlog to a real Jira site was
+`init --replace-local`, whose own help says converting drops those issues.
+`gadak --workspace <jira workspace> migrate --from <workspace> --to jira
+--project KEY` carries them out instead, the way `--to linear` already did
+for Linear: issues with their descriptions, types, priorities, labels,
+parents, links, comments and attachment bytes land in the project, the status
+is set by one transition into the same category (never by name), and a re-run
+is idempotent through the same footer. Change history, wiki pages,
+authorship and assignees stay behind, and the report says so ([GDK-378]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2019,3 +2030,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1451]: https://gadak.dev/backlog/#/?ks=GDK-1451
 [GDK-1731]: https://gadak.dev/backlog/#/?ks=GDK-1731
 [GDK-1618]: https://gadak.dev/backlog/#/?ks=GDK-1618
+[GDK-378]: https://gadak.dev/backlog/#/?ks=GDK-378

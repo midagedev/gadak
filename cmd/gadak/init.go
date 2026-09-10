@@ -71,7 +71,7 @@ func parseCSVKeys(s string, upper bool) []string {
 // replaceBuiltInUsage is the --replace-local help text. It names
 // what is lost: locally originated issues have no Jira copy, and the
 // conversion drops them from the mirror (GDK-241).
-const replaceBuiltInUsage = "replace this workspace's built-in tracker with a Jira site; issues that originated here exist only here and converting deletes them from the mirror"
+const replaceBuiltInUsage = "replace this workspace's built-in tracker with a Jira site; issues that originated here exist only here and converting deletes them from the mirror — `migrate --to jira` carries them out first"
 
 // renderReplaceRefusedJSON writes the --json document for a refused
 // built-in replace. Shape and field values match the previous

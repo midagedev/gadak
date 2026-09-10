@@ -85,7 +85,7 @@ Markers:
 | **Write** · `claim` | ◐[^85] | ◐[^133] | —[^86] | ✅[^87] |
 | **Write** · worklog (`gadak api --write`) | ✅[^88] | ✅[^88] | —[^89] | —[^90] |
 | **Write** · `migrate --from` (source) | ✅[^91] | ✅[^91] | ◐[^92] | ✅[^93] |
-| **Write** · `migrate --to` (destination) | —[^94] | —[^94] | ◐[^94] | ✅[^95] |
+| **Write** · `migrate --to` (destination) | ◐[^149] | —[^94] | ◐[^94] | ✅[^95] |
 | **Surface** · agent surfaces — skill / MCP / SQL | ✅[^96] | ✅[^96] | ✅[^96] | ✅[^96] |
 | **Surface** · board layout (0.19) | ✅[^97] | ✅[^97] | ✅[^97] | ✅[^97] |
 | **Surface** · board sprint scope + Sprint axes (0.22) | ✅[^138] | ✅[^138] | ✅[^138] | ✅[^138] |
@@ -483,6 +483,23 @@ Markers:
     relations land, idempotent on re-run via a `gadak-migrate: KEY` footer;
     change history, wiki pages, dev links, custom fields and sprints stay
     behind and the report says so. Jira is not a destination.
+
+[^149]: `--to jira --project KEY` sends a mirror's issues into a Jira Cloud
+    project through the Jira credential of the workspace the command runs in
+    (`cmd/gadak/migrate.go:67`, `internal/migrate/jira.go`; GDK-378) — the
+    exit `init --replace-local` never had, since that verb deletes locally
+    originated issues instead of carrying them out. Issues, descriptions
+    (the origin's ADF), issue types, priorities, labels, parents, links,
+    comments and attachment bytes land; the status is set by one transition
+    into a status of the same `status_category`, never by name. Re-running is
+    idempotent through the same `gadak-migrate: KEY` footer the Linear path
+    uses. Left behind, and named in the report: change history (Jira has no
+    changelog write API, so reopen counts and time-in-status start over),
+    wiki pages (this verb writes issues; a Confluence space is not a
+    destination), authorship (the credential's user is the creator and the
+    source author is a line in the body), assignees, dev links, custom fields
+    and sprints. Not measured on Jira Server, which is why that column still
+    refuses.
 
 [^95]: The migrate command creates a fresh Built-in workspace as its target,
     which must not exist yet (`cmd/gadak/migrate.go:23`). The fixture's

@@ -762,13 +762,15 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak link", "gadak issue", "gadak workspaces"},
 	},
 	"migrate": {
-		summary: "export a workspace's mirror into a new workspace on the built-in tracker — issues, comments, history, links, attachments, and wiki pages leave with you; ends with a source-vs-migrated count report. --to linear sends the issues into a Linear team instead (through the Linear workspace the command runs in; history and wiki pages stay behind, the report says so)",
+		summary: "export a workspace's mirror into a new workspace on the built-in tracker — issues, comments, history, links, attachments, and wiki pages leave with you; ends with a source-vs-migrated count report. --to linear --team <KEY> and --to jira --project <KEY> send the issues into an existing Linear team or Jira project instead, through the credential of the workspace the command runs in (history and wiki pages stay behind either way, and the report says so)",
 		usage: "gadak --workspace <new name> migrate --from <workspace> [--projects A,B] [--spaces X,Y] [--skip-attachments] [--json]\n" +
-			"| gadak --workspace <linear workspace> migrate --from <workspace> --to linear --team <KEY> [--projects A,B] [--limit N] [--dry-run] [--json]",
+			"| gadak --workspace <linear workspace> migrate --from <workspace> --to linear --team <KEY> [--projects A,B] [--limit N] [--dry-run] [--json]\n" +
+			"| gadak --workspace <jira workspace> migrate --from <workspace> --to jira --project <KEY> [--projects A,B] [--limit N] [--skip-attachments] [--dry-run] [--json]",
 		examples: []string{
 			"gadak --workspace local migrate --from work --projects GDK",
 			"gadak --workspace local migrate --from work --skip-attachments",
 			"gadak --workspace lin migrate --from work --to linear --team ENG --projects GDK --dry-run",
+			"gadak --workspace acme migrate --from local --to jira --project ENG --dry-run",
 		},
 		seeAlso: []string{"gadak init", "gadak workspaces", "gadak sync"},
 	},

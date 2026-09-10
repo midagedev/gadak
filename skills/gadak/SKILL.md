@@ -553,6 +553,20 @@ history (Linear has no changelog write API), wiki pages, attachment bytes
 (linked by URL), real authorship. `--dry-run` prints the mapping and counts
 with no network call; `--limit N` takes the first N issues.
 
+The third destination is Jira: `gadak --workspace <jira workspace> migrate
+--from <workspace> --to jira --project <KEY>` writes the issues into that
+project through the Jira credential of the workspace the command runs in —
+the way out of the built-in tracker that does not delete anything, since
+`init --replace-local` drops locally originated issues instead of carrying
+them. `status_category` picks one transition into a status of the same
+category (names are never matched), `priority_rank` indexes the target
+site's priority catalog, the issue type is matched by name against the
+project's own types, and attachment bytes are uploaded. The same
+`gadak-migrate: <KEY>` footer makes a re-run idempotent, and `--dry-run`,
+`--limit N` and `--skip-attachments` work as they do for Linear. Change
+history, wiki pages, real authorship and assignees stay behind; the report
+lists them.
+
 ### Pointing at another workspace's issue
 
 On the built-in tracker, local or paired, `gadak ref <KEY> <workspace>/<TARGET>`
