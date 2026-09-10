@@ -15,8 +15,12 @@
  * Desktop mode is faked the way desktop-chrome.spec.ts fakes it — the same
  * config.json the app serves, plus `desktop` — and the integration routes are
  * fulfilled here, because the served test binary is `gadak serve` and has none.
- * The line-splitting itself (chunk boundaries, multi-byte output) is pinned in
- * web/src/lib/integrations.test.ts; Playwright covers the wiring.
+ * The judgement itself — line splitting across chunk boundaries, which line is
+ * the verdict, which pill a given state produces — is pinned in
+ * web/src/lib/integrations.test.ts, whose header draws the same line from the
+ * other side ("the .svelte file only paints"). What is here is what needs a
+ * browser: the wiring between components, and the paint. e2e/README.md and
+ * e2e/no-duplicated-unit-title.unit.ts hold that boundary (GDK-720).
  */
 import { type Page } from '@playwright/test'
 import { test, expect } from './helpers'
@@ -275,66 +279,31 @@ test.describe('integrations tab in the app', () => {
  * is the short one — so each of these is a state the card must have rather than
  * a guess it must make. The rule under all of them: never present success that
  * was not reported, and never present a failure that was not reported either.
+ *
+ * GDK-720 drew the line these three sit on. What the parser decides — a
+ * mid-stream `exit=0` is output, a stream that ends with no sentinel is
+ * "result unknown", exit 0 over a still-negative check is not a check mark —
+ * is pinned in web/src/lib/integrations.test.ts and was being re-run through
+ * Chromium here for nothing. What is left needs the browser: a refusal that
+ * must not erase the previous run's log, a hint that appears on undecidable
+ * rows and on no others, and a read failure that has to land as a banner over
+ * cards that survive it. If a case here can be written as an assertion about a
+ * pure function, it belongs in the unit file, not in this one.
  */
 test.describe('integrations failure modes', () => {
   /** Open the tab with the list routed, and the install routed as `install`. */
   async function openTab(
     page: Page,
     install: (route: Parameters<Parameters<Page['route']>[1]>[0]) => unknown,
-    list: () => typeof ITEMS = () => ITEMS,
   ): Promise<void> {
     await pretendDesktop(page)
-    await page.route('**/desktop/integrations', (route) => route.fulfill({ json: list() }))
+    await page.route('**/desktop/integrations', (route) => route.fulfill({ json: ITEMS }))
     await page.route('**/desktop/integrations/raycast/install', install)
     await gotoApp(page)
     await openServerSettings(page)
     await tabButton(page, en['settings.tabIntegrations']).click()
     await expect(page.getByTestId('integrations-tab')).toBeVisible()
   }
-
-  test('output that stops before the status is "result unknown", not a verdict', async ({
-    page,
-  }) => {
-    // A server restart, a killed app, a socket that goes away: the stream ends
-    // with no `exit=` line. Neither "Installed" nor "Setup failed" is true.
-    await openTab(page, (route) =>
-      route.fulfill({ status: 200, contentType: 'text/plain', body: 'copying files\n' }),
-    )
-    await page.getByTestId('integration-install-raycast').click()
-
-    await expect(page.getByTestId('integration-status-raycast')).toHaveAttribute(
-      'data-state',
-      'result-unknown',
-    )
-    // It says what to do about it, and keeps the output it did get.
-    await expect(page.getByTestId('integration-note-raycast')).toContainText(
-      en['settings.integrationNoExit'],
-    )
-    await expect(page.getByTestId('integration-log-raycast')).toContainText('copying files')
-  })
-
-  test('an exit= line in the middle of the output is output, not the verdict', async ({ page }) => {
-    // The wrapper echoes `exit=0` and then really fails. Reading the first one
-    // as the end is what would turn a broken install into a check mark.
-    await openTab(page, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'text/plain',
-        body: 'exit=0\nrolling back\nexit=2\n',
-      }),
-    )
-    await page.getByTestId('integration-install-raycast').click()
-
-    await expect(page.getByTestId('integration-status-raycast')).toHaveAttribute(
-      'data-state',
-      'failed',
-    )
-    await expect(page.getByTestId('integration-row-raycast')).toContainText('code 2')
-    // The echoed line is kept in the log verbatim — it was output all along.
-    const log = page.getByTestId('integration-log-raycast')
-    await expect(log).toContainText('exit=0')
-    await expect(log).toContainText('rolling back')
-  })
 
   test('409 reads as a run in flight, and the button stays out of the way', async ({ page }) => {
     await openTab(page, (route) =>
@@ -394,24 +363,6 @@ test.describe('integrations failure modes', () => {
       en['settings.integrationStartFailed'],
     )
     await expect(page.getByTestId('integration-log-raycast')).toContainText('could not write')
-  })
-
-  test('exit 0 with the check still saying no does not become a check mark', async ({ page }) => {
-    // Registration settles late, or the command did less than it reported. The
-    // detection is what is shown; the command's claim is written next to it.
-    await openTab(page, (route) =>
-      route.fulfill({ status: 200, contentType: 'text/plain', body: 'linked\nexit=0\n' }),
-    )
-    await page.getByTestId('integration-install-raycast').click()
-
-    await expect(page.getByTestId('integration-status-raycast')).toHaveAttribute(
-      'data-state',
-      'not-installed',
-    )
-    await expect(page.getByTestId('integration-note-raycast')).toContainText(
-      en['settings.integrationOkUndetected'],
-    )
-    await expect(page.getByTestId('integration-log-raycast')).toContainText('linked')
   })
 
   test('unknown detection says so and says what to do', async ({ page }) => {

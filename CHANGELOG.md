@@ -534,6 +534,17 @@ absent: the list is two clicks and an owner check away from a shared, final
 deletion, and a palette row collapses all three into one Enter on a view the
 reader cannot see.
 
+Three e2e cases stopped re-proving a unit. What an integration's output means
+— a run that stops before its status, an `exit=` line in the middle of the
+log, an exit 0 the detection still contradicts — is a parser's verdict, and
+`web/src/lib/integrations.test.ts` already holds each one; running them again
+in a browser was cost, not coverage. The page-comment shortcut chip is the
+same: one unit already asserts it has a single owner and that both composers
+render it. What keeps them down there is a lint — an e2e title that repeats a
+unit's title exactly is red — plus a paragraph in `e2e/README.md` giving the
+test the lint cannot apply: take the browser out of the sentence, and see
+whether anything is left ([GDK-720]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2154,3 +2165,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1134]: https://gadak.dev/backlog/#/?ks=GDK-1134
 [GDK-137]: https://gadak.dev/backlog/#/?ks=GDK-137
 [GDK-732]: https://gadak.dev/backlog/#/?ks=GDK-732
+[GDK-720]: https://gadak.dev/backlog/#/?ks=GDK-720

@@ -29,9 +29,13 @@ function viewRow(page: Page, name: string) {
  * user's own email).
  */
 test('Enter-saved view appears in a fresh browser on the same server', async ({ browser }) => {
-  // serve.sh reseeds gadak.db but not local.db, so server-saved views from
-  // earlier runs linger. A per-run name keeps this spec's assertion about
-  // *this* run's save, not the fixture's residue.
+  // GDK-720: serve.sh does reseed local.db now (it deletes it at :70, so the
+  // app rebuilds it), which is what the old note here denied. The per-run name
+  // stays for the reason that outlived that fix: the reseed happens once per
+  // *server*, not once per test, so a view this spec saves is still live for
+  // every spec that runs after it in the same session — palette.spec.ts counts
+  // saved-view rows. A retry of this test under a fixed name would also save
+  // the name twice and break deleteServerViewByName's exactly-one assertion.
   const VIEW = `Cross-device triage ${Date.now()}`
   const errorsByContext: string[][] = []
 
