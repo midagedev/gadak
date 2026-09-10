@@ -192,7 +192,7 @@ Linear로 옮길 때는 `--to linear`를 붙입니다. 다른 컴퓨터와 페�
 실제 사이트에서 확인했습니다. 한 사람이 만들고, 라이선스는 Apache-2.0입니다.
 이름은 엉킨 실에서 뽑아낸 한 줄기, '가닥'에서 왔습니다.
 
-0.x에서 바꾸지 않기로 약속한 것은 [data-model.md](specs/000-product/data-model.md)의
+0.x에서 바꾸지 않기로 약속한 것은 [specs/000-product/data-model.md](specs/000-product/data-model.md)의
 셋입니다. `issues_full`과 RECIPES 쿼리, `gadak sql`의 출력 형식, `gadak views
 open --keys -`의 의미. 항목별 확인 명령은 [`docs/PROMISES.md`](docs/PROMISES.md)에,
 무엇이 나왔는지는 [`CHANGELOG.ko.md`](CHANGELOG.ko.md)에 있습니다.
@@ -208,7 +208,7 @@ open --keys -`의 의미. 항목별 확인 명령은 [`docs/PROMISES.md`](docs/P
 공개된 곳에는 실제 이슈 내용과 토큰, 사이트 주소를 빼고 적어 주세요. 버그
 리포트에는 Cloud인지 Server인지, gadak 커밋, 실행한 명령이 있으면 됩니다.
 커밋의 `GDK-nnn` 키는 [공개 백로그](https://gadak.dev/backlog/)로 이어집니다.
-코드로 오시려면 [`CONTRIBUTING.md`](.github/CONTRIBUTING.md)와
+코드로 오시려면 [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md)와
 [`docs/project/GOOD_FIRST_ISSUES.md`](docs/project/GOOD_FIRST_ISSUES.md).
 
 ## 문서
