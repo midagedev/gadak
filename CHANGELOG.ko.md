@@ -224,6 +224,21 @@ CLI 와 서버에 파서가 따로 있었고 ([GDK-1316]), Cloud 카테고리 �
 동기화가 달랐습니다 ([GDK-1104]). 이제 각각 소유자가 하나이고, 두 번째 사본이
 생기면 게이트가 그 자리를 이름으로 부릅니다.
 
+CLI 가 스킬 파일이 낡았다고 스스로 말합니다. 설치된 사본이 이 빌드의 것과
+다르면 읽기 동사가 stderr 에 한 줄을 찍으므로, 에이전트가 doctor 를 돌리기로
+마음먹지 않아도 알게 됩니다 ([GDK-493]). "내 것" 이 데이터베이스 안에 있습니다.
+`local.me` 가 워크스페이스의 신원을 들고, `my_open` 과 `handed_off` 두 뷰가
+그것을 이슈에 이어 주니, 에이전트는 `:me` 치환 없이 평범한 SQL 로 자기 일을
+묻습니다 ([GDK-1438]). 링크된 이슈 줄은 링크 타입 자신의 문장으로 읽힙니다.
+백엔드가 링크 카탈로그에서 그 문장을 만들고, 웹은 이름 붙이지 않은 방향
+철자에 wire 토큰을 더 이상 보여 주지 않습니다 ([GDK-1215]). Jira Server
+워크스페이스는 자기 말로 거절됩니다. 위키는 이메일을 요구하는 대신 Confluence
+Server 가 아직 구현되지 않았다고 말하고, dev-link 쓰기는 실제로 가진 배포
+형태를 이름으로 부릅니다 ([GDK-1663]). 레이아웃 표가 제각각이던 타임스탬프
+파서 넷이 하나가 되어, Jira 가 찍은 시각이 캘린더에서 "날짜 없음" 으로 읽히지
+않습니다 ([GDK-1130]). 상태를 쓰던 `$effect` 둘 — 새 이슈 대화상자의 기본값과
+문서 패널의 write-through 오버레이 — 은 이제 파생값입니다 ([GDK-1133]).
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -1725,3 +1740,9 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1726]: https://gadak.dev/backlog/#/?ks=GDK-1726
 [GDK-1729]: https://gadak.dev/backlog/#/?ks=GDK-1729
 [GDK-1746]: https://gadak.dev/backlog/#/?ks=GDK-1746
+[GDK-493]: https://gadak.dev/backlog/#/?ks=GDK-493
+[GDK-1438]: https://gadak.dev/backlog/#/?ks=GDK-1438
+[GDK-1215]: https://gadak.dev/backlog/#/?ks=GDK-1215
+[GDK-1663]: https://gadak.dev/backlog/#/?ks=GDK-1663
+[GDK-1130]: https://gadak.dev/backlog/#/?ks=GDK-1130
+[GDK-1133]: https://gadak.dev/backlog/#/?ks=GDK-1133

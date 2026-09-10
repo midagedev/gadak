@@ -77,6 +77,32 @@ where status_category = 'new' and assignee is null
 order by created_at asc limit 20
 ```
 
+## Mine
+
+Identity lives in the mirror's sibling `local.db` as `local.me` (account id,
+email, actor slug), so "what is mine?" is a plain query with nothing to
+substitute. `my_open` and `handed_off` are views over `issues_full` joined to
+that row; both are empty on a workspace with no identity at all.
+
+```sql
+-- Assigned to me, not finished. status_category, never a status name.
+SELECT key, status, priority, summary
+FROM my_open
+ORDER BY priority_rank, updated_at DESC;
+```
+
+```sql
+-- The delegation ledger: I reported it, somebody else (or nobody) holds it.
+SELECT key, status, assignee, updated_at, summary
+FROM handed_off
+ORDER BY updated_at DESC;
+```
+
+```sql
+-- Who does this workspace think I am?
+SELECT account_id, email, actor_slug, resolved_at FROM local.me;
+```
+
 ## Blockers and duplicates
 
 **What blocks this issue?** Every link is stored from both ends, and

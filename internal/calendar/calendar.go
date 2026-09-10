@@ -15,6 +15,8 @@ package calendar
 import (
 	"strings"
 	"time"
+
+	"github.com/midagedev/gadak/internal/config"
 )
 
 // Kind selects how a stored value is read.
@@ -149,15 +151,17 @@ func dateOnly(raw string) (string, bool) {
 }
 
 func parseInstant(raw string) (time.Time, bool) {
-	// RFC3339Nano makes the fraction optional (0–9 digits), so it alone
-	// covers the fixed-fraction and no-fraction RFC3339 spellings; the
-	// space-separated shapes are the only genuinely distinct layouts.
-	layouts := []string{
-		time.RFC3339Nano,
+	// The ISO spellings — including the Jira no-colon stamps this table
+	// used to reject outright (GDK-1130) — come from the single parse
+	// owner. The space-separated shapes are this package's own and are
+	// added here, beside the owner, never inside it.
+	if t, ok := config.ParseTimestamp(raw); ok {
+		return t, true
+	}
+	for _, layout := range []string{
 		"2006-01-02 15:04:05Z07:00",
 		"2006-01-02 15:04:05",
-	}
-	for _, layout := range layouts {
+	} {
 		if t, err := time.Parse(layout, raw); err == nil {
 			return t, true
 		}

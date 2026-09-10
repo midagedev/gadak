@@ -38,7 +38,32 @@ func openStore() (*store.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return store.OpenWith(path, storeOpenOptions())
+	db, err := store.OpenWith(path, storeOpenOptions())
+	if err != nil {
+		return nil, err
+	}
+	recordWhoAmI(db)
+	return db, nil
+}
+
+// recordWhoAmI refreshes local.me from this workspace's config (GDK-1438) —
+// the row `my_open` and `handed_off` match against, so an agent asks "what is
+// mine?" in plain SQL with no :me substitution to get wrong.
+//
+// Here rather than in the sync command because identity is a property of the
+// credential, not of a pass over the origin: `gadak sql` on a workspace that
+// has never synced still deserves a correct answer, and a credential swapped
+// between syncs must not leave the previous person's rows looking like mine.
+// A config that cannot be loaded is not an error worth failing a read for —
+// the views then match nothing, which is the honest answer.
+func recordWhoAmI(db *store.DB) {
+	cfg, err := config.Load()
+	if err != nil {
+		return
+	}
+	if err := db.RecordWhoAmI(config.ResolveWhoAmI(cfg)); err != nil {
+		log.Printf("store: local.me: %v", err)
+	}
 }
 
 // storeOpenOptions is the dev-lockout open policy every cmd/gadak call site on

@@ -256,6 +256,10 @@ export interface LinkedIssue {
   type: string
   direction: string
   summary: string | null
+  /** The type's own sentence for this side ("blocks"), rendered by the
+   * backend from the mirror's link catalog (GDK-1215). Absent when the
+   * catalog has no row — the client-side catalog lookup stands in. */
+  phrase?: string | null
 }
 
 /** One linked PR (PrSnapshot). */

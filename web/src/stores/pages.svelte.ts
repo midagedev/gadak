@@ -522,6 +522,19 @@ class PagesStore {
     this.detailNonce++
   }
 
+  /**
+   * Write-through adoption (GDK-1133): a page write's response body IS the
+   * page — the origin re-read it before answering — so it becomes the cached
+   * detail for its own key, and the nonce lets an open panel pick it up as a
+   * cache hit, no second GET. Identity is the cache key itself: a later
+   * `select` of another page reads that page's row, so no panel-held overlay
+   * ever has to be reset on key change.
+   */
+  adoptDetail(page: PageDetail): void {
+    this.#details.set(page.key, page)
+    this.detailNonce++
+  }
+
   setSearchHits(hits: PageLite[]): void {
     this.searchHits = hits
   }

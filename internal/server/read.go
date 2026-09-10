@@ -414,6 +414,13 @@ type linkedIssue struct {
 	Direction      string  `json:"direction"`
 	Summary        *string `json:"summary"`
 	StatusCategory *string `json:"status_category"`
+	// Phrase is the type's own sentence for this side ("blocks" / "is
+	// blocked by"), rendered by origin.LinkPhrase from the mirror's
+	// link_types catalog — the backend-side half of retiring the raw
+	// direction token (GDK-1215). direction stays: it is the wire pair the
+	// add form and dedupe key on. Absent when the catalog has no row for
+	// the type, which is what the client's own catalog lookup is for.
+	Phrase *string `json:"phrase,omitempty"`
 }
 
 type detailResponse struct {
@@ -708,14 +715,27 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		}
 		res.History = append(res.History, e)
 	}
+	// The phrase for each link's side comes from the mirror's own catalog
+	// (GDK-1215): origin.LinkPhrase is the single owner of the
+	// direction→sentence mapping, and the client no longer has to fetch a
+	// catalog to avoid reading the wire token. Loaded once per detail, only
+	// when there are links to name.
+	var linkPhrases map[string][2]string
+	if len(d.LinkedIssues) > 0 {
+		linkPhrases = s.db.LinkTypePhrases()
+	}
 	for _, l := range d.LinkedIssues {
-		res.LinkedIssues = append(res.LinkedIssues, linkedIssue{
+		li := linkedIssue{
 			Key:            l.Key,
 			Type:           l.Type,
 			Direction:      l.Direction,
 			Summary:        nilIfEmpty(l.Summary),
 			StatusCategory: nilIfEmpty(l.StatusCategory),
-		})
+		}
+		if lt, ok := linkPhrases[strings.ToLower(l.Type)]; ok {
+			li.Phrase = nilIfEmpty(origin.LinkPhrase(l.Direction, lt[0], lt[1]))
+		}
+		res.LinkedIssues = append(res.LinkedIssues, li)
 	}
 	// Start pulling the images down while the client renders the rest of the
 	// detail, so opening an issue with screenshots does not wait on Jira twice.

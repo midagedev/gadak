@@ -566,9 +566,11 @@ func installDevScanHook() error {
 // it runs before anything that needs a loaded Config's Directory(). What
 // remains is connected-shaped or nothing: a home with no origin at all
 // answers the shared init sentence (GDK-943) — the connected-workspace
-// diagnosis would invent a workspace that does not exist. A plain
-// connected Cloud site is refused: the panel is Jira's GitHub app, and
-// mirroring it is a config flag.
+// diagnosis would invent a workspace that does not exist. A plain connected
+// site is refused with the sentence its own origin kind earns (GDK-1663):
+// Cloud's panel is Jira's GitHub app, Server's panel is fed by the tools
+// the server is connected to, and Linear's is its GitHub integration — the
+// refusal names the deployment the user actually has.
 func refuseConnectedDevWrite(cfg *config.Config, verb string) error {
 	if cfg.HasBuiltInOrigin() {
 		return nil
@@ -583,7 +585,14 @@ func refuseConnectedDevWrite(cfg *config.Config, verb string) error {
 	if !cfg.HasOrigin() {
 		return config.NotConfiguredWith("dev status writes go to the origin, not to the mirror")
 	}
-	return fmt.Errorf("%s needs the built-in tracker (here or paired) — a Jira Cloud workspace's development panel is linked by Jira's GitHub app; mirroring needs `gadak config set devStatus true`", verb)
+	switch cfg.OriginType() {
+	case config.OriginJiraServer:
+		return fmt.Errorf("%s needs the built-in tracker (here or paired) — Jira Server's development panel is fed by the tools the server is connected to, and gadak can mirror it (`gadak config set devStatus true`) but not write it", verb)
+	case config.OriginLinear:
+		return fmt.Errorf("%s needs the built-in tracker (here or paired) — Linear has no development-panel API; pull requests reach Linear through its own GitHub integration", verb)
+	default:
+		return fmt.Errorf("%s needs the built-in tracker (here or paired) — a Jira Cloud workspace's development panel is linked by Jira's GitHub app; mirroring needs `gadak config set devStatus true`", verb)
+	}
 }
 
 func devScanNoMatchMessage(prCount int) string {

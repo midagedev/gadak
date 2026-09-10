@@ -32,6 +32,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/mattn/go-runewidth"
+	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/adf"
 	"github.com/midagedev/gadak/internal/attachaudit"
 	"github.com/midagedev/gadak/internal/claim"
@@ -43,6 +44,7 @@ import (
 	"github.com/midagedev/gadak/internal/linear"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/server"
+	"github.com/midagedev/gadak/internal/skillinstall"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
 	"github.com/midagedev/gadak/internal/transition"
@@ -53,18 +55,72 @@ import (
 // warning, never a refusal: an old answer with a warning beats no answer.
 const staleAfter = time.Hour
 
+// skillDiffersWarned is the process-once latch for warnSkillDiffers: the
+// read verbs all share warnIfStale as their preamble, and one process (a
+// long-lived test, a future batch verb) must not repeat the line per read.
+var skillDiffersWarned bool
+
 // warnIfStale prints one stderr line when the last sync failed or is old, so a
 // caller reading stdout knows how far behind the answer may be. stdout stays
 // clean, which is what makes the output pipeable. It reads the caller's
 // already-open connection — every caller has one, and a second open here
 // doubled any diagnostic the open path prints (GDK-314).
 //
+// This function is the one funnel every read verb passes through, so it is
+// also where the skill-differs trip speaks (warnSkillDiffers, GDK-493):
+// an agent that never decides to call doctor still learns its loaded skill
+// copy is not this build's.
+//
 // A live first sync explains the mirror's state better than any staleness
 // verdict can (every source row is empty or half-written by design), so
 // warnFirstSync goes first and the rest stands down while it speaks (GDK-1677).
+// warnSkillDiffers is the bootstrap-gap trip (GDK-493): staleness detection
+// used to live inside the skill's own body, so the generations that needed
+// the sentence most — the stale ones — were exactly the ones without it. The
+// binary is always current about itself, so it owns the check: when an
+// installed skill copy exists and differs from this build's embedded text,
+// one stderr line in the same place the freshness warning speaks, which a
+// read verb reaches without ever deciding to call doctor. The threshold is
+// "differs", never "stale": the binary cannot know which side is newer, and
+// a hand-edited copy differs from this build as surely as an old one —
+// `gadak skill install` (with --force for a hand edit) is the way out either
+// way. A machine with no installed copy stays silent: nothing to compare
+// against means nothing to say. Read errors are silence too — doctor owns
+// the detailed verdict; this line only needs to exist.
+func warnSkillDiffers() {
+	if skillDiffersWarned {
+		return
+	}
+	skillDiffersWarned = true
+	env := skillinstall.OSEnv()
+	content := gadak.SkillMarkdown()
+	// User scope first, then the project scope some hosts have — table
+	// order, so the first differing copy named is deterministic.
+	for _, client := range skillinstall.Clients() {
+		dests := make([]string, 0, 2)
+		if dest, err := client.HomeDest(env); err == nil {
+			dests = append(dests, dest)
+		}
+		if client.HasProjectScope() {
+			if dest, err := client.ProjectDest(env); err == nil {
+				dests = append(dests, dest)
+			}
+		}
+		for _, dest := range dests {
+			status, _, err := skillinstall.DestStatus(dest, content)
+			if err != nil || status == skillinstall.StatusMissing || status == skillinstall.StatusIdentical {
+				continue
+			}
+			fmt.Fprintf(os.Stderr, "warning: skill file differs from this build — run `gadak skill install` (%s)\n", tildeHome(dest))
+			return
+		}
+	}
+}
+
 func warnIfStale(db interface {
 	QueryRow(query string, args ...any) *sql.Row
 }) {
+	warnSkillDiffers()
 	if warnFirstSync(db) {
 		return
 	}
@@ -104,7 +160,7 @@ func warnIfStale(db interface {
 		if r.syncedAt == nil || *r.syncedAt == "" {
 			continue
 		}
-		t, ok := parseSyncedAt(*r.syncedAt)
+		t, ok := config.ParseTimestamp(*r.syncedAt)
 		if !ok {
 			continue
 		}
@@ -180,21 +236,11 @@ func warnFirstSync(db interface {
 	return true
 }
 
-// parseSyncedAt is the same RFC3339-then-ISOMilli ladder syncStale uses
-// (cmd/gadak/sync.go). Copied rather than shared: that file is outside this
-// round's whitelist. Unparseable values are skipped by the caller so a
-// corrupt row cannot crash a read, and cannot take the never-synced branch
-// while a sibling parsed.
-func parseSyncedAt(s string) (time.Time, bool) {
-	t, err := time.Parse(time.RFC3339, s)
-	if err != nil {
-		t, err = time.Parse(config.ISOMilli, s)
-	}
-	if err != nil {
-		return time.Time{}, false
-	}
-	return t, true
-}
+// parseSyncedAt is gone: its RFC3339-then-ISOMilli ladder was one of the
+// private timestamp tables folded into config.ParseTimestamp (GDK-1130),
+// and warnIfStale calls the owner directly. Unparseable values are skipped
+// by the caller so a corrupt row cannot crash a read, and cannot take the
+// never-synced branch while a sibling parsed.
 
 // sourceIDDisplayCols is the stderr budget for a sync_state.source_id.
 // jira / linear / confluence fit; a planted multi-kilobyte or control-laden
@@ -495,27 +541,17 @@ func attachmentTruncationMark(size int64) string {
 }
 
 // linkTypePhrases reads the mirror's link_types catalog (schemaV43; sync
-// fills it) into a name → (inward, outward) map, lowercased by name. A nil
-// map — unreadable or empty catalog, like the demo fixture — keeps the wire
-// pair wording, and the JSON contract is untouched either way: this is the
-// human line's phrase source only (GDK-1734).
+// fills it) for the human link line's phrase source (GDK-1734). The SQL is
+// the store's (DB.LinkTypePhrases, GDK-1215) — the same read the detail
+// response's phrase field goes through, so the CLI line and the web panel
+// cannot drift. A nil map — unreadable or empty catalog, like the demo
+// fixture — keeps the wire pair wording, and the JSON contract is untouched
+// either way.
 func linkTypePhrases(db *store.DB) map[string][2]string {
 	if db == nil {
 		return nil
 	}
-	rows, err := db.Query(`SELECT name, inward, outward FROM link_types`)
-	if err != nil {
-		return nil
-	}
-	defer rows.Close()
-	out := map[string][2]string{}
-	for rows.Next() {
-		var name, inward, outward string
-		if rows.Scan(&name, &inward, &outward) == nil {
-			out[strings.ToLower(strings.TrimSpace(name))] = [2]string{inward, outward}
-		}
-	}
-	return out
+	return db.LinkTypePhrases()
 }
 
 func printIssueDocs(docs []issueDoc, phrases map[string][2]string) {

@@ -196,11 +196,8 @@ func syncStale(syncedAt, lastErr string, now time.Time, threshold time.Duration)
 	if syncedAt == "" {
 		return true
 	}
-	t, err := time.Parse(time.RFC3339, syncedAt)
-	if err != nil {
-		t, err = time.Parse(config.ISOMilli, syncedAt)
-	}
-	if err != nil {
+	t, ok := config.ParseTimestamp(syncedAt)
+	if !ok {
 		return true
 	}
 	return now.Sub(t) > threshold

@@ -284,6 +284,25 @@ you do not type ATTACH): `local.saved_views` (`gadak views save`),
 `local.recipes` (`gadak recipes save`), `local.visits`, `local.searches`.
 It survives deleting `gadak.db`.
 
+**"Mine" is already in the database — do not substitute an identity.**
+`local.me` holds this workspace's own three keys (`account_id`, `email`,
+`actor_slug`), refreshed from the credential every time a command opens the
+mirror, and two views join it to the issues so you never have to know who you
+are:
+
+```sql
+SELECT key, status, priority, summary FROM my_open ORDER BY priority_rank;
+SELECT key, status, assignee, summary FROM handed_off;
+```
+
+`my_open` is assigned to me and not finished (`status_category`, never a
+status name). `handed_off` is the delegation ledger: reported by me, held by
+somebody else or by nobody. Both carry every `issues_full` column. The match
+is account id first, then email case-insensitively, then the built-in
+tracker's actor slug — the same rule the web applies. A workspace with no
+credential and no actor has no identity, so both views are empty; that is the
+answer, not a failure.
+
 Some columns exist only here, derived from the changelog while syncing:
 `carryover_count` (how many times an issue was carried into another sprint
 after the first — NULL, not 0, on an origin with no changelog),

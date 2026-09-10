@@ -14,21 +14,24 @@
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
   import { linkTypeCatalog } from '../../stores/link-types.svelte'
+  import { linkLabel } from '../../lib/link-label'
 
   let { linked }: { linked: LinkedIssue[] } = $props()
 
   /**
-   * Human label. The mirror stores `direction` as the bare token
-   * (`inward`/`outward`, sync.go) and `type` as the link type's name, so the
-   * phrase for this side ("is blocked by" / "blocks") is looked up in the
-   * catalog the add form already fetches; without a catalog, the type name.
-   * The token itself is never shown (GDK-1293).
+   * Human label. The backend renders the type's own sentence for this side
+   * ("is blocked by" / "blocks") from the mirror's link catalog and sends it
+   * as `phrase` (GDK-1215) — that is the label whenever it is there, with no
+   * catalog fetch of our own. The client-side catalog lookup below is the
+   * fallback for an older backend or a type the mirror's catalog lacks
+   * (GDK-1293); without either, the type name. The direction token itself is
+   * never shown — the rule is linkLabel's (lib/link-label.ts), one owner with
+   * a unit test, because the ternary that used to live here ended in `: dir`
+   * and put the wire token on screen for any direction spelling its two named
+   * cases missed.
    */
   function label(l: LinkedIssue): string {
-    const dir = (l.direction ?? '').trim()
-    const row = types.find((r) => r.name.toLowerCase() === (l.type ?? '').toLowerCase())
-    const phrase = dir === 'inward' ? row?.inward : dir === 'outward' ? row?.outward : dir
-    return phrase?.trim() || l.type || t('detail.linked')
+    return linkLabel(l, types, t('detail.linked'))
   }
 
   // Backend sometimes duplicates the same link (key+direction). Duplicate each keys

@@ -111,7 +111,15 @@
   let submitError = $state<string | null>(null)
   let summaryEl: HTMLInputElement | null = $state(null)
 
-  const selectedProject = $derived(projects.find((p) => p.key === projectKey))
+  // The project this dialog will actually create: the picked one while it is
+  // one of the projects, else the inferred default. Same shape as
+  // effectiveTypeId below — the default is a suggestion the select renders
+  // until a pick overrides it, which is what the applyDefaults once-latch
+  // $effect used to approximate before it folded (GDK-1133).
+  const effectiveProjectKey = $derived(
+    projects.some((p) => p.key === projectKey) ? projectKey : inferProject(),
+  )
+  const selectedProject = $derived(projects.find((p) => p.key === effectiveProjectKey))
   const issueTypes = $derived(selectedProject?.issue_types ?? [])
 
   function inferProject(): string {
@@ -148,7 +156,7 @@
   const effectiveTypeId = $derived(
     selectedProject && issueTypes.some((t) => t.id === issueTypeId)
       ? issueTypeId
-      : inferType(projectKey),
+      : inferType(effectiveProjectKey),
   )
 
   // Create-fields cache lives for this dialog instance only (GDK-254).
@@ -162,8 +170,8 @@
   }
 
   const currentCreateFields = $derived.by((): CreateFieldMeta[] => {
-    if (!projectKey || !effectiveTypeId) return []
-    return createFieldsByKey[createFieldsKey(projectKey, effectiveTypeId)] ?? []
+    if (!effectiveProjectKey || !effectiveTypeId) return []
+    return createFieldsByKey[createFieldsKey(effectiveProjectKey, effectiveTypeId)] ?? []
   })
 
   const sentCreateFieldIds = $derived.by(() => {
@@ -205,15 +213,19 @@
 
   // write-meta is the owner. Do not GET create-meta just because projects
   // are still empty — that is the in-flight / fake-origin hang. Retry only.
+  //
+  // Form arrival owns exactly one side effect now: focus. The inferred
+  // defaults it used to write are effective-values above (GDK-1133), so
+  // this effect writes no state.
   $effect(() => {
-    if (writeState === 'form') applyDefaults()
+    if (writeState === 'form') queueMicrotask(() => summaryEl?.focus())
   })
 
   // Required-field list is advisory. A miss (404, no credential, origin
   // error) must leave the form as it is today — create is never blocked.
   // I/O stays an $effect; writes live in beginCreateFieldsLoad (GDK-692).
   $effect(() => {
-    const pk = projectKey
+    const pk = effectiveProjectKey
     const typeId = effectiveTypeId
     if (writeState !== 'form' || !pk || !typeId) return
     return beginCreateFieldsLoad(pk, typeId)
@@ -267,16 +279,6 @@
     void loadFallback()
   }
 
-  /** Infer project/type defaults (once). */
-  let defaultsApplied = false
-  function applyDefaults() {
-    if (defaultsApplied || projects.length === 0) return
-    defaultsApplied = true
-    projectKey = inferProject()
-    issueTypeId = inferType(projectKey)
-    queueMicrotask(() => summaryEl?.focus())
-  }
-
   function pickUser(u: JiraUser) {
     assignee = u
     userQuery = ''
@@ -290,7 +292,7 @@
   const labelFreq = $derived.by(() => {
     const freq = new Map<string, number>()
     for (const it of issues.allIssues) {
-      if (write.projectOf(it) !== projectKey) continue
+      if (write.projectOf(it) !== effectiveProjectKey) continue
       for (const l of it.labels ?? []) freq.set(l, (freq.get(l) ?? 0) + 1)
     }
     return freq
@@ -338,14 +340,14 @@
     e.preventDefault()
     if (submitting) return
     const s = summary.trim()
-    if (!projectKey || !effectiveTypeId || !s) {
+    if (!effectiveProjectKey || !effectiveTypeId || !s) {
       submitError = t('write.requiredFields')
       return
     }
     submitting = true
     submitError = null
     const res = await write.createIssue({
-      project_key: projectKey,
+      project_key: effectiveProjectKey,
       issue_type: effectiveTypeId,
       summary: s,
       description_text: description.trim() || undefined,
@@ -455,7 +457,11 @@
                 {' '}<span class="text-status-reopen">*</span>{/if}</span
             >
             <span class="relative flex">
-              <select bind:value={projectKey} class={SELECT}>
+              <select
+                value={effectiveProjectKey}
+                onchange={(e) => (projectKey = e.currentTarget.value)}
+                class={SELECT}
+              >
                 {#each projects as p (p.key)}
                   <option value={p.key}>{p.key} · {p.name}</option>
                 {/each}

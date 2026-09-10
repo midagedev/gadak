@@ -1,7 +1,6 @@
 package snapshot
 
 import (
-	"strings"
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -11,28 +10,13 @@ func formatTime(t time.Time) string {
 	return t.UTC().Format(config.ISOMilli)
 }
 
-// parseTime accepts the ISO forms Jira and gadak write, including numeric offsets.
+// parseTime accepts the ISO forms Jira and gadak write, including numeric
+// offsets. The table is config.ParseTimestamp's (GDK-1130) — this used to
+// be a private eight-layout copy, one of four that drifted apart; the
+// owner's three layouts cover the same set (RFC3339Nano's optional
+// fraction subsumes the colon-offset spellings).
 func parseTime(s string) (time.Time, bool) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return time.Time{}, false
-	}
-	layouts := []string{
-		config.ISOMilli,
-		"2006-01-02T15:04:05Z",
-		"2006-01-02T15:04:05.000-0700",
-		"2006-01-02T15:04:05-0700",
-		"2006-01-02T15:04:05.000Z07:00",
-		"2006-01-02T15:04:05Z07:00",
-		time.RFC3339Nano,
-		time.RFC3339,
-	}
-	for _, layout := range layouts {
-		if t, err := time.Parse(layout, s); err == nil {
-			return t.UTC(), true
-		}
-	}
-	return time.Time{}, false
+	return config.ParseTimestamp(s)
 }
 
 // mapTime linearly maps t from [srcLo, srcHi] onto [dstLo, dstHi].

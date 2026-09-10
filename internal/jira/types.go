@@ -2,7 +2,6 @@ package jira
 
 import (
 	"encoding/json"
-	"time"
 
 	"github.com/midagedev/gadak/internal/config"
 )
@@ -219,21 +218,22 @@ func (i *Issue) UnmarshalJSON(b []byte) error {
 }
 
 // Layout is how Jira stamps timestamps: ISO-8601 with a numeric offset and no
-// colon in it, which is why time.RFC3339 does not parse them.
-const Layout = "2006-01-02T15:04:05.000-0700"
+// colon in it, which is why time.RFC3339 does not parse them. The string is
+// owned by config (TimeMilli), the single parse owner's table (GDK-1130),
+// and aliased here under the name this package's callers know it by.
+const Layout = config.TimeMilli
 
 // ISOTime normalizes a Jira timestamp to the ISO-8601 UTC form every stored
 // column uses (data-model.md, "Conventions"), so string comparison sorts
-// chronologically. An unparseable value passes through untouched.
+// chronologically. An unparseable value passes through untouched. Parsing
+// is config.ParseTimestamp's, not a local ladder (GDK-1130).
 func ISOTime(s string) string {
 	if s == "" {
 		return ""
 	}
-	t, err := time.Parse(Layout, s)
-	if err != nil {
-		if t, err = time.Parse(time.RFC3339, s); err != nil {
-			return s
-		}
+	t, ok := config.ParseTimestamp(s)
+	if !ok {
+		return s
 	}
-	return t.UTC().Format(config.ISOMilli)
+	return t.Format(config.ISOMilli)
 }

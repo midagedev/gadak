@@ -308,25 +308,16 @@ func formatIntComma(n int) string {
 }
 
 // relativeAge formats how long ago iso was: "just now", "4m ago", "2h ago",
-// "3d ago", or "never" when empty/unparseable.
+// "3d ago", or "never" when empty/unparseable. Parsing is the shared
+// owner's (config.ParseTimestamp, GDK-1130) — this kept a private
+// four-layout ladder.
 func relativeAge(iso string, now time.Time) string {
 	if iso == "" {
 		return "never"
 	}
-	t, err := time.Parse(time.RFC3339, iso)
-	if err != nil {
-		for _, layout := range []string{
-			config.ISOMilli,
-			"2006-01-02T15:04:05Z07:00",
-			"2006-01-02T15:04:05.000-0700",
-		} {
-			if t, err = time.Parse(layout, iso); err == nil {
-				break
-			}
-		}
-		if err != nil {
-			return "never"
-		}
+	t, ok := config.ParseTimestamp(iso)
+	if !ok {
+		return "never"
 	}
 	d := now.Sub(t)
 	if d < 0 {

@@ -110,8 +110,12 @@ func TestLocalV6MigratesToV7KeepsOldRows(t *testing.T) {
 	if err := chk.QueryRow(`PRAGMA user_version`).Scan(&uv); err != nil {
 		t.Fatal(err)
 	}
-	if uv != 7 {
-		t.Fatalf("user_version after migration = %d, want 7", uv)
+	// The contract is "EnsureLocal brings a local.db up to this build's
+	// level", not the literal 7 this test was written at (2026-09-10,
+	// GDK-1438: adding localSchemaV8 turned a true statement red). Asking
+	// localMigrations is the same assertion that never needs bumping again.
+	if want := len(localMigrations); uv != want {
+		t.Fatalf("user_version after migration = %d, want %d (this build's local level)", uv, want)
 	}
 	var kind, key, src string
 	if err := chk.QueryRow(`SELECT kind, key, source FROM visits WHERE key = 'STD-9'`).Scan(&kind, &key, &src); err != nil {

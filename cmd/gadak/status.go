@@ -447,9 +447,9 @@ func formatAPIUsageLine(u store.APIUsageSummary) string {
 			at = u.Last7Days.LastThrottledAt
 		}
 		if at != nil && *at != "" {
-			if t, err := time.Parse(config.ISOMilli, *at); err == nil {
-				line += fmt.Sprintf(" (last %s)", t.UTC().Format("15:04Z"))
-			} else if t, err := time.Parse(time.RFC3339, *at); err == nil {
+			// The owner's table (GDK-1130) — this was another private
+			// ISOMilli+RFC3339 ladder.
+			if t, ok := config.ParseTimestamp(*at); ok {
 				line += fmt.Sprintf(" (last %s)", t.UTC().Format("15:04Z"))
 			}
 		}

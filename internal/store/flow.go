@@ -21,6 +21,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // categoriesForSource is the single owner of "how a status id becomes a
@@ -65,6 +66,31 @@ func categoriesForSource(tx *sql.Tx, sourceID string) (map[string]string, error)
 		return nil, err
 	}
 	return cats, nil
+}
+
+// LinkTypePhrases reads the cached link-type catalog as a name → (inward,
+// outward) map, lowercased by name. The one owner of that SQL (GDK-1215):
+// the detail response's phrase field and the CLI's human link line both
+// render through origin.LinkPhrase and neither writes its own query any
+// more. An unreadable or empty catalog answers nil — callers fall back to
+// the wire pair wording, the contract the CLI had before the catalog
+// existed (GDK-1734). Sources are not distinguished: a name two sources
+// share is one entry, last row wins — same semantics the CLI's copy had.
+func (db *DB) LinkTypePhrases() map[string][2]string {
+	rows, err := db.Query(`SELECT name, inward, outward FROM link_types`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	out := map[string][2]string{}
+	for rows.Next() {
+		var name, inward, outward string
+		if err := rows.Scan(&name, &inward, &outward); err != nil {
+			return nil
+		}
+		out[strings.ToLower(strings.TrimSpace(name))] = [2]string{inward, outward}
+	}
+	return out
 }
 
 // cacheLinkTypeCatalog merges the batch's link-type rows into link_types,

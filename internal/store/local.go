@@ -35,7 +35,7 @@ const localRetention = 180 * 24 * time.Hour
 
 // localMigrations is independent of the mirror's migrations slice. Index+1 is
 // PRAGMA user_version on local.db.
-var localMigrations = []string{localSchemaV1, localSchemaV2, localSchemaV3, localSchemaV4, localSchemaV5, localSchemaV6, localSchemaV7}
+var localMigrations = []string{localSchemaV1, localSchemaV2, localSchemaV3, localSchemaV4, localSchemaV5, localSchemaV6, localSchemaV7, localSchemaV8}
 
 const localSchemaV1 = `
 CREATE TABLE visits (
@@ -166,6 +166,32 @@ const localSchemaV7 = `
 ALTER TABLE visits ADD COLUMN source TEXT NOT NULL DEFAULT '';
 `
 
+// localSchemaV8 is the workspace's own identity (GDK-1438): the three keys
+// "is this mine?" is answered with — the origin's account id, the credential
+// email, and the built-in tracker's actor slug. One row, id pinned to 1 by a
+// CHECK so there is no such thing as a second me.
+//
+// It lives here rather than in the mirror because identity is not origin data
+// that a resync reproduces: it is resolved from this machine's config
+// (config.ResolveWhoAmI), and the mirror is a cache that may be deleted at
+// any time. local.db is the file the product promises to keep and to be able
+// to export, which is exactly the promise this row needs.
+//
+// resolved_at is when the row was last written, so a stale identity after a
+// credential change is visible rather than silent. Blank strings, not NULL:
+// the views compare against ” to mean "this workspace cannot answer that
+// key", and a NULL would make every comparison unknown instead of false.
+const localSchemaV8 = `
+CREATE TABLE me (
+  id          INTEGER PRIMARY KEY CHECK (id = 1),
+  account_id  TEXT NOT NULL DEFAULT '',
+  email       TEXT NOT NULL DEFAULT '',
+  actor_slug  TEXT NOT NULL DEFAULT '',
+  resolved_at TEXT NOT NULL DEFAULT ''
+);
+INSERT INTO me (id) VALUES (1);
+`
+
 func init() {
 	// Single ATTACH owner: every connection the registered "sqlite" driver
 	// opens (store.Open, gadak sql, MCP gadak_query, raw tests) goes through
@@ -221,10 +247,18 @@ func attachLocalHook(conn sqlite.ExecQuerierContext, dsn string) error {
 		// are logged — same bias as before.
 		if schemaAttached(conn, "local") {
 			localAttachReuses.Add(1)
+			createIdentityViews(conn)
 			return nil
 		}
 		log.Printf("store: ATTACH local.db: %v", err)
+		return nil
 	}
+	// The identity views (GDK-1438) join the mirror to local.me, so they can
+	// only exist where both are on one connection — here, the single ATTACH
+	// owner, and as TEMP views because SQLite forbids a stored view from
+	// crossing databases. Every connection the driver opens therefore answers
+	// `select * from my_open`: gadak sql, MCP gadak_query, store.Open.
+	createIdentityViews(conn)
 	return nil
 }
 

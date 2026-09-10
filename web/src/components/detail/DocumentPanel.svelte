@@ -20,7 +20,6 @@
   import { createResource } from '../../lib/resource.svelte'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import { ESC_TIER, onEscape } from '../../lib/dom-actions'
-  import type { PageDetail } from '../../lib/types'
   import AdfContent from './AdfContent.svelte'
   import RelatedIssues from './RelatedIssues.svelte'
   import Section from './Section.svelte'
@@ -48,20 +47,12 @@
     resource.reload()
   }
 
-  // Write-through overlay: the POST comment/ body is the origin's page, so
-  // the thread can render it without waiting on a GET (and in e2e, without
-  // a second stub). Cleared when the open page changes.
-  let postedDetail = $state<PageDetail | null>(null)
-  $effect(() => {
-    void key
-    postedDetail = null
-  })
-
-  // Never show the previous page's body mid-switch.
-  const detailForKey = $derived.by(() => {
-    if (postedDetail && key === postedDetail.key) return postedDetail
-    return detail && key === detail.key ? detail : null
-  })
+  // Never show the previous page's body mid-switch. The write-through
+  // overlay this file used to keep — postedDetail plus a reset-on-key
+  // $effect — is the pages store's now (pages.adoptDetail, GDK-1133): the
+  // POST's response page lands in the store cache under its own key, so
+  // switching pages cannot show it and no panel state needs resetting.
+  const detailForKey = $derived(detail && key === detail.key ? detail : null)
   const head = $derived(detailForKey ?? lite)
 
   // Breadcrumb trail, from the client-side index — no extra request, and it
@@ -100,8 +91,7 @@
       if (!res.ok) return
       draft = ''
       if (res.page) {
-        postedDetail = res.page
-        pages.invalidateDetail(key)
+        pages.adoptDetail(res.page)
       }
     } finally {
       posting = false

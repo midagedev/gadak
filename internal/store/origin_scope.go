@@ -161,6 +161,15 @@ var originScopedTables = []tableRule{
 	// so keeping them offers the user dead options.
 	{table: "recents", scope: scopeDerived,
 		dropForOrigin: `DELETE FROM local.recents`},
+	// local.me is who this workspace's credential says I am (GDK-1438): an
+	// account id the origin minted, its email, and the actor slug writes are
+	// stamped with. A new origin mints none of them, and the identity views
+	// would go on matching the old id — quietly calling a stranger's issues
+	// mine. Blanked rather than deleted: the row is a singleton pinned to
+	// id 1, and the next command that opens the mirror rewrites it from the
+	// new config.
+	{table: "me", scope: scopeDerived,
+		dropForOrigin: `UPDATE local.me SET account_id = '', email = '', actor_slug = '', resolved_at = ''`},
 
 	// ── Survivors.
 	{table: "saved_views", scope: scopeAuthored,

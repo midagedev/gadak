@@ -113,11 +113,6 @@ const ALLOWED: Exception[] = [
     why: 'external q → input copy, guarded by focus; deriving from q snaps uncommitted IME text back on blur, so the sync stays until a round owns that behavior',
   },
   {
-    file: 'components/detail/DocumentPanel.svelte',
-    name: 'postedDetail',
-    why: 'reset on key change: the write-through overlay a comment POST returned is dropped when the open page changes, and nothing is left to derive it from',
-  },
-  {
     file: 'components/detail/IssueFields.svelte',
     name: 'prefetchKey',
     why: 'a once-per-key latch whose whole job is to record that the quiet editmeta prefetch already fired for this issue',
@@ -244,11 +239,6 @@ const ALLOWED: Exception[] = [
     file: 'components/write/CommentComposer.svelte',
     name: 'autosize',
     why: 'the reply request prefixes a mention into the draft and autosizes in the .then — an edit to the person’s text, which no derivation may own',
-  },
-  {
-    file: 'components/write/NewIssueDialog.svelte',
-    name: 'applyDefaults',
-    why: 'opening the form writes the inferred project/type defaults once — a reset the state transition demands (defaultsApplied latch)',
   },
   {
     file: 'components/write/NewIssueDialog.svelte',

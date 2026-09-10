@@ -342,6 +342,13 @@ func (db *DB) migrate() error {
 		return nil
 	}
 	return db.write(ctx, func(tx *sql.Tx) error {
+		// The identity temp views read issues_full, which several migrations
+		// drop and rebuild; a temp view outliving its table fails the whole
+		// migration (GDK-1438, whoami.go). Down for the duration, back up on
+		// this same connection before the transaction ends.
+		if err := dropIdentityViews(tx); err != nil {
+			return err
+		}
 		for i := have; i < want; i++ {
 			if _, err := tx.Exec(migrations[i]); err != nil {
 				return fmt.Errorf("migration %d: %w", i+1, err)
@@ -387,8 +394,10 @@ func (db *DB) migrate() error {
 		if _, err := tx.Exec(fmt.Sprintf("PRAGMA user_version = %d", want)); err != nil {
 			return err
 		}
-		_, err := tx.Exec(`UPDATE sync_state SET schema_version = ?`, want)
-		return err
+		if _, err := tx.Exec(`UPDATE sync_state SET schema_version = ?`, want); err != nil {
+			return err
+		}
+		return createIdentityViewsTx(tx)
 	})
 }
 

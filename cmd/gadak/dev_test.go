@@ -327,3 +327,44 @@ func TestIssuePrintsDeploymentAndBuildLinks(t *testing.T) {
 		t.Errorf("build url not shown:\n%s", out)
 	}
 }
+
+// GDK-1663: the dev-write refusal is keyed by origin kind. The Cloud
+// sentence names Jira's GitHub app; a Server workspace must not be told a
+// Cloud story — Server's panel is fed by its own connected tools, and
+// mirroring it is the config flag. Linear's panel is its GitHub integration;
+// no Jira sentence belongs there either.
+func TestDevWriteRefusalNamesTheOriginKind(t *testing.T) {
+	t.Setenv("GADAK_HOME", t.TempDir())
+	config.SetProfile("")
+
+	server := &config.Config{Kind: config.OriginJiraServer, Site: "https://jira.example.com", Token: "pat-token"}
+	err := refuseConnectedDevWrite(server, "dev link")
+	if err == nil {
+		t.Fatal("Server workspace must be refused — the dev-status write is the built-in tracker's")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "Jira Server") {
+		t.Errorf("Server refusal must name Jira Server: %q", msg)
+	}
+	if !strings.Contains(msg, "gadak config set devStatus true") {
+		t.Errorf("Server refusal must teach mirroring: %q", msg)
+	}
+	for _, ban := range []string{"Jira Cloud", "GitHub app"} {
+		if strings.Contains(msg, ban) {
+			t.Errorf("Server refusal must not say %q — that is Cloud's story: %q", ban, msg)
+		}
+	}
+
+	linear := &config.Config{Linear: &config.LinearConfig{APIKey: "lin-api"}}
+	err = refuseConnectedDevWrite(linear, "dev link")
+	if err == nil {
+		t.Fatal("Linear workspace must be refused too")
+	}
+	msg = err.Error()
+	if !strings.Contains(msg, "Linear") {
+		t.Errorf("Linear refusal must name Linear: %q", msg)
+	}
+	if strings.Contains(msg, "Jira") {
+		t.Errorf("Linear refusal must not tell a Jira story: %q", msg)
+	}
+}

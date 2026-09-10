@@ -312,6 +312,23 @@ copy beside it ([GDK-1315]), and the page-id case policy differed between
 the store and sync ([GDK-1104]). Each has a single owner now, held there by a
 gate that names any second copy.
 
+The CLI itself says when its skill file is behind: a read verb prints one
+stderr line when the installed copy differs from this build's, so an agent
+learns it without ever deciding to run doctor ([GDK-493]). "Mine" is in the
+database: `local.me` holds the workspace's own identity and two views,
+`my_open` and `handed_off`, join it to the issues, so an agent asks what is
+its own in plain SQL with no `:me` to substitute ([GDK-1438]). A linked
+issue's line reads as the link type's own sentence — the backend renders it
+from the link catalog, and the web no longer shows the wire token for a
+direction spelling it did not name ([GDK-1215]). A Jira Server workspace is
+refused in its own words: the wiki says Confluence Server is not implemented
+rather than asking for an email, and a dev-link write names the deployment
+it actually has ([GDK-1663]). Four timestamp parsers with four layout tables
+became one, so a Jira-stamped instant no longer reads as "no date" in the
+calendar ([GDK-1130]); and two `$effect` blocks that wrote state — the
+new-issue dialog's defaults and the document panel's write-through overlay —
+are derivations now ([GDK-1133]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -1879,3 +1896,9 @@ priority sorting keyed on `priority_rank`.
 [GDK-1726]: https://gadak.dev/backlog/#/?ks=GDK-1726
 [GDK-1729]: https://gadak.dev/backlog/#/?ks=GDK-1729
 [GDK-1746]: https://gadak.dev/backlog/#/?ks=GDK-1746
+[GDK-493]: https://gadak.dev/backlog/#/?ks=GDK-493
+[GDK-1438]: https://gadak.dev/backlog/#/?ks=GDK-1438
+[GDK-1215]: https://gadak.dev/backlog/#/?ks=GDK-1215
+[GDK-1663]: https://gadak.dev/backlog/#/?ks=GDK-1663
+[GDK-1130]: https://gadak.dev/backlog/#/?ks=GDK-1130
+[GDK-1133]: https://gadak.dev/backlog/#/?ks=GDK-1133

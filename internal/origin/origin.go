@@ -73,6 +73,14 @@ var errNeedCredential = errors.New("origin: site, email and token are required")
 // this workspace does not have.
 var errNoWikiOrigin = errors.New("origin: this workspace has no wiki origin — Linear does not provide a wiki")
 
+// errNoWikiServer is Wiki's Jira Server refusal (GDK-1663). Confluence
+// Server is not implemented, and a Server site credential must not produce
+// a Cloud-shaped client pointed at a Server URL — nor a Cloud-shaped
+// "email required" sentence for a deployment that has no email (GDK-1640:
+// Server authenticates with base URL + PAT). The origin kind keys the
+// refusal, not which credential fields happen to be filled.
+var errNoWikiServer = errors.New("origin: this workspace has no wiki origin — Confluence Server is not implemented yet")
+
 // InProcessAuthB64 is the base64 payload of the in-process Basic
 // credential the local CLI presents to the origin passthrough. Exported so
 // the server's pairing gate can rewrite a *validated* Bearer into the exact
@@ -434,6 +442,12 @@ func Wiki(cfg *config.Config) (*confluence.Client, error) {
 	}
 	if cfg.HasBuiltInOrigin() {
 		return builtInWiki(cfg)
+	}
+	if cfg.OriginType() == config.OriginJiraServer {
+		// Kind keys the sentence before any credential field is read: a
+		// Server credential is site+PAT (GDK-1640), and the Cloud ladder
+		// below would read the missing email as the defect (GDK-1663).
+		return nil, errNoWikiServer
 	}
 	if cfg.Site == "" || cfg.Email == "" || cfg.Token == "" {
 		if cfg.HasLinearCredential() && cfg.Site == "" {
