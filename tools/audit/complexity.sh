@@ -118,19 +118,19 @@ else
   echo
   echo "| cyc | where |"
   echo "|---:|---|"
-  printf '%s\n' "$cyclo_all" | grep -v '_test\.go' | sort -rn | head -30 \
+  printf '%s\n' "$cyclo_all" | grep -v '_test\.go' | sort -rn | awk 'NR<=30' \
     | awk '{ c = $1; $1 = ""; sub(/^ +/, ""); print "| " c " | `" $0 "` |" }' || true
   echo
   echo "top 10 including tests:"
   echo
-  printf '%s\n' "$cyclo_all" | sort -rn | head -10 \
+  printf '%s\n' "$cyclo_all" | sort -rn | awk 'NR<=10' \
     | awk '{ c = $1; $1 = ""; sub(/^ +/, ""); print "| " c " | `" $0 "` |" }' || true
   echo
   echo "### cognitive (gocognit) — non-test, top 30"
   echo
   echo "| cogn | where |"
   echo "|---:|---|"
-  printf '%s\n' "$cognit_all" | grep -v '_test\.go' | sort -rn | head -30 \
+  printf '%s\n' "$cognit_all" | grep -v '_test\.go' | sort -rn | awk 'NR<=30' \
     | awk '{ c = $1; $1 = ""; sub(/^ +/, ""); print "| " c " | `" $0 "` |" }' || true
 fi
 echo
@@ -152,7 +152,7 @@ echo "largest 15 Svelte/TS files:"
 echo
 echo "| lines | file |"
 echo "|---:|---|"
-cat "$WORK/svelte.wc" "$WORK/ts.wc" | sort -rn | head -15 \
+cat "$WORK/svelte.wc" "$WORK/ts.wc" | sort -rn | awk 'NR<=15' \
   | awk '{ printf "| %s | %s |\n", $1, $2 }' || true
 echo
 echo "functions over 60 lines (heuristic brace scan, .svelte + .ts, top 20):"
@@ -206,7 +206,7 @@ echo
 echo "| commits | file |"
 echo "|---:|---|"
 git log --name-only --format='' | grep -v '^$' | sort | uniq -c | sort -rn \
-  | head -20 | awk '{ printf "| %s | %s |\n", $1, $2 }' || true
+  | awk 'NR<=20' | awk '{ printf "| %s | %s |\n", $1, $2 }' || true
 echo
 src "git log --name-only --format='' | sort | uniq -c | sort -rn | head -20"
 

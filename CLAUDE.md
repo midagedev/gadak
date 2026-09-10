@@ -143,6 +143,11 @@ hard-won 목록)와 `AGENTS.md`(기여 계약)·`docs/MIRROR.md`(스키마·SQL 
   초록인 채로 CI 만 두 번 연속 빨갔다 — 첫 번째는 hex 전제, 두 번째는 카탈로그
   불일치. 둘 다 CI 의 Theme check 잡만 본다).
 - 문서 사실성 가드: `tools/doc-checks.sh` (있으면 커밋 전 실행).
+- **셸 도구에서 `sort | head` 는 Linux 에서만 stderr 를 낸다** (2026-09-10, 런
+  34442778376). GNU sort 는 `head` 가 파이프를 먼저 닫으면 "write failed: Broken
+  pipe" 를 stderr 에 쓰고 BSD sort 는 조용하다 — 로컬 전부 초록, CI 만 빨강인
+  부류. 앞 N 줄은 `awk 'NR<=N'` 로 자른다(입력을 끝까지 읽는다).
+  `tools/audit-test.sh` 가 `tools/audit/*.sh` 에서 그 형태를 잡는다.
 - **origin 표면을 바꿨으면 `docs/SUPPORT_MATRIX.md`도 같은 커밋이다** (GDK-1300,
   2026-09-02). Jira·Linear·Built-in 세 열의 단일 소유자이고 README 둘은 링크만
   한다. `internal/origin/writer.go`·`linearwriter.go`·`internal/linear/`·
