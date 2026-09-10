@@ -108,6 +108,25 @@ describe('GDK-621 keycap notation: the cheat sheet is the owner', () => {
   })
 })
 
+describe('comment-placeholder copy teaches nothing the chip already says', () => {
+  test('no locale embeds ⌘Enter or @mention in a composer placeholder', () => {
+    // Moved down from e2e/detail.spec.ts by the 2026-09-11 test-pyramid
+    // audit round (the issue key sits in that spec's header comment): a
+    // regex over catalog strings needs no browser, so it belonged one rung
+    // lower all along — the e2e
+    // kept only the real-path check that the DOM attribute carries the
+    // placeholder. The placeholder is copy; the chord belongs to the kbd
+    // chip (write.commentShortcut, the block above) and @mention to the
+    // shortcut hint. A placeholder that re-spells either drifts the moment
+    // one of those surfaces changes.
+    for (const [locale, table] of CATALOGS) {
+      for (const key of ['write.commentPlaceholder', 'doc.commentPlaceholder'] as const) {
+        expect(table[key], `${locale} ${key}`).not.toMatch(/⌘Enter|@mention/)
+      }
+    }
+  })
+})
+
 describe('GDK-621 close affordances agree with themselves', () => {
   test('a close-family label uses one key for aria-label and title', () => {
     // Adjacent-pair scan: every aria-label={t('…')} looks for the first

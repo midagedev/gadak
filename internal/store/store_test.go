@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -86,6 +88,11 @@ var documentedColumns = map[string][]string{
 	"enrichments": {"key", "kind", "payload", "source", "updated_at"},
 	"feed_reads":  {"event_id", "read_at"},
 	"api_usage":   {"day", "requests", "throttled", "server_errors", "retries", "wait_ms", "last_throttled_at"},
+	// GDK-1785: the two tables that shipped without a doc row until the
+	// every-table gate below pinned them. Columns documented in
+	// specs/000-product/data-model.md, in doc order.
+	"sync_progress": {"source_id", "first", "started_at", "updated_at", "fetched", "total"},
+	"remote_links":  {"item_id", "id", "global_id", "relationship", "url", "title", "summary"},
 }
 
 func TestSchemaMatchesDataModel(t *testing.T) {
@@ -112,6 +119,92 @@ func TestSchemaMatchesDataModel(t *testing.T) {
 		if strings.Join(got, ",") != strings.Join(want, ",") {
 			t.Errorf("%s columns\n got: %v\nwant: %v", table, got, want)
 		}
+	}
+}
+
+// TestEveryLiveTableIsDocumented (GDK-1785): schema.go's own contract is "a
+// schema change is a new entry at the end plus a documented row in
+// specs/000-product/data-model.md", but nothing compared the two sides —
+// schemaV47's sync_progress and schemaV42's remote_links both shipped
+// without a doc row, and neither documentedColumns above nor doc-checks
+// noticed, because both only check tables someone remembered to list. This
+// walks sqlite_master on a fully-migrated mirror (main and local schemas)
+// and requires every live table to appear in the doc; the reverse direction
+// keeps a `## `table“ heading from outliving the table it names.
+func TestEveryLiveTableIsDocumented(t *testing.T) {
+	doc, err := os.ReadFile("../../specs/000-product/data-model.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := openTemp(t)
+
+	// Live relations: tables and views in both schemas. SQLite's own
+	// bookkeeping (sqlite_sequence) and the fts5 shadow tables are skipped;
+	// the items_fts virtual table itself is documented and stays in.
+	var live []string
+	for _, q := range []string{
+		`SELECT name FROM sqlite_master WHERE type IN ('table', 'view')`,
+		`SELECT name FROM local.sqlite_master WHERE type = 'table'`,
+	} {
+		rows, err := db.sql.QueryContext(context.Background(), q)
+		if err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+		for rows.Next() {
+			var n string
+			if err := rows.Scan(&n); err != nil {
+				rows.Close()
+				t.Fatal(err)
+			}
+			if strings.HasPrefix(n, "sqlite_") || strings.HasPrefix(n, "items_fts_") {
+				continue
+			}
+			live = append(live, n)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			t.Fatal(err)
+		}
+		rows.Close()
+	}
+	sort.Strings(live)
+	if len(live) < 30 {
+		t.Fatalf("walked only %d live relations — the enumeration broke", len(live))
+	}
+
+	// Direction 1 — every live table is in the doc, spelled `name` or (for
+	// local.db tables) `local.name`. Backticks on both sides, so a short
+	// name cannot match inside a longer one (`links` never hits
+	// `dev_links`).
+	var missing []string
+	for _, n := range live {
+		if strings.Contains(string(doc), "`"+n+"`") || strings.Contains(string(doc), "`local."+n+"`") {
+			continue
+		}
+		missing = append(missing, n)
+	}
+	if len(missing) > 0 {
+		t.Errorf("live tables with no row in specs/000-product/data-model.md (GDK-1785): %v", missing)
+	}
+
+	// Direction 2 — every `## `name`` heading names a live relation, so a
+	// dropped or renamed table cannot keep its section.
+	heading := regexp.MustCompile("(?m)^## `([a-z_][a-z0-9_]*)`")
+	var stale []string
+	for _, m := range heading.FindAllStringSubmatch(string(doc), -1) {
+		found := false
+		for _, n := range live {
+			if n == m[1] {
+				found = true
+				break
+			}
+		}
+		if !found {
+			stale = append(stale, m[1])
+		}
+	}
+	if len(stale) > 0 {
+		t.Errorf("doc headings naming no live table: %v", stale)
 	}
 }
 
@@ -172,6 +265,13 @@ func TestOpenRefusesNewerSchema(t *testing.T) {
 		t.Fatal("opened a database written by a newer gadak")
 	} else if !strings.Contains(err.Error(), "newer") {
 		t.Fatalf("error should say the schema is newer, got: %v", err)
+	}
+	// GDK-1786: the refusal must leave the newer file's stamp exactly as it
+	// found it. A refusal that stamped the file back to this build's level
+	// would turn the newer build's next open into a silent downgrade — same
+	// invariant the RefuseForward tests pin on the other side (GDK-1687).
+	if got := userVersion(t, path); got != 99 {
+		t.Fatalf("user_version = %d after a refused open, want 99 — the refusal must not touch the file", got)
 	}
 }
 

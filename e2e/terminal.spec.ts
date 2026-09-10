@@ -1,3 +1,12 @@
+/*
+ * The terminal pane behaves like a terminal for a person typing in it
+ * (GDK-1783 header): echo, resize and exit through a real PTY the paired
+ * serve spawns, Esc meaning "leave the pane" or "reach the shell" depending
+ * on where focus sits, the four app chords never swallowed by the PTY, and
+ * the dock taking exactly the row it was given. The capture cases at the
+ * end paint CJK fit and dark grounds because those are properties a person
+ * sees, not ones a DOM assertion can name.
+ */
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'

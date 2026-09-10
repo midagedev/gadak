@@ -422,7 +422,6 @@ test.describe('detail', () => {
 
     const composer = panel.getByTestId('comment-composer')
     await expect(composer).toHaveAttribute('placeholder', en['write.commentPlaceholder'])
-    expect(en['write.commentPlaceholder']).not.toMatch(/⌘Enter|@mention/)
 
     const shortcut = panel.getByTestId('comment-shortcut')
     await expect(shortcut).toHaveCount(1)
@@ -431,7 +430,10 @@ test.describe('detail', () => {
     // every OS. Same platform test as modifierSymbol() in
     // web/src/lib/unified-search.ts. GDK-826: the catalog equality (every
     // locale '{mod} ↵', never a literal ⌘) is owned by
-    // surface-consistency.test.ts, not re-asserted here.
+    // surface-consistency.test.ts, not re-asserted here. GDK-1783: the same
+    // goes for the placeholder-copy regex that used to sit here — a pure
+    // catalog assertion with no browser in sight, now also in
+    // surface-consistency.test.ts.
     const mod = await page.evaluate(() =>
       /Mac|iP(hone|ad)/.test(navigator.platform) ? '⌘' : 'Ctrl',
     )

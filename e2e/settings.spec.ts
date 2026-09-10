@@ -1,3 +1,12 @@
+/*
+ * The Settings dialog saves what a person set, and says the truth about
+ * the mirror while they look at it (GDK-1783 header): staleThresholdHours
+ * round-trips through the API, our own call volume (including throttling)
+ * renders from api_usage, and the failure states — a hung sources list, a
+ * failed space list — offer recovery (manual keys, Retry) instead of a
+ * spinner that never ends. Turning Confluence on for every space needs a
+ * second click because it is the one toggle that changes sync scope.
+ */
 import { test, expect } from './helpers'
 import { apiURL, attachConsoleErrors, gotoApp, openServerSettings, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 import { en } from '../web/src/lib/i18n/en'

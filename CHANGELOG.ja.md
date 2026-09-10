@@ -695,6 +695,20 @@ serve が自分より新しいルートに 501 で答えたら、それを一時
 それぞれ最も長い区間を関数に出し ([GDK-1773])、`gadak wiki` のヘルプは `page` の
 ものから派生するので、別名が元の名詞からずれることはありません ([GDK-1781])。
 
+テストスイート自体も監査の対象でした。ログローテーションのテストは 6 MiB を書く
+代わりに 64 KiB の上限で回転・改名の経路を証明し、エピックのベンチマークの壁時計
+上限はオプトインの perf スイートでだけ走るので、`-race` 下で負荷のかかったランナーが
+健全なビルドを落とすことはなくなりました ([GDK-1782])。キャッシュと `local.db` の
+生きているテーブルすべてがデータモデル文書に行を持ち、テストが両方向で照合します
+([GDK-1785])。別のテストは v44 のすべてのテーブルに行を植えて head までマイグレーション
+を歩き、行を黙って失う段階をユーザーのキャッシュに届く前に捕まえ、より新しいスキーマを
+拒否したオープンがファイルに触れていないことも確認します ([GDK-1786])。ヘッダのなかった
+e2e スペックにヘッダが付き、シャード重みに欠けていた十二本が登録され、ブラウザスペックに
+あったカタログの断言はカタログを所有するユニットスイートに移りました ([GDK-1783])。
+コンポーネントから `querySelector`・生のリスナー・`setInterval` を締め出す DOM の走査は
+スマートフォンのソースも一緒に歩き ([GDK-1776])、リリース監査ランブックの遅いテストの行は
+実際に必要なタイムアウトを記します ([GDK-1764])。
+
 900px より下では狭いレジームがひとつです。サイドバーの狭い幅が 760px のメディアクエリの
 下で五か所に再宣言されていたため、800px の窓は 272px のサイドバーを保ち、一覧は残りだけを
 受け取っていました。いまは狭い値がインラインのトークン設置に載り、`app.css` は
@@ -2448,14 +2462,20 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1760]: https://gadak.dev/backlog/#/?ks=GDK-1760
 [GDK-1761]: https://gadak.dev/backlog/#/?ks=GDK-1761
 [GDK-1762]: https://gadak.dev/backlog/#/?ks=GDK-1762
+[GDK-1764]: https://gadak.dev/backlog/#/?ks=GDK-1764
 [GDK-1769]: https://gadak.dev/backlog/#/?ks=GDK-1769
 [GDK-1771]: https://gadak.dev/backlog/#/?ks=GDK-1771
 [GDK-1772]: https://gadak.dev/backlog/#/?ks=GDK-1772
 [GDK-1773]: https://gadak.dev/backlog/#/?ks=GDK-1773
 [GDK-1774]: https://gadak.dev/backlog/#/?ks=GDK-1774
 [GDK-1775]: https://gadak.dev/backlog/#/?ks=GDK-1775
+[GDK-1776]: https://gadak.dev/backlog/#/?ks=GDK-1776
 [GDK-1777]: https://gadak.dev/backlog/#/?ks=GDK-1777
 [GDK-1778]: https://gadak.dev/backlog/#/?ks=GDK-1778
 [GDK-1779]: https://gadak.dev/backlog/#/?ks=GDK-1779
 [GDK-1780]: https://gadak.dev/backlog/#/?ks=GDK-1780
 [GDK-1781]: https://gadak.dev/backlog/#/?ks=GDK-1781
+[GDK-1782]: https://gadak.dev/backlog/#/?ks=GDK-1782
+[GDK-1783]: https://gadak.dev/backlog/#/?ks=GDK-1783
+[GDK-1785]: https://gadak.dev/backlog/#/?ks=GDK-1785
+[GDK-1786]: https://gadak.dev/backlog/#/?ks=GDK-1786

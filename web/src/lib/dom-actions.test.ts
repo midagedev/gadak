@@ -34,6 +34,12 @@
  * carries one documented exception — SidebarNav's delete-disarm, which must
  * fire on *any* click (popover or not) and so has no boundary to hand the
  * gesture to.
+ *
+ * The 2026-09-11 test-surface audit round found the three sweeps walked
+ * web/src only, so the phone's component tree was never policed for the
+ * same three hand-rolls. The sweeps now read mobile/src with the same
+ * rules — same exclusions (plain .ts is infra), same exception list (empty
+ * for the phone today; an entry names itself web/src/… or mobile/src/…).
  */
 import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -240,25 +246,51 @@ describe('a component does not find its own child by a global selector (GDK-617b
  * can mount and bind. Plain .ts is not in that set — its document-level
  * reaches (user-tokens' style tag, viewport-regime's token install, config's
  * base[href]) are infra no component tree can bind to. */
-function componentFiles(): string[] {
-  return readdirSync(WEB_SRC, { recursive: true, encoding: 'utf8' }).filter((f) =>
-    f.endsWith('.svelte') || f.endsWith('.svelte.ts'),
-  )
+const REPO = join(HERE, '..', '..', '..')
+
+/* Both surfaces' component trees, from the audit round above. A sweep that
+ * misses a root passes green forever — the guard in each test pins a
+ * per-root floor. */
+const ROOTS = [
+  { dir: WEB_SRC, label: 'web/src' },
+  { dir: join(REPO, 'mobile/src'), label: 'mobile/src' },
+] as const
+
+function sweepFiles(): { path: string; abs: string }[] {
+  const out: { path: string; abs: string }[] = []
+  for (const r of ROOTS) {
+    for (const f of readdirSync(r.dir, { recursive: true, encoding: 'utf8' })) {
+      if (f.endsWith('.svelte') || f.endsWith('.svelte.ts')) {
+        out.push({ path: `${r.label}/${f}`, abs: join(r.dir, f) })
+      }
+    }
+  }
+  return out
+}
+
+function expectRootsReached(files: { path: string }[]): void {
+  for (const r of ROOTS) {
+    const n = files.filter((f) => f.path.startsWith(`${r.label}/`)).length
+    // web/src floor is the historical >50; mobile floor keeps the phone's
+    // 20-odd screens and ui files from silently dropping off the walk.
+    const floor = r.label === 'web/src' ? 50 : 15
+    expect(n, `the sweep found only ${n} files under ${r.label}`).toBeGreaterThan(floor)
+  }
 }
 
 describe('class blockade: window-level outside-close is dom-actions territory', () => {
   test('no component attaches its own mousedown outside-close', () => {
-    const files = componentFiles()
-    expect(files.length, 'the sweep found no components to read').toBeGreaterThan(50)
+    const files = sweepFiles()
+    expectRootsReached(files)
 
     const offenders: string[] = []
-    for (const rel of files) {
-      const source = readFileSync(join(WEB_SRC, rel), 'utf8')
+    for (const { path, abs } of files) {
+      const source = readFileSync(abs, 'utf8')
       // window.addEventListener('mousedown', …) is the owner's signature.
       // FieldEditor's two-node boundary was the last sanctioned exception
       // and moved to onOutsideClick's alsoInside (GDK-1585) — zero now.
       if (/addEventListener\((['"])mousedown\1/.test(source)) {
-        offenders.push(rel)
+        offenders.push(path)
       }
     }
     expect(offenders).toEqual([])
@@ -266,20 +298,20 @@ describe('class blockade: window-level outside-close is dom-actions territory', 
 })
 
 describe('class blockade: a component does not query the document for its tree (GDK-645)', () => {
-  test('no file under web/src reaches the document with querySelector', () => {
-    const files = componentFiles()
-    expect(files.length, 'the sweep found no components to read').toBeGreaterThan(50)
+  test('no file under web/src or mobile/src reaches the document with querySelector', () => {
+    const files = sweepFiles()
+    expectRootsReached(files)
 
     const offenders: string[] = []
-    for (const rel of files) {
-      const source = readFileSync(join(WEB_SRC, rel), 'utf8')
+    for (const { path, abs } of files) {
+      const source = readFileSync(abs, 'utf8')
       // `document\s*\.\s*querySelector` rather than a literal: keymap's
       // pre-GDK-693 form split the member access across lines
       // (`document\n  .querySelector`), which the literal never saw — half
       // its dispatch sites were invisible to the old matcher. A query scoped
       // to a locally-held element (board-drag's ghost clone) is tree-local
       // and does not match.
-      if (/document\s*\.\s*querySelector/.test(source)) offenders.push(rel)
+      if (/document\s*\.\s*querySelector/.test(source)) offenders.push(path)
     }
     expect(offenders).toEqual([])
   })
@@ -287,21 +319,21 @@ describe('class blockade: a component does not query the document for its tree (
 
 describe('class blockade: a document-wide click hand is a boundary action (GDK-630)', () => {
   test('no svelte:document onclick outside-close outside the exception list', () => {
-    const files = componentFiles()
-    expect(files.length, 'the sweep found no components to read').toBeGreaterThan(50)
+    const files = sweepFiles()
+    expectRootsReached(files)
 
     // SidebarNav's delete-disarm: disarming an armed delete must fire on any
     // click, popover or not — there is no boundary to hand the gesture to,
     // so onOutsideClick would be the wrong owner for it. Everything else
     // that listens to the whole document's clicks is re-implementing the
     // outside-close the action already owns.
-    const sanctioned = new Set(['components/sidebar/SidebarNav.svelte'])
+    const sanctioned = new Set(['web/src/components/sidebar/SidebarNav.svelte'])
 
     const offenders: string[] = []
-    for (const rel of files) {
-      const source = readFileSync(join(WEB_SRC, rel), 'utf8')
-      if (sanctioned.has(rel)) continue
-      if (/<svelte:document[^>]*\bonclick/.test(source)) offenders.push(rel)
+    for (const { path, abs } of files) {
+      const source = readFileSync(abs, 'utf8')
+      if (sanctioned.has(path)) continue
+      if (/<svelte:document[^>]*\bonclick/.test(source)) offenders.push(path)
     }
     expect(offenders).toEqual([])
   })

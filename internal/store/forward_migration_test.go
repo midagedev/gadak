@@ -14,6 +14,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -142,6 +143,133 @@ func TestOpenIsMigrateForward(t *testing.T) {
 	db.Close()
 	if got := userVersion(t, path); got != len(migrations) {
 		t.Fatalf("user_version = %d, want %d", got, len(migrations))
+	}
+}
+
+// TestForwardMigrationFromSeededV44PreservesRows (GDK-1786): every other
+// v44→head test in this file opens an EMPTY mirror — five mirrorAt(_, 44)
+// call sites, zero rows between them — so a migration that dropped or
+// drained rows would have passed them all. This seeds one synthetic row
+// into every v44 table and requires each table's row count to survive to
+// head, plus a SchemaAudit for structural parity with a fresh build.
+//
+// The seeding fills every PK column and every NOT NULL column that has no
+// default, reading the column list from PRAGMA table_info rather than
+// naming tables by hand — the same lesson as the GDK-1785 doc gate: a gate
+// that lists is a property of its list. Foreign keys are unchecked for the
+// seeding connection on purpose: the claim under test is row preservation
+// through migration, not referential integrity of synthetic rows (Open's
+// own connections keep foreign_keys=ON; nothing revalidates old rows).
+//
+// items_fts is excluded: it is contentless FTS the sync rebuilds, and the
+// v50 tokenizer change is repaired wholesale by repairItemsFTS at Open —
+// its rows are derived data, never migrated.
+func TestForwardMigrationFromSeededV44PreservesRows(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "gadak.db")
+	mirrorAt(t, path, 44)
+
+	seeded := map[string]int{}
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer raw.Close()
+	var tables []string
+	{
+		rows, err := raw.Query(`SELECT name FROM sqlite_master WHERE type = 'table'`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for rows.Next() {
+			var n string
+			if err := rows.Scan(&n); err != nil {
+				rows.Close()
+				t.Fatal(err)
+			}
+			if strings.HasPrefix(n, "sqlite_") || strings.HasPrefix(n, "items_fts") {
+				continue
+			}
+			tables = append(tables, n)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			t.Fatal(err)
+		}
+		rows.Close()
+	}
+	for _, tbl := range tables {
+		info, err := raw.Query("PRAGMA table_info(" + quoteIdent(tbl) + ")")
+		if err != nil {
+			t.Fatalf("%s: %v", tbl, err)
+		}
+		var cols, vals []string
+		for info.Next() {
+			var cid int
+			var name, typ string
+			var notnull int
+			var dflt *string
+			var pk int
+			if err := info.Scan(&cid, &name, &typ, &notnull, &dflt, &pk); err != nil {
+				info.Close()
+				t.Fatal(err)
+			}
+			if pk == 0 && (notnull == 0 || dflt != nil) {
+				continue
+			}
+			cols = append(cols, name)
+			if strings.Contains(strings.ToUpper(typ), "INT") || strings.Contains(strings.ToUpper(typ), "REAL") {
+				vals = append(vals, "1")
+			} else {
+				vals = append(vals, "'seed-"+tbl+"'")
+			}
+		}
+		if err := info.Err(); err != nil {
+			info.Close()
+			t.Fatal(err)
+		}
+		info.Close()
+
+		var stmt string
+		if len(cols) == 0 {
+			stmt = fmt.Sprintf("INSERT INTO %s DEFAULT VALUES", quoteIdent(tbl))
+		} else {
+			stmt = fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
+				quoteIdent(tbl), strings.Join(cols, ", "), strings.Join(vals, ", "))
+		}
+		if _, err := raw.Exec(stmt); err != nil {
+			t.Fatalf("seed %s: %v\n  %s", tbl, err, stmt)
+		}
+		seeded[tbl] = 1
+	}
+	if len(seeded) < 20 {
+		t.Fatalf("seeded only %d tables — the sqlite_master walk broke", len(seeded))
+	}
+	t.Logf("seeded 1 row into each of %d v44 tables; migrating to head", len(seeded))
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatalf("migrating a seeded v44 mirror: %v", err)
+	}
+	defer db.Close()
+	if got := db.SchemaVersion(); got != len(migrations) {
+		t.Fatalf("schema version %d, want %d", got, len(migrations))
+	}
+	for tbl, want := range seeded {
+		var got int
+		if err := db.sql.QueryRowContext(context.Background(),
+			fmt.Sprintf("SELECT COUNT(*) FROM %s", quoteIdent(tbl))).Scan(&got); err != nil {
+			t.Fatalf("%s: %v", tbl, err)
+		}
+		if got < want {
+			t.Errorf("%s held %d seeded row(s) at v44, has %d at head — a v44→head migration lost rows", tbl, want, got)
+		}
+	}
+	audit, err := db.SchemaAudit(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !audit.OK() {
+		t.Errorf("migrated mirror is missing what a fresh build has: %v", audit.Missing)
 	}
 }
 

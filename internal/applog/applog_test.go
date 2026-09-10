@@ -146,10 +146,19 @@ func discardStderr(t *testing.T) {
 
 func TestRotation(t *testing.T) {
 	discardStderr(t)
+	// GDK-1782: the cap is a var for exactly this test. At the real 5 MiB
+	// the proof needs 6 MiB of writes and is the slowest thing in the
+	// package under -race (measured 14 s); at 64 KiB the same
+	// rotate-and-rename path runs in milliseconds. Saved and restored so
+	// no other test sees the small cap (tests here are sequential).
+	prev := maxSize
+	maxSize = 64 << 10
+	t.Cleanup(func() { maxSize = prev })
+
 	dir := installForTest(t)
 	line := strings.Repeat("a", 1024)
-	// 6 MiB of 1 KiB lines exceeds the 5 MiB cap.
-	for i := 0; i < 6*1024; i++ {
+	// 96 KiB of ~1 KiB lines exceeds the 64 KiB cap.
+	for i := 0; i < 96; i++ {
 		log.Print(line)
 	}
 	rotated := logFile(dir) + ".1"
@@ -167,8 +176,8 @@ func TestRotation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if old.Size() < 5<<20 {
-		t.Fatalf("rotated size %d, want at least 5 MiB", old.Size())
+	if old.Size() < 64<<10 {
+		t.Fatalf("rotated size %d, want at least %d", old.Size(), 64<<10)
 	}
 }
 

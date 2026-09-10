@@ -650,6 +650,21 @@ Confluence 동기화·Jira 동기화·retro 패스는 각자 가장 긴 구간�
 ([GDK-1773]), `gadak wiki` 도움말은 `page` 것에서 파생되므로 별칭이 본래
 명사와 어긋날 수 없습니다 ([GDK-1781]).
 
+테스트 스위트 자체도 감사 목록에 있었습니다. 로그 회전 테스트는 6 MiB를 쓰는
+대신 64 KiB 상한에서 회전·개명 경로를 증명하고, 에픽 벤치마크의 벽시계 상한은
+선택형 perf 스위트에서만 돌아 `-race` 아래 부하 걸린 러너가 멀쩡한 빌드를
+떨어뜨리지 않습니다 ([GDK-1782]). 캐시와 `local.db`의 살아 있는 테이블 전부가
+데이터 모델 문서에 행을 갖고, 테스트가 둘을 양방향으로 대조합니다
+([GDK-1785]). 다른 테스트는 v44의 모든 테이블에 행을 심고 head까지
+마이그레이션을 걸어, 행을 소리 없이 잃는 단계를 사용자 캐시에 닿기 전에
+잡고, 더 새 스키마를 거절한 열기가 파일을 건드리지 않았는지도 확인합니다
+([GDK-1786]). 헤더 없던 e2e 스펙에 헤더가 붙고, 샤드 가중치에 빠져 있던
+열두 개가 등재됐고, 브라우저 스펙에 있던 카탈로그 단언은 카탈로그를 소유한
+유닛 스위트로 옮겼습니다 ([GDK-1783]). 컴포넌트에서 `querySelector`·직접
+리스너·`setInterval`을 몰아내는 DOM 스윕은 폰 소스도 함께 훑고
+([GDK-1776]), 릴리스 감사 런북의 느린 테스트 행은 실제로 필요한 타임아웃을
+적습니다 ([GDK-1764]).
+
 900px 아래에는 좁은 레짐이 하나입니다. 사이드바의 좁은 폭이 760px 미디어 쿼리 아래 다섯
 자리에 재선언돼 있어서 800px 창은 272px 사이드바를 유지하고 리스트는 남는 만큼만 받았습니다.
 이제 좁은 값은 인라인 토큰 설치에 실리고, `app.css` 는 `--layout-sidebar` 를 어디에도 정의하지
@@ -2323,14 +2338,20 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1760]: https://gadak.dev/backlog/#/?ks=GDK-1760
 [GDK-1761]: https://gadak.dev/backlog/#/?ks=GDK-1761
 [GDK-1762]: https://gadak.dev/backlog/#/?ks=GDK-1762
+[GDK-1764]: https://gadak.dev/backlog/#/?ks=GDK-1764
 [GDK-1769]: https://gadak.dev/backlog/#/?ks=GDK-1769
 [GDK-1771]: https://gadak.dev/backlog/#/?ks=GDK-1771
 [GDK-1772]: https://gadak.dev/backlog/#/?ks=GDK-1772
 [GDK-1773]: https://gadak.dev/backlog/#/?ks=GDK-1773
 [GDK-1774]: https://gadak.dev/backlog/#/?ks=GDK-1774
 [GDK-1775]: https://gadak.dev/backlog/#/?ks=GDK-1775
+[GDK-1776]: https://gadak.dev/backlog/#/?ks=GDK-1776
 [GDK-1777]: https://gadak.dev/backlog/#/?ks=GDK-1777
 [GDK-1778]: https://gadak.dev/backlog/#/?ks=GDK-1778
 [GDK-1779]: https://gadak.dev/backlog/#/?ks=GDK-1779
 [GDK-1780]: https://gadak.dev/backlog/#/?ks=GDK-1780
 [GDK-1781]: https://gadak.dev/backlog/#/?ks=GDK-1781
+[GDK-1782]: https://gadak.dev/backlog/#/?ks=GDK-1782
+[GDK-1783]: https://gadak.dev/backlog/#/?ks=GDK-1783
+[GDK-1785]: https://gadak.dev/backlog/#/?ks=GDK-1785
+[GDK-1786]: https://gadak.dev/backlog/#/?ks=GDK-1786

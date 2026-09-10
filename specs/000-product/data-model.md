@@ -413,6 +413,27 @@ origins use, and the PK needs it to tell two url-less rows apart.
 | `environment` | TEXT | deployment target (`production`, `staging`, …). `''` on PR/build rows (v37) |
 | `updated_at` | TEXT | |
 
+## `remote_links` (v42)
+
+v42 (GDK-1032). The origin's remote links — pointers at things outside the
+tracker itself, the "Web Link" rows a person or an automation pins to an
+issue. `(item_id, id)` is the primary key; rows are replaced wholesale per
+issue on sync, the `dev_links` contract. A `gadak://<workspace>/<KEY>` url
+is the identity a client dereferences: it hydrates from that workspace's own
+mirror, no network.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `item_id` | TEXT | FK to `items.id`, `ON DELETE CASCADE` |
+| `id` | TEXT | Origin-minted link id; PK with `item_id` |
+| `global_id` | TEXT | Origin's global id, `''` when it sent none |
+| `relationship` | TEXT | The origin's own label for the link, free-form; `''` when absent |
+| `url` | TEXT | What a client dereferences |
+| `title` | TEXT | Display title, `''` when absent |
+| `summary` | TEXT | One-line summary, `''` when absent |
+
+Index: `remote_links_item` on `item_id`.
+
 ## `attachments`
 
 Metadata only. Bytes are fetched on demand and proxied, never mirrored, so the
@@ -670,6 +691,29 @@ creates). `event_id` is a deterministic id: `cl:<item_id>:<changelog.id>`,
 `cm:<item_id>:<comment.id>`, `at:<item_id>:<attachment.id>`, `cr:<issue.key>`,
 or `fl:<item_id>:<at>` for grouped field changes.
 
+`local.db` holds more than view state — personal history and workspace facts
+that outlive any one origin. The full set, same reach through the `local.`
+prefix:
+
+| Table | Columns | Notes |
+| --- | --- | --- |
+| `local.saved_views` | `id` PK, `name`, `config` (JSON), `created_at`, `updated_at` | above |
+| `local.watches` | `key` PK, `created_at` | above |
+| `local.favorites` | `key` PK, `created_at` | above |
+| `local.feed_reads` | `event_id` PK, `read_at` | above |
+| `local.visits` | `id` PK, `kind`, `key`, `viewed_at`, `origin_epoch`, `source`, `seen_updated_at` | Issue/page read history. `source` names the surface that caused the read (`cli`, `ui`); unknown counts with the person. `seen_updated_at` stamps the issue's `updated_at` at the moment of the read — the "changed since I last opened it" join (docs/RECIPES.md, Mine) |
+| `local.searches` | `id` PK, `query`, `searched_at`, `result_count`, `opened_kind`, `opened_key`, `origin_epoch` | What was searched and what it opened |
+| `local.recents` | `id` PK, `kind`, `value`, `used_at` | Picker-ranking history (assignee, transition, create-type, …), newest-first, unique per `(kind, value)` |
+| `local.recipes` | `name` PK, `sql`, `created_at`, `updated_at` | Named read-only SQL (GDK-503) — a name for a mirror SELECT; distinct from `saved_views`, which store ViewConfig JSON |
+| `local.dashboards` | `id` PK, `name`, `config` (JSON), `created_at`, `updated_at` | Agent-authored dashboards (GDK-780/781); config validated at every writer, open tabs poll the change counter in `local_meta` |
+| `local.me` | `id` PK (CHECK `id = 1`), `account_id`, `email`, `actor_slug`, `resolved_at` | The workspace's own identity (GDK-1438) — the three keys "is this mine?" is answered with. One row by CHECK; lives here because identity is resolved from this machine's config, not origin data a resync reproduces. Blank strings, not NULL: a blank means "this workspace cannot answer that key" |
+| `local.local_meta` | `k` PK, `v` | Small KV: the `origin_epoch` counter (which generation of the origin the history rows name) and the `dashboards_version` change counter |
+
+`origin_epoch` (GDK-418): replacing a workspace's origin leaves visit and
+search rows naming keys the new origin can mint too, so rows carry the
+generation they were recorded under — the timeline shows the current one and
+retired rows stay readable through `gadak sql`.
+
 ## Replacing the origin
 
 A workspace is bound to one origin, and converting a workspace on the built-in tracker to a
@@ -742,6 +786,29 @@ same transaction as the migration itself, so a half-applied schema is impossible
 `schema_version` here is a copy for anything reading the mirror over SQL. Opening
 a database whose level is higher than the binary knows is refused, never
 silently used.
+
+## `sync_progress` (v47)
+
+v47 (GDK-1677). The mirror-owned "a sync pass is in flight" fact — one row
+per source, written by the pass itself so a liveness question is a table
+read visible to `gadak sql`, `status --json` and MCP clients alike, not an
+in-memory slot in one serve process. `BeginSyncProgress` upserts the row at
+start (a stale row from a crashed pass is overwritten, never stacked
+beside), `TouchSyncProgress` advances the heartbeat after every committed
+page, and `EndSyncProgress` deletes the row when the pass returns, success
+or error. This is bookkeeping in the `api_usage` sense: it never bumps the
+mirror's ETag `version`.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `source_id` | TEXT PK | Same ids as `sync_state` (`jira`, `confluence`, `linear`) |
+| `first` | INTEGER | 1 when the pass started with an empty watermark — what readers surface. A `--full` resync of a filled mirror writes 0 and shows nothing |
+| `started_at` | TEXT | When the pass began |
+| `updated_at` | TEXT | Heartbeat, touched with every committed page. Readers treat a row older than the liveness window (two minutes, `sync_progress.go`) as absent — a crashed pass goes quiet, never wrong |
+| `fetched` | INTEGER | Rows fetched so far |
+| `total` | INTEGER | The origin's own count, NULL when it gave none |
+
+No index: one row per source, primary-key scans.
 
 ## `issues` / `issues_full` (views)
 

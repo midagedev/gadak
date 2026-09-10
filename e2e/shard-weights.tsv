@@ -23,6 +23,18 @@
 # ~2 min of fixed per-shard cost (build, serve, browsers) is the same on
 # every shard and therefore not modelled here.
 #
+# 2026-09-11 (GDK-1783): twelve spec files existed with no row — the census
+# this table descends from predates them, so each was being dealt the
+# absent-file median (5.05) anyway. They are now named at 5.1, the weight
+# the deal actually gave them: the pipeline prints every weight at one
+# decimal, and the computed median (5.0+5.1)/2 rounds up through that
+# printf, while a literal 5.05 row would round down to 5.0 — lighter than
+# the fallback every other spec got, the "silently free" this table
+# forbids. Recorded as dealt, not re-measured: the 3-shard deal below is
+# byte-identical to the one before this change (verified:
+# tools/e2e-partition.sh 1..3 3), and the next census
+# refresh replaces these with measured seconds.
+#
 # format: <e2e/path> <TAB> <seconds>
 e2e/board-drag.spec.ts	7.9
 e2e/board-sprint-scope.spec.ts	3.8
@@ -36,8 +48,11 @@ e2e/built-in.spec.ts	11.5
 e2e/bulk-edit.spec.ts	4.0
 e2e/cache-upgrade.spec.ts	1.8
 e2e/column-views.spec.ts	7.1
+e2e/comment-reply-keyboard.spec.ts	5.1
 e2e/create-fields.spec.ts	2.8
 e2e/cross-links.spec.ts	6.6
+e2e/dashboard-frame-bg.spec.ts	5.1
+e2e/dashboard-legend-overflow.spec.ts	5.1
 e2e/dashboards.spec.ts	18.8
 e2e/dates.spec.ts	2.5
 e2e/deeplink-query.spec.ts	0.8
@@ -70,13 +85,17 @@ e2e/jira-credentials.spec.ts	4.2
 e2e/jql.spec.ts	3.7
 e2e/keys-focus.spec.ts	12.8
 e2e/keys-order.spec.ts	1.6
+e2e/label-chip-floor.spec.ts	5.1
 e2e/last-view.spec.ts	0.6
+e2e/linear.spec.ts	5.1
 e2e/linked-issues.spec.ts	6.8
 e2e/list-column-header.spec.ts	4.0
 e2e/list-empty-state.spec.ts	2.9
 e2e/list-menus-esc.spec.ts	2.8
 e2e/list-row-columns.spec.ts	2.1
 e2e/list-row-overflow.spec.ts	11.9
+e2e/list-title-growth.spec.ts	5.1
+e2e/locale-goto.spec.ts	5.1
 e2e/locale.spec.ts	2.8
 e2e/menu-loading.spec.ts	7.9
 e2e/mirror-instant.spec.ts	23.0
@@ -91,12 +110,16 @@ e2e/onboarding-built-in.spec.ts	0.9
 e2e/onboarding-no-tracker.spec.ts	2.8
 e2e/onboarding.spec.ts	6.8
 e2e/palette-create.spec.ts	2.9
+e2e/palette-exact-key.spec.ts	5.1
 e2e/palette.spec.ts	15.8
 e2e/person.spec.ts	10.0
 e2e/picker-esc.spec.ts	4.5
 e2e/polish.spec.ts	2.9
+e2e/pr-links.spec.ts	5.1
 e2e/prose-readability.spec.ts	3.1
 e2e/resume-card.spec.ts	3.8
+e2e/retro-materials.spec.ts	5.1
+e2e/retro-w2-shots.spec.ts	5.1
 e2e/retro.spec.ts	6.3
 e2e/row-narrow.spec.ts	1.2
 e2e/scroll-region.spec.ts	1.4
@@ -108,6 +131,7 @@ e2e/session-strip.spec.ts	7.7
 e2e/settings.spec.ts	13.8
 e2e/sidebar-active.spec.ts	2.4
 e2e/sidebar-sections.spec.ts	10.1
+e2e/sprint-strip.spec.ts	5.1
 e2e/stale-threshold.spec.ts	1.2
 e2e/team-flow.spec.ts	2.4
 e2e/team-groups.spec.ts	1.8

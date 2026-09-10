@@ -1,3 +1,13 @@
+/*
+ * The Documents screens answer a person's questions about the wiki mirror
+ * (GDK-1783 header): what did I just read (palette, Viewed tab, one-sentence
+ * rows), what changed since I was last here (unread marks), who wrote what
+ * (by-author grouping), and where does this page sit in its space (the
+ * tree, without repeating the space on every row). The scope half covers
+ * choosing what to mirror: Jira projects picked, Confluence offered, and a
+ * pass that reports itself and its failures honestly. Walks the demo
+ * fixture's PROD space via openDocFromTree below.
+ */
 import { type Page } from '@playwright/test'
 import { test, expect } from './helpers'
 import { apiURL, attachConsoleErrors, gotoApp, openServerSettings, walkRows } from './helpers'

@@ -1,3 +1,12 @@
+/*
+ * A person's theme choice follows them (GDK-1783 header): no stored choice
+ * means light (with a light host scheme, today's hex), prefers-color-scheme
+ * dark paints dark with color-scheme in agreement, every palette the
+ * registry (web/src/lib/theme THEMES) offers both appears in the picker and
+ * paints its own ground, and the choice survives reload — and a wiped
+ * localStorage — because the server settings row is the source, not the
+ * browser.
+ */
 import { type APIRequestContext, type Page } from '@playwright/test'
 import { expect, test } from './helpers'
 import { apiURL, gotoApp, openServerSettings, DEMO_ISSUE_COUNT_EN_RE } from './helpers'

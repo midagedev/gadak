@@ -21,13 +21,20 @@ import (
 const (
 	relLog     = "logs"
 	fileName   = "gadak.log"
-	maxSize    = 5 << 20 // 5 MiB; one rotated sibling
 	ringCap    = 500
 	fileFlags  = os.O_APPEND | os.O_CREATE | os.O_WRONLY
 	fileMode   = 0o600
 	maxPartial = 64 << 10
 	tailWindow = 64 << 10
 )
+
+// maxSize is the rotation cap. A var, not a const, so TestRotation can
+// shrink it (the 2026-09-11 slow-test audit; the key lives in
+// TestRotation): proving the rotate-and-rename path at the real 5 MiB cap
+// takes 6 MiB of file writes and was the slowest test in the package under
+// -race (measured 14 s). The production value never moves; only the test
+// does, and nothing else in the package writes it.
+var maxSize int64 = 5 << 20 // 5 MiB; one rotated sibling
 
 var (
 	stateMu sync.Mutex

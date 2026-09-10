@@ -1,3 +1,12 @@
+/*
+ * The command palette is keyboard-first navigation (GDK-1783 header): Cmd+K
+ * opens it, typing filters locally (no per-keystroke server round-trip),
+ * Enter does the thing the highlighted row promises — an issue, a view, a
+ * settings dialog, a workspace switch. Ordering is the other half of the
+ * contract: recently viewed before mirror-updated, so the palette answers
+ * "the thing I was just in" first. The demo fixture's issue count anchors
+ * every wait.
+ */
 import { test, expect } from './helpers'
 import { apiURL, attachConsoleErrors, gotoApp, searchInput, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
 

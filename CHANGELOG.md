@@ -832,6 +832,23 @@ their longest stretch a function of its own ([GDK-1773]); and the help entry
 for `gadak wiki` is derived from the one for `page`, so the alias cannot
 drift from its noun ([GDK-1781]).
 
+The test suite itself was on the audit's list. The log-rotation test proves
+the rotate-and-rename path at a 64 KiB cap instead of writing 6 MiB, and the
+epic benchmark's wall-clock bound runs only in the opt-in perf suite, so a
+loaded runner under `-race` no longer fails a healthy build ([GDK-1782]).
+Every live table in the mirror and in `local.db` now has a row in the data
+model document, and a test compares the two in both directions ([GDK-1785]);
+a second test seeds rows into every v44 table and walks the migration to head,
+so a step that silently loses rows is caught before it reaches a user's
+mirror, and a refused open of a newer schema is checked to leave the file
+untouched ([GDK-1786]). The e2e specs that had no header carry one, the twelve
+that were missing from the shard weights are listed, and a catalog assertion
+that lived in a browser spec moved to the unit suite that owns the catalog
+([GDK-1783]); the DOM sweeps that keep `querySelector`, raw listeners and
+`setInterval` out of components now walk the phone's sources too
+([GDK-1776]); and the release-audit runbook's slowest-test row names the
+timeout it actually needs ([GDK-1764]).
+
 Under 900 pixels there is one narrow regime. The sidebar's narrow width was
 redeclared in five places under a 760-pixel media query, so an 800-pixel
 window kept a 272-pixel sidebar and squeezed the list into what was left;
@@ -2577,14 +2594,20 @@ priority sorting keyed on `priority_rank`.
 [GDK-1760]: https://gadak.dev/backlog/#/?ks=GDK-1760
 [GDK-1761]: https://gadak.dev/backlog/#/?ks=GDK-1761
 [GDK-1762]: https://gadak.dev/backlog/#/?ks=GDK-1762
+[GDK-1764]: https://gadak.dev/backlog/#/?ks=GDK-1764
 [GDK-1769]: https://gadak.dev/backlog/#/?ks=GDK-1769
 [GDK-1771]: https://gadak.dev/backlog/#/?ks=GDK-1771
 [GDK-1772]: https://gadak.dev/backlog/#/?ks=GDK-1772
 [GDK-1773]: https://gadak.dev/backlog/#/?ks=GDK-1773
 [GDK-1774]: https://gadak.dev/backlog/#/?ks=GDK-1774
 [GDK-1775]: https://gadak.dev/backlog/#/?ks=GDK-1775
+[GDK-1776]: https://gadak.dev/backlog/#/?ks=GDK-1776
 [GDK-1777]: https://gadak.dev/backlog/#/?ks=GDK-1777
 [GDK-1778]: https://gadak.dev/backlog/#/?ks=GDK-1778
 [GDK-1779]: https://gadak.dev/backlog/#/?ks=GDK-1779
 [GDK-1780]: https://gadak.dev/backlog/#/?ks=GDK-1780
 [GDK-1781]: https://gadak.dev/backlog/#/?ks=GDK-1781
+[GDK-1782]: https://gadak.dev/backlog/#/?ks=GDK-1782
+[GDK-1783]: https://gadak.dev/backlog/#/?ks=GDK-1783
+[GDK-1785]: https://gadak.dev/backlog/#/?ks=GDK-1785
+[GDK-1786]: https://gadak.dev/backlog/#/?ks=GDK-1786
