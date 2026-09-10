@@ -91,6 +91,38 @@
     id,
     LABELS[id],
   ])
+  /* One panel, swapped in place: every tab's aria-controls points here and
+     the panel names the tab that filled it. Only the selected panel exists,
+     which is why aria-labelledby is computed rather than nine ids. */
+  const TAB_PANEL_ID = 'settings-tabpanel'
+
+  /* The tablist's keyboard contract (WAI-ARIA APG): Left/Right wrap around
+     the visible tabs, Home/End jump to the ends. Selection follows focus —
+     the panels are already mounted-on-demand and switching is the same
+     history-replacing write a click makes, so there is nothing an extra
+     Enter would buy. stopPropagation because these arrows belong to the
+     tablist, not to the list keymap behind the dialog. */
+  function onTabKeydown(e: KeyboardEvent): void {
+    const delta = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+    const last = TABS.length - 1
+    let next: number | null = null
+    if (delta !== 0) {
+      const at = TABS.findIndex(([id]) => id === tab)
+      next = (at + delta + TABS.length) % TABS.length
+    } else if (e.key === 'Home') next = 0
+    else if (e.key === 'End') next = last
+    if (next === null) return
+    e.preventDefault()
+    e.stopPropagation()
+    tab = TABS[next][0]
+    // Focus follows selection, or the roving tabindex would strand it on a
+    // tab that is no longer the one Tab returns to.
+    ;(e.currentTarget as HTMLElement)
+      .closest('[role="tablist"]')
+      ?.querySelector<HTMLElement>(`#settings-tab-${TABS[next][0]}`)
+      ?.focus()
+  }
+
   const showIntegrations = TABS.some(([id]) => id === 'integrations')
   const showDevices = TABS.some(([id]) => id === 'devices')
 
@@ -351,17 +383,36 @@
          labels (GDK-1357 added Terminal; "Teams / groups" and "Field
          mapping" wrapped inside their own buttons). Should a tenth arrive,
          the row wraps between tabs, never inside a label. -->
-    <div class="flex flex-wrap gap-1">
+    <!--
+      A tablist, because that is what it is (GDK-138). Nine plain buttons told
+      a screen reader nothing about which one is showing: aria-selected read
+      null on every tab, and aria-current — added by GDK-613 — is the
+      sidebar's "you are here" vocabulary, not the tablist's "this is the
+      panel you are in". Both are carried now: aria-selected is the semantic
+      the role promises, and aria-current stays because it rides the same
+      condition as the accent border and e2e reads it (url-state.spec.ts,
+      integrations.spec.ts).
+
+      Roving tabindex + arrow keys is the rest of the role's contract: a
+      tablist is one Tab stop, and Left/Right (Home/End) move between tabs.
+      Without it a keyboard reader would pay nine Tab presses to leave the
+      header, which is the cost the role exists to remove.
+    -->
+    <div class="flex flex-wrap gap-1" role="tablist" aria-label={t('settings.title')}>
       {#each TABS as [id, label] (id)}
-        <!-- aria-current on the same condition as the accent border: the
-             active tab is exposed semantically, not only as paint (GDK-613). -->
         <button
           type="button"
+          role="tab"
+          id="settings-tab-{id}"
+          aria-controls={TAB_PANEL_ID}
+          aria-selected={tab === id}
+          aria-current={tab === id ? 'true' : undefined}
+          tabindex={tab === id ? 0 : -1}
           class="-mb-px flex h-control items-center border-b-2 px-2.5 text-body whitespace-nowrap transition-colors {tab === id
             ? 'border-accent text-text-primary'
             : 'border-transparent text-text-secondary hover:text-text-primary'}"
-          aria-current={tab === id ? 'true' : undefined}
           onclick={() => (tab = id)}
+          onkeydown={onTabKeydown}
         >
           {label}
         </button>
@@ -373,6 +424,9 @@
     class="scroll-region min-h-0 flex-1 px-5 pt-4 text-body"
     style="--scroll-pad-bottom: 1rem"
     data-testid="settings-scroll"
+    role="tabpanel"
+    id={TAB_PANEL_ID}
+    aria-labelledby="settings-tab-{tab}"
     use:onEscape={{ handler: onKeydown, priority: ESC_TIER.dialog, label: 'settings' }}
   >
       {#if loading}

@@ -344,7 +344,7 @@ test.describe('the dock has an appearance of its own (GDK-1357)', () => {
 
     await openServerSettings(page)
     const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('button', { name: 'Terminal', exact: true }).click()
+    await dialog.getByRole('tab', { name: 'Terminal', exact: true }).click()
     const picker = page.getByTestId('terminal-appearance-picker')
     await expect(picker).toHaveValue('dark')
     await picker.selectOption('follow')

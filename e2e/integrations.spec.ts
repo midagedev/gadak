@@ -75,7 +75,7 @@ const ITEMS = {
 
 const dialog = (page: Page) => page.getByTestId('settings-dialog')
 const tabButton = (page: Page, label: string) =>
-  dialog(page).getByRole('button', { name: label, exact: true })
+  dialog(page).getByRole('tab', { name: label, exact: true })
 
 test.describe('integrations tab is desktop-only', () => {
   test('a browser tab is not offered the tab, by header or by link', async ({ page }) => {

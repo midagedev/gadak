@@ -76,11 +76,11 @@ test.describe('settings dialog', () => {
       'Fields',
       'About',
     ]) {
-      await dialog.getByRole('button', { name: tab, exact: true }).click()
+      await dialog.getByRole('tab', { name: tab, exact: true }).click()
       await expect(mirror, `mirror must not render on the ${tab} tab`).toHaveCount(0)
     }
 
-    await dialog.getByRole('button', { name: 'Sync', exact: true }).click()
+    await dialog.getByRole('tab', { name: 'Sync', exact: true }).click()
     await expect(mirror).toHaveCount(1)
   })
 
@@ -96,7 +96,7 @@ test.describe('settings dialog', () => {
     await gotoApp(page)
     await openServerSettings(page)
     const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('button', { name: 'Teams', exact: true }).click()
+    await dialog.getByRole('tab', { name: 'Teams', exact: true }).click()
 
     // Rule rows only: their group input is the tab's sole input.w-24 (the
     // group-label and product rows above it use flex-1 inputs).
@@ -204,7 +204,7 @@ test.describe('sources tab scope-list retry (GDK-1061)', () => {
     await gotoApp(page)
     await openServerSettings(page)
     const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('button', { name: 'Sources', exact: true }).click()
+    await dialog.getByRole('tab', { name: 'Sources', exact: true }).click()
 
     // The failed state: the existing unavailable copy, plus the Retry the
     // issue asked for.
@@ -222,8 +222,8 @@ test.describe('sources tab scope-list retry (GDK-1061)', () => {
 
     // The once-guard survived the retry: leaving and re-entering the tab
     // does not refetch (a successful load is still exactly-once).
-    await dialog.getByRole('button', { name: 'Features', exact: true }).click()
-    await dialog.getByRole('button', { name: 'Sources', exact: true }).click()
+    await dialog.getByRole('tab', { name: 'Features', exact: true }).click()
+    await dialog.getByRole('tab', { name: 'Sources', exact: true }).click()
     await expect(picker).toBeVisible()
     expect(spacesCalls, 'space list requests: 1 failed + 1 retry, no refetch after').toBe(2)
   })
@@ -285,7 +285,7 @@ test.describe('sources tab failure states (GDK-476)', () => {
     const dialog = page.getByRole('dialog', { name: 'Settings' })
     const sources = dialog.getByTestId('settings-sources')
     const clickedAt = Date.now()
-    await dialog.getByRole('button', { name: 'Sources', exact: true }).click()
+    await dialog.getByRole('tab', { name: 'Sources', exact: true }).click()
     await expect(sources.getByTestId('scope-spaces-error')).toBeVisible()
     const errorAfterMs = Date.now() - clickedAt
 
@@ -337,7 +337,7 @@ test.describe('sources tab failure states (GDK-476)', () => {
     await gotoApp(page)
     await openServerSettings(page)
     const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('button', { name: 'Sources', exact: true }).click()
+    await dialog.getByRole('tab', { name: 'Sources', exact: true }).click()
 
     const confluence = dialog.getByTestId('sources-confluence')
     const turnOn = confluence.getByTestId('confluence-turn-on')

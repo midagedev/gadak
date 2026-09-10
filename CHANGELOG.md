@@ -507,6 +507,18 @@ produces was invisible. A new test parses that plist inside the bundle and
 the release workflow mounts the dmg to run it; the script check keeps its
 place under a name that says what it actually measures ([GDK-919]).
 
+The settings tabs are a tablist. Nine plain buttons told a screen reader
+nothing about which one was showing — `aria-selected` read null on every tab
+— and leaving the header cost nine Tab presses. They now carry the role's
+whole contract: one Tab stop, Left/Right and Home/End between tabs, and the
+panel names the tab that filled it. Every close control draws its × with the
+icon component instead of one of four byte-identical hand-rolled SVGs, and
+names itself the same way twice; the rule those follow is written down and
+measured rather than decided per file ([GDK-138]). One flag stopped being
+state: whether the Confluence turn-on button reads armed is a function of the
+click and of the source being off, so an effect that cleared it when a space
+arrived no longer decides the label by when it ran ([GDK-1134]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2123,3 +2135,5 @@ priority sorting keyed on `priority_rank`.
 [GDK-733]: https://gadak.dev/backlog/#/?ks=GDK-733
 [GDK-1093]: https://gadak.dev/backlog/#/?ks=GDK-1093
 [GDK-919]: https://gadak.dev/backlog/#/?ks=GDK-919
+[GDK-138]: https://gadak.dev/backlog/#/?ks=GDK-138
+[GDK-1134]: https://gadak.dev/backlog/#/?ks=GDK-1134

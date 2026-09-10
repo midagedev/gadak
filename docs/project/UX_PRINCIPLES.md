@@ -269,6 +269,46 @@ There is no coaching-intensity setting (§4): if the grammar is right, none is
 needed. The seven boundaries where gadak is allowed to speak are tabulated in
 `THEORY.md`; outside them it says nothing.
 
+## 15. Every overlay closes the same way, and says so
+
+(Added 2026-09-10, GDK-138.) An overlay that covers what someone was reading
+owes them one obvious way out. Which way it was had been a per-file decision:
+four panels drew the same × from four hand-rolled copies of one SVG path, and
+whether a dialog also offered a secondary button depended on who wrote it.
+Nothing about that variance was a design; it was the absence of one.
+
+Overlays fall into two shapes, and the shape decides the chrome:
+
+- **Modal** — a backdrop, `aria-modal`, focus trapped inside. It carries a
+  header × at the top right, closes on Esc, and closes on a backdrop click.
+  `ui/DialogShell.svelte` owns all three; a modal that hand-rolls them is the
+  defect (GDK-316's claim, measured by `DialogShell.test.ts`). The full-bleed
+  media lightbox and the command palette are the two sanctioned strays, and
+  the palette has no × because running the thing you came for is the exit.
+- **Anchored** — a popover or menu attached to the control that opened it.
+  No ×: it has no header to put one in, and outside-click is the dismissal a
+  person already reaches for (`lib/dom-actions.ts` owns Esc and outside-click
+  for both shapes, in one tier order).
+
+Three rules hold across both:
+
+1. **One name.** The dismiss control is `common.closeEsc` on `aria-label` and
+   on `title`, so the tooltip and the screen reader say the same words and
+   name the keyboard route while they are at it. A second phrasing is a
+   second vocabulary for one action (§8).
+2. **One glyph.** The mark is `<Icon name="x" />`. Never a literal ✕ and
+   never a local `<svg>` — an icon set is only a set if every member shares a
+   grid, a weight and a colour (`ui/Icon.svelte`).
+3. **A secondary button is for abandoning edits, not for closing.** A dialog
+   holding a pending draft pairs Save with Cancel, because discarding a draft
+   is a different act from dismissing a panel. A read-only overlay gets no
+   second button: it would be a synonym for the × beside it.
+
+`ui/close-chrome.test.ts` measures all three. The same reasoning covers the
+roles: a row of tabs is a `tablist` with `aria-selected`, not nine buttons
+that happen to be painted differently — the mark and the semantic ride the
+same condition, exactly as §6's `aria-current` does.
+
 ---
 
 ## What already embodies this (keep, and defend)

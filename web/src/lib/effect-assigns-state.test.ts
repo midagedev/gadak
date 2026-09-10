@@ -127,11 +127,6 @@ const ALLOWED: Exception[] = [
     name: 'snapshot',
     why: 'the session-start count is a snapshot taken once at the boundary (G3); a derivation over the pool would grow it with every mid-session delta and re-say itself on remount',
   },
-  {
-    file: 'components/settings/SourcesTab.svelte',
-    name: 'turnOnArmed',
-    why: 'a two-click arm, disarmed by the state that makes the second click unnecessary — an event outcome, not a value with inputs',
-  },
   ...shared(
     'components/write/CommentComposer.svelte',
     'per-issue draft hydration: the body, its mentions and its attachments are read from localStorage when the issue key changes, so these are IO results and the guards around them',

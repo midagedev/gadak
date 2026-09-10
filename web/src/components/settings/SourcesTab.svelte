@@ -7,7 +7,12 @@
   import { t } from '../../lib/i18n'
   import ScopePicker, { type ScopeOption } from './ScopePicker.svelte'
   import { INPUT, ADD_BTN } from './controls'
-  import type { SettingsDraft } from './draft'
+  import {
+    confluenceTurnOnClick,
+    isConfluenceArmed,
+    isConfluenceEffective,
+    type SettingsDraft,
+  } from './draft'
 
   let {
     draft = $bindable(),
@@ -47,28 +52,25 @@
       : spaceOptions.filter((o) => o.hint !== 'personal' || draft.spaces.includes(o.value)),
   )
 
-  // Same two-input rule as toSettings: picking a space is the request to
-  // mirror it. The off control clears both, so "off" stays off.
-  const confluenceEffective = $derived(draft.confluenceOn || draft.spaces.length > 0)
+  // Same two-input rule as toSettings, and the same function: picking a space
+  // is the request to mirror it. The off control clears both, so "off" stays
+  // off.
+  const confluenceEffective = $derived(isConfluenceEffective(draft))
 
   // GDK-476: empty scope = every team space. Same two-click arm as the
   // credential delete button (JiraKeySettings.deleteArmed) — no new dialog.
-  let turnOnArmed = $state(false)
-  $effect(() => {
-    if (draft.spaces.length > 0 || draft.confluenceOn) turnOnArmed = false
-  })
+  //
+  // GDK-1134: only the click is state. Whether the button *reads* armed is a
+  // function of that click and of the source being off, so it is $derived —
+  // an $effect that cleared the flag when a space arrived made the label
+  // depend on when the effect ran.
+  let turnOnLatch = $state(false)
+  const turnOnArmed = $derived(isConfluenceArmed(turnOnLatch, draft))
 
   function turnConfluenceOn(): void {
-    if (draft.spaces.length > 0) {
-      draft.confluenceOn = true
-      return
-    }
-    if (!turnOnArmed) {
-      turnOnArmed = true
-      return
-    }
-    draft.confluenceOn = true
-    turnOnArmed = false
+    const next = confluenceTurnOnClick(turnOnLatch, draft)
+    turnOnLatch = next.latch
+    if (next.turnOn) draft.confluenceOn = true
   }
 </script>
 

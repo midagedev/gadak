@@ -56,7 +56,7 @@ test.describe('workspaces settings tab', () => {
     await gotoApp(page)
     await openServerSettings(page)
     const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('button', { name: 'Workspaces', exact: true }).click()
+    await dialog.getByRole('tab', { name: 'Workspaces', exact: true }).click()
 
     const tab = dialog.getByTestId('workspaces-tab')
     await expect(tab).toBeVisible()
@@ -179,7 +179,7 @@ test.describe('workspaces settings tab — register remote (GDK-1099)', () => {
     await gotoApp(page)
     await openServerSettings(page)
     const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('button', { name: 'Workspaces', exact: true }).click()
+    await dialog.getByRole('tab', { name: 'Workspaces', exact: true }).click()
     const tab = dialog.getByTestId('workspaces-tab')
 
     // The mode switch swaps the built-in form for the pairing form.

@@ -122,7 +122,7 @@ test.describe('place params', () => {
 
     const dialog = page.getByTestId('settings-dialog')
     await expect(dialog).toBeVisible()
-    const tab = (label: string) => dialog.getByRole('button', { name: label, exact: true })
+    const tab = (label: string) => dialog.getByRole('tab', { name: label, exact: true })
     // The active tab is exposed as aria-current on the same condition as its
     // accent border — the semantic axis, not the palette token (GDK-613).
     await expect(tab(en['settings.tabMembers'])).toHaveAttribute('aria-current', 'true')
@@ -143,7 +143,7 @@ test.describe('place params', () => {
 
     const dialog = page.getByTestId('settings-dialog')
     await expect(dialog).toBeVisible()
-    const tab = (label: string) => dialog.getByRole('button', { name: label, exact: true })
+    const tab = (label: string) => dialog.getByRole('tab', { name: label, exact: true })
     await expect(tab(en['settings.tabAbout'])).toHaveAttribute('aria-current', 'true')
     await expect(page.getByTestId('settings-about')).toBeVisible()
     await expect(page).toHaveURL(/settings=about/)
@@ -159,7 +159,7 @@ test.describe('place params', () => {
     await expect(page).toHaveURL(/settings=sync/)
 
     const dialog = page.getByTestId('settings-dialog')
-    await dialog.getByRole('button', { name: en['settings.tabMembers'], exact: true }).click()
+    await dialog.getByRole('tab', { name: en['settings.tabMembers'], exact: true }).click()
     await expect(page).toHaveURL(/settings=members/)
 
     // Esc closes through the dialog's own handler; the param goes with it —

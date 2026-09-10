@@ -330,7 +330,7 @@ const DIALOGS: DialogRow[] = [
       await openServerSettings(page)
       await page
         .getByRole('dialog', { name: en['settings.title'] })
-        .getByRole('button', { name: en['settings.tabWorkspaces'], exact: true })
+        .getByRole('tab', { name: en['settings.tabWorkspaces'], exact: true })
         .click()
       await page.getByTestId('workspaces-remove-shell-dialog-ws').click()
     },

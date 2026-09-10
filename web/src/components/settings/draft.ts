@@ -247,6 +247,50 @@ export function emptyDraft(): SettingsDraft {
   return toDraft({})
 }
 
+/*
+ * GDK-476 / GDK-1134: the Confluence source's two-input rule and its
+ * two-click arm, as functions rather than as state a component keeps in
+ * sync.
+ *
+ * They live here, beside toSettings, because toSettings already decides
+ * `enabled: confluenceOn || spaces.length > 0` — the tab's button label and
+ * the payload have to answer the same question, and a second copy of the
+ * rule in SourcesTab.svelte was how a hint could say "off" for a draft the
+ * save path sent as on.
+ */
+
+/** The source is on if either input says so. Picking a space IS the request
+ *  to mirror it, so the off control has to clear both (SourcesTab). */
+export function isConfluenceEffective(d: Pick<SettingsDraft, 'confluenceOn' | 'spaces'>): boolean {
+  return d.confluenceOn || d.spaces.length > 0
+}
+
+/** Armed = the person clicked "turn on for every space" once AND the source
+ *  is still off. The latch alone is not the answer: selecting a space (or
+ *  turning the source on some other way) makes the second click unnecessary,
+ *  and the confirm label must go with it. That disarming used to be an
+ *  $effect writing the latch (GDK-692's shape); it is a function of the two
+ *  inputs, so it is one here. */
+export function isConfluenceArmed(
+  latch: boolean,
+  d: Pick<SettingsDraft, 'confluenceOn' | 'spaces'>,
+): boolean {
+  return latch && !isConfluenceEffective(d)
+}
+
+/** What the turn-on button does: arm on the first click, commit on the
+ *  second. With spaces already picked there is nothing to confirm — an empty
+ *  scope means "every team space", which is the only case that earns the
+ *  second click (§7 of UX_PRINCIPLES: rarity x irreversibility). */
+export function confluenceTurnOnClick(
+  latch: boolean,
+  d: Pick<SettingsDraft, 'confluenceOn' | 'spaces'>,
+): { latch: boolean; turnOn: boolean } {
+  if (d.spaces.length > 0) return { latch: false, turnOn: true }
+  if (!isConfluenceArmed(latch, d)) return { latch: true, turnOn: false }
+  return { latch: false, turnOn: true }
+}
+
 /**
  * Form model → PUT payload (full replace). Do not send runtime/site.
  *

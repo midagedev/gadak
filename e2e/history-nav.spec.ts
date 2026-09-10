@@ -218,7 +218,7 @@ test.describe('history: dialogs (rules 2 and 3)', () => {
 
     await openServerSettings(page)
     for (const key of ['settings.tabMembers', 'settings.tabFeatures', 'settings.tabAbout'] as const) {
-      await dialog.getByRole('button', { name: en[key], exact: true }).click()
+      await dialog.getByRole('tab', { name: en[key], exact: true }).click()
     }
     await expect(page).toHaveURL(/settings=about/)
     // Tabs are continuous input: the entry the dialog opened on is rewritten.

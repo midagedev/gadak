@@ -371,7 +371,7 @@ test.describe('documents in the daily loop', () => {
     await openServerSettings(page)
 
     const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('button', { name: 'Sources', exact: true }).click()
+    await dialog.getByRole('tab', { name: 'Sources', exact: true }).click()
 
     const sources = dialog.getByTestId('settings-sources')
     await expect(sources).toBeVisible()
@@ -469,7 +469,7 @@ test.describe('documents in the daily loop', () => {
     await gotoApp(page)
     await openServerSettings(page)
     const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('button', { name: 'Sources', exact: true }).click()
+    await dialog.getByRole('tab', { name: 'Sources', exact: true }).click()
 
     // Projects: the configured key arrives as a chip, and typing narrows the list.
     const projects = dialog.getByTestId('scope-projects')
@@ -542,7 +542,7 @@ test.describe('documents in the daily loop', () => {
     await gotoApp(page)
     await openServerSettings(page)
     const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('button', { name: 'Sources', exact: true }).click()
+    await dialog.getByRole('tab', { name: 'Sources', exact: true }).click()
 
     const confluence = dialog.getByTestId('sources-confluence')
     await expect(confluence.getByTestId('confluence-turn-on')).toBeVisible()

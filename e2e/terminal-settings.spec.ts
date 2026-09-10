@@ -51,7 +51,7 @@ test.describe('terminal settings tab (GDK-1357)', () => {
     await gotoApp(page)
     await openServerSettings(page)
     const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('button', { name: 'Terminal', exact: true }).click()
+    await dialog.getByRole('tab', { name: 'Terminal', exact: true }).click()
     await expect(page.getByTestId('terminal-settings')).toBeVisible()
 
     // Untouched: placeholders, not the defaults pinned into the form.
@@ -88,7 +88,7 @@ test.describe('terminal settings tab (GDK-1357)', () => {
     await openServerSettings(page)
     await page
       .getByRole('dialog', { name: 'Settings' })
-      .getByRole('button', { name: 'Terminal', exact: true })
+      .getByRole('tab', { name: 'Terminal', exact: true })
       .click()
     await expect(page.getByTestId('terminal-scrollback')).toHaveValue('20000')
     await expect(page.getByTestId('terminal-cursor-blink')).toBeChecked()
@@ -100,7 +100,7 @@ test.describe('terminal settings tab (GDK-1357)', () => {
     await gotoApp(page)
     await openServerSettings(page)
     const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('button', { name: 'Terminal', exact: true }).click()
+    await dialog.getByRole('tab', { name: 'Terminal', exact: true }).click()
     await page.getByTestId('terminal-scrollback').fill('5')
     await dialog.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(dialog.getByText(/terminal\.scrollback must be/)).toBeVisible()
