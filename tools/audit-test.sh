@@ -79,6 +79,18 @@ check_page() {
   return 0
 }
 
+echo "== pipeline shape: no census page pipes into head"
+# GNU sort reports "write failed: Broken pipe" on stderr when `head` closes
+# the pipe early; BSD sort on macOS says nothing — so `sort | head` was green
+# on every laptop and red on the first CI run (2026-09-10, run 34442778376).
+# The pages take the first N lines with awk, which reads its input to the
+# end. The `src "..."` lines a page prints are prose, not pipelines.
+if grep -nE '\| *head\b' tools/audit/*.sh | grep -vE ':[0-9]+:\s*src "'; then
+  fail "a census page pipes into head — use awk 'NR<=N' (GNU sort reports a broken pipe on stderr)"
+else
+  echo "- none"
+fi
+
 echo "== census contract: every tools/audit/*.sh (gh faked unauthenticated)"
 for script in tools/audit/*.sh; do
   name="$(basename "$script" .sh)"
