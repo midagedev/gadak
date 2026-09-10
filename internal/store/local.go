@@ -35,7 +35,7 @@ const localRetention = 180 * 24 * time.Hour
 
 // localMigrations is independent of the mirror's migrations slice. Index+1 is
 // PRAGMA user_version on local.db.
-var localMigrations = []string{localSchemaV1, localSchemaV2, localSchemaV3, localSchemaV4, localSchemaV5, localSchemaV6, localSchemaV7, localSchemaV8}
+var localMigrations = []string{localSchemaV1, localSchemaV2, localSchemaV3, localSchemaV4, localSchemaV5, localSchemaV6, localSchemaV7, localSchemaV8, localSchemaV9}
 
 const localSchemaV1 = `
 CREATE TABLE visits (
@@ -190,6 +190,17 @@ CREATE TABLE me (
   resolved_at TEXT NOT NULL DEFAULT ''
 );
 INSERT INTO me (id) VALUES (1);
+`
+
+// localSchemaV9 is "changed since I last opened it" (GDK-1451). A visit
+// stamps the issue's updated_at as it stood at the moment of the read, so
+// rows that moved after the newest person read are one local join away
+// (docs/RECIPES.md, Mine) — no origin call, no new sync. The empty default
+// is a visit recorded before V9, or a key the mirror could not stamp
+// (unknown key, wiki page without a mirror row): both read as "never seen"
+// rather than "changed", because an unknown seen must not invent a change.
+const localSchemaV9 = `
+ALTER TABLE visits ADD COLUMN seen_updated_at TEXT NOT NULL DEFAULT '';
 `
 
 func init() {
@@ -505,6 +516,9 @@ type Visit struct {
 	Key      string `json:"key"`
 	ViewedAt string `json:"viewed_at"`
 	Source   string `json:"source"`
+	// SeenUpdatedAt is the item's updated_at at the moment of this read
+	// (GDK-1451); empty when the mirror had no row to stamp from.
+	SeenUpdatedAt string `json:"seen_updated_at"`
 }
 
 // Search is one append-only search execution. OpenedKind/OpenedKey name the
@@ -586,10 +600,24 @@ func (db *DB) RecordVisit(ctx context.Context, kind, key, source string) (Visit,
 		return zero, errors.New(`source must be "cli", "ui" or "mcp"`)
 	}
 	at := Now()
+	// The stamp is read from the mirror on the ATTACH connection before the
+	// local.db write: the item's updated_at as this read saw it (GDK-1451),
+	// from the same relation the changed-since-seen recipe compares against
+	// (issues_full for issues — the projection's column, which the view
+	// exposes — and items for pages). A key the mirror does not know stamps
+	// '' — recorded, never "changed".
+	stampSQL := `SELECT COALESCE(MAX(updated_at), '') FROM issues_full WHERE key = ?`
+	if kind == VisitKindPage {
+		stampSQL = `SELECT COALESCE(MAX(updated_at), '') FROM items WHERE kind = 'page' AND key = ?`
+	}
+	var seen string
+	if err := db.sql.QueryRowContext(ctx, stampSQL, key).Scan(&seen); err != nil {
+		return zero, err
+	}
 	var id int64
 	err := db.withLocalWrite(ctx, func(tx *sql.Tx) error {
-		res, err := tx.ExecContext(ctx, `INSERT INTO visits (kind, key, viewed_at, origin_epoch, source)
-			VALUES (?,?,?,`+currentEpochSQLOnLocal+`,?)`, kind, key, at, source)
+		res, err := tx.ExecContext(ctx, `INSERT INTO visits (kind, key, viewed_at, origin_epoch, source, seen_updated_at)
+			VALUES (?,?,?,`+currentEpochSQLOnLocal+`,?,?)`, kind, key, at, source, seen)
 		if err != nil {
 			return err
 		}
@@ -599,7 +627,7 @@ func (db *DB) RecordVisit(ctx context.Context, kind, key, source string) (Visit,
 	if err != nil {
 		return zero, err
 	}
-	return Visit{ID: id, Kind: kind, Key: key, ViewedAt: at, Source: source}, nil
+	return Visit{ID: id, Kind: kind, Key: key, ViewedAt: at, Source: source, SeenUpdatedAt: seen}, nil
 }
 
 // RecordSearch appends one search. openedKind/openedKey may both be empty, or
@@ -940,7 +968,7 @@ func (db *DB) LastVisits(ctx context.Context, kind, key string, n int) ([]Visit,
 		return nil, errors.New("n must be > 0")
 	}
 	rows, err := db.sql.QueryContext(ctx, `
-		SELECT id, kind, key, viewed_at, source
+		SELECT id, kind, key, viewed_at, source, seen_updated_at
 		FROM local.visits
 		WHERE kind = ? AND key = ? AND source IN ('ui','')
 			AND origin_epoch = `+currentEpochSQL+`
@@ -953,7 +981,7 @@ func (db *DB) LastVisits(ctx context.Context, kind, key string, n int) ([]Visit,
 	out := []Visit{}
 	for rows.Next() {
 		var v Visit
-		if err := rows.Scan(&v.ID, &v.Kind, &v.Key, &v.ViewedAt, &v.Source); err != nil {
+		if err := rows.Scan(&v.ID, &v.Kind, &v.Key, &v.ViewedAt, &v.Source, &v.SeenUpdatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, v)

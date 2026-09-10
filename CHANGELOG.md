@@ -402,6 +402,12 @@ done-only rule of its own. The server now stamps each history row with
 that field and nothing else, and a source-level gate keeps a second spelling of
 the predicate from coming back ([GDK-1753]).
 
+A visit now stamps what it saw. `local.visits.seen_updated_at` is the issue's
+`updated_at` at the moment you opened it, so "what changed since I last
+looked" is a local join over the mirror rather than a sync, and the recipe for
+it sits in the Mine section of `docs/RECIPES.md`. Reads from the CLI are an
+agent looking, not you returning, and stay out of the answer ([GDK-1451]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -1995,3 +2001,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1750]: https://gadak.dev/backlog/#/?ks=GDK-1750
 [GDK-1541]: https://gadak.dev/backlog/#/?ks=GDK-1541
 [GDK-1753]: https://gadak.dev/backlog/#/?ks=GDK-1753
+[GDK-1451]: https://gadak.dev/backlog/#/?ks=GDK-1451

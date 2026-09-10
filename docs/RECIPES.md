@@ -103,6 +103,27 @@ ORDER BY updated_at DESC;
 SELECT account_id, email, actor_slug, resolved_at FROM local.me;
 ```
 
+Every read stamps what it saw: `local.visits.seen_updated_at` is the issue's
+`updated_at` at the moment you opened it. So "what changed since I last
+looked" is a join, not a sync — the newest person read per issue against the
+row's current stamp. Reads from the CLI (`source = 'cli'`) are an agent
+looking, not you returning, and are left out.
+
+```sql
+-- Changed since I last opened it: the newest person read per issue, then
+-- rows whose updated_at moved past the stamp that read recorded.
+SELECT i.key, i.status, i.updated_at, v.viewed_at AS last_seen, i.summary
+FROM issues_full i
+JOIN (
+  SELECT key, MAX(viewed_at) AS viewed_at, seen_updated_at
+  FROM local.visits
+  WHERE kind = 'issue' AND source IN ('ui','') AND seen_updated_at <> ''
+  GROUP BY key
+) v ON v.key = i.key
+WHERE i.updated_at > v.seen_updated_at
+ORDER BY i.updated_at DESC;
+```
+
 ## Blockers and duplicates
 
 **What blocks this issue?** Every link is stored from both ends, and
