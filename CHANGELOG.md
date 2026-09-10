@@ -362,6 +362,11 @@ printing its own source commands, with a contract test that doc-checks runs
 the way link direction was — is a document with two candidate defects and
 four notes ([GDK-1206]).
 
+The phone remembers the last issue it opened, so the terminal session sheet
+opens with that key filled in ([GDK-1527]), and the bottom-sheet inset is
+measured again — the formula is one function, the stylesheet is pinned to
+it, and the viewport walk opens a sheet that really opens ([GDK-911]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -1946,3 +1951,5 @@ priority sorting keyed on `priority_rank`.
 [GDK-21]: https://gadak.dev/backlog/#/?ks=GDK-21
 [GDK-1707]: https://gadak.dev/backlog/#/?ks=GDK-1707
 [GDK-1206]: https://gadak.dev/backlog/#/?ks=GDK-1206
+[GDK-1527]: https://gadak.dev/backlog/#/?ks=GDK-1527
+[GDK-911]: https://gadak.dev/backlog/#/?ks=GDK-911

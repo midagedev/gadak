@@ -269,6 +269,10 @@ CSS 를 인용한 코멘트가 `@media` 가 누구냐고 origin 에 묻지 않�
 감사 — 링크 방향처럼 거울상인 매핑이 또 있는가 — 는 후보 결함 둘과 메모 넷을
 담은 문서입니다 ([GDK-1206]).
 
+폰은 마지막으로 연 이슈를 기억해 터미널 세션 시트가 그 키로 채워져 열리고
+([GDK-1527]), 하단 시트 인셋을 다시 잽니다 — 공식은 함수 하나, 스타일시트는
+거기에 고정, 뷰포트 walk 는 실제로 열리는 시트를 엽니다 ([GDK-911]).
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -1787,3 +1791,5 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-21]: https://gadak.dev/backlog/#/?ks=GDK-21
 [GDK-1707]: https://gadak.dev/backlog/#/?ks=GDK-1707
 [GDK-1206]: https://gadak.dev/backlog/#/?ks=GDK-1206
+[GDK-1527]: https://gadak.dev/backlog/#/?ks=GDK-1527
+[GDK-911]: https://gadak.dev/backlog/#/?ks=GDK-911
