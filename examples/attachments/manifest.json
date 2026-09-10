@@ -3,6 +3,7 @@
   "attachments": [
     { "id": "10000", "file": "10000.png", "filename": "nimbus-error.png", "content_type": "image/png" },
     { "id": "10001", "file": "10001.png", "filename": "latency-before-after.png", "content_type": "image/png" },
-    { "id": "10002", "file": "10002.png", "filename": "cache-key-sketch.png", "content_type": "image/png" }
+    { "id": "10002", "file": "10002.png", "filename": "cache-key-sketch.png", "content_type": "image/png" },
+    { "id": "10003", "file": "10003.png", "filename": "onboarding-first-week.png", "content_type": "image/png" }
   ]
 }

@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"regexp"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/midagedev/gadak/internal/adf"
@@ -27,11 +29,13 @@ const confluenceOverlap = 5 * time.Minute
 // pageBatchSize is how many PageRecords are committed per store transaction.
 const pageBatchSize = 50
 
-// RunConfluence does one Confluence mirror pass: full or incremental.
-// Attachments stay out of scope. Version-history stamps (page_versions; never
-// bodies) are collected when a mirrored page's current version number is not
-// already stored. A failed history fetch is logged and does not fail the pass.
-// Every successful pass prunes pages whose space is outside the current
+// RunConfluence does one Confluence mirror pass: full or incremental. Page
+// attachments ride the shared attachments table (GDK-1541); an origin that
+// refuses the listing (issuetap: 501) degrades to "no attachments" for the
+// pass. Version-history stamps (page_versions; never bodies) are collected
+// when a mirrored page's current version number is not already stored. A
+// failed history fetch is logged and does not fail the pass. Every
+// successful pass prunes pages whose space is outside the current
 // config/listing scope; memory.space always joins that scope (GDK-1079,
 // joinMemorySpace).
 //
@@ -137,6 +141,10 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 		defer logMu.Unlock()
 		opts.logf(format, args...)
 	}
+	// atts is the pass's attachment-listing memory: a 501 from
+	// child/attachment stands for the origin, so it is learned once and the
+	// rest of the pass skips the request (see attachmentSupport).
+	atts := &attachmentSupport{}
 	// fetchOne is one pool worker's whole item: the serial per-hit fetch set —
 	// body, comments, then the version-stamp read (GDK-1673 moved that read
 	// from commitBatch-time into the worker; its write stays behind the
@@ -146,7 +154,7 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 	fetchOne := func(ctx context.Context, hit confluence.Page) (pageFetch, error) {
 		before := c.Usage().Throttled
 		var pf pageFetch
-		rec, spaceName, when, err := fetchPageRecord(ctx, c, cfg, hit)
+		rec, spaceName, when, err := fetchPageRecord(ctx, c, cfg, hit, atts)
 		if err == nil {
 			pf.versions, err = fetchPageVersions(ctx, c, db, poolLogf, rec.Item.ID, rec.Item.ExternalID, rec.Page.Version)
 		}
@@ -575,6 +583,13 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 	}
 	opts.logf("%s", sum)
 
+	// The attachment degrade, when it fired: one line per pass, not one per
+	// page (issuetap has no child/attachment route yet — the gap is the
+	// origin's, reported by the round that measured it).
+	if line := atts.summary(); line != "" {
+		opts.logf("%s", line)
+	}
+
 	res.Watermark = maxRaw
 	if err := db.RecordSync(ctx, ConfluenceSourceID, store.SyncResult{Watermark: maxRaw, FullSync: res.Full}); err != nil {
 		return err
@@ -860,13 +875,17 @@ func noteStamp(when string, maxUTC, maxRaw *string) {
 	}
 }
 
-// fetchPageRecord loads full body + comments for a search hit and maps to store.
-// Comments are always re-fetched even when the page version is unchanged
-// (comments do not bump page version — the comments-only trap). For a page the
-// fetch gate skipped this is not reached at all; commentsOnlyPass is what keeps
-// that page's comments current.
+// fetchPageRecord loads full body + comments + attachments for a search hit
+// and maps to store. Comments are always re-fetched even when the page version
+// is unchanged (comments do not bump page version — the comments-only trap).
+// For a page the fetch gate skipped this is not reached at all;
+// commentsOnlyPass is what keeps that page's comments current.
 // spaceName is the human space title from the full page (fallback: search hit).
-func fetchPageRecord(ctx context.Context, c *confluence.Client, cfg *config.Config, hit confluence.Page) (store.PageRecord, string, string, error) {
+// atts is the pass's attachment-listing memory: an origin that refuses the
+// child/attachment endpoint (issuetap answers 501) is learned once, and the
+// rest of the pass skips the request instead of collecting the same refusal
+// per page. Nil degrades the same way with nobody to tell.
+func fetchPageRecord(ctx context.Context, c *confluence.Client, cfg *config.Config, hit confluence.Page, atts *attachmentSupport) (store.PageRecord, string, string, error) {
 	full, err := c.Page(ctx, hit.ID)
 	if err != nil {
 		return store.PageRecord{}, "", "", err
@@ -882,6 +901,24 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, cfg *config.Conf
 		cms = nil
 	} else if err != nil {
 		return store.PageRecord{}, "", "", err
+	}
+	attRows := []confluence.Attachment(nil)
+	if !atts.skipListing() {
+		listed, err := c.Attachments(ctx, full.ID)
+		switch {
+		case err == nil:
+			attRows = listed
+		case errors.Is(err, confluence.ErrNotFound):
+			// Same restricted-child shape comments tolerate.
+		case isUnsupportedEndpoint(err):
+			// issuetap's wiki has no child/attachment route yet: it answers
+			// 501 unsupported_endpoint. That gap is the origin's, not the
+			// page's — the page keeps what it has and the pass stops asking
+			// (one refusal is measured, not one per page).
+			atts.noteRefused()
+		default:
+			return store.PageRecord{}, "", "", err
+		}
 	}
 
 	when := full.Version.When
@@ -968,7 +1005,80 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, cfg *config.Conf
 			UpdatedAt:  cmWhen,
 		})
 	}
+	for _, at := range attRows {
+		rec.Attachments = append(rec.Attachments, store.Attachment{
+			ID:         pageNS(cfg) + ":" + at.ID,
+			ExternalID: at.ID,
+			Filename:   at.Title,
+			MimeType:   at.MIMEType(),
+			Size:       at.Size(),
+			Author:     at.Version.By.DisplayName,
+			AuthorID:   at.Version.By.AccountID,
+			CreatedAt:  jira.ISOTime(at.Version.When),
+			// Empty for the same reason issue attachments leave it empty on
+			// Cloud and built-in: the proxy builds content/{id}/download
+			// from the id, and a second stored address would be two things
+			// to keep true (GDK-1639).
+		})
+	}
 	return rec, spaceName, when, nil
+}
+
+// attachmentSupport is one pass's memory of whether the origin lists page
+// attachments at all. A 501 from child/attachment (issuetap: no endpoint
+// yet) is an origin property, not a page property, so the first refusal
+// stands for the pass — every later page skips the request. Nil-safe on
+// purpose: SyncPage has no pass to remember anything for.
+type attachmentSupport struct {
+	refused atomic.Bool
+	// measured counts the refusals actually seen. Width > 1 can race the
+	// learning (two workers in flight before the first lands), so the
+	// summary reports what happened rather than assuming one.
+	measured atomic.Int64
+	skipped  atomic.Int64
+}
+
+// skipListing reports whether this page's attachment listing should not be
+// asked for at all (the origin already refused one).
+func (a *attachmentSupport) skipListing() bool {
+	if a == nil {
+		return false
+	}
+	if !a.refused.Load() {
+		return false
+	}
+	a.skipped.Add(1)
+	return true
+}
+
+// noteRefused records the origin's refusal once; later pages are skipped.
+func (a *attachmentSupport) noteRefused() {
+	if a == nil {
+		return
+	}
+	a.measured.Add(1)
+	a.refused.Store(true)
+}
+
+// summary is the one log line a pass owes when it degraded: what was
+// refused and how many pages were skipped after that. Empty when it did not.
+func (a *attachmentSupport) summary() string {
+	if a == nil || !a.refused.Load() {
+		return ""
+	}
+	return fmt.Sprintf("confluence: origin refused the page-attachment listing (501) — %d measured, %d later pages skipped",
+		a.measured.Load(), a.skipped.Load())
+}
+
+// isUnsupportedEndpoint reports whether err is the origin's "no such route"
+// answer. issuetap returns 501 unsupported_endpoint for wiki paths it has
+// not implemented; Confluence Cloud never answers 501 here.
+func isUnsupportedEndpoint(err error) bool {
+	var api *confluence.APIError
+	if !errors.As(err, &api) {
+		return false
+	}
+	return api.Status == http.StatusNotImplemented
 }
 
 // collectPageVersions fetches history stamps for one page and writes them.

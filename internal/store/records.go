@@ -269,11 +269,13 @@ type Page struct {
 }
 
 // PageRecord is one document item plus its projection and comments. Comments
-// are replaced wholesale on upsert, matching IssueRecord.
+// and attachments are replaced wholesale on upsert, matching IssueRecord —
+// the same attachments table, distinguished by item_id (GDK-1541).
 type PageRecord struct {
-	Item     Item
-	Page     Page
-	Comments []Comment
+	Item        Item
+	Page        Page
+	Comments    []Comment
+	Attachments []Attachment
 }
 
 // SpaceRow is one wiki space (key + human name + kind). Source-neutral: a

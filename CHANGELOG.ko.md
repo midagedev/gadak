@@ -288,6 +288,15 @@ e2e 스위트가 Jira 미러 옆에 Linear 모양의 미러도 띄웁니다. `ex
 포트에서 origin 딥링크·양방향 링크 라벨·쓰기 거절·신선도 칩을 그 위에서
 그립니다 ([GDK-1298]).
 
+위키 페이지 첨부가 미러에 들어옵니다. 동기화가 페이지 본문 옆에서 첨부 목록을
+받아 이슈 첨부와 같은 표에 페이지 자신의 키로 두고, 페이지 detail 이 이슈 detail
+과 같은 모양으로 그것을 실어 나릅니다 — 두 wire 형태의 빌더는 하나이고, 빈
+목록이 `null` 이 아니라 `[]` 인 것을 게이트가 지킵니다. 바이트는
+`pages/<key>/attachments/<id>/content/` 가 이슈와 같은 핸들러로 흘려 보내니,
+페이지의 media 노드가 데스크와 폰에서 미해결 칩이 아니라 이미지로 그려집니다
+([GDK-1750], [GDK-1541]). 첨부 라우트가 아직 없는 내장 origin 은 동기화마다 한
+번만 재고 요약 한 줄로 건너뜁니다 — 실패가 아닙니다.
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -1812,3 +1821,5 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1517]: https://gadak.dev/backlog/#/?ks=GDK-1517
 [GDK-47]: https://gadak.dev/backlog/#/?ks=GDK-47
 [GDK-1298]: https://gadak.dev/backlog/#/?ks=GDK-1298
+[GDK-1750]: https://gadak.dev/backlog/#/?ks=GDK-1750
+[GDK-1541]: https://gadak.dev/backlog/#/?ks=GDK-1541

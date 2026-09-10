@@ -808,6 +808,11 @@ export interface PageDetail extends PageLite {
    *  body is empty. */
   body_text: string
   comments: PageComment[]
+  /** The page's files, same shape as the issue detail's — the shared
+   *  attachments table behind both (GDK-1541). Empty array when the page has
+   *  none: the server always emits [] (never null) for both details, and the
+   *  panel reads .attachments.length unguarded. */
+  attachments: DetailAttachment[]
   /** Issue keys this page's own text names. Only keys the mirror actually
    *  holds — the server drops the rest. Omitted when empty. */
   ref_issue_keys?: string[]

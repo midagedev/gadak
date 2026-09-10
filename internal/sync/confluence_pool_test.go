@@ -182,6 +182,10 @@ func (f *poolFixture) serve(w http.ResponseWriter, r *http.Request) {
 		f.serveSearch(w)
 	case strings.HasSuffix(p, "/child/comment"):
 		f.serveComments(w, strings.TrimSuffix(strings.TrimPrefix(p, "/rest/api/content/"), "/child/comment"))
+	case strings.HasSuffix(p, "/child/attachment"):
+		// No fixture page carries attachments yet; the empty listing is the
+		// honest answer (GDK-1541 listing rides every body fetch).
+		_ = json.NewEncoder(w).Encode(map[string]any{"results": []any{}, "size": 0, "limit": 100})
 	case strings.HasSuffix(p, "/version"):
 		f.serveVersions(w, strings.TrimSuffix(strings.TrimPrefix(p, "/rest/api/content/"), "/version"))
 	case strings.HasPrefix(p, "/rest/api/space/"):

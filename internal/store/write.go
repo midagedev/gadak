@@ -397,12 +397,7 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (bool, error) {
 		}
 	}
 	for _, a := range r.Attachments {
-		if _, err := tx.Exec(`
-			INSERT INTO attachments (id, item_id, external_id, filename, mime_type, size, author, author_id, created_at, url)
-			VALUES (?,?,?,?,?,?,?,?,?,?)`,
-			a.ID, it.ID, nz(a.ExternalID), nz(a.Filename), nz(a.MimeType), a.Size,
-			nz(a.Author), nz(a.AuthorID), nz(a.CreatedAt), nz(a.URL),
-		); err != nil {
+		if err := insertAttachment(tx, it.ID, a); err != nil {
 			return false, err
 		}
 	}
@@ -792,6 +787,17 @@ func upsertPageRecord(tx *sql.Tx, r PageRecord, knownProjects map[string]bool) (
 		}
 	}
 
+	// Page attachments ride the shared table (GDK-1541): replaced wholesale
+	// like comments, written by the same insertAttachment the issue path uses.
+	if _, err := tx.Exec(`DELETE FROM attachments WHERE item_id = ?`, it.ID); err != nil {
+		return false, err
+	}
+	for _, a := range r.Attachments {
+		if err := insertAttachment(tx, it.ID, a); err != nil {
+			return false, err
+		}
+	}
+
 	if err := writeFTS(tx, rowid, it.Title, it.BodyText, strings.Join(bodies, "\n")); err != nil {
 		return false, err
 	}
@@ -807,14 +813,17 @@ func upsertPageRecord(tx *sql.Tx, r PageRecord, knownProjects map[string]bool) (
 }
 
 // pageRecordUnchanged reports whether the stored page (item + projection +
-// comments) already matches r. Compared fields — keep this list in lockstep
-// with the write below, or a silent skip will leave the client stale:
+// comments + attachments) already matches r. Compared fields — keep this list
+// in lockstep with the write below, or a silent skip will leave the client
+// stale:
 //
 //	items: title, body_text, author, author_id, url, created_at, updated_at,
 //	       external_id, key
 //	pages: space_key, parent_id, version, status, body_adf, labels
 //	comments: id, external_id, author, author_id, body_adf, body_text,
 //	          created_at, updated_at (order-independent, keyed by id)
+//	attachments: id, external_id, filename, mime_type, size, author,
+//	             author_id, created_at, url (order-independent, keyed by id)
 //
 // excerpt is derived from body_adf and is not compared. synced_at is the
 // write stamp and is not compared.
@@ -902,6 +911,57 @@ func pageRecordUnchanged(tx *sql.Tx, r PageRecord) (bool, error) {
 	sort.Slice(want, func(i, j int) bool { return want[i].id < want[j].id })
 	for i := range have {
 		if have[i] != want[i] {
+			return false, nil
+		}
+	}
+
+	// Attachments, the same order-independent keyed comparison (GDK-1541).
+	// The write below replaces the rows wholesale, so a mismatch that is
+	// skipped here would leave the page's media nodes pointing at stale ids.
+	rows, err = tx.Query(`
+		SELECT id, COALESCE(external_id,''), COALESCE(filename,''), COALESCE(mime_type,''),
+		       COALESCE(size,0), COALESCE(author,''), COALESCE(author_id,''),
+		       COALESCE(created_at,''), COALESCE(url,'')
+		FROM attachments WHERE item_id = ?`, it.ID)
+	if err != nil {
+		return false, err
+	}
+	type attSnap struct {
+		id, ext, filename, mime        string
+		size                           int64
+		author, authorID, created, url string
+	}
+	var haveAtt []attSnap
+	for rows.Next() {
+		var s attSnap
+		if err := rows.Scan(&s.id, &s.ext, &s.filename, &s.mime, &s.size,
+			&s.author, &s.authorID, &s.created, &s.url); err != nil {
+			rows.Close()
+			return false, err
+		}
+		haveAtt = append(haveAtt, s)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return false, err
+	}
+	rows.Close()
+
+	wantAtt := make([]attSnap, 0, len(r.Attachments))
+	for _, a := range r.Attachments {
+		wantAtt = append(wantAtt, attSnap{
+			id: a.ID, ext: a.ExternalID, filename: a.Filename, mime: a.MimeType,
+			size: a.Size, author: a.Author, authorID: a.AuthorID,
+			created: a.CreatedAt, url: a.URL,
+		})
+	}
+	if len(haveAtt) != len(wantAtt) {
+		return false, nil
+	}
+	sort.Slice(haveAtt, func(i, j int) bool { return haveAtt[i].id < haveAtt[j].id })
+	sort.Slice(wantAtt, func(i, j int) bool { return wantAtt[i].id < wantAtt[j].id })
+	for i := range haveAtt {
+		if haveAtt[i] != wantAtt[i] {
 			return false, nil
 		}
 	}
@@ -1085,6 +1145,21 @@ func jsdPublicSQL(v *bool) any {
 		return 1
 	}
 	return 0
+}
+
+// insertAttachment writes one attachments row — the issue path's INSERT,
+// lifted so the page path writes the same columns the same way (GDK-1541:
+// one table, one owner for its write shape). Strings go through nz() and
+// size stays a plain int64, matching the row the issue path has always
+// written; a page attachment differs only in item_id.
+func insertAttachment(tx *sql.Tx, itemID string, a Attachment) error {
+	_, err := tx.Exec(`
+		INSERT INTO attachments (id, item_id, external_id, filename, mime_type, size, author, author_id, created_at, url)
+		VALUES (?,?,?,?,?,?,?,?,?,?)`,
+		a.ID, itemID, nz(a.ExternalID), nz(a.Filename), nz(a.MimeType), a.Size,
+		nz(a.Author), nz(a.AuthorID), nz(a.CreatedAt), nz(a.URL),
+	)
+	return err
 }
 
 func jsdPublicFromSQL(n sql.NullInt64) *bool {

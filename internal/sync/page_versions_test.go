@@ -76,6 +76,8 @@ func (s *wikiHistStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		})
 	case strings.HasSuffix(path, "/child/comment"):
 		_ = json.NewEncoder(w).Encode(map[string]any{"results": []any{}, "size": 0, "limit": 100})
+	case strings.HasSuffix(path, "/child/attachment"):
+		_ = json.NewEncoder(w).Encode(map[string]any{"results": []any{}, "size": 0, "limit": 100})
 	case path == "/wiki/rest/api/content/1001/version":
 		s.histCalls++
 		if s.failHist {

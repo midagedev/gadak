@@ -9,7 +9,7 @@ re-read after it lands.
 Every cell carries a footnote pointing at the code that makes it true — a
 `path:line` in this repository, or a line in the Built-in origin's
 compatibility inventory (module
-`github.com/midagedev/issuetap@v0.0.0-20260908083721-0d34fcd95793`, cited
+`github.com/midagedev/issuetap@v0.0.0-20260910005747-8c5389632383`, cited
 below as `issuetap/docs/COMPATIBILITY.md`). A Built-in cell is never "same
 as Jira": it means the Jira REST verb exists and the Built-in origin
 implements the route.
@@ -62,6 +62,7 @@ Markers:
 | **Read** · issue type | ✅[^38] | ✅[^38] | —[^39] | ✅[^40] |
 | **Read** · hierarchy — `parent_key` / `epic_key` | ✅[^41] | ✅[^125] | ◐[^42] | ✅[^43] |
 | **Read** · wiki pages | ✅[^44] | —[^126] | —[^45] | ✅[^46] |
+| **Read** · wiki page attachments (listing + byte proxy) | ✅[^147] | —[^126] | —[^45] | —[^148] |
 | **Read** · origin web URL — `gadak open`, web key anchor, copy link | ✅[^47] | ✅[^47] | ✅[^48] | ◐[^49] |
 | **Read** · view link — toolbar / palette "Copy link to this view" | ✅[^103] | ✅[^103] | ◐[^104] | ◐[^105] |
 | **Write** · create issue | ✅[^50] | ✅[^127] | ◐[^51] | ✅[^52] |
@@ -290,7 +291,7 @@ Markers:
     (`internal/origin/origin.go:70`).
 
 [^46]: `/wiki/rest/api` spaces, CQL, pages, versions, comments
-    (`issuetap/docs/COMPATIBILITY.md:78`).
+    (`issuetap/docs/COMPATIBILITY.md:79–83`).
 
 [^47]: One resolver per surface, and it branches on the origin type with no
     fallback across them (GDK-1308): Jira is `cfg.Site + /browse/KEY`
@@ -443,7 +444,7 @@ Markers:
     `internal/origin/origin.go:408`).
 
 [^84]: `POST /wiki/rest/api/content`, `PUT …/{id}` with a version check
-    (`issuetap/docs/COMPATIBILITY.md:83`).
+    (`issuetap/docs/COMPATIBILITY.md:84`).
 
 [^85]: No atomic claim route on Cloud — the fallback runs assignee +
     transition as two calls and says so (`internal/claim/claim.go:9`,
@@ -787,3 +788,25 @@ this table from the code instead of maintaining it by hand is GDK-1301.
     untouched. That table is filled on every origin that has sprints, so this
     works wherever the row above it does — Linear included, where the buckets
     are cycles.
+
+[^147]: Listed with the fetched page —
+    `GET /wiki/rest/api/content/{pageId}/child/attachment`,
+    `start`-paged 100 rows at a time — and mirrored into the same
+    attachments table an issue's ride, keyed apart by `item_id`
+    (`internal/confluence/client.go:463`, `internal/sync/confluence.go:907`,
+    `internal/store/write.go:796`). The page detail carries them in the same
+    wire shape the issue detail does (`internal/server/read.go:736`), and the
+    bytes stream from `content/{attId}/download` through `origin.Wiki` on the
+    `pages/` byte route, which reuses the issue byte handler rather than
+    growing a second copy (`internal/server/server.go:288`,
+    `internal/server/attachment.go:447`). The REST v1 shapes are pinned by
+    httptest fixtures; not yet measured against a live Cloud site.
+
+[^148]: The built-in wiki serves the page surface (footnote 46) but not this
+    one: `child/attachment` and `content/{id}/download` fall to
+    `handleContent`'s catch-all 501 `unsupported_endpoint`
+    (`issuetap/internal/api/confluence.go:164`). The sync pass measures the
+    refusal once, skips the listing for the rest of the pass, and reports the
+    degrade in one summary line while the pages themselves mirror normally
+    (`internal/sync/confluence.go:1032`); the byte proxy needs no change when
+    the origin grows the routes — that is an issuetap round.

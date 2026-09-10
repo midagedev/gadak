@@ -74,7 +74,9 @@ func importAttachmentsInto(dir, cacheDir, site, profile, dbPath string) (attachc
 }
 
 // attachmentIssueKeys maps attachments.external_id and attachments.id to the
-// issue key that owns them. There is no store helper for this lookup (searched
+// cache owner that holds them: an issue key, or "pages/"+page key for a page's
+// attachment (GDK-1541 — the shared table, one owner convention with the
+// server's pageOwner). There is no store helper for this lookup (searched
 // before adding one); OpenReadOnly is the existing read-SQL surface.
 func attachmentIssueKeys(dbPath string) (map[string]string, error) {
 	if dbPath == "" {
@@ -86,25 +88,32 @@ func attachmentIssueKeys(dbPath string) (map[string]string, error) {
 	}
 	defer db.Close()
 	rows, err := db.Query(`
-		SELECT COALESCE(a.external_id, ''), a.id, i.key
+		SELECT COALESCE(a.external_id, ''), a.id,
+		       COALESCE(i.key, 'pages/' || it.key), it.kind
 		FROM attachments a
-		JOIN issues i ON i.item_id = a.item_id
-		WHERE i.key IS NOT NULL AND i.key != ''`)
+		JOIN items it ON it.id = a.item_id
+		LEFT JOIN issues i ON i.item_id = a.item_id
+		WHERE it.key IS NOT NULL AND it.key != ''`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := map[string]string{}
 	for rows.Next() {
-		var ext, id, key string
-		if err := rows.Scan(&ext, &id, &key); err != nil {
+		var ext, id, owner, kind string
+		if err := rows.Scan(&ext, &id, &owner, &kind); err != nil {
 			return nil, err
 		}
+		// Only issues and pages own attachment rows today; a future kind
+		// has no cache owner yet and its ids are skipped, not guessed.
+		if kind != "issue" && kind != "page" {
+			continue
+		}
 		if ext != "" {
-			out[ext] = key
+			out[ext] = owner
 		}
 		if id != "" {
-			out[id] = key
+			out[id] = owner
 		}
 	}
 	return out, rows.Err()

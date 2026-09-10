@@ -103,6 +103,42 @@ const pages = {
       </svg>
     </div>`, 820, 360),
   },
+  // The onboarding guide's own diagram: what the first week is shaped like.
+  // A page attachment (GDK-1541), not an issue's — same table, page owner.
+  'onboarding-first-week.png': {
+    w: 820, h: 400,
+    html: shell(`<div class="pad">
+      <h1>Your first week, at a glance</h1>
+      <p class="muted" style="margin-top:4px;font-size:12px">Nimbus engineering onboarding — mentor check-ins in green</p>
+      <svg width="760" height="250" style="margin-top:18px">
+        <g font-family="-apple-system,Segoe UI,Roboto,sans-serif" font-size="12">
+          <line x1="30" y1="200" x2="730" y2="200" stroke="#262c36"/>
+          <g text-anchor="middle">
+            <rect x="34" y="96" width="140" height="72" rx="8" fill="#151922" stroke="#262c36"/>
+            <text x="104" y="122" fill="#e6e8ec">Day 1</text>
+            <text x="104" y="142" fill="#8b93a1" font-size="11">laptop, repo,</text>
+            <text x="104" y="158" fill="#8b93a1" font-size="11">first build</text>
+            <rect x="210" y="96" width="140" height="72" rx="8" fill="#151922" stroke="#262c36"/>
+            <text x="280" y="122" fill="#e6e8ec">Day 2–3</text>
+            <text x="280" y="142" fill="#8b93a1" font-size="11">pick up a</text>
+            <text x="280" y="158" fill="#8b93a1" font-size="11">good-first-issue</text>
+            <rect x="386" y="96" width="140" height="72" rx="8" fill="#1a1730" stroke="#4338ca"/>
+            <text x="456" y="122" fill="#a5b4fc">Day 4</text>
+            <text x="456" y="142" fill="#8b93a1" font-size="11">ship it behind</text>
+            <text x="456" y="158" fill="#8b93a1" font-size="11">a flag</text>
+            <rect x="562" y="96" width="140" height="72" rx="8" fill="#151922" stroke="#262c36"/>
+            <text x="632" y="122" fill="#e6e8ec">Day 5</text>
+            <text x="632" y="142" fill="#8b93a1" font-size="11">walkthrough</text>
+            <text x="632" y="158" fill="#8b93a1" font-size="11">with the team</text>
+          </g>
+          <circle cx="456" cy="70" r="10" fill="#22c55e"/>
+          <text x="456" y="52" fill="#22c55e" text-anchor="middle" font-size="11">mentor check-in</text>
+          <circle cx="632" cy="70" r="10" fill="#22c55e"/>
+          <text x="632" y="52" fill="#22c55e" text-anchor="middle" font-size="11">demo Friday</text>
+        </g>
+      </svg>
+    </div>`, 820, 400),
+  },
 }
 
 const browser = await chromium.launch()

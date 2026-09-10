@@ -141,7 +141,9 @@ func SyncPage(ctx context.Context, cfg *config.Config, db *store.DB, id string) 
 			return err
 		}
 	}
-	rec, _, _, err := fetchPageRecord(ctx, c, cfg, confluence.Page{ID: id})
+	// No attachmentSupport: a single page has no pass to carry the memory,
+	// and the 501 degrade inside fetchPageRecord is nil-safe on its own.
+	rec, _, _, err := fetchPageRecord(ctx, c, cfg, confluence.Page{ID: id}, nil)
 	if err != nil {
 		if errors.Is(err, confluence.ErrNotFound) {
 			// SyncPage has no Options logger; DeleteItems is the count surface.

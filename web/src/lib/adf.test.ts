@@ -112,6 +112,27 @@ describe('runtime config comes in as options (GDK-1497)', () => {
     ).toBe('')
   })
 
+  test('a page attachment URL renders like an issue one (GDK-1541)', () => {
+    // The page detail hands the same attachment list to this renderer, and
+    // its content_url carries the pages/ owner prefix. The whitelist has to
+    // accept that shape or every inline page image silently drops.
+    const media = { type: 'media', attrs: { id: 'm-9' } } as AdfNode
+    const img = att({
+      id: '9',
+      media_id: 'm-9',
+      filename: 'diagram.png',
+      mime_type: 'image/png',
+      is_image: true,
+      is_video: false,
+      content_url: '/api/v1/issues/pages/491730/attachments/9/content/',
+    })
+    const html = renderAdf(doc(media), { attachments: [img], apiBase: '/api/v1/issues/' })
+    expect(html).toContain('class="adf-media-image"')
+    expect(html).toContain('data-attachment-id="9"')
+    expect(html).toContain('src="/api/v1/issues/pages/491730/attachments/9/content/"')
+    expect(html).toContain('alt="diagram.png"')
+  })
+
   test('a non-media attachment renders as the file chip it always was', () => {
     const media = { type: 'media', attrs: { id: 'm-3' } } as AdfNode
     const file = att({

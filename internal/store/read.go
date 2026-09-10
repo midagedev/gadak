@@ -790,6 +790,38 @@ func (db *DB) AttachmentSize(ctx context.Context, issueKey, attachmentID string)
 	return size.Int64, nil
 }
 
+// PageAttachment is the byte route's one lookup for a page attachment
+// (GDK-1541): the source that owns it, the stored origin content URL, and the
+// origin's size claim — AttachmentBelongs + AttachmentOrigin +
+// AttachmentSize folded into one query, because the page path reaches the
+// mirror through items (kind='page') rather than the issues join, and one
+// round trip answers all three. The id rule matches theirs: external_id when
+// set, else the store row id. ErrNotFound when the mirror lists no such
+// attachment on that page — which is also the membership answer.
+func (db *DB) PageAttachment(ctx context.Context, pageKey, attachmentID string) (sourceID, contentURL string, size int64, err error) {
+	if pageKey == "" || attachmentID == "" {
+		return "", "", 0, ErrNotFound
+	}
+	var sizeN sql.NullInt64
+	err = db.sql.QueryRowContext(ctx, `
+		SELECT it.source_id, COALESCE(a.url, ''), a.size
+		FROM attachments a
+		JOIN items it ON it.id = a.item_id AND it.kind = 'page'
+		WHERE it.key = ?
+		  AND COALESCE(NULLIF(a.external_id, ''), a.id) = ?
+		LIMIT 1`, pageKey, attachmentID).Scan(&sourceID, &contentURL, &sizeN)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", "", 0, ErrNotFound
+	}
+	if err != nil {
+		return "", "", 0, err
+	}
+	if sizeN.Valid && sizeN.Int64 > 0 {
+		size = sizeN.Int64
+	}
+	return sourceID, contentURL, size, nil
+}
+
 // RemoteLinks reads one issue's mirrored remote links (GDK-1032). An issue
 // with none — or one this mirror does not carry — is an empty list, not an
 // error: a pointer list is a read, and callers print what is there.
@@ -884,6 +916,11 @@ type PageDetail struct {
 	RefIssueKeys []string `json:"ref_issue_keys,omitempty"`
 	// BacklinkIssueKeys are issue keys that mention this page. Empty omitted.
 	BacklinkIssueKeys []string `json:"backlink_issue_keys,omitempty"`
+	// Attachments are the page's rows in the shared attachments table
+	// (GDK-1541), read with the same query the issue detail reads. Serialized
+	// by the server into the wire shape the issue detail also carries —
+	// json:"-" keeps this raw form off the wire.
+	Attachments []DetailAttachment `json:"-"`
 }
 
 // PageStamp is the mirror's record of one page's upstream identity: the
@@ -1067,6 +1104,24 @@ func (db *DB) PageDetail(ctx context.Context, key string) (*PageDetail, error) {
 			}
 			c.BodyADF = rawOrNull(body)
 			d.Comments = append(d.Comments, c)
+			return nil
+		}, itemID); err != nil {
+		return nil, err
+	}
+
+	// Page attachments: the same SELECT the issue detail runs, over the same
+	// table — item_id is the only thing that differs (GDK-1541).
+	if err := each(ctx, db.sql, `
+		SELECT id, COALESCE(external_id,''), COALESCE(filename,''), COALESCE(mime_type,''),
+		       COALESCE(size,0), COALESCE(author,''), COALESCE(author_id,''), COALESCE(created_at,''),
+		       COALESCE(url,'')
+		FROM attachments WHERE item_id = ? ORDER BY created_at, id`,
+		func(rows *sql.Rows) error {
+			var a DetailAttachment
+			if err := rows.Scan(&a.ID, &a.ExternalID, &a.Filename, &a.MimeType, &a.Size, &a.Author, &a.AuthorID, &a.CreatedAt, &a.URL); err != nil {
+				return err
+			}
+			d.Attachments = append(d.Attachments, a)
 			return nil
 		}, itemID); err != nil {
 		return nil, err

@@ -280,6 +280,47 @@ test.describe('mirrored wiki documents', () => {
   })
 
   /*
+   * GDK-1541: a page's attachments ride the same wire and the same renderer
+   * as an issue's. The fixture's onboarding guide carries one — a diagram
+   * uploaded by the page's own author — and this pins what a person sees:
+   * the media node in the body becomes a decoded image (naturalWidth, not
+   * "the request was 200"), served through the pages/ byte route from the
+   * fixture-seeded cache, and the enlarged view is the same bytes again.
+   */
+  test('a page attachment renders as a decoded image (GDK-1541)', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+
+    // Cold start through the doc= deep link: no tree walk, and the panel
+    // comes back exactly as a shared link would deliver it.
+    await page.goto(`/#/?doc=${encodeURIComponent('491730')}`)
+    const panel = page.getByTestId('doc-panel')
+    await expect(panel).toBeVisible({ timeout: 30_000 })
+    await expect(panel.getByTestId('doc-title')).toHaveText('Engineering Onboarding Guide')
+
+    const thumb = panel.locator('button.adf-media-image')
+    await expect(thumb).toBeVisible({ timeout: 15_000 })
+    await expect(thumb).toHaveAttribute('data-attachment-id', '10003')
+    const img = thumb.locator('img')
+    await expect(img).toHaveAttribute('src', /\/attachments\/10003\/content\/$/)
+    await expect(img).toHaveAttribute('alt', 'onboarding-first-week.png')
+    await expect
+      .poll(() => img.evaluate((el: HTMLImageElement) => el.naturalWidth), { timeout: 15_000 })
+      .toBeGreaterThan(0)
+
+    // The enlarged view is the same bytes through the same route.
+    await thumb.click()
+    const viewer = page.getByRole('dialog')
+    await expect(viewer).toBeVisible()
+    const big = viewer.locator('img')
+    await expect
+      .poll(() => big.evaluate((el: HTMLImageElement) => el.naturalWidth), { timeout: 15_000 })
+      .toBeGreaterThan(0)
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  /*
    * GDK-817: a sync that settles re-reads the page index (`pages.reload`
    * swaps the array), and the tree used to reopen every root the person
    * had collapsed — an $effect re-added "missing" roots on each new index.

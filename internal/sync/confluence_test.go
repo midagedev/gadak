@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -43,6 +44,12 @@ type confFixture struct {
 	// failIfCQLContains, when non-empty, makes serveSearch return 400 for a
 	// matching CQL (not 500: atlhttp would retry).
 	failIfCQLContains string
+	// refuseAttachments makes every child/attachment listing answer 501 the
+	// issuetap way (no endpoint) — the degrade GDK-1541 has to survive.
+	refuseAttachments atomic.Bool
+	// attachmentGETs counts child/attachment listings served (refusals
+	// included), for the learn-once assertion.
+	attachmentGETs atomic.Int64
 }
 
 type confPage struct {
@@ -57,6 +64,19 @@ type confPage struct {
 	Labels []string
 	// comments: each has id, text, when; replies nested one level
 	Comments []confComment
+	// Attachments are served under child/attachment (GDK-1541), 100 per page
+	// like the real endpoint.
+	Attachments []confAttachment
+}
+
+type confAttachment struct {
+	ID    string
+	Title string
+	// MimeType fills extensions.mimeType; the fixture leaves mediaType empty
+	// so the two-name fallback is exercised by the client's MIMEType().
+	MimeType string
+	FileSize string
+	When     string
 }
 
 type confComment struct {
@@ -152,6 +172,8 @@ func (f *confFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.serveSearch(w, r)
 	case strings.HasSuffix(path, "/child/comment"):
 		f.serveComments(w, path)
+	case strings.HasSuffix(path, "/child/attachment"):
+		f.serveAttachments(w, r)
 	case strings.HasPrefix(path, "/wiki/rest/api/content/"):
 		id := strings.TrimPrefix(path, "/wiki/rest/api/content/")
 		if strings.Contains(id, "/") {
@@ -395,6 +417,50 @@ func (f *confFixture) serveComments(w http.ResponseWriter, path string) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"results": []any{}, "size": 0, "limit": 100})
 }
 
+// serveAttachments answers child/attachment for a page: 100 rows per page,
+// the cursor in ?start= — the real endpoint's shape. With refuseAttachments
+// set it answers 501 the way an origin with no such route does (issuetap).
+func (f *confFixture) serveAttachments(w http.ResponseWriter, r *http.Request) {
+	f.attachmentGETs.Add(1)
+	if f.refuseAttachments.Load() {
+		w.WriteHeader(http.StatusNotImplemented)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"errorCode": "unsupported_endpoint",
+		})
+		return
+	}
+	trim := strings.TrimPrefix(r.URL.Path, "/wiki/rest/api/content/")
+	id := strings.TrimSuffix(trim, "/child/attachment")
+	p := f.pages[id]
+	start, _ := strconv.Atoi(r.URL.Query().Get("start"))
+	var results []map[string]any
+	if p != nil {
+		for _, a := range p.Attachments {
+			results = append(results, map[string]any{
+				"id": a.ID, "title": a.Title,
+				"version": map[string]any{
+					"number": 1, "when": a.When,
+					"by": map[string]any{"accountId": "acc-att", "displayName": "Grace Attach"},
+				},
+				"extensions": map[string]any{
+					"mimeType": a.MimeType, "fileSize": a.FileSize,
+				},
+			})
+		}
+	}
+	if start > 0 && start <= len(results) {
+		results = results[start:]
+	} else if start > len(results) {
+		results = nil
+	}
+	if len(results) > 100 {
+		results = results[:100]
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"results": results, "size": len(results), "limit": 100, "start": start,
+	})
+}
+
 func confCommentJSON(c confComment) map[string]any {
 	adf, _ := json.Marshal(map[string]any{
 		"type": "doc", "version": 1,
@@ -589,6 +655,136 @@ func TestConfluenceFullSyncMapsPagesAndFTS(t *testing.T) {
 		if p.SpaceKey == "AAA" && p.SpaceName != "Alpha" {
 			t.Errorf("PageLite %s SpaceName = %q, want Alpha", p.Key, p.SpaceName)
 		}
+	}
+}
+
+// TestConfluencePageAttachmentsListedAndPaged is the GDK-1541 listing test:
+// a full pass lists every fetched page's attachments, follows the start
+// cursor when the origin pages, and maps the REST v1 row onto the shared
+// attachments table under the page's item id.
+func TestConfluencePageAttachmentsListedAndPaged(t *testing.T) {
+	f := newConfFixture(t)
+	// Page 1001 carries 150 attachments — one full listing page plus a
+	// remainder, so the cursor has to advance for all rows to arrive.
+	atts := make([]confAttachment, 150)
+	for i := range atts {
+		atts[i] = confAttachment{
+			ID: fmt.Sprintf("a%03d", i+1), Title: fmt.Sprintf("shot-%03d.png", i+1),
+			MimeType: "image/png", FileSize: fmt.Sprintf("%d", 1000+i),
+			When: "2026-08-01T12:00:00.000Z",
+		}
+	}
+	// Keep one distinguishable row for the field mapping assertions.
+	atts[0] = confAttachment{
+		ID: "a001", Title: "login-trace.png", MimeType: "image/png",
+		FileSize: "4242", When: "2026-08-01T12:00:00.000Z",
+	}
+	f.pages["1001"].Attachments = atts
+
+	client := f.start()
+	db := newMirror(t)
+	if _, err := RunConfluence(context.Background(), confCfg([]string{"AAA"}), db.DB, Options{
+		Full: true, ConfluenceClient: client,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	raw := db.raw(t)
+	var n int
+	if err := raw.QueryRow(`
+		SELECT COUNT(*) FROM attachments a
+		JOIN items it ON it.id = a.item_id AND it.kind = 'page'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 150 {
+		t.Fatalf("page attachment rows = %d, want 150 (the cursor did not advance)", n)
+	}
+	// Field mapping: the REST v1 row → the shared table's columns, under the
+	// page's item id (the same table issue attachments ride, keyed apart by
+	// item — the whole design).
+	var ext, filename, mime string
+	var size int64
+	var author, createdAt, url string
+	if err := raw.QueryRow(`
+		SELECT a.external_id, a.filename, a.mime_type, a.size, a.author,
+		       a.created_at, COALESCE(a.url, '')
+		FROM attachments a WHERE a.id = 'confluence:a001'`).Scan(
+		&ext, &filename, &mime, &size, &author, &createdAt, &url); err != nil {
+		t.Fatal(err)
+	}
+	if ext != "a001" || filename != "login-trace.png" || mime != "image/png" || size != 4242 {
+		t.Errorf("row = %q %q %q %d, want a001 login-trace.png image/png 4242", ext, filename, mime, size)
+	}
+	if author != "Grace Attach" {
+		t.Errorf("author = %q, want the version.by display name", author)
+	}
+	if createdAt != "2026-08-01T12:00:00.000Z" {
+		t.Errorf("created_at = %q, want version.when", createdAt)
+	}
+	if url != "" {
+		t.Errorf("url = %q, want empty — the proxy builds the route from the id (GDK-1639)", url)
+	}
+	// A second pass with no changes keeps the rows (idempotent upsert, and
+	// the unchanged-compare sees attachments).
+	if _, err := RunConfluence(context.Background(), confCfg([]string{"AAA"}), db.DB, Options{
+		ConfluenceClient: client,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := raw.QueryRow(`
+		SELECT COUNT(*) FROM attachments a
+		JOIN items it ON it.id = a.item_id AND it.kind = 'page'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 150 {
+		t.Fatalf("page attachment rows after re-sync = %d, want 150", n)
+	}
+}
+
+// TestConfluencePageAttachmentRefusal501IsLearnedOnce pins the issuetap
+// degrade: an origin with no child/attachment route answers 501, the pass
+// survives with pages intact, and one refusal stands for the whole pass —
+// later pages skip the request (measured here at pool width 1, where the
+// order is deterministic).
+func TestConfluencePageAttachmentRefusal501IsLearnedOnce(t *testing.T) {
+	f := newConfFixture(t)
+	f.refuseAttachments.Store(true)
+	client := f.start()
+	db := newMirror(t)
+
+	saved := FetchConcurrency
+	FetchConcurrency = 1
+	t.Cleanup(func() { FetchConcurrency = saved })
+
+	var lines []string
+	res, err := RunConfluence(context.Background(), confCfg([]string{"AAA"}), db.DB, Options{
+		Full: true, ConfluenceClient: client,
+		Log: func(line string) { lines = append(lines, line) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Fetched != 2 {
+		t.Fatalf("fetched = %d, want 2 — a missing attachment route must not fail the pass", res.Fetched)
+	}
+
+	var n int
+	if err := db.raw(t).QueryRow(`SELECT COUNT(*) FROM attachments`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("attachment rows = %d, want 0", n)
+	}
+	// Learned once: the first page measured the refusal, the second skipped.
+	if got := f.attachmentGETs.Load(); got != 1 {
+		t.Fatalf("child/attachment requests = %d, want 1 (later pages skip)", got)
+	}
+	joined := strings.Join(lines, "\n")
+	if !strings.Contains(joined, "refused the page-attachment listing (501)") {
+		t.Fatalf("no degrade summary line in:\n%s", joined)
+	}
+	if !strings.Contains(joined, "1 measured, 1 later pages skipped") {
+		t.Fatalf("summary line does not report the measurement and the skip:\n%s", joined)
 	}
 }
 

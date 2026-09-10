@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -388,5 +389,145 @@ func TestPagesResponseIncludesAuthorID(t *testing.T) {
 	detail := decode[store.PageDetail](t, get(t, h, apiBase+"pages/100/", nil))
 	if detail.AuthorID != "acc-dana" {
 		t.Errorf("detail author_id = %q", detail.AuthorID)
+	}
+}
+
+// firstAttachmentOf pulls detail.attachments[0] as raw JSON, so the field set
+// and each value's JSON kind can be compared without a shared Go type (a
+// shared type is what the two handlers must not grow apart from — the wire is
+// the contract here).
+func firstAttachmentOf(t *testing.T, rec *httptest.ResponseRecorder) map[string]json.RawMessage {
+	t.Helper()
+	var body struct {
+		Attachments []map[string]json.RawMessage `json:"attachments"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(body.Attachments) != 1 {
+		t.Fatalf("attachments = %+v, want exactly one", body.Attachments)
+	}
+	return body.Attachments[0]
+}
+
+// jsonKindOf names a JSON value's kind for the shape comparison — values
+// differ between the two fixtures by design (ids, owners, names); kinds must
+// not, or one surface's client renders a field the other's never sends.
+func jsonKindOf(v json.RawMessage) string {
+	var anyv any
+	if err := json.Unmarshal(v, &anyv); err != nil {
+		return "invalid"
+	}
+	switch anyv.(type) {
+	case nil:
+		return "null"
+	case bool:
+		return "bool"
+	case float64:
+		return "number"
+	case string:
+		return "string"
+	default:
+		return "structured"
+	}
+}
+
+// TestPageAttachmentWireMatchesIssueDetail is the GDK-1541 recurrence gate.
+// The defect class is "the issue detail has a field the page detail lacks":
+// the two detail responses are assembled by different handlers, so nothing
+// structural keeps their attachment shapes together — this measures the wire
+// itself. Both details carry one attachment; the JSON objects must expose the
+// same field set, and each field must be the same JSON kind. The only value
+// difference allowed by design is the owner inside content_url (issue key vs
+// pages/<pageKey>), which is asserted exactly.
+func TestPageAttachmentWireMatchesIssueDetail(t *testing.T) {
+	db, cfg := fixturePages(t)
+	// Page 100 gains one attachment, carrying the same columns the issue
+	// fixture's 10021 does (server_test.go). Upsert replaces the page's
+	// attachment set wholesale — the write path under test is the same one
+	// sync takes.
+	adf := json.RawMessage(`{"type":"doc","version":1,"content":[]}`)
+	if _, err := db.UpsertPages(context.Background(), []store.PageRecord{{
+		Item: store.Item{
+			ID: "confluence:100", SourceID: "confluence", Kind: "page", ExternalID: "100",
+			Key: "100", Title: "빌링 품질 회의록", BodyText: "빌링 품질 논의",
+			Author: "Dana", AuthorID: "acc-dana", URL: "https://x/wiki/spaces/PROD/pages/100",
+			CreatedAt: "2026-07-01T00:00:00.000Z", UpdatedAt: "2026-08-01T00:00:00.000Z",
+		},
+		Page: store.Page{SpaceKey: "PROD", Version: 2, Status: "current", BodyADF: adf},
+		Attachments: []store.Attachment{{
+			ID: "confluence:a-1", ExternalID: "att-1", Filename: "diagram.png",
+			MimeType: "image/png", Size: 777, CreatedAt: "2026-07-02T00:00:00.000Z",
+		}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	h := New(db, cfg)
+
+	issueAtt := firstAttachmentOf(t, get(t, h, apiBase+"NMB-1/detail/", nil))
+	pageAtt := firstAttachmentOf(t, get(t, h, apiBase+"pages/100/", nil))
+
+	if len(issueAtt) != len(pageAtt) {
+		t.Fatalf("field sets differ: issue %d fields, page %d fields", len(issueAtt), len(pageAtt))
+	}
+	for field, iv := range issueAtt {
+		pv, ok := pageAtt[field]
+		if !ok {
+			t.Errorf("page attachment lacks %q — the issue detail has a field the page detail lacks (the GDK-1541 class)", field)
+			continue
+		}
+		if ik, pk := jsonKindOf(iv), jsonKindOf(pv); ik != pk {
+			t.Errorf("attachments.%s: issue is %s, page is %s", field, ik, pk)
+		}
+	}
+	// And the reverse direction: a page-only field is the same defect.
+	for field := range pageAtt {
+		if _, ok := issueAtt[field]; !ok {
+			t.Errorf("page attachment has %q the issue detail lacks — shapes must move together", field)
+		}
+	}
+
+	// The one sanctioned value difference: the owner inside the byte route.
+	var want string
+	if err := json.Unmarshal(issueAtt["content_url"], &want); err != nil {
+		t.Fatal(err)
+	}
+	if want != apiBase+"NMB-1/attachments/10021/content/" {
+		t.Errorf("issue content_url = %q", want)
+	}
+	if err := json.Unmarshal(pageAtt["content_url"], &want); err != nil {
+		t.Fatal(err)
+	}
+	if want != apiBase+"pages/100/attachments/att-1/content/" {
+		t.Errorf("page content_url = %q, want the pages/ owner", want)
+	}
+}
+
+// TestDetailAttachmentsEmptyIsArray is the empty-case wire contract, pinned
+// after a regression the e2e suite caught in the field: wireAttachments
+// returned a nil slice for "no attachments", which serializes as JSON null —
+// and DetailPanel reads detail.attachments.length unguarded, so null killed
+// the whole issue panel render for every issue with no attachments (68 e2e
+// failures across unrelated surfaces). The issue detail had always emitted []
+// via a make() in the response init; the extraction must keep that on BOTH
+// details. Raw JSON is asserted — a decoded Go slice cannot see null vs [].
+func TestDetailAttachmentsEmptyIsArray(t *testing.T) {
+	db, cfg := fixturePages(t)
+	h := New(db, cfg)
+	for _, tc := range []struct{ name, path string }{
+		{"issue detail (NMB-2 has no attachments)", apiBase + "NMB-2/detail/"},
+		{"page detail (page 200 has no attachments)", apiBase + "pages/200/"},
+	} {
+		var body map[string]json.RawMessage
+		if err := json.Unmarshal(get(t, h, tc.path, nil).Body.Bytes(), &body); err != nil {
+			t.Fatalf("%s: decode: %v", tc.name, err)
+		}
+		raw, ok := body["attachments"]
+		if !ok {
+			t.Fatalf("%s: attachments field missing", tc.name)
+		}
+		if string(raw) == "null" || string(raw) == "" {
+			t.Errorf("%s: attachments = %s, want [] — null kills DetailPanel's unguarded attachments.length", tc.name, raw)
+		}
 	}
 }

@@ -252,7 +252,11 @@
         <div class="anim-enter divide-y divide-border-subtle">
           <Section title={t('doc.content')}>
             <div class="text-body text-text-secondary">
-              <AdfContent node={detailForKey.body_adf} emptyLabel={t('doc.noContent')} />
+              <AdfContent
+                node={detailForKey.body_adf}
+                attachments={detailForKey.attachments}
+                emptyLabel={t('doc.noContent')}
+              />
             </div>
           </Section>
 
@@ -285,6 +289,7 @@
                       <AdfContent
                         node={c.body_adf}
                         fallback={c.body_text}
+                        attachments={detailForKey.attachments}
                         emptyLabel={t('detail.emptyComment')}
                       />
                     </div>

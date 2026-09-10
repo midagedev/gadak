@@ -92,7 +92,11 @@
         </div>
       {:else}
         {#if hasBody}
-          <AdfBody doc={detail.body_adf} fallback={detail.body_text} />
+          <AdfBody
+            doc={detail.body_adf}
+            fallback={detail.body_text}
+            attachments={detail.attachments}
+          />
         {:else}
           <p class="none">{t('doc.noContent')}</p>
         {/if}
@@ -105,7 +109,11 @@
                 <span class="c-author">{(c.author ?? '').trim() || t('detail.unknownAuthor')}</span>
                 <span class="c-when">{relTime(c.created_at, app.now)}</span>
               </p>
-              <AdfBody doc={c.body_adf} fallback={c.body_text} />
+              <AdfBody
+                doc={c.body_adf}
+                fallback={c.body_text}
+                attachments={detail.attachments}
+              />
             </div>
           {/each}
         {/if}

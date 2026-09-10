@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -243,6 +244,42 @@ type Comment struct {
 	Version Version     `json:"version"`
 }
 
+// Attachment is one row of a page's child/attachment listing (GDK-1541).
+// Title is the filename. The extensions object carries the type and size as
+// strings — REST v1 has no numeric fields for either.
+type Attachment struct {
+	ID         string  `json:"id"`
+	Title      string  `json:"title"`
+	Version    Version `json:"version"`
+	Extensions struct {
+		// MimeType is the browser-facing type ("image/png"); mediaType is the
+		// same string under its other REST v1 name. One of them is always set
+		// on a real row.
+		MimeType  string `json:"mimeType"`
+		MediaType string `json:"mediaType"`
+		FileSize  string `json:"fileSize"`
+	} `json:"extensions"`
+}
+
+// MIMEType returns the row's file type — mimeType when the row carries it,
+// else mediaType. Empty when neither is set.
+func (a Attachment) MIMEType() string {
+	if a.Extensions.MimeType != "" {
+		return a.Extensions.MimeType
+	}
+	return a.Extensions.MediaType
+}
+
+// Size parses extensions.fileSize. 0 when absent or not a number: the mirror
+// treats an unknown size as "no claim", never as an error.
+func (a Attachment) Size() int64 {
+	n, _ := strconv.ParseInt(strings.TrimSpace(a.Extensions.FileSize), 10, 64)
+	if n < 0 {
+		return 0
+	}
+	return n
+}
+
 // ADFRaw returns the atlas_doc_format value as json.RawMessage for storage/FTS.
 // Value is a JSON string of the ADF document.
 func (b ContentBody) ADFRaw() json.RawMessage {
@@ -419,6 +456,31 @@ func (c *Client) childComments(ctx context.Context, contentID string) ([]Comment
 	}
 }
 
+// Attachments lists a page's file attachments — child/attachment with the
+// same start/limit paging childComments uses. The rows carry metadata only;
+// the bytes come from content/{id}/download, which is the proxy's route, not
+// a stored URL (GDK-1541).
+func (c *Client) Attachments(ctx context.Context, pageID string) ([]Attachment, error) {
+	out := []Attachment{}
+	for start := 0; ; {
+		var page struct {
+			Results []Attachment `json:"results"`
+			Size    int          `json:"size"`
+			Limit   int          `json:"limit"`
+		}
+		p := fmt.Sprintf("%s/content/%s/child/attachment?limit=100&start=%d",
+			apiPath, url.PathEscape(pageID), start)
+		if err := c.do(ctx, http.MethodGet, p, nil, &page); err != nil {
+			return nil, err
+		}
+		out = append(out, page.Results...)
+		if len(page.Results) == 0 || len(page.Results) < 100 {
+			return out, nil
+		}
+		start += len(page.Results)
+	}
+}
+
 // nextPath turns a _links.next value into a path relative to c.base.
 // Confluence returns host-absolute paths (/wiki/rest/…) or full URLs.
 func (c *Client) nextPath(next string) string {
@@ -555,6 +617,15 @@ func (c *Client) AddPageComment(ctx context.Context, pageID, adf string) (Commen
 // (including non-2xx). err is reserved for transport failures and bad paths.
 func (c *Client) Raw(ctx context.Context, method, path string, body []byte, mutating bool) (status int, out []byte, err error) {
 	return atlhttp.DoRaw(ctx, c.transport(), method, path, body, len(body) > 0, mutating)
+}
+
+// Stream is Raw for bytes: the response body is handed back unread so an
+// attachment never has to fit in memory (same contract as jira.Client.Stream,
+// which GDK-1617 wrote for exactly this reason). The caller closes it. hdr
+// passes Range and conditional headers through; every status, including
+// non-2xx, comes back as a response with err == nil.
+func (c *Client) Stream(ctx context.Context, method, path string, hdr http.Header) (*http.Response, error) {
+	return atlhttp.Stream(ctx, c.transport(), method, path, hdr)
 }
 
 // RawWithHeaders is Raw that also returns the response headers — the surface

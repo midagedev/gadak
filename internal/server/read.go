@@ -603,14 +603,15 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		DescriptionText: d.DescriptionText,
 		DescriptionMD:   desc.Source,
 		FormatLoss:      desc.Loss,
-		Attachments:     make([]detailAttachment, 0, len(d.Attachments)),
-		Comments:        make([]detailComment, 0, len(d.Comments)),
-		History:         make([]historyEntry, 0, len(d.History)),
-		LinkedIssues:    make([]linkedIssue, 0, len(d.LinkedIssues)),
-		RefPages:        d.RefPages,
-		BacklinkPages:   d.BacklinkPages,
-		LinkedPRs:       json.RawMessage("[]"),
-		Bodies:          map[string]json.RawMessage{},
+		// Attachments has one owner — wireAttachments below — which also owns
+		// the []-when-empty wire shape (TestDetailAttachmentsEmptyIsArray).
+		Comments:      make([]detailComment, 0, len(d.Comments)),
+		History:       make([]historyEntry, 0, len(d.History)),
+		LinkedIssues:  make([]linkedIssue, 0, len(d.LinkedIssues)),
+		RefPages:      d.RefPages,
+		BacklinkPages: d.BacklinkPages,
+		LinkedPRs:     json.RawMessage("[]"),
+		Bodies:        map[string]json.RawMessage{},
 	}
 	res.Refs = hydrateRefs(r.Context(), d.Refs)
 	if spans.Wait != nil {
@@ -661,23 +662,7 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	if p := payload(en["opinion"]); p != nil {
 		res.DevelopmentOpinion = p
 	}
-	for _, a := range d.Attachments {
-		id := a.ExternalID
-		if id == "" {
-			id = a.ID
-		}
-		res.Attachments = append(res.Attachments, detailAttachment{
-			ID:          id,
-			Filename:    a.Filename,
-			MimeType:    a.MimeType,
-			Size:        a.Size,
-			IsImage:     strings.HasPrefix(a.MimeType, "image/"),
-			IsVideo:     strings.HasPrefix(a.MimeType, "video/"),
-			CacheStatus: s.cacheStatus(d.IssueKey, id),
-			CreatedAt:   nilIfEmpty(a.CreatedAt),
-			ContentURL:  attachmentURL(d.IssueKey, id),
-		})
-	}
+	res.Attachments = s.wireAttachments(d.IssueKey, d.Attachments)
 	for _, c := range d.Comments {
 		id := c.ExternalID
 		if id == "" {
@@ -732,16 +717,56 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		res.LinkedIssues = append(res.LinkedIssues, li)
 	}
 	// Start pulling the images down while the client renders the rest of the
-	// detail, so opening an issue with screenshots does not wait on Jira twice.
-	s.warmAttachments(s.config(), res.IssueKey, res.Attachments)
+	// detail, so opening an issue with screenshots does not wait on the origin
+	// twice.
+	s.warmAttachments(s.config(), res.IssueKey, res.Attachments, false)
 	writeJSON(w, http.StatusOK, res)
 }
 
+// pageOwner is a page's cache-key and URL owner: "pages/"+key, matching the
+// pages/{key}/attachments/{id}/content/ route shape. Keeping the prefix here
+// (not at each call site) is what keeps the issue and page cache namespaces
+// distinct — one owner per convention (GDK-1541).
+func pageOwner(key string) string { return "pages/" + key }
+
+// wireAttachments builds the detail attachment list both details carry — the
+// issue detail's and the page detail's — from one row shape (store rows that
+// differ only in which table owns the item). This is the single owner of the
+// field set: "issue detail has a field page detail lacks" is a class this
+// function closes by construction, and the contract test measures.
+func (s *server) wireAttachments(owner string, atts []store.DetailAttachment) []detailAttachment {
+	// Never nil: an empty slice serializes as [], and the client reads
+	// detail.attachments.length unguarded (DetailPanel.svelte), so a null
+	// there kills the whole panel render — 68 e2e failures across unrelated
+	// surfaces when an earlier version of this helper returned nil. The
+	// empty-case wire shape is pinned by TestDetailAttachmentsEmptyIsArray.
+	out := make([]detailAttachment, 0, len(atts))
+	for _, a := range atts {
+		id := a.ExternalID
+		if id == "" {
+			id = a.ID
+		}
+		out = append(out, detailAttachment{
+			ID:          id,
+			Filename:    a.Filename,
+			MimeType:    a.MimeType,
+			Size:        a.Size,
+			IsImage:     strings.HasPrefix(a.MimeType, "image/"),
+			IsVideo:     strings.HasPrefix(a.MimeType, "video/"),
+			CacheStatus: s.cacheStatus(owner, id),
+			CreatedAt:   nilIfEmpty(a.CreatedAt),
+			ContentURL:  attachmentURL(owner, id),
+		})
+	}
+	return out
+}
+
 // attachmentURL builds the one URL shape the client's ADF renderer accepts as an
-// image source: `<apiBase><key>/attachments/<id>/content/`, unescaped. Changing
-// it silently blocks every inline image (web/src/lib/adf.ts, safeMediaUrl).
-func attachmentURL(key, id string) string {
-	return apiBase + key + "/attachments/" + id + "/content/"
+// image source: `<apiBase><owner>/attachments/<id>/content/`, unescaped, where
+// owner is an issue key or "pages/"+page key. Changing it silently blocks every
+// inline image (web/src/lib/adf.ts, safeMediaUrl).
+func attachmentURL(owner, id string) string {
+	return apiBase + owner + "/attachments/" + id + "/content/"
 }
 
 /* ── search ── */
@@ -811,7 +836,18 @@ func (s *server) handlePageDetailKey(w http.ResponseWriter, r *http.Request, key
 	for i := range d.Comments {
 		d.Comments[i].BodyADF = rawOrNull(adf.Present(d.Comments[i].BodyADF, d.Comments[i].BodyText, adf.DialectMarkdown).Display)
 	}
-	writeJSON(w, http.StatusOK, d)
+	// The attachments ride the same wire the issue detail carries, built by
+	// the same wireAttachments from the shared attachments table (GDK-1541).
+	// Embedding keeps the page's own JSON shape as-is; only the attachments
+	// field joins it.
+	atts := s.wireAttachments(pageOwner(key), d.Attachments)
+	d.Attachments = nil // raw rows never reach the wire (json:"-")
+	res := struct {
+		*store.PageDetail
+		Attachments []detailAttachment `json:"attachments"`
+	}{d, atts}
+	s.warmAttachments(s.config(), pageOwner(key), atts, true)
+	writeJSON(w, http.StatusOK, res)
 }
 
 // rawOrNull keeps the JSON contract of description_adf / raw_body / body_adf:

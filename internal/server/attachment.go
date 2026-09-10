@@ -31,22 +31,39 @@ var proxyClient = &http.Client{
 	CheckRedirect: proxyCheckRedirect,
 }
 
-// handleAttachment serves attachment bytes from the on-disk cache, falling back
-// to Jira on a miss and caching what it fetches. Bytes for an attachment id are
-// immutable in Jira, so a hit is served with a long-lived validator and a cached
+// handleAttachment serves issue attachment bytes; handlePageAttachment serves
+// a page's. Both are the same handler over the same cache and the same origin
+// fallback — only the membership, origin and fetch lookups are kind-aware
+// (GDK-1541) — so a second copy of the route body is what serveAttachment
+// exists to prevent.
+func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
+	s.serveAttachment(w, r, r.PathValue("key"), r.PathValue("id"), false)
+}
+
+// handlePageAttachment is the pages/{key}/attachments/{id}/content/ route.
+func (s *server) handlePageAttachment(w http.ResponseWriter, r *http.Request) {
+	s.serveAttachment(w, r, r.PathValue("key"), r.PathValue("id"), true)
+}
+
+// serveAttachment serves attachment bytes from the on-disk cache, falling back
+// to the origin on a miss and caching what it fetches. key is the issue key,
+// or the page key when page is set. Bytes for an attachment id are immutable
+// upstream, so a hit is served with a long-lived validator and a cached
 // attachment keeps working with no credential at all — which is how the bundled
 // demo snapshot shows real images offline.
-func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
-	issueKey := r.PathValue("key")
-	id := r.PathValue("id")
-	// Membership first: a cached id must not be readable under another issue
-	// key, and a site switch cannot serve leftover bytes for an issue the new
+func (s *server) serveAttachment(w http.ResponseWriter, r *http.Request, key, id string, page bool) {
+	// Membership first: a cached id must not be readable under another item's
+	// key, and a site switch cannot serve leftover bytes for an item the new
 	// mirror does not own.
-	if !s.attachmentBelongs(r.Context(), issueKey, id) {
+	if !s.attachmentBelongsTo(r.Context(), key, id, page) {
 		fail(w, http.StatusNotFound, "not_found")
 		return
 	}
-	ck := s.attachmentCacheKey(issueKey, id)
+	owner := key
+	if page {
+		owner = pageOwner(key)
+	}
+	ck := s.attachmentCacheKey(owner, id)
 	if s.cache != nil {
 		if served := s.serveCached(w, r, ck); served {
 			return
@@ -54,8 +71,13 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cfg := s.config()
-	sourceID, _, originErr := s.db.AttachmentOrigin(r.Context(), issueKey, id)
-	linear := originErr == nil && sourceID == "linear"
+	// Pages are never Linear: their source is the wiki connector, so the
+	// linear exemption from the credential gate cannot apply.
+	linear := false
+	if !page {
+		sourceID, _, originErr := s.db.AttachmentOrigin(r.Context(), key, id)
+		linear = originErr == nil && sourceID == "linear"
+	}
 	if !linear && !cfg.HasCredential() {
 		fail(w, http.StatusConflict, "credential_required")
 		return
@@ -74,7 +96,7 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 		if fetches > 1 {
 			return nil, errDoubleFetch
 		}
-		return s.fetchAttachment(r.Context(), cfg, issueKey, id, hdr)
+		return s.fetchAttachmentFor(r.Context(), cfg, key, id, hdr, page)
 	}
 
 	// A partial or conditional request still fills the cache when the object
@@ -98,13 +120,13 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 	oversize := false
 	if s.cache != nil && pass != nil {
 		if cap := s.cache.MaxEntry(); cap > 0 {
-			if size, err := s.db.AttachmentSize(r.Context(), issueKey, id); err == nil && size > cap {
+			if size, err := s.attachmentSizeOf(r.Context(), key, id, page); err == nil && size > cap {
 				oversize = true
 			}
 		}
 	}
 	if s.cache != nil && !(pass != nil && oversize) {
-		log.Printf("server: attachment cache miss id=%s issue=%s: %s", id, issueKey, s.cache.MissReason(ck, id))
+		log.Printf("server: attachment cache miss id=%s item=%s: %s", id, owner, s.cache.MissReason(ck, id))
 		var upstream http.Header
 		body, meta, err := s.cache.FillOrStream(ck, func() (io.ReadCloser, attachcache.Meta, error) {
 			res, err := fetchOnce(nil)
@@ -128,7 +150,7 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 			// The bytes were written and then could not be read back. This
 			// request has spent its one fetch, and inventing a second is
 			// the bug this round closed — say so instead.
-			log.Printf("server: attachment cached but unreadable id=%s issue=%s", id, issueKey)
+			log.Printf("server: attachment cached but unreadable id=%s item=%s", id, owner)
 			fail(w, http.StatusBadGateway, "attachment_unavailable")
 			return
 		case err == nil:
@@ -142,7 +164,7 @@ func (s *server) handleAttachment(w http.ResponseWriter, r *http.Request) {
 			// whole: ignoring Range is a 200, which is allowed, and the next
 			// request takes the pass-through path above once the size is
 			// recorded.
-			log.Printf("server: attachment too large to cache, streamed once id=%s issue=%s bytes=%d ranged=%v", id, issueKey, meta.Size, pass != nil)
+			log.Printf("server: attachment too large to cache, streamed once id=%s item=%s bytes=%d ranged=%v", id, owner, meta.Size, pass != nil)
 			defer body.Close()
 			ct := meta.ContentType
 			if ct == "" {
@@ -270,40 +292,61 @@ func (s *server) serveCached(w http.ResponseWriter, r *http.Request, id string) 
 }
 
 // cacheStatus is what the client shows next to an attachment: "ready" once the
-// bytes are local, "pending" while they still have to come from Jira.
-func (s *server) cacheStatus(issueKey, id string) string {
-	if s.cache == nil || !s.cache.Has(s.attachmentCacheKey(issueKey, id)) {
+// bytes are local, "pending" while they still have to come from the origin.
+// owner is the cache owner an issue or page detail hands in — the same string
+// attachmentCacheKey keys on.
+func (s *server) cacheStatus(owner, id string) string {
+	if s.cache == nil || !s.cache.Has(s.attachmentCacheKey(owner, id)) {
 		return "pending"
 	}
 	return "ready"
 }
 
-// attachmentCacheKey is the on-disk identity: site + profile + issue + id.
-func (s *server) attachmentCacheKey(issueKey, id string) string {
-	return attachcache.Key(s.config().Site, s.profile, issueKey, id)
+// attachmentCacheKey is the on-disk identity: site + profile + owner + id.
+// The owner is an issue key or "pages/"+page key (pageOwner) — one namespace
+// per item kind, so an issue and a page can never collide on the same id.
+func (s *server) attachmentCacheKey(owner, id string) string {
+	return attachcache.Key(s.config().Site, s.profile, owner, id)
 }
 
-// attachmentBelongs reports whether the mirror lists id on issueKey. Used to
-// refuse a cached (or upstream) fetch under a foreign issue key. One store
-// query (not Detail): comments/history/links/page-refs are not membership.
-func (s *server) attachmentBelongs(ctx context.Context, issueKey, id string) bool {
-	if issueKey == "" || id == "" {
+// attachmentBelongsTo reports whether the mirror lists id on key — an issue
+// key, or a page key when page is set. Used to refuse a cached (or upstream)
+// fetch under a foreign key. One store query per kind (not Detail):
+// comments/history/links/page-refs are not membership.
+func (s *server) attachmentBelongsTo(ctx context.Context, key, id string, page bool) bool {
+	if key == "" || id == "" {
 		return false
 	}
-	ok, err := s.db.AttachmentBelongs(ctx, issueKey, id)
+	if page {
+		_, _, _, err := s.db.PageAttachment(ctx, key, id)
+		return err == nil
+	}
+	ok, err := s.db.AttachmentBelongs(ctx, key, id)
 	return err == nil && ok
 }
 
-// warmAttachments pre-downloads the inline-renderable attachments of an issue the
+// attachmentSizeOf is the oversize probe's kind-aware half: the mirror's size
+// claim for the bytes, from whichever table owns the item.
+func (s *server) attachmentSizeOf(ctx context.Context, key, id string, page bool) (int64, error) {
+	if page {
+		_, _, size, err := s.db.PageAttachment(ctx, key, id)
+		return size, err
+	}
+	return s.db.AttachmentSize(ctx, key, id)
+}
+
+// warmAttachments pre-downloads the inline-renderable attachments of an item the
 // user just opened, so the images are local before the browser asks for them.
-// Bounded and fire-and-forget: a failure only means the proxy path handles it.
-func (s *server) warmAttachments(cfg *config.Config, issueKey string, atts []detailAttachment) {
+// owner is the cache owner ("KEY" or "pages/KEY"); page says which fetch path
+// a miss takes. Bounded and fire-and-forget: a failure only means the proxy
+// path handles it.
+func (s *server) warmAttachments(cfg *config.Config, owner string, atts []detailAttachment, page bool) {
 	if s.cache == nil || !cfg.HasCredential() {
 		return
 	}
 	var pending []detailAttachment
 	for _, a := range atts {
-		if (a.IsImage || a.IsVideo) && !s.cache.Has(s.attachmentCacheKey(issueKey, a.ID)) {
+		if (a.IsImage || a.IsVideo) && !s.cache.Has(s.attachmentCacheKey(owner, a.ID)) {
 			pending = append(pending, a)
 		}
 	}
@@ -322,10 +365,10 @@ func (s *server) warmAttachments(cfg *config.Config, issueKey string, atts []det
 			for a := range jobs {
 				// Detached from the request: the browser may have moved on already.
 				id := a.ID
-				ck := s.attachmentCacheKey(issueKey, id)
-				log.Printf("server: attachment warm miss id=%s issue=%s: %s", id, issueKey, s.cache.MissReason(ck, id))
+				ck := s.attachmentCacheKey(owner, id)
+				log.Printf("server: attachment warm miss id=%s item=%s: %s", id, owner, s.cache.MissReason(ck, id))
 				if err := s.cache.Fill(ck, func() (io.ReadCloser, attachcache.Meta, error) {
-					res, err := s.fetchAttachment(context.Background(), cfg, issueKey, id, nil)
+					res, err := s.fetchAttachmentFor(context.Background(), cfg, owner, id, nil, page)
 					if err != nil {
 						return nil, attachcache.Meta{}, err
 					}
@@ -380,6 +423,38 @@ func writeOriginDenied(w http.ResponseWriter, e *originDeniedError) {
 	if e.body != nil {
 		_, _ = io.Copy(w, e.body)
 	}
+}
+
+// fetchAttachmentFor is the kind-aware dispatch both serving paths call:
+// issues keep their origin branches (below), a page's bytes come from the
+// wiki client. One entry point so a new origin shape cannot grow on only
+// one side of the split (GDK-1541).
+func (s *server) fetchAttachmentFor(ctx context.Context, cfg *config.Config, key, id string, hdr http.Header, page bool) (*http.Response, error) {
+	if page {
+		return s.fetchPageAttachment(ctx, cfg, id, hdr)
+	}
+	return s.fetchAttachment(ctx, cfg, key, id, hdr)
+}
+
+// fetchPageAttachment streams a page attachment's bytes over the wiki
+// client. origin.Wiki is the single owner of "which transport reaches this
+// workspace's wiki" — Cloud, in-process built-in and paired all resolve
+// there with the right credential, and its base already ends in /wiki, so
+// the download path is Confluence's own content/{id}/download on every
+// origin. A built-in origin that has not grown the route yet answers 501,
+// which mapAttachmentStatus reports as an upstream error rather than
+// serving anything wrong.
+func (s *server) fetchPageAttachment(ctx context.Context, cfg *config.Config, id string, hdr http.Header) (*http.Response, error) {
+	c, err := origin.Wiki(cfg)
+	if err != nil {
+		return nil, err
+	}
+	res, err := c.Stream(ctx, http.MethodGet,
+		"/rest/api/content/"+url.PathEscape(id)+"/download", hdr)
+	if err != nil {
+		return nil, err
+	}
+	return mapAttachmentStatus(res, false)
 }
 
 // fetchAttachment performs the one call that leaves this process.

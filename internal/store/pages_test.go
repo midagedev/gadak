@@ -753,3 +753,156 @@ func TestPageLabelsRoundTrip(t *testing.T) {
 		t.Error("documentedColumns[pages] missing labels")
 	}
 }
+
+// pageAttFixture is one page carrying two attachments — one keyed by its
+// external id (the Cloud shape), one with none (the fallback shape) — plus a
+// second page to prove item_id separation.
+func pageAttFixture(t *testing.T) *DB {
+	t.Helper()
+	db := openTemp(t)
+	if err := db.UpsertSource(context.Background(), Source{ID: "confluence", Kind: "confluence"}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := db.UpsertPages(context.Background(), []PageRecord{{
+		Item: Item{
+			ID: "confluence:77", SourceID: "confluence", Kind: "page", ExternalID: "77",
+			Key: "77", Title: "Design doc", CreatedAt: ago(2), UpdatedAt: ago(1),
+		},
+		Page: Page{SpaceKey: "ENG", Version: 1, Status: "current", BodyADF: json.RawMessage(`{"type":"doc","version":1,"content":[]}`)},
+		Attachments: []Attachment{{
+			ID: "confluence:att-a", ExternalID: "att-a", Filename: "diagram.png",
+			MimeType: "image/png", Size: 4242, Author: "Grace", AuthorID: "acc-g",
+			CreatedAt: ago(1),
+		}, {
+			ID: "confluence:att-b", Filename: "notes.txt",
+			MimeType: "text/plain", Size: 12, CreatedAt: ago(1),
+		}},
+	}, {
+		Item: Item{
+			ID: "confluence:88", SourceID: "confluence", Kind: "page", ExternalID: "88",
+			Key: "88", Title: "Other page", CreatedAt: ago(2), UpdatedAt: ago(1),
+		},
+		Page: Page{SpaceKey: "ENG", Version: 1, Status: "current", BodyADF: json.RawMessage(`{"type":"doc","version":1,"content":[]}`)},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return db
+}
+
+// TestPageAttachmentsRoundTrip is the GDK-1541 store gate: a page's
+// attachments land in the shared table under the page's item id, PageDetail
+// reads them back, and PageAttachment resolves the byte route's inputs by
+// external id — the same convention the issue path carries.
+func TestPageAttachmentsRoundTrip(t *testing.T) {
+	db := pageAttFixture(t)
+
+	d, err := db.PageDetail(context.Background(), "77")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Attachments) != 2 {
+		t.Fatalf("detail attachments = %+v, want 2", d.Attachments)
+	}
+	// Ordered by created_at, id — both rows share created_at, so id order.
+	if d.Attachments[0].ExternalID != "att-a" || d.Attachments[1].ID != "confluence:att-b" {
+		t.Errorf("attachment order = %+v", d.Attachments)
+	}
+	if d.Attachments[0].Filename != "diagram.png" || d.Attachments[0].MimeType != "image/png" || d.Attachments[0].Size != 4242 {
+		t.Errorf("attachment fields = %+v", d.Attachments[0])
+	}
+
+	// The byte route's lookup: external id when present…
+	src, contentURL, size, err := db.PageAttachment(context.Background(), "77", "att-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if src == "" || contentURL != "" || size != 4242 {
+		t.Errorf("PageAttachment = %q %q %d, want source_id, empty url, 4242", src, contentURL, size)
+	}
+	// …store id when not…
+	_, _, size, err = db.PageAttachment(context.Background(), "77", "confluence:att-b")
+	if err != nil {
+		t.Fatalf("store-id lookup: %v", err)
+	}
+	if size != 12 {
+		t.Errorf("store-id lookup size = %d, want 12", size)
+	}
+	// …and neither a foreign id nor a foreign page.
+	if _, _, _, err := db.PageAttachment(context.Background(), "77", "nope"); err != ErrNotFound {
+		t.Errorf("unknown id err = %v, want ErrNotFound", err)
+	}
+	if _, _, _, err := db.PageAttachment(context.Background(), "88", "att-a"); err != ErrNotFound {
+		t.Errorf("other page's attachment err = %v, want ErrNotFound (item_id separation)", err)
+	}
+}
+
+// TestPageAttachmentUpsertReplacesAndCompares pins the write path: the
+// attachment set is replaced wholesale (a dropped upload disappears), and the
+// unchanged compare sees attachments — the same attachment rows in a
+// different order are still the same page, while any real change rewrites.
+func TestPageAttachmentUpsertReplacesAndCompares(t *testing.T) {
+	db := pageAttFixture(t)
+
+	rec := func(atts []Attachment) PageRecord {
+		return PageRecord{
+			Item: Item{
+				ID: "confluence:77", SourceID: "confluence", Kind: "page", ExternalID: "77",
+				Key: "77", Title: "Design doc", CreatedAt: ago(2), UpdatedAt: ago(1),
+			},
+			Page:        Page{SpaceKey: "ENG", Version: 1, Status: "current", BodyADF: json.RawMessage(`{"type":"doc","version":1,"content":[]}`)},
+			Attachments: atts,
+		}
+	}
+	two := []Attachment{{
+		ID: "confluence:att-a", ExternalID: "att-a", Filename: "diagram.png",
+		MimeType: "image/png", Size: 4242, Author: "Grace", AuthorID: "acc-g",
+		CreatedAt: ago(1),
+	}, {
+		ID: "confluence:att-b", Filename: "notes.txt",
+		MimeType: "text/plain", Size: 12, CreatedAt: ago(1),
+	}}
+
+	// Same rows, reversed order → unchanged, changed=0.
+	if n, err := db.UpsertPages(context.Background(), []PageRecord{rec([]Attachment{two[1], two[0]})}); err != nil {
+		t.Fatal(err)
+	} else if n != 0 {
+		t.Errorf("reordered attachments changed = %d, want 0", n)
+	}
+
+	// One attachment gone → changed, and the row is deleted with it.
+	one := []Attachment{two[0]}
+	one[0].Size = 4242
+	if n, err := db.UpsertPages(context.Background(), []PageRecord{rec(one)}); err != nil {
+		t.Fatal(err)
+	} else if n != 1 {
+		t.Errorf("dropped attachment changed = %d, want 1", n)
+	}
+	d, err := db.PageDetail(context.Background(), "77")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Attachments) != 1 || d.Attachments[0].ExternalID != "att-a" {
+		t.Errorf("after drop = %+v, want only att-a", d.Attachments)
+	}
+	if _, _, _, err := db.PageAttachment(context.Background(), "77", "confluence:att-b"); err != ErrNotFound {
+		t.Errorf("dropped row lookup err = %v, want ErrNotFound", err)
+	}
+
+	// A size change alone rewrites (attachment edits do not bump page
+	// version, so the compare is the only thing that can carry them).
+	bigger := []Attachment{two[0]}
+	bigger[0].Size = 9999
+	if n, err := db.UpsertPages(context.Background(), []PageRecord{rec(bigger)}); err != nil {
+		t.Fatal(err)
+	} else if n != 1 {
+		t.Errorf("size change changed = %d, want 1", n)
+	}
+	_, _, size, err := db.PageAttachment(context.Background(), "77", "att-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if size != 9999 {
+		t.Errorf("size after edit = %d, want 9999", size)
+	}
+}

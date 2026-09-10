@@ -282,6 +282,10 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 		}
 	})
 	mux.HandleFunc("GET "+apiBase+"{key}/attachments/{id}/content/{$}", s.handleAttachment)
+	// Page attachment bytes (GDK-1541): the literal pages/ prefix beats the
+	// {key}/ pattern above, and the handler is the same serving core — only
+	// membership/origin/fetch are kind-aware (attachment.go).
+	mux.HandleFunc("GET "+apiBase+"pages/{key}/attachments/{id}/content/{$}", s.handlePageAttachment)
 	mux.HandleFunc("GET "+authBase+"me/{$}", s.handleMe)
 
 	// Write-through (T4). Everything below calls Jira and then re-reads the issue.

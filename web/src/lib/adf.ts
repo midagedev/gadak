@@ -68,8 +68,9 @@ function safeHref(url: unknown): string | null {
  * Allow only same-origin attachment paths issued by the backend as media src.
  *
  * apiBase is runtime config but the check is still a whitelist: must start with apiBase,
- * and the remainder must look like `<issueKey>/attachments/<id>/content/`. Dots and
- * extra slashes are rejected, so `..` traversal and `//host` protocol-relative URLs fail.
+ * and the remainder must look like `<owner>/attachments/<id>/content/`, where owner is
+ * an issue key or `pages/<pageKey>` (GDK-1541). Dots and extra slashes are rejected,
+ * so `..` traversal and `//host` protocol-relative URLs fail.
  */
 function safeMediaUrl(url: unknown, apiBase: string | undefined): string | null {
   if (typeof url !== 'string') return null
@@ -77,7 +78,7 @@ function safeMediaUrl(url: unknown, apiBase: string | undefined): string | null 
   const base = apiBase ?? ''
   if (!base || !trimmed.startsWith(base)) return null
   const tail = trimmed.slice(base.length)
-  return /^[A-Za-z0-9_-]+\/attachments\/[A-Za-z0-9_-]+\/content\/$/.test(tail) ? esc(trimmed) : null
+  return /^(?:pages\/)?[A-Za-z0-9_-]+\/attachments\/[A-Za-z0-9_-]+\/content\/$/.test(tail) ? esc(trimmed) : null
 }
 
 /** Allow #rgb / #rrggbb / #rrggbbaa hex colors only (for textColor marks). */

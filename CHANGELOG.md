@@ -384,6 +384,16 @@ in the file is the connector's own, and `e2e/linear.spec.ts` renders origin
 deep links, link labels in both directions, the write refusal and the
 freshness chip against it on the suite's second port ([GDK-1298]).
 
+Wiki page attachments reach the mirror: the sync lists a page's attachments
+beside its body, they live in the same table as an issue's under the page's
+own key, the page detail carries them the way the issue detail does — one
+builder owns both wire shapes, and a gate keeps an empty list `[]` rather
+than `null` — and `pages/<key>/attachments/<id>/content/` streams the bytes
+through the same handler as an issue's, so a page's media nodes render as
+images on the desk and the phone instead of unresolved chips ([GDK-1750],
+[GDK-1541]). A built-in origin that has not grown the attachment routes is
+measured once per sync and skipped with one summary line, not a failure.
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -1974,3 +1984,5 @@ priority sorting keyed on `priority_rank`.
 [GDK-1517]: https://gadak.dev/backlog/#/?ks=GDK-1517
 [GDK-47]: https://gadak.dev/backlog/#/?ks=GDK-47
 [GDK-1298]: https://gadak.dev/backlog/#/?ks=GDK-1298
+[GDK-1750]: https://gadak.dev/backlog/#/?ks=GDK-1750
+[GDK-1541]: https://gadak.dev/backlog/#/?ks=GDK-1541
