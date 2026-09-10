@@ -9,8 +9,8 @@ things in the workspace directory (`~/.gadak/` or `$GADAK_HOME`, or
   named by its sha256.
 
 `gadak.db` next to them is a cache — the next sync rebuilds it — so it is not
-what you back up. Lose either of the two and what they held is gone; a
-connected workspace has neither, because Atlassian or Linear holds the record.
+what you back up. Lose either of the two and what they held is gone; a Jira
+or Linear workspace has neither, because the tracker holds the record.
 
 Both go into one archive, and both come back together. A copy of the database
 alone is a backup with every attachment missing, and nothing in it says so.

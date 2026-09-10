@@ -679,7 +679,7 @@ Markers:
     object-array shape and JQL's three sprint functions, so gadak reads it
     through exactly the code path Jira uses (issuetap
     `internal/api/agile.go`, `docs/decisions/0002-agile-api-surface.md`,
-    GDK-1666). Measured end to end on a standalone workspace: create, add,
+    GDK-1666). Measured end to end on the built-in tracker: create, add,
     start, `sprint in openSprints()`, close.
 
 [^140]: Same routes as footnote 136 against the in-process origin. Closing

@@ -651,7 +651,8 @@ into `fields`.
 ## Personal state (`gadak export` / `import`)
 
 `gadak export [--out FILE]` dumps this profile's personal tables: saved views,
-watches, favorites, and recents (`cmd/gadak/export.go`; help in
+watches (your local follows — unrelated to Jira's site-side watchers, which
+sync never copies), favorites, and recents (`cmd/gadak/export.go`; help in
 `cmd/gadak/help.go`). Credentials never appear in the file — a credential-shaped
 string is refused (`secretscan`). It is not a `gadak team export` file (team
 settings live in that other command) and it does not include the built-in tracker's

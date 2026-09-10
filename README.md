@@ -232,7 +232,7 @@ Confluence mirror with SQL, desktop and browser interfaces, a CLI, and MCP.
 **Status: 0.21, still 0.x.** Sync, read API, write-through, desktop, web, CLI
 and MCP are verified against a live site. The project currently has one
 maintainer. During 0.x, compatibility is promised for three things, listed in
-[data-model.md](specs/000-product/data-model.md): `issues_full` and the
+[specs/000-product/data-model.md](specs/000-product/data-model.md): `issues_full` and the
 RECIPES queries, `gadak sql` stdout, and `gadak views open --keys -`. The
 license is Apache-2.0, and the mirror is ordinary SQLite. The name is Korean:
 gadak (가닥) is a strand — a thread drawn out of a tangle. What you do not have
@@ -264,7 +264,7 @@ and the command you ran. The maintainer mirrors issues to the
 [public backlog](https://gadak.dev/backlog/), where commit `GDK-nnn` keys
 resolve.
 
-To contribute: [`CONTRIBUTING.md`](.github/CONTRIBUTING.md) and
+To contribute: [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md) and
 [`docs/project/GOOD_FIRST_ISSUES.md`](docs/project/GOOD_FIRST_ISSUES.md). Why
 the next features are the ones they are, with sources:
 [`docs/project/THEORY.md`](docs/project/THEORY.md).

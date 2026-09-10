@@ -1054,7 +1054,12 @@ status). `gadak issue KEY --json` includes it; SQL joins `dev_links` on
 ## When the mirror does not model it
 
 Watchers, worklogs, user search, and anything else sync does not
-project are reachable through the origin with `gadak api`. Sprints *are*
+project are reachable through the origin with `gadak api`. Watchers here
+means Jira's site-side subscribers on an issue — not mirrored, so the
+`watchers` count in the API response is the only copy. gadak's own
+**watches** are the other word entirely: your local follows, keys in
+`local.db` that `gadak export` carries beside favorites and recents.
+They never touch the site. Sprints *are*
 projected (`issues.sprint_id`, `sprint_name`, `sprint_state`); filter on
 `sprint_id` or `sprint_state='active'`, never on `sprint_name`. The
 `sprints` and `boards` tables carry the rest, and `gadak sprint` writes:

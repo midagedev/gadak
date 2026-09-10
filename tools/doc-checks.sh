@@ -2665,4 +2665,311 @@ if ! bash tools/mirror-pins.sh; then
 fi
 ok "mirror pins: host allowlist, home path, profile grammar, ui-token family agree"
 
+# ── 51. README links resolve, and a path-shaped label is its target (GDK-1625) ──
+# Class one: a relative link or image whose target does not exist costs
+# nothing at build time — the page renders it clickable and the click is a
+# 404. docs/README.md has had a resolver since check 32; the three front
+# doors did not. Markdown links and the <img src>/<a href> forms both
+# count: the demo recording is an <img>, so a markdown-only resolver would
+# skip 13 of the front door's references.
+#
+# Class two: a label that looks like a filename is the path a reader types
+# when a click is not available. [`CONTRIBUTING.md`](.github/CONTRIBUTING.md)
+# names a file that is not at the root; README.ja.md already writes the
+# full path in the label, which is the convention this check pins.
+#
+# en is a failure; ko prints its labels to stderr as notes, not failures —
+# the ko edition is outside this round's file set and carries the same two
+# labels the en fix landed (CONTRIBUTING.md, data-model.md), for the lead.
+# FAIL-first 2026-09-11 (read-only, against `git show HEAD:README.md`):
+# the pre-fix en file reports both label mismatches; a copy pointing at
+# docs/nope.md fails the resolver half.
+readme_links=$(
+  python3 - <<'LINKPY'
+import re
+import sys
+from pathlib import Path
+
+SCHEME = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
+LABEL_PATHY = re.compile(r"\.[A-Za-z][A-Za-z0-9]{0,4}$")
+# Quote parity: this heredoc lives inside $( ... ), and bash scans for the
+# closing paren counting quote characters even through a quoted heredoc —
+# the raw double quotes the <img src> regex needs are spelled chr(34), and
+# the backtick strip below is chr(96), so neither count can go odd (the
+# same constraint check 40 documents).
+DQ = chr(34)
+BT = chr(96)
+IMG = re.compile(r"<img\s[^>]*?src=" + DQ + "([^#" + DQ + "]+)" + DQ)
+MD = re.compile(r"!?\[([^\]]*)\]\(\s*<?([^)<>\s]+)>?")
+fails = []
+for name, enforce in (("README.md", True), ("README.ko.md", False), ("README.ja.md", False)):
+    text = Path(name).read_text(encoding="utf-8")
+    found = [(m.start(), "", m.group(1)) for m in IMG.finditer(text)]
+    found += [(m.start(), m.group(1).strip(), m.group(2)) for m in MD.finditer(text)]
+    for pos, label, target in found:
+        if SCHEME.match(target):
+            continue
+        rel = target.split("#", 1)[0]
+        line = text.count("\n", 0, pos) + 1
+        if rel and not Path(rel).exists():
+            fails.append("%s:%d: target %s does not exist" % (name, line, target))
+        lab = label.strip(BT).strip()
+        if lab and ("/" in lab or LABEL_PATHY.search(lab)) and lab != rel:
+            msg = ("%s:%d: label %r is not the path it points at (%s)"
+                   % (name, line, lab, rel))
+            if enforce:
+                fails.append(msg)
+            else:
+                print("note: " + msg, file=sys.stderr)
+if fails:
+    print("\n".join(fails))
+LINKPY
+)
+if [[ -n "$readme_links" ]]; then
+  fail "a README link is broken, or its label is not its target:"$'\n'"$readme_links"
+fi
+ok "README en/ko/ja: every relative target resolves; path-shaped labels are their targets"
+
+# ── 52. A *Caption string names only its locale's own language (GDK-1625) ──
+# Clips are per-language assets (MEDIA_LOCALES, checks 40/41): a locale is
+# served its own take, and the caption beneath describes that take. A
+# caption naming another language — "a Japanese take" under the en clip,
+# 일본어 in a ko caption — describes an asset that locale never serves.
+# Only *Caption keys are pinned: nameNote says the word gadak is Korean in
+# every locale (fact ledger §1) and langBanner names the page's own
+# language by design; neither describes a clip.
+# FAIL-first 2026-09-11 on a mutated copy of i18n.ts ("a Japanese take"
+# in the en videoCaption): one hit, the shipped captions are clean.
+caption_lang=$(
+  python3 - <<'CAPTIONPY'
+import re
+from pathlib import Path
+
+src = Path("site/src/i18n.ts").read_text(encoding="utf-8")
+m = re.search(r"export const strings[^=]*=\s*\{(.*?)\n\}\n", src, re.S)
+if not m:
+    print("site/src/i18n.ts: cannot find the strings table")
+    raise SystemExit(0)
+LANGS = {"English": "en", "영어": "en", "英語": "en",
+         "Korean": "ko", "한국어": "ko", "韓国語": "ko",
+         "Japanese": "ja", "일본어": "ja", "日本語": "ja"}
+parts = re.split(r"\n  (en|ko|ja): \{", m.group(1))
+if len(parts) < 6:
+    print("site/src/i18n.ts: cannot split the strings table into locale blocks")
+    raise SystemExit(0)
+# offsets so the failure names a real line: parts join back to the body.
+offs, o = [], 0
+for p in parts:
+    offs.append(o)
+    o += len(p)
+for i in range(1, len(parts), 2):
+    loc, chunk, coff = parts[i], parts[i + 1], offs[i + 1] + m.start(1)
+    for cm in re.finditer(r"([A-Za-z]+Caption)\s*:\s*'([^']*)'", chunk):
+        for tok in (t for t in LANGS if t in cm.group(2)):
+            if LANGS[tok] != loc:
+                line = src.count("\n", 0, coff + cm.start()) + 1
+                print("site/src/i18n.ts:%d: %s in the %s locale names %s — "
+                      "this locale serves the %s cut"
+                      % (line, cm.group(1), loc, tok, loc))
+CAPTIONPY
+)
+if [[ -n "$caption_lang" ]]; then
+  fail "a *Caption string names a language its locale does not serve:"$'\n'"$caption_lang"
+fi
+ok "every *Caption in site/src/i18n.ts names only its own locale's language"
+
+# ── 53. Three parallel editions, not one text in three fonts (GDK-1604) ──
+# The READMEs are parallel editions with their own readers (user decision
+# 2026-09-08): they share facts, not structure. The drift direction is
+# one-way — translations accrete structural identity — and the 2026-09-08
+# review found exactly that (all three at 53 paragraphs, 9 headings). The
+# predicate is the issue's own: two editions sharing BOTH the paragraph
+# count and the heading sequence read as one text in three fonts. Measured
+# green on this check's landing tree: 49/43/81 paragraphs, 10/11/26
+# headings, no pair identical.
+# FAIL-first 2026-09-11 on mutated copies in scratch: three structurally
+# identical READMEs fail with the pair named.
+#
+# Em-dash half (en only; ko/ja punctuate with their own marks): at most 1
+# per 300 words of prose, fences and code spans stripped. Threshold
+# derivation (GDK-1604, 2026-09-11): the shipped en README measures 5
+# dashes over 1,738 words — 1 per ~348, at the cap. The cap pins the
+# frontier the 2026-09-08 rewrite set; it is not a target to grow into.
+readme_style=$(
+  python3 - <<'STYLEPY'
+import re
+from pathlib import Path
+
+# Backtick parity (same constraint as check 51's quote note): fence and
+# code-span patterns are built from chr(96) so the heredoc body carries no
+# literal backtick for the $( ... ) scan to mispair.
+BT = chr(96)
+FENCE = BT * 3 + ".*?" + BT * 3
+SPAN = BT + "[^" + BT + r"\n]+" + BT
+
+
+def shape(text):
+    text = re.sub(FENCE, "", text, flags=re.S)
+    paras = [p for p in re.split(r"\n\s*\n", text) if p.strip()]
+    heads = tuple(re.sub(r"^#+\s*", "", l) for l in text.splitlines()
+                  if re.match(r"^#+\s", l))
+    return len(paras), heads
+
+
+editions = {n: shape(Path(n).read_text(encoding="utf-8"))
+            for n in ("README.md", "README.ko.md", "README.ja.md")}
+names = sorted(editions)
+for i in range(len(names)):
+    for j in range(i + 1, len(names)):
+        a, b = editions[names[i]], editions[names[j]]
+        if a == b:
+            print("%s and %s share the same paragraph count (%d) and heading "
+                  "sequence — parallel editions, not translations"
+                  % (names[i], names[j], a[0]))
+
+prose = Path("README.md").read_text(encoding="utf-8")
+prose = re.sub(FENCE, "", prose, flags=re.S)
+prose = re.sub(SPAN, "", prose)
+dashes = prose.count("—")
+words = len(re.findall(r"\S+", prose))
+if dashes > words // 300:
+    print("README.md: %d em dashes over %d words of prose — the cap is 1 per "
+          "300 (%d)" % (dashes, words, words // 300))
+STYLEPY
+)
+if [[ -n "$readme_style" ]]; then
+  fail "the README editions drifted toward translation shape, or the em-dash density cap broke:"$'\n'"$readme_style"
+fi
+ok "README editions keep distinct shapes; en prose is within the em-dash cap"
+
+# ── 54. CHANGELOG tails are the generated form ───────────────────────────
+# (2026-09-11 docs round; the issue key is not yet on the public backlog —
+# tools/changelog-tails.py's header records the incident.) A CHANGELOG
+# edition's reference tail is derivation, not prose: the bracket citations
+# of the body, in numeric order, each with the public-backlog URL. Hand
+# maintenance drifted to 54 append-time descents per edition, all three
+# the same way, because nothing compared the order. Check 27 keeps owning
+# the set and the URL form; this check owns the order and keeps the
+# generator executed (an unrun guard is a comment). FAIL-first 2026-09-11
+# against the pre-fix tree: --check reported the 54 descents on all three
+# editions, exit 1, before --write regenerated them.
+if ! python3 tools/changelog-tails.py --check; then
+  fail "a CHANGELOG edition's reference tail is not the generated form (see above) — python3 tools/changelog-tails.py --write <file>"
+fi
+ok "all three CHANGELOG tails are the generated form (numeric order, one definition per cited key)"
+
+# ── 55. "connected"/"standalone" stay wire values, not category nouns (GDK-1288) ──
+# The 2026-09-02 vocabulary split made the category words Jira / Linear /
+# Built-in. `connected` and `standalone` survive as wire values
+# (kind: connected, standalone-jira:) and in Atlassian's own
+# atlas-run-standalone. The recurrence is prose using them as the
+# workspace category — "a connected workspace", "a standalone origin" —
+# the shape of both instances this round fixed (backup-restore runbook,
+# SUPPORT_MATRIX footnote 139). Fenced blocks and backtick spans are
+# stripped before matching so wire values stay legal; dated records
+# (docs/decisions/, docs/audits/, docs/research/) are excluded because
+# naming the old vocabulary is what a record is for.
+# FAIL-first 2026-09-11 against `git show HEAD:docs/runbooks/backup-restore.md`
+# (read-only): the pre-fix paragraph is one hit; the fixed tree is zero.
+vocab_hits=$(
+  python3 - "$FILE_CENSUS" <<'VOCABPY'
+import re
+import sys
+from pathlib import Path
+
+CENSUS = [Path(p) for p in Path(sys.argv[1]).read_text().splitlines() if p]
+# Backtick parity, as in check 53: strip patterns are built, not literal.
+BT = chr(96)
+FENCE = BT * 3 + ".*?" + BT * 3
+SPAN = BT + "[^" + BT + r"\n]+" + BT
+PATTERN = re.compile(r"\b(connected|standalone)\s+(workspace|origin|tracker|account)\b", re.I)
+SKIP_DIR = {"decisions", "audits", "research", "node_modules", "dist", "media"}
+ROOTS = {Path("README.md"), Path("README.ko.md"), Path("README.ja.md"),
+         Path("AGENTS.md"), Path("skills/gadak/SKILL.md")}
+
+
+def candidates():
+    yield from ROOTS
+    for path in CENSUS:
+        if path.suffix not in {".md", ".ts", ".astro"}:
+            continue
+        if any(p in SKIP_DIR for p in path.parts):
+            continue
+        if path.parts[0] in {"docs", "site", ".github", "skills"}:
+            yield path
+
+
+for path in sorted(set(candidates())):
+    if not path.is_file():
+        continue
+    text = path.read_text(encoding="utf-8", errors="replace")
+    text = re.sub(FENCE, "", text, flags=re.S)
+    text = re.sub(SPAN, "", text)
+    for m in PATTERN.finditer(text):
+        line = text.count("\n", 0, m.start()) + 1
+        print("%s:%d: %s" % (path.as_posix(), line, m.group(0)))
+VOCABPY
+)
+if [[ -n "$vocab_hits" ]]; then
+  fail "prose uses connected/standalone as the workspace category — name the tracker (Jira / Linear / Built-in) instead (GDK-1288):"$'\n'"$vocab_hits"
+fi
+ok "connected/standalone appear only as wire values; prose names the tracker"
+
+# Phrase pins are wrap-tolerant: a multi-word sentence in flowing prose can
+# break anywhere, and a line-based grep would call a present sentence gone
+# (measured 2026-09-11, r4 of this round: AGENT_ACCESS.md carried the
+# sentence with "site-side" and "subscribers" on adjacent lines and this
+# check failed while the doc was correct — the instrument, not the tree,
+# was red). Collapse newlines before matching.
+_pin() {  # _pin <file> <phrase> — phrase presence, wrapped or not
+  tr '\n' ' ' < "$1" | tr -s ' ' | grep -qF -- "$2"
+}
+
+# ── 56. The two watch meanings stay named where agents read (GDK-524) ───
+# "watch" names three things in this product: the sync loop
+# (`gadak sync --watch`), the local follows table (`local.db`, exported
+# beside favorites and recents), and Jira's site-side watchers — which
+# sync never copies and only `gadak api` reaches. An agent that mixes the
+# last two asks the site about a local star, or expects a watchers column
+# in the mirror. The disambiguation lives in the two agent-facing
+# documents and the export paragraph; these presence pins are the same
+# shape as check 20's `init --local`: a rewrite that drops the sentence
+# loses the gate's token with it.
+# FAIL-first 2026-09-11 against `git show HEAD:` of both agent docs: the
+# pre-fix files contain none of the pin phrases.
+watch_pins=""
+for f in skills/gadak/SKILL.md docs/AGENT_ACCESS.md; do
+  if ! _pin "$f" 'site-side subscribers'; then
+    watch_pins+="  $f: no site-side-subscribers sentence (GDK-524)"$'\n'
+  fi
+done
+if ! _pin docs/CONFIGURATION.md 'site-side watchers'; then
+  watch_pins+="  docs/CONFIGURATION.md: the export list no longer separates the two watch meanings (GDK-524)"$'\n'
+fi
+if [[ -n "$watch_pins" ]]; then
+  fail "the watch disambiguation is gone from an agent-facing doc:"$'\n'"$watch_pins"
+fi
+ok "SKILL.md, AGENT_ACCESS.md and CONFIGURATION.md keep the local-follows vs site-watchers split"
+
+# ── 57. CONTRIBUTING's front stays a paragraph, not a reading wall ──────
+# (2026-09-11 docs round; issue key not yet on the public backlog.) The
+# must-read wall — five bulleted documents gating a first PR — was the
+# contribution front door's largest object while saying nothing a
+# contributor acts on: the build is `make build` and the rules get caught
+# in review. The five documents stayed, as links with their one-line
+# purposes. The recurrence is the wall's shape returning: a bulleted
+# must-read list under a "read:" imperative. FAIL-first 2026-09-11 against
+# `git show HEAD:.github/CONTRIBUTING.md`: the pre-fix block trips the
+# first pin and misses both positive pins.
+if grep -n -E '^Before contributing, read:' .github/CONTRIBUTING.md; then
+  fail ".github/CONTRIBUTING.md has a must-read wall again — link the documents, don't gate the first PR on reading them"
+fi
+if ! awk 'NR<=25' .github/CONTRIBUTING.md | tr '\n' ' ' | grep -q 'make build'; then
+  fail ".github/CONTRIBUTING.md no longer says the build is make build in its opening"
+fi
+if ! _pin .github/CONTRIBUTING.md 'Read on need'; then
+  fail ".github/CONTRIBUTING.md lost the on-need pointer that replaced the must-read wall"
+fi
+ok "CONTRIBUTING.md front door: build named, rules caught in review, docs linked on need"
+
 echo "doc-checks: all passed"

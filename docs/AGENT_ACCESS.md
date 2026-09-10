@@ -97,7 +97,11 @@ when you need an explicit freshness check.)
 
 When the mirror does not model what you need — watchers, worklogs, sprint
 boards, user search, label bulk reads, Confluence REST that is not in the page
-mirror — use **`gadak api`**. It sends the request with the workspace's stored
+mirror — use **`gadak api`**. (Watchers in that list is Jira's site-side
+subscribers on an issue, never mirrored. gadak's own **watches** are the
+opposite direction — your local follows, kept in `local.db` and exported with
+favorites and recents; the site never hears about them.) It sends the request
+with the workspace's stored
 credential and prints the response body unchanged on stdout so an agent can
 parse it. It is not a second product surface; it is a deliberate hole in the
 fence for endpoints gadak has not chosen to model.

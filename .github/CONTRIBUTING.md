@@ -14,13 +14,14 @@ the ones we test against (other languages, team-managed projects, unusual
 workflows). Smaller starter tasks are listed in
 [`docs/project/GOOD_FIRST_ISSUES.md`](../docs/project/GOOD_FIRST_ISSUES.md).
 
-Before contributing, read:
-
-- `README.md` for the product boundary
-- `CODE_OF_CONDUCT.md` for community norms
-- `.specify/memory/constitution.md` for the rules that override preference
-- `AGENTS.md` for the working rules (they apply to humans too)
-- `SECURITY.md` for what must be reported privately
+The build is `make build`, and the rules get caught in review — nothing
+here has to be read before a first PR. Read on need: [`README.md`](../README.md)
+for the product boundary, [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) for
+community norms,
+[`.specify/memory/constitution.md`](../.specify/memory/constitution.md)
+for the rules that override preference, [`AGENTS.md`](../AGENTS.md) for
+the working rules (they apply to humans too), and
+[`SECURITY.md`](../SECURITY.md) for what must be reported privately.
 
 ## Development Setup
 
