@@ -329,6 +329,20 @@ calendar ([GDK-1130]); and two `$effect` blocks that wrote state — the
 new-issue dialog's defaults and the document panel's write-through overlay —
 are derivations now ([GDK-1133]).
 
+The session strip's boundary has one seat: the `X-Gadak-Session-Boundary`
+header, on bootstrap and delta alike — the body field that overlapped it for
+one release is gone ([GDK-1548]). `gadak migrate` carries the source's
+locale, so a Korean built-in workspace migrates into one that still shows
+Korean status and type chips under its Korean prose, and the report says
+which locale came along ([GDK-1561]). The phone's wire types are picks of
+the desk's, so a field's optionality cannot drift between the two clients
+again ([GDK-1132]). A sync against a paired serve too old to know sprints
+says so — the Agile API's 501 is the origin's age, not a failed sync, and
+the log names the upgrade ([GDK-1691]). And a sprint has a burn-up:
+`GET sprints/{id}/burnup/` and `gadak sprint show <id>` print the same daily
+scope, started and done series, reconstructed from the changelog and
+withheld on an origin that keeps none ([GDK-1710]); the chart is next.
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -1902,3 +1916,8 @@ priority sorting keyed on `priority_rank`.
 [GDK-1663]: https://gadak.dev/backlog/#/?ks=GDK-1663
 [GDK-1130]: https://gadak.dev/backlog/#/?ks=GDK-1130
 [GDK-1133]: https://gadak.dev/backlog/#/?ks=GDK-1133
+[GDK-1548]: https://gadak.dev/backlog/#/?ks=GDK-1548
+[GDK-1561]: https://gadak.dev/backlog/#/?ks=GDK-1561
+[GDK-1132]: https://gadak.dev/backlog/#/?ks=GDK-1132
+[GDK-1691]: https://gadak.dev/backlog/#/?ks=GDK-1691
+[GDK-1710]: https://gadak.dev/backlog/#/?ks=GDK-1710

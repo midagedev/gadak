@@ -191,6 +191,80 @@ func dstSQL(t *testing.T, q string) string {
 	return out
 }
 
+// TestMigrateInheritsLocale is GDK-1561's product assertion: a Korean
+// built-in source migrates into a workspace that still speaks Korean. The
+// measured defect was prosé surviving (titles, comments) while status and
+// type chips came back English — issuetap keys rows by id and overlays
+// display names by the workspace locale, and the fresh target's locale was
+// the en default. The inheritance must happen at construction (before
+// SeedBuiltIn opens the origin), not as a rebuild the user has to know to
+// ask for (`config set locale ko` + `sync` was the workaround).
+//
+// FAIL-first: on the pre-change tree the target's locale is "" and the
+// migrated row shows "To Do" under its Korean summary.
+func TestMigrateInheritsLocale(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	clearCredentialEnv(t)
+	allowProfileCreate = true
+	t.Cleanup(func() {
+		allowProfileCreate = false
+		_ = origin.Close()
+		config.SetProfile("")
+	})
+
+	// ── source: a built-in workspace speaking Korean ────────────────────
+	config.SetProfile("src")
+	if out, err := capture(t, func() error { return cmdInit([]string{"--local"}) }); err != nil {
+		t.Fatalf("init src: %v\n%s", err, out)
+	}
+	if out, err := capture(t, func() error { return cmdConfig([]string{"set", "locale", "ko"}) }); err != nil {
+		t.Fatalf("set locale ko: %v\n%s", err, out)
+	}
+	// Korean prose, the way the measured workspace looked: the summary is
+	// what survives a locale-less migrate, the status chip is what does not.
+	if out, err := capture(t, func() error { return cmdCreate([]string{"마이그레이션 로케일 확인"}) }); err != nil {
+		t.Fatalf("create: %v\n%s", err, out)
+	}
+	if out, err := capture(t, func() error { return cmdSync(nil) }); err != nil {
+		t.Fatalf("sync src: %v\n%s", err, out)
+	}
+	if got := dstSQL(t, "select status from issues_full where summary = '마이그레이션 로케일 확인'"); !strings.Contains(got, "해야 할 일") {
+		t.Fatalf("sanity: source mirror is not Korean:\n%s", got)
+	}
+
+	// ── migrate into a fresh workspace ──────────────────────────────────
+	config.SetProfile("dst")
+	report, err := capture(t, func() error { return cmdMigrate([]string{"--from", "src"}) })
+	if err != nil {
+		t.Fatalf("migrate: %v\n%s", err, report)
+	}
+	if strings.Contains(report, "MISMATCH") {
+		t.Fatalf("verification mismatch:\n%s", report)
+	}
+	if !strings.Contains(report, "locale: ko") {
+		t.Fatalf("report does not state the inherited locale:\n%s", report)
+	}
+
+	// The setting itself — the one owner of the display-name language.
+	dstCfg, err := config.LoadFor("dst")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dstCfg.Locale != "ko" {
+		t.Fatalf("target locale = %q, want ko inherited from the source", dstCfg.Locale)
+	}
+
+	// The symptom: Korean summary with a Korean status chip under it. On
+	// the pre-change tree this row read "To Do" — English chips under Korean
+	// prose, the exact report of GDK-1561.
+	got := dstSQL(t, "select key, status from issues_full where summary = '마이그레이션 로케일 확인'")
+	if !strings.Contains(got, "해야 할 일") {
+		t.Fatalf("migrated status chip is not Korean — locale lost in migrate:\n%s", got)
+	}
+}
+
 // TestMigrateRefusals pins the guard rails: a target that already exists, a
 // missing --from, and migrating a workspace onto itself are refusals, not
 // silent workspace writes.

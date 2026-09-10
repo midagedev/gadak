@@ -11,12 +11,12 @@
  * the line is the design (G3/G5): no boundary, no changes → nothing rendered,
  * no empty state.
  *
- * The boundary itself (`last_session_ended_at` on bootstrap) is computed
- * server-side from local.db person reads — the same session rule `gadak
- * retro` splits by. The client never re-derives it: the count below is a
- * snapshot taken once when bootstrap lands, because a $derived over the pool
- * would grow it with every mid-session delta (G3 — the boundary is the
- * start).
+ * The boundary itself (the X-Gadak-Session-Boundary response header on
+ * bootstrap and delta) is computed server-side from local.db person reads —
+ * the same session rule `gadak retro` splits by. The client never re-derives
+ * it: the count below is a snapshot taken once when bootstrap lands, because
+ * a $derived over the pool would grow it with every mid-session delta (G3 —
+ * the boundary is the start).
  */
 
 import type { TranslateFn } from './resume-card'

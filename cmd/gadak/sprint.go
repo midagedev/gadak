@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/retro"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
@@ -18,6 +20,7 @@ import (
 const sprintUsage = `usage: gadak sprint <subcommand>
 
   gadak sprint list                       sprints in the mirror, active first (id, state, board, issues, name, goal)
+  gadak sprint show <sprint-id>           the sprint's daily burn-up (scope, started, done)
   gadak sprint add <sprint-id> <KEY>...   put issues into a sprint
   gadak sprint remove <KEY>...            take issues back to the backlog
   gadak sprint create <board-id> <name>   open a future sprint
@@ -39,6 +42,8 @@ func cmdSprint(args []string) error {
 	switch sub {
 	case "list":
 		return sprintList(rest)
+	case "show":
+		return sprintShow(rest)
 	case "add":
 		return sprintAdd(rest)
 	case "remove", "rm":
@@ -235,6 +240,67 @@ func refreshKeys(ctx context.Context, cfg *config.Config, db *store.DB, keys []s
 		if err := syncer.RefreshIssue(ctx, cfg, db, k, src); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// sprintShow prints the sprint's daily burn-up, the same series the board
+// strip's sparkline draws (GDK-1710) — CLI-first parity, decisions/0008: the
+// verb and the endpoint read one function (store.SprintBurnup) so there is
+// no second reconstruction to drift.
+//
+// An origin that keeps no changelog cannot answer this at all, and the
+// judgement has one owner (retro.OriginSuppliesChangelog). Such a sprint
+// gets the sentence, not a table of zeros — a flat line reads as "a sprint
+// where nothing happened", which is a different and false claim (GDK-1679).
+func sprintShow(args []string) error {
+	fs := newFlagSet("sprint show")
+	asJSON := fs.Bool("json", false, "emit JSON")
+	rest, err := parseAround(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(rest) != 1 {
+		return usageError("sprint", "usage: gadak sprint show <sprint-id>")
+	}
+	id, err := strconv.ParseInt(strings.TrimSpace(rest[0]), 10, 64)
+	if err != nil || id <= 0 {
+		return usageError("sprint", fmt.Sprintf("sprint id must be a number, got %q — `gadak sprint list` has the ids", rest[0]))
+	}
+	db, err := openStore()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	doc, err := db.SprintBurnup(context.Background(), id, time.Now())
+	if errors.Is(err, store.ErrSprintNotFound) {
+		return fmt.Errorf("no sprint %d in the mirror — `gadak sprint list` has the ids", id)
+	}
+	if err != nil {
+		return err
+	}
+	hasHistory := retro.OriginSuppliesChangelog(doc.SourceKind)
+	if !hasHistory {
+		doc.Days = nil
+	}
+	if *asJSON {
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{
+			"burnup":      doc,
+			"has_history": hasHistory,
+		})
+	}
+	fmt.Fprintf(os.Stdout, "sprint %d\t%s\t%s\n", doc.ID, doc.State, doc.Name)
+	if !hasHistory {
+		fmt.Fprintf(os.Stdout, "no burn-up: this origin (%s) keeps no change history, so the daily scope cannot be reconstructed\n", doc.SourceKind)
+		return nil
+	}
+	if len(doc.Days) == 0 {
+		fmt.Fprintln(os.Stdout, "no burn-up: this sprint has no placeable window yet (no start date and no sprint-field history)")
+		return nil
+	}
+	fmt.Fprintln(os.Stdout, "date\tscope\tstarted\tdone")
+	for _, d := range doc.Days {
+		fmt.Fprintf(os.Stdout, "%s\t%d\t%d\t%d\n", d.Date, d.Scope, d.Started, d.Completed)
 	}
 	return nil
 }

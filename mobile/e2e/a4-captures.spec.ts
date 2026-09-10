@@ -10,9 +10,9 @@
 // forces. Each one is a SINGLE field, each is labeled in the log, and none of
 // them exercises a write:
 //
-//  1. `last_session_ended_at` is ABSENT. The demo home has no local.db person
+//  1. The session boundary is ABSENT. The demo home has no local.db person
 //     reads at all, so the serve has no previous session to report and the
-//     strip is correctly silent. The route adds the field — a boundary three
+//     strip is correctly silent. The route adds the header — a boundary three
 //     days back — so the strip has something true to say about real rows.
 //     Everything the strip then counts is the fixture's own `updated_at`
 //     (18 rows moved in those three days, measured).
@@ -129,24 +129,28 @@ test('captures the A4 awareness surfaces for the vision round', async ({ page })
   const resume = await pickResumeIssue()
   const boundary = new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString()
 
-  // (1) + (3): one field added, one field dropped. Everything else passes
-  // through the serve untouched.
+  // (1) + (3): one header added, one field dropped. Everything else passes
+  // through the serve untouched. The boundary rides the header because the
+  // body field is gone in 0.22 (GDK-1548) — the phone reads the header only.
   await page.route('**/api/v1/issues/bootstrap/', async (route) => {
     const res = await route.fetch()
     const body = (await res.json()) as Record<string, unknown> & {
       issues: Array<Record<string, unknown>>
     }
-    body.last_session_ended_at = boundary
     const flow = body.flow as { cycle_p85_hours: number; samples: number } | undefined
     delete body.flow
     const moved = body.issues.filter(
       (i) => typeof i.updated_at === 'string' && (i.updated_at as string) > boundary,
     ).length
     console.log(
-      `[a4] bootstrap route: last_session_ended_at ← ${boundary} (${moved} rows moved since);` +
+      `[a4] bootstrap route: session boundary header ← ${boundary} (${moved} rows moved since);` +
         ` flow dropped (fixture p85 was ${flow?.cycle_p85_hours}h over ${flow?.samples} issues — see header)`,
     )
-    await route.fulfill({ response: res, json: body })
+    await route.fulfill({
+      response: res,
+      json: body,
+      headers: { ...res.headers(), 'x-gadak-session-boundary': boundary },
+    })
   })
 
   // (2): the identity the demo serve does not have.

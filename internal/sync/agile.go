@@ -26,6 +26,14 @@ func importAgile(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 		if errors.Is(err, jira.ErrNoAgile) {
 			return
 		}
+		if errors.Is(err, jira.ErrAgileUnimplemented) {
+			// GDK-1691: a 501 here is the origin's age, not a failed sync.
+			// The sentence must say all three true things: whose limitation
+			// it is (the serve's, not the mirror's), that the issue rows are
+			// unaffected, and the one action that closes it.
+			opts.logf("boards: skipped — the origin's server predates sprints (Agile API answered 501); issue rows are unaffected. Upgrade the paired gadak serve, then run `gadak sync --full`")
+			return
+		}
 		opts.logf("boards: skipped (%v)", err)
 		return
 	}
@@ -39,6 +47,13 @@ func importAgile(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 		if err != nil {
 			if errors.Is(err, jira.ErrNoAgile) {
 				// A kanban board has no sprints; the route 400s or 404s.
+				continue
+			}
+			if errors.Is(err, jira.ErrAgileUnimplemented) {
+				// The board list answered, so this is the same old-server
+				// shape one route deeper (GDK-1691); the remedy line stays
+				// on the boards-level log so it is said once, not per board.
+				opts.logf("sprints: board %d skipped — the origin's server predates sprints (Agile API answered 501)", b.ID)
 				continue
 			}
 			opts.logf("sprints: board %d skipped (%v)", b.ID, err)

@@ -75,11 +75,11 @@ Request header: `If-None-Match: "sv-<version>"` (optional).
   gets a bodiless 304, and a warm tab syncs by delta and never asks `bootstrap/`
   again (GDK-1537). Omitted entirely when there is no previous session or
   `local.db` is unreadable — the strip is an enrichment and never fails the
-  response. The `last_session_ended_at` body field carries the same value on
-  `bootstrap/` 200s and is kept for one release for older clients. Being a
-  header makes it inspectable on its own: `curl -sI
-  <base>/api/v1/issues/bootstrap/` answers "what boundary would this serve
-  send?" without fetching the mirror.
+  response. The header is the boundary's only seat: the
+  `last_session_ended_at` body field that overlapped it for one release was
+  dropped in 0.22 (GDK-1548). Being a header makes it inspectable on its own:
+  `curl -sI <base>/api/v1/issues/bootstrap/` answers "what boundary would
+  this serve send?" without fetching the mirror.
 - `sync_health.status` is one of `healthy` / `stale` / `failed` / `missing`, and
   `message` is `"ok"` when nothing is wrong (the client suppresses that line).
   It is server text in one language; the client localizes only the status label.
@@ -102,10 +102,10 @@ Request header: `If-None-Match: "sv-<version>"` (optional).
 - `members` is omitted (`null`) when `mv` matches the current hash.
 - `deleted_keys` **must** be correct. The client removes those rows from
   IndexedDB; a missed deletion leaves a tombstone visible forever.
-- `X-Gadak-Session-Boundary` rides this response too (see `bootstrap/`). The
-  body never carries `last_session_ended_at`: a field here would move the
-  boundary under a long-lived tab, which is why it is a header the client
-  claims once.
+- `X-Gadak-Session-Boundary` rides this response too (see `bootstrap/`). No
+  body field carries the boundary on any endpoint (a field here would move
+  the boundary under a long-lived tab, which is why it is a header the client
+  claims once; the `bootstrap/` overlap field is gone since 0.22, GDK-1548).
 - Polled every 15 s by the client and on tab focus.
 
 ### `GET <key>/detail/` — R
@@ -539,6 +539,45 @@ UI can render an empty person header.
 - `snippet` is `body_text` (or ADF plain text when `body_text` is empty),
   whitespace-normalized, hard-cut at 160 runes (UTF-8 safe).
 - `total` is the full count for that author; `comments` is the limited page.
+
+### `GET sprints/{id}/burnup/` — R
+
+One sprint's daily burn-up, reconstructed from the mirror's `changelog` rows —
+nothing is stored, the same way `time-in-status` stays a computed answer
+(GDK-1710). `gadak sprint show <id>` prints the same series from the same
+function, so the CLI and the chart cannot drift apart.
+
+```json
+{
+  "burnup": {
+    "id": 41,
+    "name": "Sprint 41",
+    "state": "closed",
+    "start_at": "2026-08-03T10:00:00.000Z",
+    "end_at": "2026-08-14T10:00:00.000Z",
+    "complete_at": "2026-08-14T18:00:00.000Z",
+    "source_kind": "jira",
+    "days": [{ "date": "2026-08-03", "scope": 12, "started": 3, "completed": 0 }]
+  },
+  "has_history": true
+}
+```
+
+- Days are UTC calendar buckets and each is a state replay, not a running
+  total: `scope` is how many issues were in the sprint that day, `started` and
+  `completed` are counted inside that scope, so `0 ≤ completed ≤ started ≤
+  scope` holds and `scope` may dip when an issue leaves.
+- Membership comes from `field = 'sprint'` changelog rows and progress from
+  `field = 'status'` rows mapped through the status id → category catalog —
+  never a display name.
+- `has_history` is `false` for an origin that keeps no changelog; then `days`
+  is omitted entirely. A flat line would read as "a sprint where nothing
+  happened", which is a different and false claim (GDK-1679), so the caller
+  says the sentence instead.
+- `days` is also empty for a sprint whose window cannot be placed (no start
+  date and no sprint-field history) or that has not started yet.
+- A non-numeric id is `400 invalid_id`; an id the mirror does not hold is
+  `404 sprint_not_found`.
 
 ## Deferred and cut
 

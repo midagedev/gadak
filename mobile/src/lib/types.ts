@@ -1,6 +1,16 @@
 // Wire shapes the companion reads. Field names are the server's
 // (internal/server/read.go, internal/store/read.go) — a subset: the phone
 // only parses what it paints. Adding fields is safe, renaming is not.
+//
+// GDK-1132: every shape a web client also parses is OWNED by
+// web/src/lib/types.ts, reached for as `import type` (erased at build — the
+// same mechanism ViewFilters below proved). The phone's subset is a Pick of
+// the owner, so a field's type and optionality cannot drift between the two
+// clients again: they are read off the one owner at compile time, and a
+// rename on the desk breaks `npm run check` here instead of lying quietly.
+// The measured drift this replaced: the phone promised `status_id: string`
+// where the wire omits the field on older cached rows, and
+// `priority_rank: number` where the owner says `number | null`.
 
 /**
  * The desktop's saved-view schema, imported as a type so there is exactly one
@@ -11,70 +21,71 @@
 export type { ViewConfig, ViewFilters } from '../../../web/src/lib/view-config'
 
 /**
- * ADF shapes, imported as types from the desktop's wire definition so there
- * is one meaning of "a description document" and "an attachment row". The
- * phone renders them through the same renderer (web/src/lib/adf.ts), fed by
- * the `*_adf` fields below (GDK-1497). Also type-only: erased at build.
+ * Shared wire shapes, all type-only from the desktop's definition:
+ * AdfNode / DetailAttachment (GDK-1497) — one meaning of "a description
+ * document" and "an attachment row", rendered by the same renderer
+ * (web/src/lib/adf.ts); FlowSummary / HistoryEntry (GDK-1495) — the learned
+ * flow the stale threshold reads, and one changelog entry the resume card
+ * counts. The `Web*` aliases feed the Picks below (GDK-1132).
  */
-import type { AdfNode, DetailAttachment } from '../../../web/src/lib/types'
-export type { AdfNode, DetailAttachment }
+import type {
+  AdfNode,
+  DetailAttachment,
+  FlowSummary,
+  HistoryEntry,
+  BootstrapResponse as WebBootstrapResponse,
+  DetailComment as WebDetailComment,
+  DetailResponse as WebDetailResponse,
+  IssueLite as WebIssueLite,
+  LinkedIssue as WebLinkedIssue,
+  PageComment as WebPageComment,
+  PageDetail as WebPageDetail,
+  PageLite as WebPageLite,
+  PagesResponse as WebPagesResponse,
+  SavedView as WebSavedView,
+  SearchMatch as WebSearchMatch,
+  SearchResponse as WebSearchResponse,
+  SourceView as WebSourceView,
+} from '../../../web/src/lib/types'
+export type { AdfNode, DetailAttachment, FlowSummary, HistoryEntry }
 
 /**
- * The two 0.21 awareness shapes, also type-only from the desktop's wire
- * definition (GDK-1495): the learned flow the stale threshold reads, and one
- * changelog entry the resume card counts. Same rule as above — one meaning
- * per wire shape, erased at build.
+ * The wire row (bootstrap, delta, write answers) — the fields the phone
+ * paints, with the owner's optionality: `status_id`, `issue_type_id`,
+ * `priority_id` and `assignee_id` are optional because older cached rows
+ * omit them, and `priority_rank` is `number | null` (null = unranked,
+ * sort last). Field semantics live on the owner; the two the phone reads
+ * hardest are `status_category` (the only status axis logic may key on) and
+ * `reporter_id`/`reporter_email` (the delegation ledger's half of
+ * person-match, GDK-1495 ④ — id first, email the fallback).
  */
-import type { FlowSummary, HistoryEntry } from '../../../web/src/lib/types'
-export type { FlowSummary, HistoryEntry }
-
-export interface IssueLite {
-  issue_key: string
-  summary: string
-  project_key: string
-  issue_type: string
-  /**
-   * Stable Jira issue-type id. Empty on rows a sync has not rewritten since
-   * the column was added; view filters fall back to the stored name then,
-   * exactly as the desktop's matchesIdFirst does.
-   */
-  issue_type_id: string
-  status: string
-  status_id: string
-  /** new | inprogress | done — the only status axis logic may key on. */
-  status_category: string
-  priority: string | null
-  /** Stable Jira priority id; same empty-on-old-rows contract as issue_type_id. */
-  priority_id: string
-  /** Stable sort axis; display names never drive logic. 0 = unranked. */
-  priority_rank: number
-  assignee: string | null
-  assignee_id: string | null
-  assignee_email: string | null
-  reporter: string | null
-  created_at: string | null
-  updated_at: string | null
-  comment_count: number
-  reopen_count: number
-  duedate: string | null
-  /**
-   * Reporter identity, the delegation ledger's half of person-match
-   * (GDK-1495 ④): `delegated` = reported by this account, held by someone
-   * else. Id first, email as the fallback for mirrors that predate ids —
-   * never the display name.
-   */
-  reporter_id?: string | null
-  reporter_email?: string | null
-  /**
-   * The two clocks the row age reads, in the desktop's order (GDK-1495 ②,
-   * web view-config `workAge`): `started_at` is the first entry into
-   * progress (v43, derived server-side), `status_changed_at` is when the
-   * current status began. Both null on rows the origin gives no history
-   * for; `updated_at` above is the last resort.
-   */
-  started_at?: string | null
-  status_changed_at?: string | null
-}
+export type IssueLite = Pick<
+  WebIssueLite,
+  | 'issue_key'
+  | 'summary'
+  | 'project_key'
+  | 'issue_type'
+  | 'issue_type_id'
+  | 'status'
+  | 'status_id'
+  | 'status_category'
+  | 'priority'
+  | 'priority_id'
+  | 'priority_rank'
+  | 'assignee'
+  | 'assignee_id'
+  | 'assignee_email'
+  | 'reporter'
+  | 'reporter_id'
+  | 'reporter_email'
+  | 'created_at'
+  | 'updated_at'
+  | 'comment_count'
+  | 'reopen_count'
+  | 'duedate'
+  | 'started_at'
+  | 'status_changed_at'
+>
 
 export interface Me {
   email: string | null
@@ -82,74 +93,58 @@ export interface Me {
   name: string | null
 }
 
-export interface BootstrapResponse {
-  server_time: string
-  sync_version: number
+/**
+ * GET `bootstrap/` — the four fields the phone drinks. `flow` is the learned
+ * stale threshold (p85 cycle time), sent only when the workspace has a
+ * distribution to learn from and no threshold is set — the server owns that
+ * precedence; absent → the row age falls back to the shared default
+ * (GDK-1495 ②). The session-strip boundary is not one of these: it rides
+ * the X-Gadak-Session-Boundary response header, surfaced by lib/api as
+ * `sessionBoundary` (the 0.21 body field is gone since 0.22, GDK-1548).
+ * `issues` is re-typed to the narrowed row above — a Pick keeps the owner's
+ * array element whole, and the phone's literals are narrower than that.
+ */
+export type BootstrapResponse = Pick<
+  WebBootstrapResponse,
+  'server_time' | 'sync_version' | 'flow'
+> & {
   issues: IssueLite[]
-  /**
-   * The learned stale threshold (p85 cycle time). Sent only when the
-   * workspace has a distribution to learn from and no threshold is set —
-   * the server owns that precedence. Absent → the row age falls back to the
-   * shared default (GDK-1495 ②).
-   */
-  flow?: FlowSummary
-  /**
-   * Where the previous session of person reads ended (server LastSessionEnd,
-   * gap 30m) — the session strip's boundary (GDK-1495 ①). Bootstrap only:
-   * the delta never carries it. Absent when there is no previous session.
-   */
-  last_session_ended_at?: string
 }
 
-export interface DetailComment {
-  comment_id: string
-  author: string | null
-  created_at: string | null
-  /** Raw ADF body (GDK-1497) — the phone renders it via AdfBody. */
-  raw_body?: AdfNode | null
-  /** Plain-text fallback for a comment that has no ADF. */
-  body: string
-}
+/** One comment under an issue — `raw_body` is the ADF (GDK-1497), always
+ *  present as an object or null; `body` is the plain-text fallback. */
+export type DetailComment = Pick<
+  WebDetailComment,
+  'comment_id' | 'author' | 'created_at' | 'raw_body' | 'body'
+>
 
-export interface LinkedIssue {
-  key: string
-  type: string
-  direction: string
-  summary: string | null
-  status_category: string | null
-}
+/** One linked issue — the owner's shape as-is: the far side's chip rides
+ *  `status_category`, empty when the target is outside the mirror. */
+export type LinkedIssue = WebLinkedIssue
 
-export interface DetailResponse {
-  issue_key: string
-  /** Raw ADF description (GDK-1497) — the phone renders it via AdfBody. */
-  description_adf?: AdfNode | null
-  /**
-   * The description as markdown — the format the editor writes back
-   * (GDK-1497 A2). Always present on current serves; older ones predate
-   * the field, and the editor falls back to description_text.
-   */
-  description_md?: string
-  description_text?: string
-  /** Mirrored attachments: media nodes in the ADF resolve against these. */
-  attachments?: DetailAttachment[]
+/**
+ * GET `<key>/detail/` — the phone's slice. `description_md` is the format
+ * the editor writes back (GDK-1497 A2; older serves predate it and the
+ * editor falls back to `description_text`); `attachments` resolve the ADF's
+ * media nodes; `history` is what the resume card counts (GDK-1495 ③); the
+ * two visit fields are the serve's local.db person reads — absent, never
+ * zero, when the issue was never opened in an app, and on a phone-only
+ * workspace both stay absent so no card renders. `comments` is re-typed to
+ * the narrowed row above, for the same reason as bootstrap's `issues`.
+ */
+export type DetailResponse = Pick<
+  WebDetailResponse,
+  | 'issue_key'
+  | 'description_adf'
+  | 'description_md'
+  | 'description_text'
+  | 'attachments'
+  | 'last_visited_at'
+  | 'previous_visit_at'
+> & {
   comments: DetailComment[]
   linked_issues: LinkedIssue[]
-  /**
-   * The changelog, as the resume card counts it (GDK-1495 ③): entries newer
-   * than the previous visit become status changes, an assignee change, or
-   * "other". The phone does not render the log itself yet.
-   */
-  history?: HistoryEntry[]
-  /**
-   * The two newest person reads of this issue from the serve's local.db.
-   * Absent when the issue was never opened in an app, or local.db cannot be
-   * read — never a zero value. Since GDK-1538 the phone posts its own opens
-   * to the same route the desk uses, so a phone-only workspace fills these
-   * too; the newest read may be this very open, which is what pickSince's
-   * freshness window is for (lib/domain resumeSince).
-   */
-  last_visited_at?: string
-  previous_visit_at?: string
+  history: HistoryEntry[]
 }
 
 export interface TransitionDoc {
@@ -163,90 +158,28 @@ export interface TransitionDoc {
   fields?: { id: string; name: string }[]
 }
 
-export interface SearchMatch {
-  field: string
-  snippet: string
-}
+/** Which FTS column a search hit came from — `title`, `body`, or `comment`
+ *  (title wins over body over comment when more than one column hits). */
+export type SearchMatch = WebSearchMatch
 
-export interface SearchResponse {
-  keys: string[]
-  total: number
-  pages?: PageLite[]
-  matches?: Record<string, SearchMatch>
-}
+export type SearchResponse = WebSearchResponse
 
 /* ── GET issues/pages/ (internal/store/read.go PageLite / PageDetail) ── */
 
-/** One mirrored wiki page, without body. Picker rows and search hits use this. */
-export interface PageLite {
-  key: string
-  title: string
-  space_key: string
-  /** Empty until the space is mirrored; fall back to space_key for display. */
-  space_name?: string
-  space_homepage_id?: string
-  parent_id: string
-  author: string
-  author_id?: string
-  updated_at: string
-  version: number
-  url: string
-  excerpt?: string
-  labels?: string[]
-}
+/** One mirrored wiki page, without body — the owner's shape as-is. Picker
+ *  rows and search hits use this. */
+export type PageLite = WebPageLite
 
-export interface PageComment {
-  author: string
-  created_at: string
-  /** Raw ADF body (GDK-1497) — the phone renders it via AdfBody. */
-  body_adf?: AdfNode | null
-  /** Plain-text fallback for a comment that has no ADF. */
-  body_text: string
-}
+/** One comment on a mirrored page — `body_adf` the ADF (GDK-1497),
+ *  `body_text` the plain-text fallback. Pages have no comment ids. */
+export type PageComment = WebPageComment
 
-/** GET `pages/{key}/` — PageLite plus flattened body and comments. */
-export interface PageDetail extends PageLite {
-  /** Raw ADF body (GDK-1497) — the phone renders it via AdfBody. */
-  body_adf?: AdfNode | null
-  /** ADF flattened by the same walker FTS indexes. Empty when the body is empty. */
-  body_text: string
-  comments: PageComment[]
-  ref_issue_keys?: string[]
-  backlink_issue_keys?: string[]
-}
+/** GET `pages/{key}/` — PageLite plus the flattened body and comments. */
+export type PageDetail = WebPageDetail
 
-export interface PagesResponse {
-  pages: PageLite[]
-  total: number
-}
+export type PagesResponse = WebPagesResponse
 
 /* ── GET issues/views/ (internal/server/personal.go handleGetViews) ── */
-
-/** A view the developer saved at the desk. `config` is an opaque ViewConfig. */
-export interface SavedViewDoc {
-  id: string
-  name: string
-  owner_email: string | null
-  owner_name: string | null
-  config: ViewConfigDoc | null
-  created_at: string | null
-  updated_at: string | null
-}
-
-/** A Jira filter imported at the desk, already compiled into a ViewConfig. */
-export interface SourceViewDoc {
-  id: string
-  name: string
-  config: ViewConfigDoc | null
-  jql: string
-  external_id?: string
-  favourite: boolean
-  owner?: string
-  /** JQL clauses the desktop's importer could honor. */
-  applied: string[]
-  /** JQL clauses it could not — a non-empty list means "open on the desktop". */
-  unsupported: string[]
-}
 
 /**
  * A stored config as it arrives on the wire: the desktop writes a full
@@ -259,6 +192,16 @@ export interface ViewConfigDoc {
   display?: unknown
 }
 
+/**
+ * The wire forms of the two view rows, parameterized off the desktop's
+ * generics (GDK-1132): the phone's only real difference from SavedView /
+ * SourceView is `config`, which on the wire is the opaque doc above (or
+ * null), not the parsed ViewConfig the desk holds after loading.
+ */
+export type SavedViewDoc = WebSavedView<ViewConfigDoc | null>
+export type SourceViewDoc = WebSourceView<ViewConfigDoc | null>
+
+/** GET `issues/views/` — the serve always carries both lists. */
 export interface ViewsResponse {
   views: SavedViewDoc[]
   source: SourceViewDoc[]
@@ -323,4 +266,3 @@ export interface IssueWriteResponse {
   /** Preserved nodes the save dropped (the phone does not warn yet). */
   dropped?: string[]
 }
-

@@ -44,6 +44,14 @@ type Sprint struct {
 // failure of the sync — the mirror simply has no boards.
 var ErrNoAgile = errors.New("jira: this site has no Jira Software (no Agile API)")
 
+// ErrAgileUnimplemented is what an origin too old to know the agile routes
+// answers with (GDK-1691). Unlike ErrNoAgile it is not the site's shape but
+// the server's age: a gadak origin (issuetap) built before its sprints
+// landed (GDK-1666) answers 501 on GET /rest/agile/1.0/board. The sync can
+// say which of the two it is, so the log teaches the fix instead of reading
+// like a flaky failure.
+var ErrAgileUnimplemented = errors.New("jira: this origin's server predates the Agile API (501)")
+
 // Boards lists every board the account can see.
 func (c *Client) Boards(ctx context.Context) ([]Board, error) {
 	var out []Board
@@ -149,8 +157,13 @@ func (c *Client) agilePage(ctx context.Context, path string, take func(json.RawM
 			// has to be unwrapped for — a plain assertion misses every
 			// real 404 and only ever matched in tests (GDK-1654).
 			var e *APIError
-			if errors.As(err, &e) && (e.Status == http.StatusNotFound || e.Status == http.StatusForbidden) {
-				return ErrNoAgile
+			if errors.As(err, &e) {
+				if e.Status == http.StatusNotFound || e.Status == http.StatusForbidden {
+					return ErrNoAgile
+				}
+				if e.Status == http.StatusNotImplemented {
+					return ErrAgileUnimplemented
+				}
 			}
 			return err
 		}

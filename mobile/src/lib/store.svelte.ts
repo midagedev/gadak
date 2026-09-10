@@ -460,9 +460,6 @@ export async function sync(): Promise<void> {
       // "nothing to learn from" — the desktop's own default takes over.
       app.flow = res.body.flow ?? null
       setFlow(app.flow)
-      // The body field is the fallback for a serve older than 0.21, which
-      // sends no header. Kept for one release; 0.22 may drop it.
-      claimSessionBoundary(res.body.last_session_ended_at ?? null)
       etag = res.etag
       writeJSON(scopedKey(CACHE_KEY), {
         etag,

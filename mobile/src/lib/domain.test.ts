@@ -55,8 +55,10 @@ function issue(over: Partial<IssueLite> & { issue_key: string }): IssueLite {
     assignee_id: null,
     assignee_email: null,
     reporter: null,
+    reporter_email: null,
     created_at: '2026-08-01T00:00:00Z',
     updated_at: '2026-08-10T00:00:00Z',
+    status_changed_at: null,
     comment_count: 0,
     reopen_count: 0,
     duedate: null,
@@ -512,6 +514,7 @@ describe('overlayComments', () => {
     comment_id: 'c-1',
     author: 'Dev',
     created_at: '2026-08-25T11:00:00Z',
+    raw_body: null,
     body: 'already there',
   }
 

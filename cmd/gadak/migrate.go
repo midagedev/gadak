@@ -165,6 +165,16 @@ func cmdMigrate(args []string) error {
 	if err != nil {
 		return err
 	}
+	// GDK-1561: the display-name language is part of what migrate carries.
+	// issuetap stores ids and overlays names by the workspace locale, so a
+	// target left at the default (en) shows English status and type chips
+	// under Korean prose — the seed moves the rows, but the overlay owns the
+	// names the origin knows the ids for. The source's locale setting is the
+	// one owner of "what language this data reads in" that the source has; a
+	// connected source carries none (the account's language is not ours to
+	// read) and inherits nothing. Set before SeedBuiltIn so the workspace is
+	// born speaking it — construction, not a rebuild after the fact.
+	tcfg.Locale = srcCfg.Locale
 	// GDK-1484: the migrated workspace's wiki scope comes from this export,
 	// never from the built-in default. An export with no wiki page hands
 	// over an empty list — "every space this origin has" — because the LOC
@@ -220,11 +230,12 @@ func cmdMigrate(args []string) error {
 			"workspace": target,
 			"from":      *from,
 			"persist":   origin.PersistPath(targetDir),
+			"locale":    tcfg.Locale,
 			"stats":     stats,
 			"verify":    verify,
 		})
 	}
-	printMigrateReport(os.Stdout, target, *from, stats, verify)
+	printMigrateReport(os.Stdout, target, *from, tcfg.Locale, stats, verify)
 	return nil
 }
 
@@ -332,13 +343,19 @@ func splitCSV(s string) []string {
 	return out
 }
 
-func printMigrateReport(w *os.File, target, from string, st *migrate.Stats, verify []migrate.VerifyRow) {
+func printMigrateReport(w *os.File, target, from, locale string, st *migrate.Stats, verify []migrate.VerifyRow) {
 	fmt.Fprintf(w, "migrated %s → built-in workspace %q\n", from, target)
 	fmt.Fprintf(w, "projects: %s", strings.Join(st.Projects, ", "))
 	if len(st.Spaces) > 0 {
 		fmt.Fprintf(w, "  spaces: %s", strings.Join(st.Spaces, ", "))
 	}
 	fmt.Fprintln(w)
+	// GDK-1561: say it when the language came along, because the strip of
+	// English chips under translated prose is what a silent default looked
+	// like. Absent means English, the same nothing the source had.
+	if locale != "" {
+		fmt.Fprintf(w, "locale: %s (inherited from %s)\n", locale, from)
+	}
 
 	if len(verify) > 0 {
 		fmt.Fprintf(w, "\n%-16s %8s %8s\n", "metric", "source", "migrated")

@@ -50,6 +50,11 @@ export interface QaSuiteRef extends QaRef {
 export interface IssueLite {
   issue_key: string
   summary: string
+  /** Project the row belongs to. On the wire since v0.1 (contract IssueLite,
+   *  always sent — empty when the mirror has none); optional here only
+   *  because cached-row types never promised it (declared for the phone's
+   *  shared subset, GDK-1132). */
+  project_key?: string
   status: string
   /** Stable Jira status id. Older cached rows may omit it. */
   status_id?: string
@@ -61,6 +66,8 @@ export interface IssueLite {
   /** Stable Jira priority id. Older cached rows and mirrors not yet
    *  resynced may omit it or send '' — match falls back to `priority`. */
   priority_id?: string | null
+  /** Stable sort axis; display names never drive logic. Null — never 0 —
+   *  means unranked (sort last). */
   priority_rank: number | null
   severity: string | null
 
@@ -260,6 +267,10 @@ export interface LinkedIssue {
    * backend from the mirror's link catalog (GDK-1215). Absent when the
    * catalog has no row — the client-side catalog lookup stands in. */
   phrase?: string | null
+  /** Far side's status_category (new|inprogress|done). Always sent; empty
+   *  when the target is outside the mirror — the same "unknown" an empty
+   *  summary means. */
+  status_category: string
 }
 
 /** One linked PR (PrSnapshot). */
@@ -458,11 +469,10 @@ export interface BootstrapResponse {
   /** Learned stale threshold; absent when unset-setting precedence leaves
    *  nothing to learn (see FlowSummary). Older servers omit. */
   flow?: FlowSummary
-  /** Where the previous session of person reads ended (server LastSessionEnd,
-   *  gap 30m) — the session strip's boundary. Bootstrap only: delta never
-   *  carries it, because the boundary is the tab's birth. Absent when there
-   *  is no previous session. Older servers omit. */
-  last_session_ended_at?: string
+  // The session-strip boundary is not a body field: it rides the
+  // X-Gadak-Session-Boundary response header (GDK-1537), which api.getBootstrap
+  // and api.getDelta surface as `sessionBoundary`. The body field that rode
+  // 0.21 for pre-header clients was dropped in 0.22 (GDK-1548).
 }
 
 /** GET `delta/?since=&mv=` response. */
@@ -794,6 +804,9 @@ export interface PagesResponse {
 /** GET `pages/{key}/` response — PageLite plus body and comments. */
 export interface PageDetail extends PageLite {
   body_adf: AdfNode | null
+  /** The ADF body flattened by the same walker FTS indexes. Empty when the
+   *  body is empty. */
+  body_text: string
   comments: PageComment[]
   /** Issue keys this page's own text names. Only keys the mirror actually
    *  holds — the server drops the rest. Omitted when empty. */

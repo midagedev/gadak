@@ -263,6 +263,20 @@ Confluence Server が未実装だと言い、dev-link の書き込みは実際�
 ダイアログの既定値と、文書パネルの write-through オーバーレイ — はいまは派生値です
 ([GDK-1133])。
 
+セッションストリップの境界は席が一つです。bootstrap と delta の両方に載る
+`X-Gadak-Session-Boundary` ヘッダーで、一リリースのあいだ重ねていた本文フィールドは
+なくなりました ([GDK-1548])。`gadak migrate` が移行元のロケールを一緒に運びます。
+韓国語の内蔵ワークスペースは、韓国語の本文の下にステータスと種別のチップも韓国語で
+出るワークスペースへ移り、レポートがどのロケールが付いてきたかを言います
+([GDK-1561])。スマートフォンの wire 型はデスクトップの型から選び取ったものなので、
+フィールドの省略可否が二つのクライアントの間で再びずれることはありません
+([GDK-1132])。スプリントを知らない古いペアリング serve へ同期すると、そう言います。
+Agile API の 501 は同期の失敗ではなく origin の古さで、ログがアップグレードを
+名指しします ([GDK-1691])。そしてスプリントにバーンアップが付きました。
+`GET sprints/{id}/burnup/` と `gadak sprint show <id>` が changelog から再構成した
+同じ日次のスコープ・着手・完了の系列を出し、変更履歴を持たない origin では出しません
+([GDK-1710])。チャートは次の番です。
+
 ## v0.21.0 — 2026-09-08
 
 **離れていた間に何が起きたのかに、キャッシュから答えます。** ステータスの変更も
@@ -1848,3 +1862,8 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1663]: https://gadak.dev/backlog/#/?ks=GDK-1663
 [GDK-1130]: https://gadak.dev/backlog/#/?ks=GDK-1130
 [GDK-1133]: https://gadak.dev/backlog/#/?ks=GDK-1133
+[GDK-1548]: https://gadak.dev/backlog/#/?ks=GDK-1548
+[GDK-1561]: https://gadak.dev/backlog/#/?ks=GDK-1561
+[GDK-1132]: https://gadak.dev/backlog/#/?ks=GDK-1132
+[GDK-1691]: https://gadak.dev/backlog/#/?ks=GDK-1691
+[GDK-1710]: https://gadak.dev/backlog/#/?ks=GDK-1710

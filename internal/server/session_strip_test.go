@@ -18,26 +18,26 @@ import (
  * the clauses this file owns; the client half of C1 (field parsing) and C2–C8
  * live in web/src/lib/session-strip.test.ts and e2e/session-strip.spec.ts.
  *
- *   C1 last_session_ended_at is the previous session's end, gap 30m —
- *      TestBootstrapCarriesLastSessionEnd
+ *   C1 the boundary is the previous session's end, gap 30m, on the
+ *      X-Gadak-Session-Boundary header — TestBootstrapCarriesLastSessionEnd
  *        ① two old sessions + a current read → the now-2h stamp on the wire
  *        ② an agent (cli) read between them does not move it
  *   C1 absent when there is no previous session —
  *      TestBootstrapLastSessionEndAbsentWithoutVisits
- *        ① zero visits → the key is absent from the JSON, not zero-valued
+ *        ① zero visits → no header at all, and no body key either
  *   C1 a local.db read error never fails bootstrap —
  *      TestBootstrapSurvivesLocalReadError
  *        ① bootstrap still answers 200 with the visits table gone
- *        ② the key is absent rather than zero-valued
- *   C1 bootstrap only — TestDeltaOmitsLastSessionEnd
+ *        ② the header is absent rather than empty
+ *   C1 bootstrap body only, never delta — TestDeltaOmitsLastSessionEnd
  *        ① the delta response never carries the key (the boundary is the
  *          tab's birth, so a delta-only tab must not learn one)
- *
- * FAIL-first: before the Part A edit this file does not compile —
- * bootstrapResponse has no LastSessionEndedAt (run
- * `go test ./internal/server/ -run TestBootstrap -count=1` and read the build
- * output; failfirst evidence server-session-prechange.out, in this round's
- * session scratchpad).
+ *   C10 GDK-1548 — the bootstrap BODY never carries last_session_ended_at
+ *      either. The field rode 0.21 as the one-release overlap for
+ *      pre-header clients; 0.22 drops it, and this is the gate that keeps
+ *      it dropped: TestBootstrapBodyOmitsLastSessionEnd
+ *        ① with a previous session on record — the exact state where the
+ *          field used to be present — the key is absent from the JSON
  *
  * Visit stamps are written straight into local.db (a third connection, no
  * ATTACH — the same road detail_visits_test.go takes) because RecordVisit
@@ -74,18 +74,45 @@ func TestBootstrapCarriesLastSessionEnd(t *testing.T) {
 	seedVisit(t, path, now.Add(-time.Hour), store.VisitSourceCLI)
 	seedVisit(t, path, now.Add(-time.Minute), store.VisitSourceUI)
 
-	body := decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil))
-	if body.LastSessionEndedAt == "" {
-		t.Fatal("last_session_ended_at absent with a previous session on record")
+	rec := get(t, h, apiBase+"bootstrap/", nil)
+	got := rec.Header().Get(sessionBoundaryHeader)
+	if got == "" {
+		t.Fatalf("%s absent with a previous session on record", sessionBoundaryHeader)
 	}
 	want := prev.Format(config.ISOMilli)
-	if body.LastSessionEndedAt != want {
-		t.Fatalf("last_session_ended_at = %q, want the previous session's end %q", body.LastSessionEndedAt, want)
+	if got != want {
+		t.Fatalf("%s = %q, want the previous session's end %q", sessionBoundaryHeader, got, want)
 	}
 	// ISOMilli on the wire — the client's Date.parse and the strip's relative
 	// time both assume an ISO instant.
-	if _, err := time.Parse(config.ISOMilli, body.LastSessionEndedAt); err != nil {
-		t.Fatalf("last_session_ended_at %q is not ISOMilli: %v", body.LastSessionEndedAt, err)
+	if _, err := time.Parse(config.ISOMilli, got); err != nil {
+		t.Fatalf("%s %q is not ISOMilli: %v", sessionBoundaryHeader, got, err)
+	}
+}
+
+// TestBootstrapBodyOmitsLastSessionEnd is the 0.22 contract gate (GDK-1548).
+// The body field rode 0.21 for clients older than the header and was then
+// dropped; with a previous session on record — the one state where the field
+// used to be present — the bootstrap JSON must not carry the key at all.
+// FAIL-first: on the 0.21 source this fails, the key holding the boundary.
+func TestBootstrapBodyOmitsLastSessionEnd(t *testing.T) {
+	db, cfg, path := fixtureAt(t)
+	h := New(db, cfg)
+	seedVisit(t, path, time.Now().UTC().Add(-2*time.Hour), store.VisitSourceUI)
+
+	rec := get(t, h, apiBase+"bootstrap/", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("bootstrap status = %d", rec.Code)
+	}
+	if got := rec.Header().Get(sessionBoundaryHeader); got == "" {
+		t.Fatalf("sanity: %s absent — the boundary itself must still exist", sessionBoundaryHeader)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if v, ok := raw["last_session_ended_at"]; ok {
+		t.Fatalf("bootstrap body carries last_session_ended_at (%s); the header is its only seat since 0.22 (GDK-1548)", v)
 	}
 }
 
@@ -96,6 +123,9 @@ func TestBootstrapLastSessionEndAbsentWithoutVisits(t *testing.T) {
 	rec := get(t, h, apiBase+"bootstrap/", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("bootstrap status = %d", rec.Code)
+	}
+	if _, ok := rec.Header()[http.CanonicalHeaderKey(sessionBoundaryHeader)]; ok {
+		t.Fatalf("%s present with no visits: %q", sessionBoundaryHeader, rec.Header().Get(sessionBoundaryHeader))
 	}
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
@@ -110,9 +140,9 @@ func TestBootstrapSurvivesLocalReadError(t *testing.T) {
 	db, cfg, path := fixtureAt(t)
 	h := New(db, cfg)
 	seedVisit(t, path, time.Now().UTC().Add(-2*time.Hour), store.VisitSourceUI)
-	before := decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil))
-	if before.LastSessionEndedAt == "" {
-		t.Fatal("sanity: last_session_ended_at absent while visits are readable")
+	before := get(t, h, apiBase+"bootstrap/", nil)
+	if before.Header().Get(sessionBoundaryHeader) == "" {
+		t.Fatal("sanity: boundary header absent while visits are readable")
 	}
 
 	// Break the person-read table in a way no API can. The next bootstrap
@@ -131,6 +161,9 @@ func TestBootstrapSurvivesLocalReadError(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("bootstrap status = %d with visits unreadable; local.db must not fail bootstrap", rec.Code)
 	}
+	if v, ok := rec.Header()[http.CanonicalHeaderKey(sessionBoundaryHeader)]; ok {
+		t.Fatalf("%s present with visits unreadable: %q — absent, never empty", sessionBoundaryHeader, v)
+	}
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
 		t.Fatalf("decode: %v", err)
@@ -145,11 +178,12 @@ func TestDeltaOmitsLastSessionEnd(t *testing.T) {
 	h := New(db, cfg)
 	seedVisit(t, path, time.Now().UTC().Add(-2*time.Hour), store.VisitSourceUI)
 
-	boot := decode[bootstrapResponse](t, get(t, h, apiBase+"bootstrap/", nil))
-	if boot.LastSessionEndedAt == "" {
+	boot := get(t, h, apiBase+"bootstrap/", nil)
+	if boot.Header().Get(sessionBoundaryHeader) == "" {
 		t.Fatal("sanity: bootstrap carries the boundary")
 	}
-	rec := get(t, h, apiBase+"delta/?since="+boot.ServerTime, nil)
+	bootBody := decode[bootstrapResponse](t, boot)
+	rec := get(t, h, apiBase+"delta/?since="+bootBody.ServerTime, nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("delta status = %d", rec.Code)
 	}
@@ -177,8 +211,8 @@ func TestDeltaOmitsLastSessionEnd(t *testing.T) {
  * the ETag is about the issue set, and a boundary in it would force a full
  * re-hydration at the start of every session.
  *
- *   C9 the 200 carries X-Gadak-Session-Boundary, equal to the body field —
- *      TestBootstrapBoundaryHeaderMatchesBody
+ *   C9 the 200 carries X-Gadak-Session-Boundary, equal to the previous
+ *      session's end — TestBootstrapBoundaryHeaderMatchesBody
  *   C9 the 304 carries the same header —
  *      TestBootstrapBoundaryHeaderSurvives304
  *   C9 absent means absent on both codes (no empty header) —
@@ -203,14 +237,12 @@ func TestBootstrapBoundaryHeaderMatchesBody(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("bootstrap status = %d", rec.Code)
 	}
-	body := decode[bootstrapResponse](t, rec)
 	got := rec.Header().Get(sessionBoundaryHeader)
 	if got == "" {
 		t.Fatalf("%s absent on 200 with a previous session on record", sessionBoundaryHeader)
 	}
-	if got != body.LastSessionEndedAt {
-		t.Fatalf("%s = %q, body last_session_ended_at = %q; one value, two seats",
-			sessionBoundaryHeader, got, body.LastSessionEndedAt)
+	if want := prev.Format(config.ISOMilli); got != want {
+		t.Fatalf("%s = %q, want the previous session's end %q", sessionBoundaryHeader, got, want)
 	}
 	if _, err := time.Parse(config.ISOMilli, got); err != nil {
 		t.Fatalf("%s %q is not ISOMilli: %v", sessionBoundaryHeader, got, err)

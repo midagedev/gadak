@@ -49,8 +49,10 @@ function issue(over: Partial<IssueLite> & { issue_key: string }): IssueLite {
     assignee_id: null,
     assignee_email: null,
     reporter: null,
+    reporter_email: null,
     created_at: '2026-08-01T00:00:00Z',
     updated_at: '2026-08-10T00:00:00Z',
+    status_changed_at: null,
     comment_count: 0,
     reopen_count: 0,
     duedate: null,
@@ -779,7 +781,11 @@ describe('sync() — the session boundary rides a header, so a 304 still carries
     expect(app.session.computed).toBe(true)
   })
 
-  it('falls back to the body field when the serve is older than the header', async () => {
+  it('ignores the body field 0.22 dropped — the header is the only seat (GDK-1548)', async () => {
+    // A serve still sending last_session_ended_at in the body (pre-0.22
+    // bytes, or a stale proxy) must not set the boundary from it: the
+    // field rode 0.21 as a one-release overlap and is gone. FAIL-first:
+    // before the drop this case's twin asserted the exact opposite.
     serve({
       status: 200,
       etag: '"sv-1"',
@@ -793,7 +799,7 @@ describe('sync() — the session boundary rides a header, so a 304 still carries
 
     await sync()
 
-    expect(app.session.boundary).toBe(BOUNDARY)
+    expect(app.session.boundary).toBeNull()
   })
 
   it('does not overwrite a re-latch: the first claim wins for the session', async () => {

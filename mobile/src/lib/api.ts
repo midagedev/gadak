@@ -15,6 +15,7 @@ import { demoRequest, isDemoSession } from './demo'
 import { inDialScope } from './dial-scope'
 import { t } from './i18n'
 import { classifyRefusal, REFUSAL_KEYS } from './terminal/refusal'
+import type { ApiError as WebApiError } from '../../../web/src/lib/api'
 
 const IS_DEV = import.meta.env.DEV
 
@@ -29,7 +30,16 @@ export function configureApi(s: ApiSession): void {
   session = s
 }
 
-export class ApiError extends Error {
+/**
+ * The shared pair (code, status) is pinned to the desk's declaration
+ * (GDK-1132): `implements Pick<WebApiError, …>` is type-only, so nothing of
+ * the desktop's module loads here, but a rename on the desk breaks this
+ * build instead of drifting. The extras differ on purpose — the desk carries
+ * jiraErrors and the parsed refusal body, the phone carries serverMessage
+ * (the placeholder refusal's own words). The phone's `code` stays required
+ * where the desk's is nullable: this constructor always has one.
+ */
+export class ApiError extends Error implements Pick<WebApiError, 'code' | 'status'> {
   /**
    * The `message` field of a `{"error": code, "message": text}` body, when
    * the server sent one. Only the placeholder refusal (409) carries text a

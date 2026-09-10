@@ -239,6 +239,20 @@ Server 가 아직 구현되지 않았다고 말하고, dev-link 쓰기는 실제
 않습니다 ([GDK-1130]). 상태를 쓰던 `$effect` 둘 — 새 이슈 대화상자의 기본값과
 문서 패널의 write-through 오버레이 — 은 이제 파생값입니다 ([GDK-1133]).
 
+세션 스트립의 경계는 자리가 하나입니다. bootstrap 과 delta 양쪽에 실리는
+`X-Gadak-Session-Boundary` 헤더이고, 한 릴리스 동안 겹쳐 있던 본문 필드는
+없어졌습니다 ([GDK-1548]). `gadak migrate` 가 원본의 로케일을 함께 옮깁니다.
+한국어 내장 워크스페이스는 한국어 산문 아래 상태·유형 칩도 한국어인
+워크스페이스로 옮겨 가고, 리포트가 어느 로케일이 따라왔는지 말합니다
+([GDK-1561]). 폰의 wire 타입은 데스크톱 타입에서 골라낸 것이라, 필드의 옵셔널
+여부가 두 클라이언트 사이에서 다시 갈리지 않습니다 ([GDK-1132]). 스프린트를
+모르는 낡은 페어링 serve 에 동기화하면 그렇다고 말합니다. Agile API 의 501 은
+동기화 실패가 아니라 origin 의 나이이고, 로그가 업그레이드를 이름으로 부릅니다
+([GDK-1691]). 그리고 스프린트에 번업이 생겼습니다. `GET sprints/{id}/burnup/`
+과 `gadak sprint show <id>` 가 changelog 에서 재구성한 같은 일별 범위·착수·완료
+수열을 내고, 변경 이력을 남기지 않는 origin 에서는 내지 않습니다 ([GDK-1710]).
+차트는 다음 차례입니다.
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -1746,3 +1760,8 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1663]: https://gadak.dev/backlog/#/?ks=GDK-1663
 [GDK-1130]: https://gadak.dev/backlog/#/?ks=GDK-1130
 [GDK-1133]: https://gadak.dev/backlog/#/?ks=GDK-1133
+[GDK-1548]: https://gadak.dev/backlog/#/?ks=GDK-1548
+[GDK-1561]: https://gadak.dev/backlog/#/?ks=GDK-1561
+[GDK-1132]: https://gadak.dev/backlog/#/?ks=GDK-1132
+[GDK-1691]: https://gadak.dev/backlog/#/?ks=GDK-1691
+[GDK-1710]: https://gadak.dev/backlog/#/?ks=GDK-1710

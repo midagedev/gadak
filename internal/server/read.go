@@ -123,13 +123,10 @@ type bootstrapResponse struct {
 	// workspace has no distribution to learn from, or when a threshold is
 	// set explicitly — the one precedence decision this server owns.
 	Flow *flowOut `json:"flow,omitempty"`
-	// LastSessionEndedAt is where the previous session of person reads ended
-	// (LastSessionEnd, gap 30m — retro's session rule): the session strip's
-	// boundary. Absent when there is no previous session or local.db is
-	// unreadable; the strip is an enrichment and never fails the bootstrap.
-	// Bootstrap only — delta does not carry it, because the boundary is the
-	// tab's birth, not a fact that moves with the mirror.
-	LastSessionEndedAt string `json:"last_session_ended_at,omitempty"`
+	// The session-strip boundary is deliberately not a body field: it rode
+	// bootstrap's body for the 0.21 overlap only and 0.22 dropped it
+	// (GDK-1548). X-Gadak-Session-Boundary is its one seat — set on 200 and
+	// 304 alike, on bootstrap and delta, by setSessionBoundary.
 }
 
 type deltaResponse struct {
@@ -165,31 +162,29 @@ type deltaResponse struct {
 // one line, and it keeps the ETag about the issue set: the boundary comes from
 // local.visits, which the mirror's sync version knows nothing about, so folding
 // it into the ETag would force a full re-hydration at the start of every
-// session. The body field stays for 0.21 so a client older than this server
-// keeps working; 0.22 may drop it, when every shipped client reads the header.
+// session. The body field that carried the same value on bootstrap 200s was
+// dropped in 0.22, after the one-release overlap promised in 0.21 (GDK-1548):
+// every shipped client reads the header, and the header is the only seat.
 const sessionBoundaryHeader = "X-Gadak-Session-Boundary"
 
 // setSessionBoundary computes the strip's boundary and puts it on the
 // response. The single owner: bootstrap and delta both call it, and bootstrap
-// calls it *before* the conditional branch so the 304 carries it too. The
-// returned string is the same value, for the body field bootstrap still fills.
+// calls it *before* the conditional branch so the 304 carries it too.
 //
-// "" means absent, and then no header is set at all — an empty header would
-// make "no previous session" indistinguishable from "a server that forgot".
-// A local.db error is logged and leaves it absent: the strip is an enrichment
-// and never fails the response it rides on (flowFields' rule).
-func (s *server) setSessionBoundary(w http.ResponseWriter, r *http.Request) string {
+// Absence means no header is set at all — an empty header would make "no
+// previous session" indistinguishable from "a server that forgot". A local.db
+// error is logged and leaves it absent: the strip is an enrichment and never
+// fails the response it rides on (flowFields' rule).
+func (s *server) setSessionBoundary(w http.ResponseWriter, r *http.Request) {
 	end, err := s.db.LastSessionEnd(r.Context(), time.Now(), retro.SessionGap)
 	if err != nil {
 		log.Printf("server: last session end: %v", err)
-		return ""
+		return
 	}
 	if end == nil {
-		return ""
+		return
 	}
-	at := end.UTC().Format(config.ISOMilli)
-	w.Header().Set(sessionBoundaryHeader, at)
-	return at
+	w.Header().Set(sessionBoundaryHeader, end.UTC().Format(config.ISOMilli))
 }
 
 func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
@@ -201,7 +196,7 @@ func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("ETag", etag(st.Version))
 	// Before the conditional branch on purpose (GDK-1537): a 304 has no body,
 	// and the boundary is not part of what the ETag validates.
-	lastSessionEnd := s.setSessionBoundary(w, r)
+	s.setSessionBoundary(w, r)
 	if etagMatches(r.Header.Get("If-None-Match"), st.Version) {
 		w.WriteHeader(http.StatusNotModified)
 		return
@@ -217,16 +212,15 @@ func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, bootstrapResponse{
-		ServerTime:         store.Now(),
-		SyncVersion:        st.Version,
-		Members:            view.members,
-		MembersVersion:     view.membersVersion,
-		Issues:             view.issues(lites),
-		SyncHealth:         s.health(r.Context(), st),
-		FieldSpecs:         s.fieldSpecsOut(),
-		FieldUsage:         s.fieldUsageOut(r.Context()),
-		Flow:               s.flowFields(r.Context()),
-		LastSessionEndedAt: lastSessionEnd,
+		ServerTime:     store.Now(),
+		SyncVersion:    st.Version,
+		Members:        view.members,
+		MembersVersion: view.membersVersion,
+		Issues:         view.issues(lites),
+		SyncHealth:     s.health(r.Context(), st),
+		FieldSpecs:     s.fieldSpecsOut(),
+		FieldUsage:     s.fieldUsageOut(r.Context()),
+		Flow:           s.flowFields(r.Context()),
 	})
 }
 

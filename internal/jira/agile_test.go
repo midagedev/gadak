@@ -43,6 +43,21 @@ func TestBoardsOnASiteWithoutSoftware(t *testing.T) {
 	}
 }
 
+// A 501 is a different fact from a missing Agile API (GDK-1691): a gadak
+// origin built before its sprints (GDK-1666) answers 501 on the route. The
+// caller has to be able to tell the two apart — one skips quietly, the
+// other owes the user the upgrade sentence — so the status is its own
+// sentinel, not a status line to grep.
+func TestBoardsOnAnOriginThatPredatesTheAgileAPI(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "not implemented", http.StatusNotImplemented)
+	}))
+	defer srv.Close()
+	if _, err := NewServer(srv.URL, "tok").Boards(context.Background()); !errors.Is(err, ErrAgileUnimplemented) {
+		t.Fatalf("want ErrAgileUnimplemented, got %v", err)
+	}
+}
+
 // The move body is a value, not pre-marshalled bytes: handing write() bytes
 // sends them base64-encoded and Jira 400s (GDK-1655, measured).
 func TestMoveToSprintSendsAJSONObject(t *testing.T) {

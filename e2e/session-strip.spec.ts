@@ -51,7 +51,11 @@ async function shootSessionStrip(page: Page): Promise<void> {
  * The boundary is injected by route-mocking the bootstrap response, not by
  * relying on the server's local.db: other specs in this run open issues and
  * POST real visits, so server-side session state is whatever the run order
- * left behind. (b)/(c) therefore strip/set the field explicitly.
+ * left behind. Since GDK-1548 the boundary rides the header only — the body
+ * field is gone — so the mock rewrites the header and, on every bootstrap it
+ * stands in front of, asserts the body does not carry the field. That
+ * assertion is this file's seat of the 0.22 contract; on the pre-change
+ * serve it fails with the field holding the boundary.
  */
 
 const BOOTSTRAP_ROUTE = '**/api/v1/issues/bootstrap/'
@@ -67,48 +71,40 @@ type IssueRow = Record<string, unknown> & {
 }
 type BootBody = { issues?: IssueRow[] } & Record<string, unknown>
 
-/** Intercept the bootstrap GET and rewrite only the session boundary. The
- *  rewritten body is kept (servedBoot) so the test counts what the page
+/** Intercept the bootstrap GET and rewrite only the session boundary header.
+ *  The served body is kept (servedBoot) so the test counts what the page
  *  actually received — page.request would bypass this route, and
  *  hand-counting the fixture is exactly what the count assertions exist to
  *  avoid. */
-async function mockLastSession(
-  page: Page,
-  rewrite: (boot: BootBody) => BootBody,
-): Promise<() => BootBody> {
+async function mockBoundary(page: Page, boundary: string | null): Promise<() => BootBody> {
   let servedBoot: BootBody | null = null
-  const intercept = async (route: Route): Promise<void> => {
-    const response = await route.fetch()
-    const boot = rewrite((await response.json()) as BootBody)
-    servedBoot = boot
-    await route.fulfill({ response, headers: boundaryHeaders(response.headers(), boot), json: boot })
+  const headersFor = (headers: Record<string, string>): Record<string, string> => {
+    const out = { ...headers }
+    delete out[SESSION_BOUNDARY_HEADER]
+    if (boundary) out[SESSION_BOUNDARY_HEADER] = boundary
+    return out
   }
-  await page.route(BOOTSTRAP_ROUTE, intercept)
-  // The header is the other seat the boundary rides (C9), and the e2e serve
-  // now has a real one to put in it: local.db is seeded with a month of
-  // reading (GDK-1720), so the server answers with its own session boundary
-  // instead of nothing. Measured before this followed: (a) read "Since last
-  // session 18h" — the server's answer — while counting against the 30-day
-  // one it had mocked into the body. The mock owns both seats, or the server
-  // wins whichever one it is left holding.
+  await page.route(BOOTSTRAP_ROUTE, async (route) => {
+    const response = await route.fetch()
+    const boot = (await response.json()) as BootBody
+    expect(
+      boot,
+      'bootstrap body carries last_session_ended_at — the header is its only seat since 0.22 (GDK-1548)',
+    ).not.toHaveProperty('last_session_ended_at')
+    servedBoot = boot
+    await route.fulfill({ response, headers: headersFor(response.headers()), json: boot })
+  })
+  // The delta's boundary header is rewritten to agree: the e2e serve has a
+  // real one to put in it (local.db is seeded with a month of reading,
+  // GDK-1720), and the mock owns the seat or the server wins it back.
   await page.route(DELTA_ROUTE, async (route) => {
     const response = await route.fetch()
-    await route.fulfill({ response, headers: boundaryHeaders(response.headers(), servedBoot) })
+    await route.fulfill({ response, headers: headersFor(response.headers()) })
   })
   return () => {
     if (!servedBoot) throw new Error('bootstrap route was never hit')
     return servedBoot
   }
-}
-
-/** The response headers with the session boundary made to agree with the body
- *  this test served: set when the body carries one, absent when it does not. */
-function boundaryHeaders(headers: Record<string, string>, boot: BootBody | null): Record<string, string> {
-  const out = { ...headers }
-  delete out[SESSION_BOUNDARY_HEADER]
-  const at = boot?.last_session_ended_at
-  if (typeof at === 'string' && at !== '') out[SESSION_BOUNDARY_HEADER] = at
-  return out
 }
 
 /** 30 days before now — crosses enough of the fixture's updated_at spread
@@ -132,10 +128,7 @@ test.describe('session strip', () => {
   }) => {
     const errors = attachConsoleErrors(page)
     const since = thirtyDaysAgo()
-    const served = await mockLastSession(page, (boot) => ({
-      ...boot,
-      last_session_ended_at: since,
-    }))
+    const served = await mockBoundary(page, since)
     await gotoApp(page)
 
     const strip = page.getByTestId('session-strip')
@@ -172,12 +165,9 @@ test.describe('session strip', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
-  test('(b) no boundary field → no strip, no empty state', async ({ page }) => {
+  test('(b) no boundary header → no strip, no empty state', async ({ page }) => {
     const errors = attachConsoleErrors(page)
-    await mockLastSession(page, (boot) => {
-      const { last_session_ended_at: _l, ...rest } = boot
-      return rest
-    })
+    await mockBoundary(page, null)
     await gotoApp(page)
 
     await expect(page.getByTestId('list-count')).toBeVisible()
@@ -187,10 +177,7 @@ test.describe('session strip', () => {
 
   test('(c) boundary = now → nothing is after it → no strip', async ({ page }) => {
     const errors = attachConsoleErrors(page)
-    await mockLastSession(page, (boot) => ({
-      ...boot,
-      last_session_ended_at: new Date().toISOString(),
-    }))
+    await mockBoundary(page, new Date().toISOString())
     await gotoApp(page)
 
     await expect(page.getByTestId('list-count')).toBeVisible()
@@ -201,10 +188,7 @@ test.describe('session strip', () => {
   test('(e) hidden longer than the session gap, the strip re-latches on return', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     // No boundary at load — the strip is absent, as in (b).
-    const served = await mockLastSession(page, (boot) => {
-      const { last_session_ended_at: _l, ...rest } = boot
-      return rest
-    })
+    const served = await mockBoundary(page, null)
     // Delta passthrough with one injected change once armed: an issue whose
     // updated_at moved to "now" — what arrives while a tab is hidden. The
     // real server still answers; only the upserted list and server_time are
@@ -279,10 +263,7 @@ test.describe('session strip', () => {
       })
     })
     const since = thirtyDaysAgo()
-    const served = await mockLastSession(page, (boot) => ({
-      ...boot,
-      last_session_ended_at: since,
-    }))
+    const served = await mockBoundary(page, since)
     await gotoApp(page)
 
     const strip = page.getByTestId('session-strip')
@@ -321,18 +302,14 @@ test.describe('session strip', () => {
     const errors = attachConsoleErrors(page)
     const since = thirtyDaysAgo()
 
-    // ① First visit: no boundary in the body, none in the header. The pool
-    //    lands in IndexedDB; the strip stays silent (case (b)'s contract).
+    // ① First visit: no boundary in the header (the body has had none to
+    //    strip since 0.22, GDK-1548). The pool lands in IndexedDB; the strip
+    //    stays silent (case (b)'s contract).
     const strip1 = async (route: Route): Promise<void> => {
       const response = await route.fetch()
       const headers = { ...response.headers() }
       delete headers[SESSION_BOUNDARY_HEADER]
-      if (response.status() !== 200) {
-        await route.fulfill({ response, headers })
-        return
-      }
-      const { last_session_ended_at: _l, ...rest } = (await response.json()) as BootBody
-      await route.fulfill({ response, headers, json: rest })
+      await route.fulfill({ response, headers })
     }
     const stripHeaderOnly = async (route: Route): Promise<void> => {
       const response = await route.fetch()
@@ -347,8 +324,7 @@ test.describe('session strip', () => {
     await expect(page.getByTestId('session-strip')).toHaveCount(0)
 
     // ② Second visit, same context: the cache is warm. The boundary exists
-    //    only as a header now — the body is stripped on both endpoints, so
-    //    nothing but the header can put the strip on screen.
+    //    only as a header — nothing else can put the strip on screen.
     await page.unroute(BOOTSTRAP_ROUTE, strip1)
     await page.unroute(DELTA_ROUTE, stripHeaderOnly)
     let bootstrapHits = 0
@@ -359,12 +335,7 @@ test.describe('session strip', () => {
         count()
         const response = await route.fetch()
         const headers = { ...response.headers(), [SESSION_BOUNDARY_HEADER]: since }
-        if (response.status() !== 200) {
-          await route.fulfill({ response, headers })
-          return
-        }
-        const { last_session_ended_at: _l, ...rest } = (await response.json()) as BootBody
-        await route.fulfill({ response, headers, json: rest })
+        await route.fulfill({ response, headers })
       }
     await page.route(BOOTSTRAP_ROUTE, inject(() => bootstrapHits++))
     await page.route(DELTA_ROUTE, inject(() => deltaHits++))

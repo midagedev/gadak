@@ -51,8 +51,10 @@ function issue(over: Partial<IssueLite> & { issue_key: string }): IssueLite {
     assignee_id: null,
     assignee_email: null,
     reporter: null,
+    reporter_email: null,
     created_at: '2026-08-01T00:00:00Z',
     updated_at: '2026-08-10T00:00:00Z',
+    status_changed_at: null,
     comment_count: 0,
     reopen_count: 0,
     duedate: null,
@@ -213,8 +215,11 @@ describe('resume card — the same diff the desk runs (GDK-1495 ③)', () => {
   function detail(over: Partial<DetailResponse>): DetailResponse {
     return {
       issue_key: 'STD-30',
+      description_adf: null,
+      attachments: [],
       comments: [],
       linked_issues: [],
+      history: [],
       ...over,
     }
   }
@@ -250,8 +255,8 @@ describe('resume card — the same diff the desk runs (GDK-1495 ③)', () => {
         { at: '2026-09-01T00:00:00Z', field: 'status', from: 'a', to: 'b', by: null },
       ],
       comments: [
-        { comment_id: 'c1', author: null, created_at: '2026-09-06T04:00:00Z', body: 'new' },
-        { comment_id: 'c2', author: null, created_at: '2026-09-01T00:00:00Z', body: 'old' },
+        { comment_id: 'c1', author: null, created_at: '2026-09-06T04:00:00Z', raw_body: null, body: 'new' },
+        { comment_id: 'c2', author: null, created_at: '2026-09-01T00:00:00Z', raw_body: null, body: 'old' },
       ],
     })
     const delta = resumeChanges(d, since)

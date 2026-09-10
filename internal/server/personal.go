@@ -4,8 +4,12 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"strconv"
+	"time"
 
+	"github.com/midagedev/gadak/internal/retro"
 	"github.com/midagedev/gadak/internal/store"
 )
 
@@ -247,4 +251,39 @@ func (s *server) handleBoards(w http.ResponseWriter, r *http.Request) {
 		list = []store.BoardRowWithSprints{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"boards": list})
+}
+
+// handleSprintBurnup answers one sprint's daily scope/started/completed
+// series (store.SprintBurnup, GDK-1710) — the numbers the board strip's
+// sparkline draws and `gadak sprint show` prints. has_history carries the
+// origin-capability judgement with its single owner
+// (retro.OriginSuppliesChangelog): an origin that supplies no changelog
+// cannot answer this question at all, and the store's current-state
+// projection is not a worse burn-up but a different one, so the days are
+// withheld rather than drawn as a flat line that reads as "a sprint where
+// nothing happened" (GDK-1679's rule, one surface later). The sentence is
+// the caller's — the web and the CLI each say it in their own voice.
+func (s *server) handleSprintBurnup(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		fail(w, http.StatusBadRequest, "invalid_id")
+		return
+	}
+	// Straight off the live handle, like handleSprints: the answer reads
+	// mirror tables only, so it has no need of the local.db view the retro
+	// report's ReadOnly() exists to attach.
+	doc, err := s.db.SprintBurnup(r.Context(), id, time.Now())
+	if errors.Is(err, store.ErrSprintNotFound) {
+		fail(w, http.StatusNotFound, "sprint_not_found")
+		return
+	}
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	hasHistory := retro.OriginSuppliesChangelog(doc.SourceKind)
+	if !hasHistory {
+		doc.Days = nil
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"burnup": doc, "has_history": hasHistory})
 }

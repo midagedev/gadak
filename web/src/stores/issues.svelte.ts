@@ -297,9 +297,10 @@ class IssuesStore {
     this.#etag = etag ?? `"in-${data.sync_version}"`
     this.syncHealth = data.sync_health
     this.flow = data.flow ?? null
-    // Header first, body as the fallback for a server older than 0.21 — the
-    // body field is kept for one release and may go in 0.22.
-    this.#claimSessionBoundary(res.sessionBoundary ?? data.last_session_ended_at ?? null)
+    // The header is the boundary's only seat since 0.22 (GDK-1548): the body
+    // field that carried it for pre-header clients is gone, and every server
+    // that still matters answers the header on 200 and 304 alike.
+    this.#claimSessionBoundary(res.sessionBoundary)
     this.fieldSpecs = data.field_specs ?? []
     this.fieldUsage = data.field_usage ?? {}
     this.ready = true

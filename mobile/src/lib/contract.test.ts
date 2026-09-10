@@ -602,3 +602,48 @@ describe('GDK-1495 A4 vision FIX — the five points the blind judge sent back',
     expect(sheet).toMatch(/ORDER: ScopeSection\[\] = \['builtin', 'views', 'filters', 'docs'\]/)
   })
 })
+
+describe('GDK-1132 — shared wire shapes stay owned by the desk', () => {
+  const types = read('lib/types.ts')
+
+  it('derives the shared-endpoint shapes from web/src/lib/types, not by hand', () => {
+    // The audit's list, minus the one that is a composition: each of these
+    // was a hand copy whose optionality had already drifted (`status_id:
+    // string` on the phone where the wire omits the field on older cached
+    // rows; `priority_rank: number` against the desk's `number | null`).
+    // The Pick forms read field truth off the one owner at compile time, so
+    // a desk rename breaks `npm run check` here instead of lying quietly —
+    // and a hand `export interface` of any of these names is the drift
+    // coming back.
+    expect(types).toContain("from '../../../web/src/lib/types'")
+    for (const name of [
+      'BootstrapResponse',
+      'DetailComment',
+      'DetailResponse',
+      'IssueLite',
+      'LinkedIssue',
+      'PageComment',
+      'PageDetail',
+      'PageLite',
+      'PagesResponse',
+      'SearchMatch',
+      'SearchResponse',
+    ]) {
+      expect(types, `${name} is redeclared by hand`).not.toMatch(
+        new RegExp(`export interface ${name}\\b`),
+      )
+    }
+    // ViewsResponse stays a two-line composition — its element types are the
+    // phone's wire forms — but those elements must stay parameterized off
+    // the desk's generics, never re-spelled field by field.
+    expect(types).toContain('export type SavedViewDoc = WebSavedView<ViewConfigDoc | null>')
+    expect(types).toContain('export type SourceViewDoc = WebSourceView<ViewConfigDoc | null>')
+  })
+
+  it('pins ApiError’s shared pair to the desk’s class', () => {
+    // Type-only, so nothing of the desktop's transport loads here; the
+    // clause exists so the two classes cannot rename the shared fields
+    // apart again.
+    expect(read('lib/api.ts')).toMatch(/class ApiError extends Error implements Pick<WebApiError/)
+  })
+})

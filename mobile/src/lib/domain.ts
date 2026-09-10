@@ -235,7 +235,10 @@ export function resumeLine(delta: ResumeDelta, ago: string): string {
 
 /** Rank 0 means the mirror never saw a priority — sort those last, not first. */
 function rankKey(i: IssueLite): number {
-  return i.priority_rank > 0 ? i.priority_rank : Number.MAX_SAFE_INTEGER
+  // Null — never 0 — is "no rank" on the owner's contract (GDK-1132); both
+  // sort last, exactly where 0 already did.
+  const rank = i.priority_rank
+  return rank !== null && rank > 0 ? rank : Number.MAX_SAFE_INTEGER
 }
 
 /** priority_rank asc, then updated_at desc, then key for stability. */
@@ -417,9 +420,15 @@ function matchesAssignee(issue: IssueLite, value: string): boolean {
  * produced for that axis, so comparing it to `issue_type` / `priority` is
  * consuming the desktop's stored contract, not the phone keying logic on a
  * display name (CLAUDE.md's display-name trap). Rows synced before the id
- * columns existed carry '' and fall through to the name on both surfaces.
+ * columns existed carry '' and fall through to the name on both surfaces —
+ * and on the owner's contract (GDK-1132) the ids are optional besides:
+ * absent is the same "no id" as empty.
  */
-function matchesIdFirst(selected: string[], id: string, name: string | null): boolean {
+function matchesIdFirst(
+  selected: string[],
+  id: string | null | undefined,
+  name: string | null,
+): boolean {
   if (selected.length === 0) return true
   if (id && selected.includes(id)) return true
   return !!name && selected.includes(name)
@@ -832,6 +841,7 @@ export function pendingComment(
     comment_id: id,
     author: author === '' ? null : author,
     created_at: now.toISOString(),
+    raw_body: null,
     body: text,
   }
 }
