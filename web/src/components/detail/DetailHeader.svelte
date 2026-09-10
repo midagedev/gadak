@@ -7,21 +7,14 @@
    */
   import { t } from '../../lib/i18n'
   import type { IssueLite } from '../../lib/types'
-  import {
-    config,
-    isDesktop,
-    originTrackerName,
-    profileName,
-    workspaceName,
-  } from '../../lib/config'
-  import { copyText } from '../../lib/copy-text'
+  import { originTrackerName } from '../../lib/config'
   import { selection } from '../../stores/selection.svelte'
   import { reading } from '../../stores/reading.svelte'
   import { favorites } from '../../stores/favorites.svelte'
   import { issues } from '../../stores/issues.svelte'
-  import { write } from '../../stores/write.svelte'
   import { openIssueOrigin } from '../../lib/desktop-links'
   import { issueOriginUrl } from '../../lib/issue-origin'
+  import { copyIssueLink } from './copy-issue-link'
   import { formatSpan } from '../../lib/format'
   import { effectiveCategory } from '../../lib/view-config'
   import { shellForIssue, shouldMarkUnattended } from '../../lib/issue-shells'
@@ -90,44 +83,6 @@
       : durationsLabel,
   )
 
-  // Same hash the CLI's deepLinkURL / composeServeURL pass through:
-  // "issue=KEY" with no leading ? or #. /w/<profile> only for a named
-  // non-default profile (config().profile is the server's document).
-  function gadakIssueLink(key: string): string {
-    const p = profileName(config().profile)
-    const prefix = p !== 'default' ? `/w/${p}` : ''
-    return `gadak://view${prefix}?issue=${key}`
-  }
-
-  function httpIssueLink(key: string): string {
-    const ws = workspaceName()
-    const prefix = ws ? `/w/${ws}` : ''
-    return `${location.origin}${prefix}/#/?issue=${key}`
-  }
-
-  async function copyLink(): Promise<void> {
-    const key = issue.issue_key
-    const gadak = gadakIssueLink(key)
-    // The origin's page for this key — the address that survives a paste into
-    // chat. Same resolution as the key anchor above (issueOriginUrl: the
-    // row's stored url, else the site's /browse/KEY); null on the built-in
-    // tracker, where the app links below are the only shareable address.
-    const originUrl = issueOriginUrl(key)
-    // Desktop has no shareable http origin (in-process webview). Serve/hosted
-    // copy both lines so a paste into Slack still works without the app.
-    const appText = isDesktop() ? gadak : `${gadak}\n${httpIssueLink(key)}`
-    const text = originUrl ? `${originUrl}\n${appText}` : appText
-    if (await copyText(text)) {
-      write.toast(
-        originUrl
-          ? t('detail.originLinkCopied', { tracker: originTrackerName() })
-          : t('detail.linkCopied'),
-        'success',
-      )
-    } else {
-      write.toast(t('clipboard.copyFailed'), 'error')
-    }
-  }
 </script>
 
 <header class="border-b border-border-strong/70 px-5 pt-4 pb-4">
@@ -189,7 +144,7 @@
       <!-- Copy the origin URL, then gadak:// (+ http, off desktop) — same 24px icon-button cluster -->
       <button
         type="button"
-        onclick={() => void copyLink()}
+        onclick={() => void copyIssueLink(issue.issue_key)}
         data-testid="issue-copy-link"
         class="flex h-6 w-6 flex-none items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
         aria-label={t('detail.copyLink')}

@@ -519,6 +519,21 @@ state: whether the Confluence turn-on button reads armed is a function of the
 click and of the source being off, so an effect that cleared it when a space
 arrived no longer decides the label by when it ran ([GDK-1134]).
 
+The palette knows where the main column can go. Its §3 promise — every action
+the app can do is registered, and that is auditable — was auditable only by
+reading. The destinations now have one owner, a union and a runtime array
+bound to each other by the compiler, and a test asks that list and the
+palette's own rows whether they agree; an exception needs a written reason,
+and a reason that has gone stale is a failure too. Returning to the issue
+list was the hole it found ([GDK-137]). Copying an issue's link and marking
+the feed read joined the registry, each moving out of the component that
+privately owned it, and saving the current view is one row rather than a
+policy repeated per surface ([GDK-732]). Deleting a team view stayed out on
+purpose, and the principles file now says why a destructive action may be
+absent: the list is two clicks and an owner check away from a shared, final
+deletion, and a palette row collapses all three into one Enter on a view the
+reader cannot see.
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2137,3 +2152,5 @@ priority sorting keyed on `priority_rank`.
 [GDK-919]: https://gadak.dev/backlog/#/?ks=GDK-919
 [GDK-138]: https://gadak.dev/backlog/#/?ks=GDK-138
 [GDK-1134]: https://gadak.dev/backlog/#/?ks=GDK-1134
+[GDK-137]: https://gadak.dev/backlog/#/?ks=GDK-137
+[GDK-732]: https://gadak.dev/backlog/#/?ks=GDK-732

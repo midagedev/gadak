@@ -34,6 +34,10 @@ export interface PaletteActionHost {
   syncStatus: () => void
   syncNow: () => void
   createNow: (summary: string) => void
+  showIssueList: () => void
+  copyIssueLink: (key: string) => void
+  markAllFeedRead: () => void
+  saveView: () => void
 }
 
 export interface PaletteActionInput {
@@ -45,6 +49,10 @@ export interface PaletteActionInput {
   identified: boolean
   hostedDemo: boolean
   feedEnabled: boolean
+  /** Unread feed items — the "Mark all read" row has nothing to do at 0. */
+  feedUnread: number
+  /** The column is on the issue list, so "save this view" has a view. */
+  onIssueList: boolean
   query: string
   favoriteHas: (key: string) => boolean
   watchHas: (key: string) => boolean
@@ -257,6 +265,58 @@ function itemsFor(spec: PaletteSpec, input: PaletteActionInput): PaletteActionIt
         label: t(spec.labelKey, { mode: t(mode.labelKey) }),
         run: () => void persistThemePreference(mode.name),
       }))
+    case 'issue-list': {
+      // Nothing to go back to while the list already holds the column — the
+      // row would be a no-op wearing an action's clothes.
+      if (input.onIssueList) return []
+      return [
+        {
+          id: spec.id,
+          label: t(spec.labelKey),
+          testid: spec.testid,
+          run: () => host.showIssueList(),
+        },
+      ]
+    }
+    case 'issue-link': {
+      const key = input.issueKey
+      if (!key) return []
+      return [
+        {
+          id: spec.id,
+          label: t(spec.labelKey, { key }),
+          testid: spec.testid,
+          run: () => host.copyIssueLink(key),
+        },
+      ]
+    }
+    case 'feed-read-all': {
+      // Same three conditions the feed header's button paints under: the
+      // build has a feed, this reader is identified, and something is unread.
+      if (!input.feedEnabled || !input.identified || input.feedUnread === 0) return []
+      return [
+        {
+          id: spec.id,
+          label: t(spec.labelKey),
+          testid: spec.testid,
+          run: () => host.markAllFeedRead(),
+        },
+      ]
+    }
+    case 'save-view': {
+      // A hand-off row, not a query-driven one: naming belongs to the save
+      // popover (see components/list/save-view-request). Off the list there
+      // is no current view to save.
+      if (!input.onIssueList) return []
+      return [
+        {
+          id: spec.id,
+          label: t(spec.labelKey),
+          testid: spec.testid,
+          run: () => host.saveView(),
+        },
+      ]
+    }
     case 'create-now': {
       const raw = input.query.trim()
       if (!raw) return []

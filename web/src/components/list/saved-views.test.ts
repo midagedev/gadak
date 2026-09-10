@@ -18,10 +18,17 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const FILTER_BAR = join(HERE, 'ViewSettingsMenu.svelte')
 const SIDEBAR_NAV = join(HERE, '../sidebar/SidebarNav.svelte')
 const VIEWS_STORE = join(HERE, '../../stores/views.svelte.ts')
+// GDK-732 (2026-09-10): the save action moved out of the menu component so
+// the palette could offer it too. Assertions about the *policy* (which store,
+// what happens when the server refuses) follow it here; assertions about the
+// *popover* stay on the component. Neither was relaxed — the same strings are
+// still required, from the file that now owns them.
+const SAVE_ACTION = join(HERE, 'save-current-view.ts')
 
 const filterBarSrc = readFileSync(FILTER_BAR, 'utf8')
 const sidebarNavSrc = readFileSync(SIDEBAR_NAV, 'utf8')
 const viewsStoreSrc = readFileSync(VIEWS_STORE, 'utf8')
+const saveActionSrc = readFileSync(SAVE_ACTION, 'utf8')
 
 type AnyNode = { type: string } & Record<string, unknown>
 
@@ -148,6 +155,13 @@ describe('GDK-437 save popover is one action (in the Display menu since GDK-1343
     expect(testId(buttons[0])).toBe('filter-save-view')
   })
 
+  test('the save action takes no scope argument', () => {
+    // The policy is save-current-view's; the menu must not pass a store.
+    expect(saveActionSrc).toMatch(/export async function saveCurrentView\(name: string\)/)
+    expect(saveActionSrc).not.toMatch(/scope/)
+    expect(filterBarSrc).not.toMatch(/saveCurrentView\([^)]*,/)
+  })
+
   test('Enter and the button call the same no-scope doSave', () => {
     expect(filterBarSrc).toMatch(/async function doSave\(\)/)
     expect(filterBarSrc).toMatch(/e\.key === 'Enter' && doSave\(\)/)
@@ -165,10 +179,11 @@ describe('GDK-437 save popover is one action (in the Display menu since GDK-1343
       'filter.saveLocalHint',
     ]) {
       expect(filterBarSrc, key).not.toContain(`t('${key}')`)
+      expect(saveActionSrc, key).not.toContain(`t('${key}')`)
     }
     expect(filterBarSrc).toContain("t('filter.saveAsView')")
     expect(filterBarSrc).toContain("t('filter.saveDemoLocal')")
-    expect(filterBarSrc).toContain("t('filter.saveServerFailed')")
+    expect(saveActionSrc).toContain("t('filter.saveServerFailed')")
   })
 })
 

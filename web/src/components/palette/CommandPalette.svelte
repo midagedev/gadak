@@ -62,6 +62,9 @@
   import { openIssueOrigin, openOriginUrl } from '../../lib/desktop-links'
   import { paletteActionItems } from '../../lib/command-palette'
   import { copyViewLink } from '../list/copy-view-link'
+  import { saveViewRequest } from '../list/save-view-request.svelte'
+  import { copyIssueLink } from '../detail/copy-issue-link'
+  import { giveColumnToList } from '../../lib/show-issue-list'
   import type { IssueLite, Member, PageLite, SearchMatch } from '../../lib/types'
 import type { SettingsTab } from '../../lib/settings-tabs'
   import Icon, { type IconName } from '../ui/Icon.svelte'
@@ -639,6 +642,8 @@ import type { SettingsTab } from '../../lib/settings-tabs'
       identified: me.identified,
       hostedDemo: isHostedDemo(),
       feedEnabled: feature('feed'),
+      feedUnread: me.feedUnread.all,
+      onIssueList: column.is('list'),
       query: raw,
       favoriteHas: (key) => favorites.has(key),
       watchHas: (key) => watches.has(key),
@@ -681,13 +686,22 @@ import type { SettingsTab } from '../../lib/settings-tabs'
         syncStatus: syncStatusToast,
         syncNow: () => void runSyncNow('incremental'),
         createNow: (summary) => void createFromPalette(summary),
+        // One show onto the column union — the same handoff the sidebar's
+        // built-in views make, minus the view (GDK-137).
+        showIssueList: () => giveColumnToList(),
+        copyIssueLink: (key) => void copyIssueLink(key),
+        markAllFeedRead: () => void me.markAllFeedRead(),
+        saveView: () => saveViewRequest.request(),
       },
     })
     const createNow = defs.find((d) => d.id === 'a:create-now')
     // Copy link builds the Jira line from the list's filters; off the list
     // (Documents, History, feed, a dashboard) the hash names another screen.
     const rest = defs.filter(
-      (d) => d.id !== 'a:create-now' && matches(d.label) && (d.id !== 'a:copy-view-link' || column.is('list')),
+      (d) =>
+        d.id !== 'a:create-now' &&
+        matches(d.label) &&
+        (d.id !== 'a:copy-view-link' || column.is('list')),
     )
     const out: Item[] = rest.map((d) => ({ ...d, section: 'action' as const }))
     out.push(...workspaceItems)

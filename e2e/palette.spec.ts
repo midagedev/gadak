@@ -444,6 +444,57 @@ test.describe('command palette', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
+  /*
+   * GDK-732 / GDK-137: the actions that used to be mouse-only. One boot for
+   * the three of them — each is a row's presence and, for the navigation one,
+   * its effect.
+   */
+  test('palette offers documents→issues, copy link, and save-this-view', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    await expect(page.getByTestId('freshness-chip')).not.toHaveAttribute('data-state', 'syncing', {
+      timeout: 30_000,
+    })
+
+    const openPalette = async () => {
+      await page.keyboard.press('ControlOrMeta+k')
+      const p = page.getByRole('dialog', { name: 'Command palette' })
+      await expect(p).toBeVisible()
+      return p
+    }
+
+    // Leave the list by palette, and come back by palette — the return trip
+    // was Esc or the sidebar only.
+    let palette = await openPalette()
+    await palette.getByRole('combobox').fill('documents')
+    await palette.getByTestId('palette-action-docs').click()
+    await expect(page.getByTestId('docs-view')).toBeVisible()
+
+    palette = await openPalette()
+    await palette.getByRole('combobox').fill('issues')
+    await palette.getByTestId('palette-action-list').click()
+    await expect(palette).toBeHidden()
+    await expect(page.getByTestId('docs-view')).toHaveCount(0)
+
+    // Copy link needs a row to copy: the cursor is the palette's issue.
+    await page.keyboard.press('j')
+    palette = await openPalette()
+    await palette.getByRole('combobox').fill('copy link')
+    await expect(palette.getByTestId('palette-copy-issue-link')).toBeVisible()
+    await page.keyboard.press('Escape')
+
+    // Save-this-view hands off to the field that can take a name — the row
+    // does not save on Enter, it opens the save popover.
+    palette = await openPalette()
+    await palette.getByRole('combobox').fill('save this view')
+    await palette.getByTestId('palette-save-view').click()
+    await expect(palette).toBeHidden()
+    await expect(page.getByTestId('filter-save-popover')).toBeVisible()
+    await page.keyboard.press('Escape')
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
   // GDK-472 (entry names its scope; empty palette is one phrase) moved to
   // web/src/components/palette/palette-entry.test.ts by the GDK-1702 cost
   // ladder: every assertion read source or catalog strings, and opening

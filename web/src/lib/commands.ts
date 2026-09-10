@@ -11,6 +11,10 @@
  */
 
 import type { MessageKey } from './i18n/catalog'
+/* Type-only, erased at build: the registry stays runtime-free of the store
+ * graph (keymap tests load this file), while `opens` below can still be
+ * spelled in the column's own vocabulary instead of a parallel string set. */
+import type { ColumnKind } from './column-view'
 
 export type { MessageKey }
 
@@ -284,6 +288,10 @@ export type PaletteKind =
   | 'locales'
   | 'themes'
   | 'create-now'
+  | 'issue-list'
+  | 'save-view'
+  | 'issue-link'
+  | 'feed-read-all'
 
 export interface PaletteSpec {
   id: string
@@ -295,6 +303,14 @@ export interface PaletteSpec {
   altLabelKey?: MessageKey
   menu?: TriageMenuKey
   flag?: 'reopened' | 'unassigned' | 'stale'
+  /**
+   * The main-column destination this row shows (GDK-137). Declared so the
+   * coverage gate can compare the column's destinations against the palette
+   * without either side keeping a list of the other:
+   * lib/palette-coverage.test.ts. Rows that act rather than navigate — sync,
+   * a flag toggle, copy link — leave it unset.
+   */
+  opens?: ColumnKind
 }
 
 export interface CommandDef {
@@ -931,6 +947,7 @@ export const COMMANDS: readonly CommandDef[] = [
     chords: [],
     palette: {
       id: 'a:history',
+      opens: 'history',
       kind: 'always',
       sort: 120,
       labelKey: 'palette.actionHistory',
@@ -941,6 +958,7 @@ export const COMMANDS: readonly CommandDef[] = [
     chords: [],
     palette: {
       id: 'a:retro',
+      opens: 'retro',
       kind: 'always',
       sort: 125,
       testid: 'palette-action-retro',
@@ -952,6 +970,7 @@ export const COMMANDS: readonly CommandDef[] = [
     chords: [],
     palette: {
       id: 'a:docs',
+      opens: 'docs',
       kind: 'always',
       sort: 130,
       testid: 'palette-action-docs',
@@ -963,6 +982,7 @@ export const COMMANDS: readonly CommandDef[] = [
     chords: [],
     palette: {
       id: 'a:feed',
+      opens: 'feed',
       kind: 'feed',
       sort: 140,
       testid: 'palette-action-feed',
@@ -1060,6 +1080,51 @@ export const COMMANDS: readonly CommandDef[] = [
       kind: 'always',
       sort: 220,
       labelKey: 'palette.actionSyncNow',
+    },
+  },
+  {
+    id: 'a:list',
+    chords: [],
+    palette: {
+      id: 'a:list',
+      kind: 'issue-list',
+      opens: 'list',
+      sort: 110,
+      testid: 'palette-action-list',
+      labelKey: 'palette.actionIssueList',
+    },
+  },
+  {
+    id: 'a:copy-issue-link',
+    chords: [],
+    palette: {
+      id: 'a:copy-issue-link',
+      kind: 'issue-link',
+      sort: 118,
+      testid: 'palette-copy-issue-link',
+      labelKey: 'palette.actionCopyIssueLink',
+    },
+  },
+  {
+    id: 'a:feed-read-all',
+    chords: [],
+    palette: {
+      id: 'a:feed-read-all',
+      kind: 'feed-read-all',
+      sort: 145,
+      testid: 'palette-feed-read-all',
+      labelKey: 'feed.markAllRead',
+    },
+  },
+  {
+    id: 'a:save-view',
+    chords: [],
+    palette: {
+      id: 'a:save-view',
+      kind: 'save-view',
+      sort: 240,
+      testid: 'palette-save-view',
+      labelKey: 'palette.actionSaveView',
     },
   },
   {

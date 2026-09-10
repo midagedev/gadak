@@ -22,10 +22,21 @@ import type { ViewConfig } from './view-config'
  * these filters so the sidebar highlight is the only expression of them.
  */
 export function showIssueList(config: ViewConfig, asView = false): void {
+  giveColumnToList()
+  filters.applyConfig(config)
+  filters.setViewOrigin(asView ? config.filters : null)
+}
+
+/**
+ * The handoff alone — the column goes back to the list and the filters stay
+ * as they are (GDK-137). Split out of showIssueList because "leave this
+ * screen" and "apply this view" are two different requests: the palette's
+ * back-to-issues row makes the first one, and doing it by passing a config
+ * would silently rewrite the reader's filters on the way out.
+ */
+export function giveColumnToList(): void {
   column.show({ view: 'list' })
   // The docs screens' own state (label narrowing, tree mode) is theirs to
   // drop on the way out; the union only owns who holds the column.
   pages.closeDocs()
-  filters.applyConfig(config)
-  filters.setViewOrigin(asView ? config.filters : null)
 }

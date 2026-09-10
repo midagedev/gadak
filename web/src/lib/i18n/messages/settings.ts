@@ -1649,6 +1649,25 @@ export const settings = {
     ko: '주간 회고',
     ja: '週次ふりかえり',
   },
+  // "Issues", not "Back": the palette is reached from anywhere, and the row
+  // names where it goes rather than where the reader has been.
+  'palette.actionIssueList': {
+    en: 'Open issues',
+    ko: '이슈 목록 열기',
+    ja: '課題一覧を開く',
+  },
+  'palette.actionCopyIssueLink': {
+    en: 'Copy link · {key}',
+    ko: '링크 복사 · {key}',
+    ja: 'リンクをコピー · {key}',
+  },
+  // The ellipsis is the promise: the row opens the field that takes a name,
+  // it does not save on Enter.
+  'palette.actionSaveView': {
+    en: 'Save this view…',
+    ko: '현재 화면을 뷰로 저장…',
+    ja: 'この表示をビューとして保存…',
+  },
   'palette.actionDocs': {
     en: 'Open documents',
     ko: '문서 열기',

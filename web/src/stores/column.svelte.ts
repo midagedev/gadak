@@ -22,20 +22,12 @@
  * owning store's methods, not in onLeave.
  */
 
-import type { FeedFocus } from '../lib/types'
+import type { ColumnKind, ColumnView } from '../lib/column-view'
 
-/** Everything the main column can show. `list` is the resting state. */
-export type ColumnView =
-  | { view: 'list' }
-  | { view: 'docs' }
-  | { view: 'space'; key: string }
-  | { view: 'history' }
-  | { view: 'retro' }
-  | { view: 'dashboard'; id: string }
-  | { view: 'feed'; focus: FeedFocus }
-
-/** The discriminant alone — what `is()`/`close()` key on. */
-export type ColumnKind = ColumnView['view']
+/* The vocabulary lives in lib/column-view.ts so rune-free code (the
+ * palette-coverage gate, GDK-137) can read it; the state lives here. */
+export type { ColumnKind, ColumnView }
+export { COLUMN_KINDS } from '../lib/column-view'
 
 /** Same view, same payload: a re-show that changes nothing is a no-op. */
 function sameView(a: ColumnView, b: ColumnView): boolean {

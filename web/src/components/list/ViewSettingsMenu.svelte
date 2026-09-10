@@ -11,9 +11,8 @@
    */
   import { t } from '../../lib/i18n'
   import { filters } from '../../stores/filters.svelte'
-  import { views } from '../../stores/views.svelte'
-  import { write } from '../../stores/write.svelte'
-  import { hasServer } from '../../lib/config'
+  import { saveCurrentView, savesToServer } from './save-current-view'
+  import { saveViewRequest } from './save-view-request.svelte'
   import { ESC_TIER, isEscapeKey, onEscape, onOutsideClick } from '../../lib/dom-actions'
   import {
     LAYOUT_VALUES,
@@ -94,41 +93,37 @@
     active.size === defaults.length && defaults.every((k) => active.has(k)),
   )
 
-  let open = $state(false)
-  let saveOpen = $state(false)
+  // Local intent, plus the palette's pending hand-off (GDK-732). Derived
+  // rather than assigned from an $effect: GDK-692 forbids an effect writing
+  // this file's own $state, and the request is authoritative until something
+  // closes the panel, so a derived read is also the honest shape.
+  let openLocal = $state(false)
+  let saveOpenLocal = $state(false)
+  const open = $derived(openLocal || saveViewRequest.pending)
+  const saveOpen = $derived(saveOpenLocal || saveViewRequest.pending)
   let saveName = $state('')
 
-  // GDK-1343: saving a view is a display decision as much as a filter one —
-  // "All open, grouped by epic, by priority" has no chip to hang the door on.
-  // GDK-437: the product picks the store. A server behind this bundle is
-  // where a view belongs (it follows the user across devices). The hosted
-  // demo has no server to write to, so it stays in this browser and says so.
-  const saveToServer = hasServer()
+  /** Every close path goes through here so the hand-off cannot re-open. */
+  function setOpen(next: boolean): void {
+    saveViewRequest.clear()
+    openLocal = next
+    if (!next) saveOpenLocal = false
+  }
+
+  // Where a save lands, and the save itself, are list/save-current-view's —
+  // the palette offers the same action and must not re-decide the policy
+  // (GDK-732).
+  const saveToServer = savesToServer()
 
   async function doSave() {
-    const name = saveName.trim()
-    if (!name) return
-    const config = filters.currentConfig()
-    if (saveToServer) {
-      try {
-        await views.addTeam(name, config)
-      } catch (e) {
-        // Never lose the view quietly: keep it in this browser and say so.
-        views.addPersonal(name, config)
-        write.toast(t('filter.saveServerFailed'), 'error')
-        console.warn('[view-settings] 서버 뷰 저장 실패, 브라우저 저장으로 폴백', e)
-      }
-    } else {
-      views.addPersonal(name, config)
-    }
+    await saveCurrentView(saveName)
+    if (!saveName.trim()) return
     saveName = ''
-    saveOpen = false
-    open = false
+    setOpen(false)
   }
 
   function close() {
-    open = false
-    saveOpen = false
+    setOpen(false)
   }
 
   // Menu-tier claim on the Esc stack (GDK-1565): the open header menu
@@ -145,17 +140,24 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- defer on the outside-click listener: the palette runs its rows on
+     mousedown (CommandPalette.svelte's row handler), and the save hand-off
+     opens this menu inside that same dispatch — a listener attached now still
+     catches the very mousedown that asked for it, at window, and closes what
+     just opened. Deferring the attach by a tick is the fix BulkBar's menu
+     already carries. Measured (GDK-732): the latch went request-then-clear
+     inside one click. -->
 <div
   class="relative"
   onkeydown={onEsc}
   use:onEscape={{ handler: onEsc, priority: ESC_TIER.menu, label: 'view-settings' }}
-  use:onOutsideClick={{ handler: close, enabled: open }}
+  use:onOutsideClick={{ handler: close, enabled: open, defer: true }}
 >
   <button
     type="button"
     data-testid="view-settings"
     class="inline-flex h-control items-center gap-1.5 rounded-md border border-border-strong/70 bg-bg-elevated px-2.5 text-body text-text-secondary transition-colors hover:border-border-strong hover:text-text-primary"
-    onclick={() => (open = !open)}
+    onclick={() => setOpen(!open)}
     title={t('view.settings')}
     aria-expanded={open}
   >
@@ -184,7 +186,7 @@
           <button
             type="button"
             class="inline-flex h-control-sm items-center rounded px-1.5 text-micro text-accent-text transition-colors hover:bg-accent-subtle/40"
-            onclick={() => (saveOpen = true)}
+            onclick={() => (saveOpenLocal = true)}
           >
             {t('filter.saveAsView')}
           </button>

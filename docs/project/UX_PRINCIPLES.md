@@ -58,8 +58,26 @@ fluency, not an alternative to it.
 
 - **One palette, same key, everywhere.** No second menu with its own key.
 - **Omnipotent**: every action the app can do is registered in the palette —
-  triage keys, sync-now, view switches, settings. This is auditable: diff the
-  action list against the palette registry when a wave adds actions.
+  triage keys, sync-now, view switches, settings. The registry is
+  `web/src/lib/commands.ts`; a row's action lives in
+  `web/src/lib/command-palette.ts`, which is why an action a component keeps
+  as a private closure is invisible to the palette by construction. When a
+  button and a palette row do the same thing, the thing itself gets a module
+  and both call it (`copy-view-link.ts`, `copy-issue-link.ts`,
+  `save-current-view.ts`).
+- **...and audited by a gate, not by a promise.** The "diff the action list
+  against the registry" step was a habit, and a habit measures nothing: every
+  column view had a row to enter it and none had a row back to the list.
+  `web/src/lib/palette-coverage.test.ts` now measures the part that can be
+  measured mechanically: every destination the main column can show
+  (`COLUMN_KINDS` in `lib/column-view.ts`, checked against the `ColumnView`
+  union by the compiler) has a palette row declaring `opens`, or an
+  allowlist entry stating why it does not. Both sides are read from their own
+  owner; the test keeps no list of its own.
+- **Except what should not be one press away.** Deleting a shared view is
+  irreversible and lands on everyone, and a palette row is one Enter — it
+  stays a deliberate act with a target you have to point at (§7:
+  confirmation is rarity × irreversibility).
 - **Forgiving**: fuzzy match, case-insensitive, aliases across vocabularies
   (Jira's terms, ours, and Korean equivalents), and show the matched alias so
   the user learns the canonical name.
