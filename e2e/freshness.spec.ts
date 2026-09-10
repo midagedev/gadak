@@ -102,6 +102,8 @@ test.describe('freshness chip', () => {
     await expect(chip).toBeVisible({ timeout: 30_000 })
     await expect(chip).toHaveAttribute('data-state', 'fresh')
     // relativeTime is minute-granular below the hour: 30s reads as "just now".
+    // fixture-age: stubbed — mockMirror serves synced_at = isoAgo(30s), so
+    // this reads the mock's clock, not the committed fixture's (GDK-1670).
     await expect(chip).toHaveText(/^\s*Synced (just now|\d+m ago)\s*$/)
     await expect(chip).toHaveAttribute('title', /Mirror pulled from Jira/)
 
@@ -126,6 +128,7 @@ test.describe('freshness chip', () => {
     // The verdict now travels with the age. "Synced 4h ago" was true and
     // useless on its own: it never said that four hours behind is a problem
     // here, which is the whole reason this chip has a stale tone at all.
+    // fixture-age: stubbed — synced_at is isoAgo(4h) from mockMirror.
     await expect(chip).toHaveText('Sync delayed · 4h ago')
     await expect(chip).toHaveClass(/text-status-stale/)
     await expect(chip).toHaveAttribute('title', /Mirror is behind/)
@@ -146,6 +149,7 @@ test.describe('freshness chip', () => {
     await expect(failed).toHaveAttribute('data-state', 'failed')
     // Same rule as the stale case: the age rides along, so "failed" is anchored
     // to how old the last good mirror is rather than left as a bare alarm.
+    // fixture-age: stubbed — synced_at is isoAgo(2h) from mockMirror.
     await expect(failed).toHaveText('Sync failed · 2h ago')
     await expect(failed).toHaveClass(/text-status-reopen/)
     await expect(failed).toHaveAttribute('title', /jira: 401 unauthorized/)

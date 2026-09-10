@@ -393,8 +393,20 @@ limit 1 offset ((85 * (select count(*) from cycles) + 99) / 100 - 1)`
 		if keyLen != samples && keyLen != retro.MaxJSONKeys {
 			t.Fatalf("bucket %d: %d cycle samples, %d keys", bi, samples, keyLen)
 		}
-		if fmt.Sprintf("%.1f", gotCycle) != fmt.Sprintf("%.1f", handDays.Float64) {
-			t.Fatalf("bucket %d cycle p85: retro %.1f, RECIPES hand SQL %.1f", bi, gotCycle, handDays.Float64)
+		// Same comparison policy as the wip axis below: tolerance to the
+		// hand SQL's round(days, 1), not equality of re-rounded strings.
+		// The old form cut both sides to a tenth with different tie-breaks
+		// — Go's %.1f on roundDays' 3dp answer against SQLite's round(x, 1)
+		// — and a p85 sitting on an x.x5 boundary split the strings while
+		// the values agreed to the doc's own rounding width (GDK-1642;
+		// wip's recorded incident: retro 78.3500 vs hand 78.4000). No
+		// natural cycle red exists yet — the cycle day count is fixed by
+		// resolved_at−started_at, so it only moves on a fixture regen —
+		// but the mechanics are measured: 975 of 200,000 adversarial
+		// near-boundary values split the old strings, 0 of 200,000 exceed
+		// this tolerance. See TestRetroCycleAgreementIgnoresRoundingTiebreaks.
+		if math.Abs(gotCycle-handDays.Float64) > 0.05+1e-9 {
+			t.Fatalf("bucket %d cycle p85: retro %.4f, RECIPES hand SQL %.4f", bi, gotCycle, handDays.Float64)
 		}
 	}
 	if cycleWeeks == 0 {
@@ -434,6 +446,49 @@ limit 1 offset ((85 * (select count(*) from cycles) + 99) / 100 - 1)`
 	// wide, not five.
 	if math.Abs(gotWip-handWip.Float64) > 0.05+1e-9 {
 		t.Fatalf("wip age p85: retro %.4f, RECIPES hand SQL %.4f", gotWip, handWip.Float64)
+	}
+}
+
+// TestRetroCycleAgreementIgnoresRoundingTiebreaks pins why the cycle-p85
+// comparison above is a tolerance and not equality of one-decimal strings
+// (GDK-1642): the two float paths round ties differently. The value below is
+// a measured split — 94.749799999999993361 days is the first of 975 in
+// 200,000 adversarial near-boundary values whose two representations
+// disagree as strings. retro's roundDays lands on 94.75, which Go prints as
+// "94.8"; the hand SQL's SQLite round(x, 1) answers 94.7. Same quantity,
+// gap exactly the doc's own rounding width — the string form called that a
+// disagreement; the tolerance correctly does not. The cycle axis has no
+// recorded natural red (its day count is fixed by resolved_at−started_at,
+// unlike wip which ages daily), so this pin is the axis' FAIL-first: the
+// pre-fix expression run on this exact pair fails, which is the incident
+// wip already had for real.
+func TestRetroCycleAgreementIgnoresRoundingTiebreaks(t *testing.T) {
+	const raw = 94.749799999999993361
+	roundDays := math.Round(raw*1000) / 1000 // internal/retro roundDays
+	if roundDays != 94.75 {
+		t.Fatalf("pin drifted: roundDays(%v) = %v, want 94.75 — re-measure the pair", raw, roundDays)
+	}
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var hand float64
+	if err := db.QueryRow("SELECT round(?, 1)", raw).Scan(&hand); err != nil {
+		t.Fatal(err)
+	}
+	if hand != 94.7 {
+		t.Fatalf("pin drifted: SQLite round(%v, 1) = %v, want 94.7 — re-measure the pair", raw, hand)
+	}
+	// The divergence this test exists for: the two one-decimal strings of
+	// the same quantity differ. If this ever stops holding, Go's %.1f or
+	// the driver's SQLite changed tie behavior and the pin above is stale.
+	if fmt.Sprintf("%.1f", roundDays) == fmt.Sprintf("%.1f", hand) {
+		t.Fatalf("pin drifted: %.1f and %.1f now agree at the tie — re-measure the pair", roundDays, hand)
+	}
+	// And the comparison policy the bucket loop uses does not.
+	if math.Abs(roundDays-hand) > 0.05+1e-9 {
+		t.Fatalf("tolerance must accept the doc's own rounding width: |%.17g−%.17g| = %.17g", roundDays, hand, math.Abs(roundDays-hand))
 	}
 }
 

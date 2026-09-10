@@ -350,6 +350,33 @@ func TestTransitionRESTCategoryAlreadyThereIsNoop(t *testing.T) {
 	}
 }
 
+// TestTransitionRESTPicksInUseMirrorStatus — the REST write carries the
+// same mirror tiebreak the CLI does (GDK-1521). The payload is the GDK-1356
+// fold shape, identical to the one the claim and transition package tests
+// resolve: two transitions onto statuses that display the same name in the
+// same category, so they fold, and the pick inside the group is StatusUse.
+// Destination 10099 is the cutover phantom with zero issues; 3 is the one
+// the fixture mirror holds an issue in (NMB-1 itself). Payload order — what
+// a surface passing no StatusUse gets — answers 81.
+//
+// FAIL-first: against the pre-fix server this test fired transition 81.
+func TestTransitionRESTPicksInUseMirrorStatus(t *testing.T) {
+	f, h, _ := writable(t)
+	f.transitionsJSON = `{"transitions":[
+		{"id":"81","name":"Phantom start","to":{"id":"10099","name":"In Progress","statusCategory":{"key":"indeterminate"}}},
+		{"id":"11","name":"Start","to":{"id":"3","name":"In Progress","statusCategory":{"key":"indeterminate"}}}]}`
+	// The issue starts outside the in-progress category, else the category
+	// token is the no-op it is designed to be and no pick happens at all.
+	f.issueStatusJSON = `{"fields":{"status":{"id":"10016","name":"Backlog","statusCategory":{"key":"new"}},"assignee":null}}`
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/transition/", `{"transition_id":"inprogress"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	if raw := string(f.bodies["POST /issue/NMB-1/transitions"]); raw != `{"transition":{"id":"11"}}` {
+		t.Fatalf("POST body %s, want transition 11 — the destination the mirror holds in use, not payload order's 81", raw)
+	}
+}
+
 // GDK-341: the REST surface resolves the same identifiers as the CLI —
 // target status id, name, category — and refuses garbage with the resolver's
 // candidate list. The fake serves one transition: id 31 → 완료 (10001, done).

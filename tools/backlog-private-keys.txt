@@ -9,3 +9,4 @@
 # Format: GDK-nnn<tab or space>reason
 # # comments and blank lines ignored.
 GDK-1632	front-door review originals (six full editorial reports) — kept off the public backlog on purpose; cited from FACT_LEDGER §16, tagline.js and Landing.astro as the round that set the rules
+GDK-1747	the scrubber's own false positive — the body has to quote the escaped host to describe the bug, so publishing the issue trips the very gate it fixes. Cited from tools/backlog-scrub-check.sh and its fixture test.

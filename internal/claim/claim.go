@@ -50,6 +50,12 @@ type Request struct {
 	Key          string
 	TransitionID string
 	TakeOver     bool
+	// StatusUse is the mirror tiebreak the CLI transition write already
+	// carries (transition.MirrorStatusUse, GDK-1356): on a board with two
+	// same-named in-progress destinations, the one the project actually
+	// holds issues in is the one a bare claim means. nil leaves payload
+	// order deciding, which is the pre-GDK-1521 answer (GDK-1521's defect).
+	StatusUse func(statusID string) int
 }
 
 // Result is what the caller shows: the claim's outcome on the origin plus
@@ -149,7 +155,14 @@ func cloudFallback(ctx context.Context, o Origin, cfg *config.Config, req Reques
 		if req.TransitionID != "" {
 			target = req.TransitionID
 		}
-		if _, err := transition.Apply(ctx, o, cfg, transition.Request{Key: req.Key, Target: target}); err != nil {
+		// Same StatusUse the CLI transition write passes (GDK-1521): a bare
+		// claim on a board with a phantom same-named In Progress must land
+		// on the destination the mirror holds in use, not on payload order.
+		if _, err := transition.Apply(ctx, o, cfg, transition.Request{
+			Key:       req.Key,
+			Target:    target,
+			StatusUse: req.StatusUse,
+		}); err != nil {
 			return Result{}, err
 		}
 	}

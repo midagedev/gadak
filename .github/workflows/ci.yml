@@ -79,6 +79,16 @@ jobs:
       - name: Go tests
         run: bash tools/sourcelint.sh
 
+      # Two shell gates that close defect classes rather than lines
+      # (GDK-1670, GDK-1747): every e2e assertion whose expected value is
+      # age-shaped must declare whether it is stubbed or a fixture constant,
+      # and the backlog scrubber must read decoded text so a masked host is
+      # not mistaken for a tenant.
+      - name: Fixture-age census and scrub-check fixtures
+        run: |
+          bash tools/e2e-fixture-age-check.sh
+          bash tools/backlog-scrub-check-test.sh
+
       - name: Frontend typecheck
         run: npm run typecheck
 

@@ -221,3 +221,14 @@ func (db *DB) CountAttachments(ctx context.Context) (int, error) {
 	err := db.sql.QueryRowContext(ctx, `SELECT COUNT(*) FROM attachments`).Scan(&n)
 	return n, err
 }
+
+// CountDevLinks is how many development-panel rows the mirror holds, and
+// over how many issues. doctor pairs it with config.MirrorsDevLinks so an
+// empty table reads as "not synced" rather than "really zero" (GDK-1496):
+// on a connected Cloud workspace the fetch is off by default, and the two
+// states were indistinguishable from SQL alone.
+func (db *DB) CountDevLinks(ctx context.Context) (rows, issues int, err error) {
+	err = db.sql.QueryRowContext(ctx,
+		`SELECT COUNT(*), COUNT(DISTINCT item_id) FROM dev_links`).Scan(&rows, &issues)
+	return rows, issues, err
+}

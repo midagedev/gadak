@@ -91,6 +91,11 @@ test.describe('learned stale threshold', () => {
     await expect(mark).toHaveAttribute('data-stale-band', band)
     // G7: when the rule was learned, the title says what the line is and
     // where it came from, sample count beside the number.
+    // fixture-age: stubbed — the sample count and the 90-day window come from
+    // mockFlow, not from the fixture's clock. The one age this spec does read
+    // (ageClock above) is fed through the production function rather than
+    // asserted as a literal, which is why no wording here can go stale
+    // (GDK-1670).
     await expect(mark).toHaveAttribute('title', /85% of the 20 issues finished in the last 90 days/)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])

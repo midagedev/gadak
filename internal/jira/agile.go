@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 )
 
 // The Agile API is the one surface where Cloud and Server agree: same
@@ -61,6 +63,57 @@ func (c *Client) Boards(ctx context.Context) ([]Board, error) {
 	return out, err
 }
 
+// BoardsForProject lists the boards of one project. Server's plain board
+// listing carries no location, so ProjectKey lands empty on every row
+// (GDK-1665, measured on Jira Software 11.3.11 DC); scoping the same listing
+// by project is how the mapping comes back for a project the workspace
+// configures, at one request per project rather than one per board.
+func (c *Client) BoardsForProject(ctx context.Context, projectKey string) ([]Board, error) {
+	var out []Board
+	err := c.agilePage(ctx, agileBase+"/board?projectKeyOrId="+url.QueryEscape(projectKey), func(raw json.RawMessage) error {
+		var page []Board
+		if err := json.Unmarshal(raw, &page); err != nil {
+			return err
+		}
+		for _, b := range page {
+			if b.Location != nil {
+				b.ProjectKey = b.Location.ProjectKey
+			}
+			out = append(out, b)
+		}
+		return nil
+	})
+	return out, err
+}
+
+// BoardProject answers which project one board belongs to — the per-board
+// fallback for a board no configured project's listing claimed (GDK-1665).
+// The route answers a paged envelope on Jira Software and a bare project
+// object on some deployments; both shapes are read, and an empty answer is
+// not an error — the board simply stays unmapped.
+func (c *Client) BoardProject(ctx context.Context, boardID int64) (string, error) {
+	var body struct {
+		Key    string `json:"key"`
+		Values []struct {
+			Key string `json:"key"`
+		} `json:"values"`
+	}
+	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("%s/board/%d/project", agileBase, boardID), nil, &body); err != nil {
+		var e *APIError
+		if errors.As(err, &e) && (e.Status == http.StatusNotFound || e.Status == http.StatusForbidden || e.Status == http.StatusBadRequest) {
+			return "", ErrNoAgile
+		}
+		return "", err
+	}
+	if body.Key != "" {
+		return body.Key, nil
+	}
+	if len(body.Values) > 0 {
+		return body.Values[0].Key, nil
+	}
+	return "", nil
+}
+
 // Sprints lists one board's sprints, every state.
 func (c *Client) Sprints(ctx context.Context, boardID int64) ([]Sprint, error) {
 	var out []Sprint
@@ -86,7 +139,11 @@ func (c *Client) agilePage(ctx context.Context, path string, take func(json.RawM
 			IsLast     bool            `json:"isLast"`
 			Values     json.RawMessage `json:"values"`
 		}
-		p := fmt.Sprintf("%s?startAt=%d&maxResults=50", path, startAt)
+		sep := "?"
+		if strings.Contains(path, "?") {
+			sep = "&"
+		}
+		p := fmt.Sprintf("%s%sstartAt=%d&maxResults=50", path, sep, startAt)
 		if err := c.do(ctx, http.MethodGet, p, nil, &page); err != nil {
 			// do wraps the APIError with the request path, so the status
 			// has to be unwrapped for — a plain assertion misses every

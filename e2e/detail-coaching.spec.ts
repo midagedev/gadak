@@ -191,6 +191,9 @@ test.describe('detail coaching moments', () => {
 
     const chip = page.getByTestId('duration-chip')
     await expect(chip).toBeVisible()
+    // fixture-age: stubbed — mockFlow above puts cycle_p85_hours on the wire,
+    // so both the 9d and the 90-day window are the mock's, never a distance
+    // from the committed fixture's stamp (GDK-1670).
     await expect(chip).toHaveAttribute(
       'title',
       /team p85 9d \(issues finished in the last 90 days\)/,

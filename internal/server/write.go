@@ -572,6 +572,10 @@ func (s *server) handleTransition(w http.ResponseWriter, r *http.Request) {
 			Resolution: body.Resolution,
 			Fields:     body.Fields,
 			Comment:    body.Comment,
+			// The mirror tiebreak the CLI write already carries (GDK-1521):
+			// two same-named destinations fold, and this surface must pick
+			// the one the project actually uses, not payload order.
+			StatusUse: transition.MirrorStatusUse(ctx, s.db, key),
 		})
 		if err != nil {
 			return nil, err

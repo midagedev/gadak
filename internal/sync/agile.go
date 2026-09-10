@@ -17,7 +17,10 @@ import (
 // (GDK-1654). A site without Jira Software has no Agile API at all and says
 // so once, quietly — that is not a failed sync. As with filters, a failure
 // leaves the previous rows: a board-list 500 must not undo an issue pass.
-func importAgile(ctx context.Context, c *jira.Client, db *store.DB, opts Options) {
+// cfg is read only for its project list, which scopes the board→project
+// backfill (GDK-1665); nil is a workspace with no configured projects and
+// takes the per-board fallback for every unmapped board.
+func importAgile(ctx context.Context, c *jira.Client, cfg *config.Config, db *store.DB, opts Options) {
 	boards, err := c.Boards(ctx)
 	if err != nil {
 		if errors.Is(err, jira.ErrNoAgile) {
@@ -26,6 +29,7 @@ func importAgile(ctx context.Context, c *jira.Client, db *store.DB, opts Options
 		opts.logf("boards: skipped (%v)", err)
 		return
 	}
+	backfillBoardProjects(ctx, c, cfg, boards, opts)
 	rows := make([]store.BoardRow, 0, len(boards))
 	sprints := make([]store.SprintRow, 0, len(boards))
 	seen := map[int64]bool{}
@@ -100,8 +104,72 @@ func RefreshAgile(ctx context.Context, cfg *config.Config, db *store.DB, src str
 	if err != nil {
 		return err
 	}
-	importAgile(ctx, c, db, Options{})
+	importAgile(ctx, c, cfg, db, Options{})
 	return nil
+}
+
+// backfillBoardProjects fills ProjectKey on the boards the listing left
+// empty. Cloud's /board carries location.projectKey on every row; Jira
+// Server carries none, so without this every boards.project_key on a Server
+// workspace is the empty string and the board→project mapping is gone
+// (GDK-1665, measured on Jira Software 11.3.11 DC).
+//
+// Two reads, cheapest first, because importAgile runs every tick
+// (GDK-1661): ② one project-scoped listing per *configured* project, which
+// maps every board of the projects the workspace actually watches; then ①
+// one /board/{id}/project per board still unmapped — boards of projects the
+// config does not name, and every board on a workspace configuring none. A
+// listing that already answered (Cloud) leaves both loops with nothing to
+// do and costs no request.
+func backfillBoardProjects(ctx context.Context, c *jira.Client, cfg *config.Config, boards []jira.Board, opts Options) {
+	unmapped := func() bool {
+		for i := range boards {
+			if boards[i].ProjectKey == "" {
+				return true
+			}
+		}
+		return false
+	}
+	if !unmapped() {
+		return
+	}
+	byID := map[int64]int{}
+	for i := range boards {
+		byID[boards[i].ID] = i
+	}
+	if cfg != nil {
+		for _, project := range cfg.Projects {
+			project = strings.TrimSpace(project)
+			if project == "" || !unmapped() {
+				continue
+			}
+			scoped, err := c.BoardsForProject(ctx, project)
+			if err != nil {
+				if !errors.Is(err, jira.ErrNoAgile) {
+					opts.logf("boards: project %s listing skipped (%v)", project, err)
+				}
+				continue
+			}
+			for _, b := range scoped {
+				if i, ok := byID[b.ID]; ok && boards[i].ProjectKey == "" {
+					boards[i].ProjectKey = project
+				}
+			}
+		}
+	}
+	for i := range boards {
+		if boards[i].ProjectKey != "" {
+			continue
+		}
+		key, err := c.BoardProject(ctx, boards[i].ID)
+		if err != nil {
+			if !errors.Is(err, jira.ErrNoAgile) {
+				opts.logf("boards: board %d project skipped (%v)", boards[i].ID, err)
+			}
+			continue
+		}
+		boards[i].ProjectKey = key
+	}
 }
 
 // SprintIssueKeys are the mirrored keys sitting in one sprint — what a state

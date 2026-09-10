@@ -206,7 +206,15 @@ serve 플래그를 유닛에 그대로 싣고, 설치 시점에 serve 파서로 
 서버가 거절하면 어떤 거절인지 말합니다 — 이 폰을 모르는 origin 검사인지, 거절된
 페어링인지, serve 스코프가 없는 오퍼인지 ([GDK-1121]). 복사가 실패하면 아무 일도
 없던 대신 토스트가 뜹니다 ([GDK-1504]). 폰에서 읽은 것도 창이 쓰는 것과 같은 방문
-기록에 남습니다 ([GDK-1538]).
+기록에 남습니다 ([GDK-1538]). 비어 있는 `dev_links` 테이블은 아주 다른 두
+가지를 뜻했습니다 — PR이 없거나, 애초에 물어본 적이 없거나. 어느 쪽인지 말해 주는
+것이 없었습니다. 이제 `gadak doctor` 와 `gadak status --json` 이 이 워크스페이스가
+개발 패널을 미러링하기는 하는지 알려 줍니다. 동기화가 보는 것과 같은 플래그라 둘이
+어긋날 수 없습니다 ([GDK-1496]). 접힌 그룹은 CLI, REST 쓰기, `gadak claim` 어디서
+풀어도 같은 결론이 납니다 — 미러 사용량 타이브레이크의 소유자가 셋에서 하나가
+됐습니다 ([GDK-1521]). 셀프호스트 Jira 의 보드는 자기 프로젝트를 압니다. Server 는
+보드 위치를 Cloud 와 다르게 답하므로, 키를 비워 두는 대신 보드마다 채웁니다
+([GDK-1665]).
 
 ## v0.21.0 — 2026-09-08
 
@@ -1673,6 +1681,9 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1700]: https://gadak.dev/backlog/#/?ks=GDK-1700
 [GDK-1702]: https://gadak.dev/backlog/#/?ks=GDK-1702
 [GDK-1323]: https://gadak.dev/backlog/#/?ks=GDK-1323
+[GDK-1496]: https://gadak.dev/backlog/#/?ks=GDK-1496
+[GDK-1521]: https://gadak.dev/backlog/#/?ks=GDK-1521
+[GDK-1665]: https://gadak.dev/backlog/#/?ks=GDK-1665
 [GDK-1121]: https://gadak.dev/backlog/#/?ks=GDK-1121
 [GDK-1150]: https://gadak.dev/backlog/#/?ks=GDK-1150
 [GDK-1504]: https://gadak.dev/backlog/#/?ks=GDK-1504

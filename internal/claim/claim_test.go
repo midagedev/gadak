@@ -243,6 +243,62 @@ func TestApplyCloudFallbackFresh(t *testing.T) {
 	}
 }
 
+// foldedInProgress is the GDK-1521 payload, identical to the one the REST
+// and internal/transition tests resolve: two transitions onto statuses that
+// display the same name in the same category, so PickTransitionWith folds
+// them, and the pick inside the group is the mirror tiebreak. Destination
+// 10099 is the cutover phantom with zero issues; 3 is the one the mirror
+// holds in use. Payload order answers 81.
+func foldedInProgress() []jira.Transition {
+	real := jira.Status{ID: "3", Name: "In Progress"}
+	real.StatusCategory.Key = "indeterminate"
+	phantom := jira.Status{ID: "10099", Name: "In Progress"}
+	phantom.StatusCategory.Key = "indeterminate"
+	return []jira.Transition{
+		{ID: "81", Name: "Phantom start", To: phantom},
+		{ID: "11", Name: "Start", To: real},
+	}
+}
+
+// TestApplyCloudFallbackPicksInUseMirrorStatus — `gadak claim`'s Cloud
+// fallback carries the same mirror tiebreak the CLI transition write does
+// (GDK-1521): a bare claim on a board with a phantom duplicate of In
+// Progress must land on the destination the project actually uses, not on
+// whichever same-named status happens to sit first in the payload.
+//
+// FAIL-first: against the pre-fix claim this test fired transition 81.
+func TestApplyCloudFallbackPicksInUseMirrorStatus(t *testing.T) {
+	f := &fakeOrigin{
+		me:          me,
+		st:          toDoStatus(),
+		transitions: foldedInProgress(),
+		claimErr:    &jira.APIError{Status: 404, Messages: []string{"no route"}},
+	}
+	_, err := Apply(context.Background(), f, nil, Request{
+		Key: "NMB-1",
+		// The mirror's answer: status 3 holds 47 issues, the phantom 10099
+		// zero — the counts a real mirror gives this closure.
+		StatusUse: func(statusID string) int {
+			if statusID == "3" {
+				return 47
+			}
+			return 0
+		},
+	})
+	if err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	var fired string
+	for _, c := range f.calls {
+		if strings.HasPrefix(c, "transition:") {
+			fired = c
+		}
+	}
+	if fired != "transition:11" {
+		t.Fatalf("fallback fired %q, want transition:11 — the in-use destination, not payload order's 81", fired)
+	}
+}
+
 // Cloud, in progress and held by someone else: refused locally, no writes —
 // the same judgment the atomic route makes, with no route to hide behind.
 func TestApplyCloudFallbackTaken(t *testing.T) {

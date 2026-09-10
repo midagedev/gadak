@@ -107,6 +107,21 @@ type doctorReport struct {
 	// "what shape are the attachments in here?" is one command rather than
 	// a directory walk plus a SQL query (GDK-1616/1615).
 	Attachments *doctorAttachments `json:"attachments,omitempty"`
+	// DevLinks answers the question an empty dev_links table cannot
+	// (GDK-1496): is this workspace mirroring the development panel at
+	// all? A connected Cloud workspace has the fetch off by default, so
+	// zero rows there means "not synced", not "no pull requests" — and
+	// SQL alone cannot tell those apart.
+	DevLinks *doctorDevLinks `json:"dev_links,omitempty"`
+}
+
+// doctorDevLinks is counts plus the one flag that explains them. No URLs,
+// no issue keys — the same paste-safe rule as every other section.
+type doctorDevLinks struct {
+	Mirrored bool   `json:"mirrored"`
+	Rows     int    `json:"rows"`
+	Issues   int    `json:"issues"`
+	Origin   string `json:"origin,omitempty"`
 }
 
 // doctorAttachments is counts only, like every other section of this
@@ -599,6 +614,7 @@ func collectDoctor() doctorReport {
 	}
 
 	rep.Attachments = collectAttachments(db)
+	rep.DevLinks = collectDevLinks(db)
 
 	// Only a built-in origin ever had the 8 MiB upload cap. The gate is the
 	// origin type the attachment proxy itself keys on (config.OriginGadak),
@@ -1110,6 +1126,9 @@ func formatDoctorText(r doctorReport) string {
 	}
 	if r.Attachments != nil {
 		line("attachments", formatDoctorAttachments(*r.Attachments))
+	}
+	if r.DevLinks != nil {
+		line("dev_links", formatDoctorDevLinks(*r.DevLinks))
 	}
 	if r.AttachmentsMaybeTruncated != nil {
 		line("attachments_maybe_truncated", attachaudit.Summary(*r.AttachmentsMaybeTruncated))
@@ -1673,4 +1692,39 @@ func formatDoctorAttachments(a doctorAttachments) string {
 		s += " at " + a.CacheDir
 	}
 	return s
+}
+
+// collectDevLinks reports whether this workspace mirrors the development
+// panel, and how much of it landed (GDK-1496). The flag comes from
+// config.MirrorsDevLinks — the same owner sync consults — so doctor can
+// never claim a state the sync does not act on.
+func collectDevLinks(db *store.DB) *doctorDevLinks {
+	rows, issues, err := db.CountDevLinks(context.Background())
+	if err != nil {
+		return nil
+	}
+	out := &doctorDevLinks{Rows: rows, Issues: issues}
+	if cfg, err := config.Load(); err == nil && cfg != nil {
+		out.Mirrored = cfg.MirrorsDevLinks()
+		out.Origin = cfg.OriginType()
+	}
+	return out
+}
+
+// formatDoctorDevLinks is the one line that separates "no pull requests" from
+// "this workspace never asked" — the GDK-1496 confusion.
+func formatDoctorDevLinks(d doctorDevLinks) string {
+	if !d.Mirrored {
+		s := "not synced"
+		if d.Origin == config.OriginLinear {
+			s += " (Linear has no development panel)"
+		} else if d.Origin != "" {
+			s += " (devStatus off; `gadak config set devStatus true`)"
+		}
+		if d.Rows > 0 {
+			s += fmt.Sprintf("; %d stale rows over %d issues", d.Rows, d.Issues)
+		}
+		return s
+	}
+	return fmt.Sprintf("synced, %d rows over %d issues", d.Rows, d.Issues)
 }

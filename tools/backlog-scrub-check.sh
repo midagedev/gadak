@@ -96,6 +96,24 @@ DATA_FILES=("$BOOT")
 [ -f "$DIR/config.json" ] && DATA_FILES+=("$DIR/config.json")
 [ -d "$DIR/detail" ] && while IFS= read -r f; do DATA_FILES+=("$f"); done \
   < <(find "$DIR/detail" -name '*.json')
+
+# Scan the decoded text, not the file bytes (GDK-1747). The exporter writes
+# JSON with Go's encoding/json, whose default SetEscapeHTML turns < > & into
+# six-byte \u escapes — so a masked host written with angle brackets around
+# the word "redacted" reached this gate with the escape's own letters glued
+# to the domain, and the host regex read that as a concrete tenant. The issue
+# could not be published at all.
+#
+# Decoding first is strictly better in both directions: the masking notation
+# decodes back to an angle bracket before the dot, where the host regex finds
+# nothing, while a REAL tenant hidden behind an escape decodes to the name
+# that actually leaks and still fails. jq re-serializes those characters
+# literal, so one jq pass over the data files is the decode. No example host
+# is written out in this file — scripts/scan-internal.sh rejects one in a
+# tracked file, and it is right to; the cases live in
+# tools/backlog-scrub-check-test.sh, which composes them at runtime.
+CORPUS="$(jq -c . "${DATA_FILES[@]}")"
+
 # Allowlist per match, not per line. The old form piped `grep -n` into
 # `grep -v`, which drops a whole LINE when the placeholder appears anywhere on
 # it — and bootstrap.json is a single line. One issue summary mentioning
@@ -105,7 +123,7 @@ DATA_FILES=("$BOOT")
 # Extracting the hosts with -o and filtering those is the same intent,
 # actually enforced. The example host is deliberately not written out here —
 # scripts/scan-internal.sh rejects one in a tracked file, and it is right to.
-hosts="$(grep -ohE '[A-Za-z0-9._-]+\.atlassian\.net' "${DATA_FILES[@]}" | sort -u \
+hosts="$(printf '%s\n' "$CORPUS" | grep -ohE '[A-Za-z0-9._-]+\.atlassian\.net' | sort -u \
   | grep -vxE '(your-site|your-team|example|x)\.atlassian\.net' || true)"
 [ -z "$hosts" ] || fail "concrete Jira site URL in snapshot data: $(echo "$hosts" | tr '\n' ' ')"
 
@@ -116,14 +134,14 @@ hosts="$(grep -ohE '[A-Za-z0-9._-]+\.atlassian\.net' "${DATA_FILES[@]}" | sort -
 # quotes the channel is not disclosing it. Every other address still fails.
 # Widened 2026-08-20 when descriptions started publishing (GDK-430); before
 # that the snapshot carried no prose for an address to appear in.
-mails="$(grep -ohE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' "${DATA_FILES[@]}" | sort -u \
+mails="$(printf '%s\n' "$CORPUS" | grep -ohE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' | sort -u \
   | grep -vxE '([A-Za-z0-9._%+-]+@example\.(com|org|net)|midagedev@gmail\.com)' || true)"
 [ -z "$mails" ] || fail "email address in snapshot data: $(echo "$mails" | tr '\n' ' ')"
 
 # A home directory names its owner and says what machine wrote the issue. Three
 # GDK bodies carried one (`/Users/<name>/repo/issuetap`) and would have shipped
 # it the moment descriptions were published.
-homes="$(grep -ohE '(/Users|/home)/[A-Za-z0-9._-]+' "${DATA_FILES[@]}" | sort -u || true)"
+homes="$(printf '%s\n' "$CORPUS" | grep -ohE '(/Users|/home)/[A-Za-z0-9._-]+' | sort -u || true)"
 [ -z "$homes" ] || fail "home directory path in snapshot data: $(echo "$homes" | tr '\n' ' ')"
 
 # Real names must not come back. The list of them is deliberately NOT in this
@@ -137,7 +155,9 @@ if [ -n "${BACKLOG_NAME_DENYLIST:-}" ] && [ -f "$BACKLOG_NAME_DENYLIST" ]; then
   found=""
   while IFS= read -r n; do
     [ -n "$n" ] || continue
-    if grep -oiqE "(^|[^A-Za-z0-9])$n([^A-Za-z0-9]|$)" "${DATA_FILES[@]}" 2>/dev/null; then
+    # Same decoded corpus as the host/mail scans: a name written as a
+    # six-byte escape is still a name (GDK-1747's class).
+    if printf '%s\n' "$CORPUS" | grep -oiqE "(^|[^A-Za-z0-9])$n([^A-Za-z0-9]|$)"; then
       found="$found $n"
     fi
   done <<< "$names"

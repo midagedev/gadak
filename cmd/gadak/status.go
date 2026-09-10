@@ -166,6 +166,18 @@ func cmdStatus(args []string) error {
 	}
 	st["wiki"] = wiki
 
+	// GDK-1496: an empty dev_links table means one of two very different
+	// things — no pull requests, or a workspace that never asks. The flag
+	// is config.MirrorsDevLinks, the same owner sync consults, so the two
+	// surfaces can never disagree.
+	if rows, issues, err := db.CountDevLinks(ctx); err == nil {
+		st["dev_links"] = map[string]any{
+			"mirrored": cfg.MirrorsDevLinks(),
+			"rows":     rows,
+			"issues":   issues,
+		}
+	}
+
 	if *asJSON {
 		return json.NewEncoder(os.Stdout).Encode(st)
 	}

@@ -1407,3 +1407,26 @@ func (c *Config) CustomFieldsStatus() map[string]any {
 	}
 	return out
 }
+
+// MirrorsDevLinks reports whether this workspace's sync fills the dev_links
+// table at all. It is the single owner of that question (GDK-1496): sync
+// asks it to decide whether to fetch, and doctor/status ask it to tell an
+// empty table apart from a table that was never filled.
+//
+// gadak's own tracker — built-in or paired — always mirrors the development
+// panel: the read is in-process or one hop, and the DevStatus flag must not
+// drain it (GDK-536). A connected Jira is opt-in, because the fetch goes to
+// Atlassian's internal /rest/dev-status API and costs a request per issue.
+// Linear has no development panel, so it is never on.
+func (c *Config) MirrorsDevLinks() bool {
+	if c == nil {
+		return false
+	}
+	switch c.OriginType() {
+	case OriginGadak:
+		return true
+	case OriginLinear:
+		return false
+	}
+	return c.DevStatus
+}

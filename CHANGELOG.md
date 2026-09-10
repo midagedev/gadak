@@ -291,7 +291,16 @@ them there ([GDK-1150]). A server that refuses now says which refusal it was —
 an origin check that does not know this phone, a rejected pairing, an offer
 carrying no serve scope ([GDK-1121]) — and a copy that fails raises a toast
 instead of nothing at all ([GDK-1504]). What you read on the phone lands in the
-same visit history the window writes ([GDK-1538]).
+same visit history the window writes ([GDK-1538]). An empty `dev_links` table used to mean two very
+different things — no pull requests, or a workspace that never asks — and
+nothing said which. `gadak doctor` and `gadak status --json` now report
+whether this workspace mirrors the development panel at all, off the same
+flag sync consults, so the two can never disagree ([GDK-1496]). A folded
+group resolves the same way from the CLI, a REST write and `gadak claim`,
+because the mirror-usage tiebreak has one owner instead of three
+([GDK-1521]). And a board on a self-hosted Jira knows its project: Server
+answers the board location differently from Cloud, so the key is backfilled
+per board rather than left blank ([GDK-1665]).
 
 ## v0.21.0 — 2026-09-08
 
@@ -1824,6 +1833,9 @@ priority sorting keyed on `priority_rank`.
 [GDK-1700]: https://gadak.dev/backlog/#/?ks=GDK-1700
 [GDK-1702]: https://gadak.dev/backlog/#/?ks=GDK-1702
 [GDK-1323]: https://gadak.dev/backlog/#/?ks=GDK-1323
+[GDK-1496]: https://gadak.dev/backlog/#/?ks=GDK-1496
+[GDK-1521]: https://gadak.dev/backlog/#/?ks=GDK-1521
+[GDK-1665]: https://gadak.dev/backlog/#/?ks=GDK-1665
 [GDK-1121]: https://gadak.dev/backlog/#/?ks=GDK-1121
 [GDK-1150]: https://gadak.dev/backlog/#/?ks=GDK-1150
 [GDK-1504]: https://gadak.dev/backlog/#/?ks=GDK-1504

@@ -2,9 +2,11 @@
  * Bot workers on the web (GDK-590). The serve.sh fixture injects one agent
  * account (acc-e2e-bot, "Claude (build 1)") touching NMB-112 (comment) and
  * NMB-139 (comment + a dev-panel PR link it attached). NMB-139 also has the
- * deterministic wait span: created 14:56:24.755Z → first in-progress
- * 15:03:12.577Z on 2026-07-20 = 6m47s → "Waited 6m". Progress runs to Now,
- * so only its presence is asserted, never its number.
+ * deterministic wait span: created → first in-progress, a distance between
+ * two stored timestamps and so a constant of the fixture, not of its age
+ * (GDK-1720 re-pinned it from "Waited 6m" to "Waited 1d" when issue
+ * lifetimes stopped being seconds wide). Progress runs to Now, so only its
+ * presence is asserted, never its number.
  */
 import { type Page } from '@playwright/test'
 import { test, expect } from './helpers'
@@ -70,6 +72,9 @@ test.describe('bot workers (GDK-590)', () => {
     // constant of examples/demo.db, so a regen that re-times the history
     // re-pins it here (GDK-1720 moved it from 6m to 1d when issue lifetimes
     // stopped being seconds wide).
+    // fixture-age: constant — a span between two stored timestamps. It does
+    // not move as the committed fixture ages, so a regeneration re-pins it
+    // but the passage of time does not (GDK-1670).
     await expect(chip).toContainText('Waited 1d')
     // In progress runs to now — presence only, the number would be a flake.
     await expect(chip).toContainText('In progress')

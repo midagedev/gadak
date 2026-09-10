@@ -13,6 +13,9 @@
 //	testdata                per-package fixtures
 //	scratch                 gitignored working notes
 //	examples                shipped fixtures (demo.db and friends), never code
+//	"test-results" prefix   Playwright artifacts, wiped and recreated by
+//	                        parallel e2e runs — racing a wipe is the GDK-1486
+//	                        flake; no .go file ever lives there anyway
 //
 // Rules stay in their own packages, next to the code they lock; this package
 // owns only the walk, the skip list, slash-relative paths, parsing, and the
@@ -23,6 +26,7 @@
 package archlint
 
 import (
+	"errors"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -76,10 +80,16 @@ func (f *File) Src() ([]byte, error) {
 // in filepath.WalkDir order (lexical within each directory). Production and
 // test files are both delivered; each rule filters by suffix and prefix
 // itself. Rel is slash-separated on every platform. An error returned by
-// visit aborts the walk and is returned unchanged, as are walk errors.
+// visit aborts the walk and is returned unchanged, as are walk errors —
+// except ENOENT: a directory another process removed mid-walk (a parallel
+// Playwright run wiping test-results/, GDK-1486) skips quietly instead of
+// failing the whole gate over a path that never held source.
 func Walk(root string, visit func(f *File) error) error {
 	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil
+			}
 			return err
 		}
 		if d.IsDir() {
@@ -104,6 +114,9 @@ func Walk(root string, visit func(f *File) error) error {
 // directories (.git/.claude only vs. all) — the wider rule is the union.
 func skipDir(name string) bool {
 	if strings.HasPrefix(name, ".") {
+		return true
+	}
+	if strings.HasPrefix(name, "test-results") {
 		return true
 	}
 	switch name {

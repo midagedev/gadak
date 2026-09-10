@@ -27,6 +27,12 @@ func TestWalkSkipsUnionList(t *testing.T) {
 		"testdata/td.go",
 		"scratch/s.go",
 		"examples/demo.go",
+		// Playwright artifact dirs (GDK-1486): wiped and recreated by a
+		// parallel e2e run — never source, and racing a wipe is what made
+		// the repo-root walk flake. The demo configs name them
+		// test-results-search / -sprint / …, so the skip is a prefix.
+		"test-results/tr/g.go",
+		"test-results-retro/trr.go",
 		"e2e/spec.ts", // not Go
 	}
 	for _, rel := range files {

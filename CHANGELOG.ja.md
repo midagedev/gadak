@@ -229,7 +229,15 @@ Jira に遅れること、トークンの置き場所、拒否された書き込
 拒否したときは、どの拒否かを言います — この端末を知らない origin チェックか、拒否された
 ペアリングか、serve スコープのないオファーか ([GDK-1121])。コピーが失敗すれば、何も
 起きないのではなくトーストが出ます ([GDK-1504])。スマートフォンで読んだものも、
-ウィンドウが書くのと同じ訪問履歴に残ります ([GDK-1538])。
+ウィンドウが書くのと同じ訪問履歴に残ります ([GDK-1538])。空の `dev_links` テーブルは、まったく違う二つのことを
+意味していました — プルリクエストがないのか、そもそも尋ねていないのか。どちらなのかを
+言うものがありませんでした。`gadak doctor` と `gadak status --json` が、このワークスペースが
+そもそも開発パネルをミラーしているのかを示します。同期が見るのと同じフラグなので、二つが
+食い違うことはありません ([GDK-1496])。畳まれたグループは、CLI からも REST の書き込みからも
+`gadak claim` からも同じように解けます — ミラー使用量のタイブレークの持ち主が三つから一つに
+なりました ([GDK-1521])。セルフホストの Jira のボードは自分のプロジェクトを知っています。
+Server はボードの位置を Cloud とは違う形で答えるため、キーを空のままにせずボードごとに
+埋めます ([GDK-1665])。
 
 ## v0.21.0 — 2026-09-08
 
@@ -1774,6 +1782,9 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1700]: https://gadak.dev/backlog/#/?ks=GDK-1700
 [GDK-1702]: https://gadak.dev/backlog/#/?ks=GDK-1702
 [GDK-1323]: https://gadak.dev/backlog/#/?ks=GDK-1323
+[GDK-1496]: https://gadak.dev/backlog/#/?ks=GDK-1496
+[GDK-1521]: https://gadak.dev/backlog/#/?ks=GDK-1521
+[GDK-1665]: https://gadak.dev/backlog/#/?ks=GDK-1665
 [GDK-1121]: https://gadak.dev/backlog/#/?ks=GDK-1121
 [GDK-1150]: https://gadak.dev/backlog/#/?ks=GDK-1150
 [GDK-1504]: https://gadak.dev/backlog/#/?ks=GDK-1504

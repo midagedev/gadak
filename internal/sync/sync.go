@@ -538,7 +538,7 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	// the only observation path that change has. The quiet tick's price is
 	// one board request on a site without Jira Software (ErrNoAgile stays
 	// silent) and the board + sprint listings on one with it.
-	importAgile(ctx, c, db, opts)
+	importAgile(ctx, c, cfg, db, opts)
 	// The pass that just refreshed the mirror is the one place the config↔
 	// mirror rename signature (GDK-973) is observable in passing.
 	warnProjectScopeMismatch(ctx, cfg, db, opts)
@@ -1637,10 +1637,10 @@ func jqlTime(watermark string) string {
 // paired-to-built-in (embedded / serve-passthrough issuetap) always fetch
 // — the panel is local and the flag must not drain it (GDK-536).
 func shouldFetchDevLinks(cfg *config.Config, c *jira.Client) bool {
-	if cfg != nil && cfg.DevStatus {
-		return true
-	}
-	if cfg != nil && cfg.HasBuiltInOrigin() {
+	// The single owner of "does this workspace mirror dev links"
+	// (GDK-1496) — the same answer doctor and status report, so an empty
+	// dev_links table can be told apart from one that is never filled.
+	if cfg.MirrorsDevLinks() {
 		return true
 	}
 	if c != nil && c.HTTP != nil {
