@@ -6,8 +6,23 @@
  * close semantics (clear selection vs. dismiss vs. cancel).
  */
 
-const FOCUSABLE =
-  'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+// Every clause carries :not([tabindex="-1"]), not just the generic one
+// (GDK-142 V3). A roving tabindex — the settings tablist, where only the
+// selected tab is tabbable — parks tabindex="-1" on real <button>s, and
+// `button:not([disabled])` matched them anyway: Shift+Tab off the first
+// control landed on a tab the browser itself would never stop at, and the
+// wrap-around cycled through nine tabs the role exists to collapse into one
+// stop. The trap's idea of "focusable" now says what the browser's does.
+export const FOCUSABLE = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]',
+]
+  .map((s) => `${s}:not([tabindex="-1"])`)
+  .join(',')
 
 export function trapFocus(node: HTMLElement) {
   const previous = document.activeElement as HTMLElement | null

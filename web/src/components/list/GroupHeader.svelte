@@ -7,6 +7,7 @@
   import type { IssueGroup } from '../../stores/filters.svelte'
   import { selection } from '../../stores/selection.svelte'
   import { categoryMetaOf } from '../../lib/format'
+  import StatusDot from '../ui/StatusDot.svelte'
   import type { StatusCategory } from '../../lib/view-config'
 
   let {
@@ -56,7 +57,7 @@
       {#each order as c (c)}
         {#if group.counts.category[c] > 0}
           <span class="flex items-center gap-1 text-micro text-text-muted" title={categoryMetaOf(c).label}>
-            <span class="h-1.5 w-1.5 rounded-full" style:background={categoryMetaOf(c).color}></span>
+            <StatusDot cat={c} />
             {group.counts.category[c]}
           </span>
         {/if}

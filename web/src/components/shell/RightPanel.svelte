@@ -48,7 +48,7 @@
   class="issue-detail-panel h-full overflow-hidden bg-bg-panel"
   class:is-open={open}
   class:border-l={open}
-  class:border-border-subtle={open}
+  class:border-border-strong={open}
   aria-hidden={!open}
   role={modal ? 'dialog' : undefined}
   aria-modal={modal ? 'true' : undefined}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { t, locale } from '../../lib/i18n'
   import Icon from '../ui/Icon.svelte'
+  import MeterBar from '../ui/MeterBar.svelte'
   import { config } from '../../lib/config'
   import type { QaIssueContext, QaRunContext, QaSuiteRef } from '../../lib/types'
 
@@ -73,12 +74,7 @@
             </span>
           </div>
           <div class="mt-2 flex items-center gap-2 text-micro text-text-muted tabular-nums">
-            <div class="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-bg-elevated">
-              <div
-                class="h-full rounded-full bg-text-muted/50"
-                style:width={`${Math.max(0, Math.min(100, Math.round(run.completion * 100)))}%`}
-              ></div>
-            </div>
+            <MeterBar percent={Math.round(run.completion * 100)} width="flex-1" />
             <span>{Math.round(run.completion * 100)}%</span>
             <span>{run.executed}/{run.total}</span>
           </div>

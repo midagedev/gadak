@@ -9,6 +9,7 @@
    *    without account_id (backend lag etc.) re-resolve via users/ by email/name.
    */
   import { t, collator } from '../../lib/i18n'
+  import { EMPTY_VALUE } from '../../lib/chrome'
   import type { IssueLite, JiraUser } from '../../lib/types'
   import { ApiError, searchUsersFor } from '../../lib/api'
   import {
@@ -210,7 +211,7 @@
       <Avatar name={issue.assignee} email={issue.assignee_email} accountId={issue.assignee_id} size={16} />
       <span class="text-text-secondary">{issue.assignee ?? issue.assignee_email}</span>
     {:else}
-      <span class="text-text-muted italic">{t('common.unassigned')}</span>
+      <span class={EMPTY_VALUE}>{t('common.unassigned')}</span>
     {/if}
     <svg
       width="9"

@@ -20,7 +20,7 @@
      GDK-1585): a prop, not a DOM walk — App renders this frame directly, so
      the overlay verdict reaches it the way every other prop does. -->
 <aside
-  class="issue-sidebar flex h-full flex-none flex-col border-r border-border-subtle bg-bg-panel"
+  class="issue-sidebar flex h-full flex-none flex-col border-r border-border-strong bg-bg-panel"
   {inert}
 >
   <!-- Logo wordmark (no header chrome — density first). When traffic lights

@@ -18,7 +18,8 @@
   import type { IssueLite } from '../../lib/types'
   import { issues } from '../../stores/issues.svelte'
   import { selection } from '../../stores/selection.svelte'
-  import { categoryMetaOf, categoryOf } from '../../lib/format'
+  import { categoryOf } from '../../lib/format'
+  import StatusDot from '../ui/StatusDot.svelte'
 
   let {
     refKeys = [],
@@ -67,13 +68,9 @@
       >
         <!-- The dot's box is kept even when the pool cannot fill it, so the key
              column starts at the same x on every row. -->
-        <span class="h-1.5 w-1.5 flex-none rounded-full" aria-hidden={!row.issue}>
+        <span class="h-1.5 w-1.5 flex-none" aria-hidden={!row.issue}>
           {#if row.issue}
-            <span
-              class="block h-full w-full rounded-full"
-              style:background={categoryMetaOf(categoryOf(row.issue)).color}
-              title={row.issue.status}
-            ></span>
+            <StatusDot cat={categoryOf(row.issue)} title={row.issue.status} class="block" />
           {/if}
         </span>
         <span class="w-[76px] flex-none truncate font-mono text-micro font-medium text-accent-text">

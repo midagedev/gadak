@@ -5,6 +5,8 @@
    * localized name), most urgent first, plus "none" to clear.
    */
   import { t } from '../../lib/i18n'
+  import { EMPTY_VALUE } from '../../lib/chrome'
+  import MeterBar from '../ui/MeterBar.svelte'
   import type { IssueLite, PriorityOption } from '../../lib/types'
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
@@ -160,9 +162,7 @@
   {#snippet share(s: { n: number; pct: number; bar: number } | null)}
     {#if s}
       <span class="ml-auto flex flex-none items-center gap-1.5 pl-2">
-        <span class="h-[3px] w-10 overflow-hidden rounded-full bg-text-muted/15" aria-hidden="true">
-          <span class="block h-full rounded-full bg-text-muted/30" style="width:{s.bar}%"></span>
-        </span>
+        <MeterBar percent={s.bar} height="h-[3px]" width="w-10" class="block flex-none" />
         <span
           class="text-micro text-text-muted tabular-nums"
           data-testid="priority-share"
@@ -192,7 +192,7 @@
     {#if issue.priority}
       {t('detail.priorityShort', { p: issue.priority })}
     {:else}
-      <span class="italic text-text-muted">{t('list.priorityNone')}</span>
+      <span class={EMPTY_VALUE}>{t('list.priorityNone')}</span>
     {/if}
     <svg
       width="9"

@@ -93,6 +93,10 @@
   import { favorites } from '../../stores/favorites.svelte'
   import { me } from '../../stores/me.svelte'
   import { categoryOf, categoryMetaOf, relativeTime, absTime, highlightSegments } from '../../lib/format'
+  // The lead dot is a filter button, not a chip — it keeps its own hover
+  // affordance but borrows StatusDot's size so the vocabulary stays one size
+  // ladder (GDK-142 V10, docs/project/UX_PRINCIPLES.md §16).
+  import { DOT_CLASS } from '../ui/StatusDot.svelte'
   import { calendarDay } from '../../lib/calendar'
   import Marks from '../ui/Marks.svelte'
   import { matchEvidence } from '../../lib/search-match'
@@ -375,7 +379,7 @@
        carry more at that width (GDK-1089). -->
   <button
     type="button"
-    class="lead-fold-1 h-2 w-2 flex-none rounded-full transition-transform hover:scale-125"
+    class="lead-fold-1 {DOT_CLASS.md} flex-none rounded-full transition-transform hover:scale-125"
     style:background={catMeta.color}
     title={t('list.categoryTitle', { label: catMeta.label, status: issue.status })}
     onclick={stop(() => filters.addValue('status_category', cat))}

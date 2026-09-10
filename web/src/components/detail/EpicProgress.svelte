@@ -19,6 +19,8 @@
   import { selection } from '../../stores/selection.svelte'
   import { categoryMetaOf, categoryOf } from '../../lib/format'
   import Section from './Section.svelte'
+  import MeterBar from '../ui/MeterBar.svelte'
+  import StatusDot from '../ui/StatusDot.svelte'
 
   let { issueKey }: { issueKey: string } = $props()
 
@@ -59,14 +61,10 @@
         </span>
         <span class="tabular-nums text-text-muted">{percent}%</span>
       </div>
-      <!-- Same three-bucket vocabulary as the list's status dots, as one bar. -->
-      <div class="h-1 w-full overflow-hidden rounded-full bg-bg-elevated" aria-hidden="true">
-        <div
-          class="h-full rounded-full transition-[width]"
-          style:width="{percent}%"
-          style:background={categoryMetaOf('done').color}
-        ></div>
-      </div>
+      <!-- Same three-bucket vocabulary as the list's status dots, as one bar.
+           Track and geometry belong to MeterBar (GDK-142 V13) — this bar used
+           to carry a bg-elevated track that vanished on its own ground. -->
+      <MeterBar percent={percent} fill={categoryMetaOf('done').color} height="h-1" />
     </div>
 
     <ul class="flex flex-col gap-1">
@@ -78,11 +76,7 @@
             onclick={() => selection.select(child.issue_key, 'epic-progress')}
             class="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-bg-hover"
           >
-            <span
-              class="h-1.5 w-1.5 flex-none rounded-full"
-              style:background={categoryMetaOf(categoryOf(child)).color}
-              title={child.status}
-            ></span>
+            <StatusDot cat={categoryOf(child)} title={child.status} />
             <span class="w-[76px] flex-none truncate font-mono text-micro font-medium text-accent-text">
               {child.issue_key}
             </span>

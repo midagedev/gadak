@@ -560,6 +560,23 @@ the two panels that laid out their own "not found" block by hand use the same
 empty state as everything else, so the message sits where every other one
 does.
 
+A piece of chrome now looks like what it is. In the dark palette the seam
+between the terminal and the list measured 1.28:1 against the panel behind
+it, so two windows read as one body; the fix is not a brighter token but a
+second word — a boundary between two regions is `border-strong` (2.11:1 in
+dark, 1.77 in light), a divider inside one surface stays `border-subtle`, and
+a test names the six seams and checks the two tokens stay two words in all
+four palettes ([GDK-1093]). The epic progress bar drew its empty half in the
+elevated ground it sat on, 1.00:1 — an underline, not a proportion; one
+`MeterBar` now owns track and fill, and the QA-impact bar and the priority
+menu's distribution use it too. A status dot came in three sizes depending on
+the file; `StatusDot` decides colour and size, with the list's lead dot the
+one documented exception. 'Unassigned' (a value that is absent) and 'Add a
+label' (an action) were byte-identical muted italics; the two costumes are
+constants that share no class, and nothing may spell either by hand. And the
+focus trap learned what the browser already knew — a roving tabindex parks
+`-1` on real buttons, and the trap stopped at them anyway ([GDK-142]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2183,3 +2200,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-720]: https://gadak.dev/backlog/#/?ks=GDK-720
 [GDK-1091]: https://gadak.dev/backlog/#/?ks=GDK-1091
 [GDK-1092]: https://gadak.dev/backlog/#/?ks=GDK-1092
+[GDK-142]: https://gadak.dev/backlog/#/?ks=GDK-142

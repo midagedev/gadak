@@ -6,6 +6,7 @@
    * adf.ts try/catches render (empty string on throw) so we only branch on results.
    */
   import { t } from '../../lib/i18n'
+  import { EMPTY_VALUE } from '../../lib/chrome'
   import type { AdfNode, DetailAttachment } from '../../lib/types'
   import { renderAdf, renderCommandBody } from '../../lib/adf'
   import { config, jiraBrowseUrl } from '../../lib/config'
@@ -137,7 +138,7 @@
   <!-- Plain-text fallback when ADF missing/unparseable (preserve newlines) -->
   <div class="adf whitespace-pre-wrap">{fallback}</div>
 {:else}
-  <p class="text-micro text-text-muted italic">{emptyLabel}</p>
+  <p class="text-micro {EMPTY_VALUE}">{emptyLabel}</p>
 {/if}
 
 {#if runnable && !shell}

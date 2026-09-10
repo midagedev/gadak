@@ -6,6 +6,7 @@
    * (full-array replace, optimistic).
    */
   import { t } from '../../lib/i18n'
+  import { INLINE_ACTION } from '../../lib/chrome'
   import type { IssueLite } from '../../lib/types'
   import { filters } from '../../stores/filters.svelte'
   import { issues } from '../../stores/issues.svelte'
@@ -160,7 +161,7 @@
         type="button"
         data-testid={DETAIL_TESTID.labelAdd}
         onclick={() => void openAdd()}
-        class="rounded-md px-1 py-0.5 text-left text-text-muted italic transition-colors hover:bg-bg-hover hover:text-text-primary"
+        class="rounded-md px-1 py-0.5 text-left {INLINE_ACTION} transition-colors hover:bg-bg-hover hover:text-text-primary"
       >
         {t('write.addLabel')}
       </button>

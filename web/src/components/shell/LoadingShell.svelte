@@ -13,7 +13,7 @@
 
 <div class="issue-shell">
   <div class="issue-layout">
-    <aside class="issue-sidebar flex-none border-r border-border-subtle bg-bg-panel p-3">
+    <aside class="issue-sidebar flex-none border-r border-border-strong bg-bg-panel p-3">
       <div
         class="mb-5 h-4 w-20 animate-pulse rounded bg-bg-elevated"
         style:margin-left={wordmarkInset}

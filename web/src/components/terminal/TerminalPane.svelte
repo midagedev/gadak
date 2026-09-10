@@ -572,8 +572,8 @@
 
 <aside
   class="flex min-h-0 w-full min-w-0 flex-row overflow-hidden bg-bg-base {overlay
-    ? 'terminal-sheet fixed top-0 right-0 bottom-0 h-full border-l border-border-subtle'
-    : 'relative border-t border-border-subtle'}"
+    ? 'terminal-sheet fixed top-0 right-0 bottom-0 h-full border-l border-border-strong'
+    : 'relative border-t border-border-strong'}"
   class:select-none={dragging}
   style={overlay
     ? `left: var(--layout-sidebar, 272px); z-index: 48; min-width: ${TERMINAL_MIN_WIDTH_PX}px`
@@ -600,7 +600,7 @@
     still gone (GDK-1199): the rows say what this is.
   -->
   <div
-    class="terminal-roster flex flex-none flex-col border-r border-border-subtle bg-bg-panel"
+    class="terminal-roster flex flex-none flex-col border-r border-border-strong bg-bg-panel"
     style:width={overlay ? `${TERMINAL_OVERLAY_ROSTER_PX}px` : undefined}
     data-testid="terminal-chrome"
   >

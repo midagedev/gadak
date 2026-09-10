@@ -376,6 +376,55 @@ per-file padding decision.
 
 ---
 
+## 16. A piece of chrome looks like what it is
+
+The visual audit (GDK-142) did not find five bad looks. It found the same
+meaning drawn differently in each file that draws it: a status dot at three
+sizes, two progress bars with two different tracks, a border that means
+"different window" wearing the token for "same surface", and an action wearing
+the costume of an empty value. Each one is small; together they are the reason
+a reader has to re-learn the interface on every screen.
+
+So the rule is not a look. It is that each piece of vocabulary has one owner,
+and the owner's numbers are gated
+(`web/src/lib/chrome-vocabulary.test.ts`, measured in all four palettes).
+
+**A window seam is not a divider.** Two regions that must read as separate
+windows — the terminal against the list, the sidebar against the main column,
+the detail panel against the main column — are separated by
+`border-border-strong`. A rule *inside* one surface — a dialog header, a row
+under a row, a card edge — stays `border-border-subtle`. Measured 2026-09-10:
+strong is 1.77–2.31:1 against the ground it sits on, subtle is 1.26–1.43:1.
+The audit read the dark terminal as one body with the list because its seam
+was subtle; brightening `border-subtle` itself would have thickened every rule
+in the app, which is why the two are two words and not one dial.
+
+**A meter is a track plus a fill,** and both belong to `ui/MeterBar.svelte`.
+A bar whose empty half is invisible is not a proportion, it is an underline —
+the epic progress bar's `bg-bg-elevated` track measured 1.00:1 against its own
+ground. The track is `bg-bg-active` (1.28–1.76:1 against base, panel and
+elevated in every palette), and the fill carries the meaning: category ink
+when the bar is about status, muted when it is about volume.
+
+**A status dot is `ui/StatusDot.svelte`,** at one of two sizes: `md` for a row
+lead you aim at, `sm` for a dot that rides beside the text it annotates. The
+dot carries the category and nothing else carries it again — the word next to
+it is the site's own status name in muted ink, never re-tinted. Colour and word
+are two facts, not one fact twice. The single exception is `IssueRow`'s lead
+dot, which is a filter button rather than a chip; it owns its hover affordance
+and imports `DOT_CLASS` for the size.
+
+**A value and an action are not the same costume.** An absent value —
+`Unassigned`, `None`, an empty body — is `EMPTY_VALUE` from `lib/chrome.ts`:
+muted, italic. Italic is this app's "there is nothing here" mark and never
+appears on something you can press. An inline affordance — `Add a label` — is
+`INLINE_ACTION`: the 쪽빛 accent thread, upright, the same ink as an issue key,
+which is the other thing in a row you can click. The two share no class.
+
+**A focus trap agrees with the browser about what is focusable.** A roving
+tabindex parks `tabindex="-1"` on real controls; `lib/focus-trap.ts` excludes
+that on every clause, so Tab inside a dialog stops where the browser would.
+
 ## What already embodies this (keep, and defend)
 
 - Local mirror + enforced perf budgets (§1, §2) — the structural part most
