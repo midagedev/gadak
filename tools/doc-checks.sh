@@ -25,6 +25,15 @@
 #
 # Usage: tools/doc-checks.sh
 # Exit 0 = clean, 1 = a check failed.
+#
+# Structure note (2026-09-10 cost round): the six delegated script gates
+# (backlog-scrub-check, check-promises, check-write-handlers,
+# check-lockfile-platforms, ci-status-test, audit-test) start concurrently
+# right after check 21 sets BACKLOG_ARCHIVE and are replayed — output
+# streams and failure position unchanged — at the numbered check each held
+# before. Inline checks still run in order, first-fail still exits at the
+# failing check, and every assertion still runs on every invocation. The
+# per-check timing this relies on prints to stderr from the EXIT trap.
 
 set -euo pipefail
 
@@ -36,9 +45,144 @@ fail() {
   exit 1
 }
 
+# ── per-check wall timing (GDK-1488) ─────────────────────────────────────
+# Every ok() line and each delegated-script call site is stamped; the trap
+# prints the slowest checks to stderr at exit (pass or fail — a red run is
+# exactly when you want to know what was slow). stdout and the exit code are
+# unchanged: the summary is a diagnostic, not a contract.
+#
+# Clock: bash ≥5 (the CI runner) exposes EPOCHREALTIME, so a stamp is pure
+# arithmetic — no fork. Local macOS bash 3.2 has no sub-second clock in the
+# shell, so the fallback forks python3 (~25 ms × ~60 stamps ≈ 1.5 s on a
+# 74 s run; measured 2026-09-10). CI pays nothing.
+_now_ms() {
+  if [[ -n "${EPOCHREALTIME:-}" ]]; then
+    echo $(( ${EPOCHREALTIME/./} / 1000 ))
+  else
+    python3 -c 'import time; print(int(time.time() * 1000))'
+  fi
+}
+
+_TIMING_NAMES=()
+_TIMING_MS=()
+_TIMING_LAST=0
+_GATE_NAMES=()
+_GATE_MS=()
+
+_stamp() {
+  local now
+  now="$(_now_ms)"
+  if [[ "$_TIMING_LAST" != "0" ]]; then
+    _TIMING_NAMES+=("$1")
+    _TIMING_MS+=($(( now - _TIMING_LAST )))
+  fi
+  _TIMING_LAST="$now"
+}
+
+# Sorted slowest-first to stderr. Never fails the run it is timing: every
+# command is guarded so the trap cannot turn a green run red (or eat the
+# original exit status on a red one).
+_timing_summary() {
+  # Length guards first: bash 3.2 (local macOS) treats an empty array under
+  # set -u as "unbound variable", and this runs from the EXIT trap.
+  local i total=0
+  for i in ${_TIMING_MS[*]:-}; do total=$(( total + i )); done
+  {
+    echo "doc-checks timing: ${#_TIMING_MS[@]} stamps, ${total} ms of critical path (top 15):"
+    if [[ "${#_TIMING_MS[@]}" -gt 0 ]]; then
+    for i in "${!_TIMING_MS[@]}"; do
+      printf '%s\t%s\n' "${_TIMING_MS[$i]}" "${_TIMING_NAMES[$i]}"
+    done | sort -rn | awk 'NR<=15'
+    fi
+    if [[ "${#_GATE_NAMES[@]}" -gt 0 ]]; then
+      echo "delegated gates (own duration; concurrent with the path above):"
+      for i in "${!_GATE_NAMES[@]}"; do
+        printf '  %s\t%s\n' "${_GATE_MS[$i]}" "${_GATE_NAMES[$i]}"
+      done | sort -rn
+    fi
+  } >&2 || true
+}
+
 ok() {
   echo "ok: $*"
+  _stamp "$*"
 }
+
+# ── delegated gates: started early, replayed at their check position ──────
+# (GDK-1488 cost round, 2026-09-10.) The profile on this tree: the six
+# delegated scripts are ~47 of the ~52 measured seconds — the scrub gate
+# alone is ~39 s (1,505 detail files through a serial jq loop inside
+# backlog-scrub-check.sh). They depend on no inline check (each is read-only
+# against the tree; the two Go ones share the build cache, which is
+# concurrency-safe), so they start here and their output is replayed at the
+# exact position each occupied before — stdout to stdout, stderr to stderr,
+# original order. A failure surfaces exactly where it used to: the replay
+# waits for the gate and fails at that check's position. A gate the original
+# ran conditionally (the scrub gate needs the archive and jq) is started
+# under the same condition, so its skip branch is preserved.
+#
+# The exit trap kills gates still running when an inline check fails first —
+# otherwise a red run would wait out a 39 s straggler nobody reads.
+_PAR_PIDS=()
+_PAR_IDS=()
+_PAR_T0=()
+_PAR_STARTED=" "
+_gate_start() {  # _gate_start <id> <script> [args...]
+  local id="$1"; shift
+  # The wrapper records the gate's own completion time from inside the
+  # background job — measuring at replay time would report the wall clock
+  # at the replay position (all gates ≈ the same number), not the duration.
+  # set +e first: the subshell inherits errexit, and without this a red
+  # gate killed the wrapper before it could write its .rc (found by the
+  # scratch engine test: exit was 1, the gate's own 3 never arrived).
+  (
+    set +e
+    bash "$@" >"$FILE_CENSUS.$id.out" 2>"$FILE_CENSUS.$id.err"
+    echo $? >"$FILE_CENSUS.$id.rc"
+    echo "$(_now_ms)" >"$FILE_CENSUS.$id.t1"
+  ) &
+  _PAR_PIDS+=($!)
+  _PAR_IDS+=("$id")
+  _PAR_T0+=($(_now_ms))
+  _PAR_STARTED+="$id "
+}
+
+_gate_replay() {  # _gate_replay <id> — print captured streams, rc = the gate's
+  local id="$1" i pid rc t1
+  if [[ "${#_PAR_IDS[@]}" -eq 0 ]]; then
+    fail "internal: gate $id was never started"
+  fi
+  for i in "${!_PAR_IDS[@]}"; do
+    [[ "${_PAR_IDS[$i]}" == "$id" ]] || continue
+    pid="${_PAR_PIDS[$i]}"
+    unset "_PAR_PIDS[$i]" "_PAR_IDS[$i]"
+    wait "$pid"  # the wrapper's rc is the echo's, not the gate's
+    rc="$(cat "$FILE_CENSUS.$id.rc" 2>/dev/null || echo 1)"
+    t1="$(cat "$FILE_CENSUS.$id.t1" 2>/dev/null || echo "${_PAR_T0[$i]}")"
+    _GATE_NAMES+=("$id")
+    _GATE_MS+=( $(( t1 - _PAR_T0[$i] )) )
+    unset "_PAR_T0[$i]"
+    cat "$FILE_CENSUS.$id.out"
+    cat "$FILE_CENSUS.$id.err" >&2
+    rm -f "$FILE_CENSUS.$id.out" "$FILE_CENSUS.$id.err" \
+          "$FILE_CENSUS.$id.rc" "$FILE_CENSUS.$id.t1"
+    return "$rc"
+  done
+  fail "internal: gate $id was never started"
+}
+
+_kill_gates() {
+  local p
+  for p in ${_PAR_PIDS[*]:-}; do kill "$p" 2>/dev/null || true; done
+}
+
+_gate_require() {  # _gate_require <id> — replay; exit with the gate's rc on red
+  local rc=0
+  _gate_replay "$1" || rc=$?
+  [[ "$rc" == 0 ]] || exit "$rc"
+}
+
+
 
 # ── Shared file census (GDK-1477) ────────────────────────────────────────
 # Several checks below are whole-tree walkers: each one used to run its own
@@ -58,7 +202,8 @@ ok() {
 # template; macOS accepts a bare -t prefix. The bare form passed every local
 # run and failed the first CI run of 2473dc62 ("too few X's in template").
 FILE_CENSUS="$(mktemp "${TMPDIR:-/tmp}/gadak-doc-checks-census.XXXXXX")"
-trap 'rm -f "$FILE_CENSUS"' EXIT
+trap '_kill_gates; _timing_summary; rm -f "$FILE_CENSUS" "$FILE_CENSUS".*.out "$FILE_CENSUS".*.err' EXIT
+_TIMING_LAST="$(_now_ms)"   # the origin: everything before this is shell startup
 python3 - "$FILE_CENSUS" <<'CENSUSPY'
 import os
 import sys
@@ -76,6 +221,7 @@ with open(sys.argv[1], "w", encoding="utf-8") as fh:
     fh.write("\n".join(rows))
     fh.write("\n")
 CENSUSPY
+_stamp 'file census prelude (one os.walk)'
 
 # ── 1. README tour GIF lives in <details> ────────────────────────────────
 if ! grep -q 'web-demo.gif' README.md; then
@@ -1102,6 +1248,23 @@ ok "docs/INSTALL.md and README.md name init --local"
 # specs/**, internal/**. Agent-instruction files pay context for every link and
 # have no reader to advertise to; decisions are append-only by their own rule.
 BACKLOG_ARCHIVE="examples/backlog-snapshot.tar.gz"
+
+# Fire the delegated gates here (see the parallel-engine block at the top):
+# every precondition they test is known at this point, every replay position
+# is below, and none of the inline checks in between writes anything they
+# read. Most expensive first, so the long one overlaps the most.
+if [[ -f "$BACKLOG_ARCHIVE" ]] && command -v jq >/dev/null; then
+  _gate_start scrub tools/backlog-scrub-check.sh "$BACKLOG_ARCHIVE"
+fi
+_gate_start promises tools/check-promises.sh
+_gate_start write-handlers tools/check-write-handlers.sh
+_gate_start lockfile tools/check-lockfile-platforms.sh
+# ci-status only when HEAD^ exists — the same guard its check position uses
+# (a shallow CI checkout lacks the history its parent-walk cases need).
+if git rev-parse --verify -q "HEAD^" >/dev/null 2>&1; then
+  _gate_start ci-status tools/ci-status-test.sh
+fi
+_gate_start audit tools/audit-test.sh
 READER_DOCS=(CHANGELOG.md CHANGELOG.ko.md README.md README.ko.md README.ja.md
   docs/ARCHITECTURE.md docs/DERIVE.md docs/DESKTOP.md docs/INSTALL.md
   docs/project/ROADMAP.md docs/project/STATE_OF_PLAY.md desktop/README.md)
@@ -1282,12 +1445,14 @@ backlog_snapshot_detail_consistency "$published" "$tracked_detail"
 # backlog-scrub-check.sh unpacks it.
 # FAIL-first 2026-08-23: unpack, set bootstrap.issues[0].assignee, repack → red;
 # unmodified archive → green.
-if [[ -f "$BACKLOG_ARCHIVE" ]] && command -v jq >/dev/null; then
-  if bash tools/backlog-scrub-check.sh "$BACKLOG_ARCHIVE" >/dev/null 2>&1; then
+# Replayed from its concurrent start (see the parallel-engine block). The
+# failure branch used to re-run the whole 39 s script a second time just to
+# capture its output; the replay prints the captured streams instead.
+if [[ "$_PAR_STARTED" == *" scrub "* ]]; then
+  if _gate_replay scrub; then
     ok "committed backlog snapshot passes the scrub gate (GDK-675)"
   else
-    scrub_out=$(bash tools/backlog-scrub-check.sh "$BACKLOG_ARCHIVE" 2>&1 || true)
-    fail "committed backlog snapshot fails its scrub gate: $scrub_out"
+    fail "committed backlog snapshot fails its scrub gate (its output is above)"
   fi
 fi
 
@@ -1872,7 +2037,8 @@ ok "site copyable blocks all go through Snippet.astro"
 # docs/PROMISES.md stakes its credibility on "if one stops doing so, the
 # promise is broken" — this makes that sentence executable. v0.18.1 shipped
 # with promise #9 reading a YAML persist the code had replaced with SQLite.
-bash tools/check-promises.sh
+_gate_require promises
+_stamp 'check 35 check-promises.sh (replayed from its concurrent start)'
 
 # ── 36. "Not planned" refusals match the shipped tree ────────────────────
 # Class: a refusal list is a decision a reader can be pointed at. A refusal
@@ -1966,7 +2132,7 @@ ok "Not-planned refusals match the shipped tree (locale set, terminal ceiling)"
 # script had existed since GDK-681 with nothing executing it — an unrun
 # guard is a comment — so doc-checks carries it the way check 35 carries
 # check-promises.sh.
-bash tools/check-write-handlers.sh
+_gate_require write-handlers
 ok "write handlers do not call s.client() (TestWriteHandlersDoNotCallClient)"
 
 # ── 38. MCP tool descriptions name values the code actually emits ─────────
@@ -2335,7 +2501,8 @@ ok "every gate-worded tools/*.sh (and every tools/*-test.sh) is wired into somet
 # it; check 42 above would have kept re-flagging it. Carried the way check 35
 # carries check-promises.sh: this file runs in CI's "Documentation factuality"
 # step, so the delegated run is the wiring.
-bash tools/check-lockfile-platforms.sh
+_gate_require lockfile
+_stamp 'check 43 check-lockfile-platforms.sh (replayed)'
 
 # ── 44. ci-status-test.sh actually runs (v0.21 release audit: unwired-script finding) ──────────────────────────
 # Same unwired-script class, plus the *-test.sh rule from check 42: a fixture
@@ -2344,7 +2511,8 @@ bash tools/check-lockfile-platforms.sh
 # commit, which a CI shallow checkout (actions/checkout depth 1) does not
 # have — say the skip out loud rather than failing there or silently passing.
 if git rev-parse --verify -q "HEAD^" >/dev/null 2>&1; then
-  bash tools/ci-status-test.sh
+  _gate_require ci-status
+  _stamp 'check 44 ci-status-test.sh (replayed)'
 else
   echo "note: the ci-status fixture test is skipped — shallow checkout has no HEAD^, and its parent look-back cases (7-8) need real history. Full run locally or with fetch-depth: 0."
 fi
@@ -2458,7 +2626,8 @@ ok "every contract string the fact ledger names is in the file it names"
 # gh-missing degradation offline via a fake gh. Carried the way checks 43-44
 # carry their fixture tests: this file runs in CI's "Documentation factuality"
 # step, so the delegated run is the wiring (check 42's *-test.sh rule).
-bash tools/audit-test.sh
+_gate_require audit
+_stamp 'check 48 audit-test.sh (replayed)'
 
 # -- 49. every items_fts writer names all five columns (GDK-1021) --
 # 0009 SS Consequences names the trap: items_fts is contentless, so a writer
@@ -2477,5 +2646,23 @@ if ! python3 tools/fts-writer-census.py; then
   fail "an items_fts writer is missing a column or the canonical tokenizer (see above)"
 fi
 ok "every items_fts writer names all five columns and the canonical tokenizer"
+
+# ── 50. mirrored grammars agree across their two owners ───────────────────
+# The GDK-27 census class "a regex copied to a second owner ages separately":
+# the host allowlist and home-path pattern (backlog-scrub-check ↔
+# scan-internal), the profile-name grammar (config ↔ deeplink), and the
+# ui-token family (config/tokencheck·uitokens·settings ↔ user-tokens.ts).
+# Each pair had a mirror declaration in comments and nothing executable —
+# widening one side ships a gate that disagrees with its twin (a Go gate
+# widened silently drops user styles after reload; a host allowed in one
+# allowlist is a leak in the other). tools/mirror-pins.sh extracts both
+# copies from the live source and compares, normalizing the deltas each
+# pair declares. FAIL-first 2026-09-10, one diverge per pin, all red with
+# both owners named: allowlist `example` dropped, PAT_HOMEPATH `._-`→`.-`,
+# deeplink {0,63}→{0,31}, FONT_IDENT_RE {0,63}→{0,64}.
+if ! bash tools/mirror-pins.sh; then
+  fail "a mirrored grammar pair drifted (both owners are named above)"
+fi
+ok "mirror pins: host allowlist, home path, profile grammar, ui-token family agree"
 
 echo "doc-checks: all passed"

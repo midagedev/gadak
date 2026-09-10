@@ -44,10 +44,32 @@ echo "filesystem); only Coupling is root-module-only."
 echo
 
 # ── 1. Size ───────────────────────────────────────────────────────────────
-git ls-files -z '*.go' | xargs -0 wc -l | grep -v ' total$' > "$WORK/go.wc" || true
-git ls-files -z '*.svelte' | xargs -0 wc -l | grep -v ' total$' > "$WORK/svelte.wc" || true
-git ls-files -z '*.ts' | xargs -0 wc -l | grep -v ' total$' > "$WORK/ts.wc" || true
-src "git ls-files '*.go' '*.svelte' '*.ts' | xargs wc -l   # test split on _test.go"
+# `git ls-files` reads the index, not the working tree: a file still tracked
+# but deleted from the tree (mid-rebase, a neighbor round's rm repro) reached
+# wc's stderr as `wc: …: open: No such file or directory` while the script
+# still exited 0 — audit-test's stdout-only contract turns that into a red
+# gate only when someone is looking. The filter below hands wc only files
+# that exist; an empty section (a tree with no .ts, say) skips wc entirely
+# rather than running it with zero operands, which would read stdin.
+# Measured 2026-09-10 by moving one tracked .go aside: unfixed run wrote the
+# wc complaint to stderr, filtered run is silent and loses only that file's
+# line — a degraded census, never a broken one.
+wc_of_tracked() {  # wc_of_tracked <glob> <outfile>
+  local list="$WORK/ls.$$.$3"
+  git ls-files -z "$1" \
+    | while IFS= read -r -d '' f; do
+        if [[ -f "$f" ]]; then printf '%s\0' "$f"; fi
+      done > "$list"
+  : > "$2"
+  if [[ -s "$list" ]]; then
+    xargs -0 wc -l < "$list" | grep -v ' total$' > "$2" || true
+  fi
+  rm -f "$list"
+}
+wc_of_tracked '*.go' "$WORK/go.wc" go
+wc_of_tracked '*.svelte' "$WORK/svelte.wc" svelte
+wc_of_tracked '*.ts' "$WORK/ts.wc" ts
+src "git ls-files '*.go' '*.svelte' '*.ts' | existence filter | xargs wc -l   # test split on _test.go"
 
 {
   echo "## Size"

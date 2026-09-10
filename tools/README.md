@@ -243,3 +243,96 @@ tools/staticcheck.sh --self-test   # classifier vs fixtures; no toolchain needed
 Requires `go install honnef.co/go/tools/cmd/staticcheck@latest` (the script
 prints that line and exits 2 if the binary is missing). CI pins the version and
 runs `--warn-only` in the `Staticcheck (warning-only)` job.
+
+## `mirror-pins.sh`
+
+Cross-pins the grammars that deliberately live in two places, so the next
+editor of either side is told about the other (the mirror family of the
+GDK-27 census). Four pins, each extracting both copies from the live source —
+never from a list here, which is what would let the pin itself age:
+
+- the Atlassian host allowlist, `backlog-scrub-check.sh` ↔ `scan-internal.sh`,
+  compared as a set (a host allowed in one file and not the other is a leak in
+  exactly one gate)
+- the home-directory pattern, same pair (the slash-placement difference is
+  declared and normalized away)
+- the profile-name grammar, `internal/config/config.go` ↔
+  `internal/deeplink/deeplink.go` (`*` + a code-level cap ≡ `{0,N-1}`)
+- the ui-token family, `internal/config/{tokencheck/dimcheck,uitokens,settings}.go`
+  ↔ `web/src/lib/user-tokens.ts`: dim values, font stack bodies and the
+  8-family/256-char caps, palette id — verbatim, anchors included
+
+```bash
+tools/mirror-pins.sh   # exit 1 names both file:line positions of a drift
+```
+
+Runs as check 50 of `tools/doc-checks.sh`.
+
+## `export-census.sh`
+
+Answers "which exported symbols in `internal/` does nobody outside their own
+file actually use?" in one command (GDK-1485, promoting the GDK-1462 audit
+probe). Four stdlib-only Go parsers (`go run` per file, no module context) +
+a python token index and picker; a reference anywhere in the tree counts —
+docs, tests, TS, shell — and only same-package `_test.go` files count as
+in-file. The exposure filters are the substance: without them the raw answer
+is ~65 false positives (stdlib interface methods, enum-block symmetry, public
+shapes of surviving exports, unexportable spellings).
+
+```bash
+tools/export-census.sh                  # scans this repo; exit 1 names each
+                                        # over-export with the free spelling
+tools/export-census.sh --root <repo>    # any tree with an internal/
+tools/export-census.sh -v               # also print the skipped table (name,
+                                        # file, which filter spared it)
+```
+
+Intermediates go to a mktemp dir outside the scanned tree — the probe this
+promotes wrote its token index into the tree it walked, so every run after
+the first reported 0 findings vacuously. Budget ~10 s on this repo (four
+`go run` compiles dominate). Not wired into doc-checks: it is an audit-time
+census, and a per-commit run would pay the cost for a tree the export fixes
+themselves keep clean.
+
+## `skill-overwrite-probe.sh`
+
+Answers "does an unattended skill write spare an installed copy?" by running
+the real binary against a planted stale copy in a throwaway HOME, then
+comparing digests (GDK-1546; the two axes are the dev-build and GADAK_HOME
+guards, `--release` is the control that must overwrite).
+
+```bash
+tools/skill-overwrite-probe.sh                      # dev build → PRESERVED
+tools/skill-overwrite-probe.sh --gadak-home         # isolation → PRESERVED
+tools/skill-overwrite-probe.sh --release            # control  → OVERWRITTEN
+tools/skill-overwrite-probe.sh skill list           # any verb; default init --local
+```
+
+## `adf-render.mjs`
+
+An issue's stored ADF through the real web renderer, from the shell — the
+debugging layer for chip/media/table questions that used to cost a phone
+build or a hand-thrown-away probe. Bundles `web/src/lib/adf.ts` with esbuild
+and imports it in node (locale initializes to `en`, `apiBase` stays at its
+default, so attachment chips render exactly as a surface with no API base
+sees them). `NMB-110` in the demo fixture carries the media-node case.
+
+```bash
+node tools/adf-render.mjs NMB-110                 # description + comments
+node tools/adf-render.mjs NMB-110 --comments-only
+node tools/adf-render.mjs NMB-110 --db other.db   # any mirror
+```
+
+## `scope-sheet.mjs`
+
+The phone's picker sheet — every scope's section, id, name and match count —
+in one command, over the committed demo snapshot with the phone's own
+`buildScopes()`/`scopeIssues()` (bundled from `mobile/src/lib/domain.ts`).
+Answers "does the picker show two rows for one question?" without the
+viewport-gate capture, and names identical selections as duplicate questions
+(the shape of the retired "Assigned to me" row). Exit 1 = a duplicate.
+
+```bash
+node tools/scope-sheet.mjs                # demo identity (demo-alex)
+node tools/scope-sheet.mjs --anonymous    # the sheet an anonymous reader gets
+```

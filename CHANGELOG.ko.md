@@ -483,6 +483,23 @@ Go 트리에서 자리가 틀린 코드가 제자리로 갔습니다. 이름으�
 감사가 물었던 teardown 창은 이제 없습니다 — 걱정하던 advertise 파일이 GDK-936 과 함께
 사라졌습니다 ([GDK-954]).
 
+게이트가 싸졌고 서로 어긋나지 않게 됐습니다. `tools/doc-checks.sh` 는 위임 게이트
+여섯을 막힘이 풀리는 순간 같이 시작해 출력은 제자리에 재생하고, 종료 트랩이 시간이
+어디로 갔는지 찍습니다 — 조용한 머신에서 74초가 42초로 ([GDK-1227], [GDK-1488]).
+`complexity.sh` 는 인덱스에 남은 삭제 파일에 더는 빨갛지 않습니다 ([GDK-1759]). 두
+곳에 살면서 손으로 맞춰야 했던 정규식 넷 — 테넌트 호스트 허용목록, 홈 경로 패턴,
+딥링크가 미러하는 프로필 이름 문법, Go 와 웹이 각자 파싱하는 ui-token 패밀리 — 은
+`tools/mirror-pins.sh` 가 두 살아 있는 소스에서 읽어 대조하고, 어긋나면 두 위치를
+이름으로 짚습니다 ([GDK-1107], [GDK-1105], [GDK-1108]). `scan-internal` 은 두 패턴 트리
+스코프를 의도적으로 유지하고, 그 이유를 보여주는 측정을 적어 두었습니다 ([GDK-1110]).
+라운드들이 손으로 만들던 프로브 넷이 도구가 됐습니다. `export-census.sh` 는 패키지 밖
+어디서도 안 쓰는 exported Go 식별자를 나열합니다 — 씨앗 스크립트가 인덱스를 자기가
+스캔하는 트리 안에 써서 두 번째 실행부터 매번 공허한 0을 보고했고, 정직한 수는
+31입니다 ([GDK-1485]). `skill-overwrite-probe.sh` 는 버리는 홈에 낡은 스킬을 심고
+PRESERVED 인지 OVERWRITTEN 인지 말합니다 ([GDK-1546]). `adf-render.mjs` 는 이슈 하나의
+설명과 코멘트가 렌더된 HTML 을 찍고 ([GDK-1518]), `scope-sheet.mjs` 는 데모 스냅숏에서
+폰의 스코프 시트를 찍습니다 ([GDK-1554]).
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -2056,3 +2073,14 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-978]: https://gadak.dev/backlog/#/?ks=GDK-978
 [GDK-1429]: https://gadak.dev/backlog/#/?ks=GDK-1429
 [GDK-954]: https://gadak.dev/backlog/#/?ks=GDK-954
+[GDK-1227]: https://gadak.dev/backlog/#/?ks=GDK-1227
+[GDK-1488]: https://gadak.dev/backlog/#/?ks=GDK-1488
+[GDK-1759]: https://gadak.dev/backlog/#/?ks=GDK-1759
+[GDK-1107]: https://gadak.dev/backlog/#/?ks=GDK-1107
+[GDK-1105]: https://gadak.dev/backlog/#/?ks=GDK-1105
+[GDK-1108]: https://gadak.dev/backlog/#/?ks=GDK-1108
+[GDK-1110]: https://gadak.dev/backlog/#/?ks=GDK-1110
+[GDK-1485]: https://gadak.dev/backlog/#/?ks=GDK-1485
+[GDK-1546]: https://gadak.dev/backlog/#/?ks=GDK-1546
+[GDK-1518]: https://gadak.dev/backlog/#/?ks=GDK-1518
+[GDK-1554]: https://gadak.dev/backlog/#/?ks=GDK-1554

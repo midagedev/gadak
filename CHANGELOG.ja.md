@@ -518,6 +518,24 @@ import しなくなりました ([GDK-688])。Jira ライターの素通しラ�
 監査が尋ねた teardown の窓はもうありません — 気にしていた advertise ファイルは GDK-936
 と一緒に消えました ([GDK-954])。
 
+ゲートは安くなり、互いにずれなくなりました。`tools/doc-checks.sh` は委譲する六つの
+ゲートを、詰まりが解けた瞬間にまとめて始め、出力は元の位置で再生し、終了トラップが
+時間の行き先を出力します — 静かなマシンで 74 秒が 42 秒に ([GDK-1227], [GDK-1488])。
+`complexity.sh` はインデックスに残った削除済みファイルで赤くならなくなりました
+([GDK-1759])。二か所に住んで手で揃えるしかなかった四つの正規表現 — テナントホストの
+許可リスト、ホームパスのパターン、ディープリンクが写すプロファイル名の文法、Go と
+web がそれぞれ解析する ui-token ファミリー — は `tools/mirror-pins.sh` が生きている
+両方のソースから読んで照合し、ずれれば両方の位置を名指しします ([GDK-1107],
+[GDK-1105], [GDK-1108])。`scan-internal` は二パターンのツリースコープを意図して保ち、
+その理由を示す測定を書き残しました ([GDK-1110])。ラウンドが手作りしていた四つの
+プローブが道具になりました。`export-census.sh` はパッケージの外で誰も使わない
+exported な Go 識別子を列挙します — 種となったスクリプトは索引を自分が走査する
+ツリーの中に書いていたので、二回目以降は毎回うつろな 0 を報告していました。正直な
+数は 31 です ([GDK-1485])。`skill-overwrite-probe.sh` は捨てるホームに古いスキルを
+植えて PRESERVED か OVERWRITTEN かを言い ([GDK-1546])、`adf-render.mjs` はひとつの
+イシューの説明とコメントの描画結果を HTML で出力し ([GDK-1518])、`scope-sheet.mjs`
+はデモスナップショットから電話のスコープシートを出力します ([GDK-1554])。
+
 ## v0.21.0 — 2026-09-08
 
 **離れていた間に何が起きたのかに、キャッシュから答えます。** ステータスの変更も
@@ -2169,3 +2187,14 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-978]: https://gadak.dev/backlog/#/?ks=GDK-978
 [GDK-1429]: https://gadak.dev/backlog/#/?ks=GDK-1429
 [GDK-954]: https://gadak.dev/backlog/#/?ks=GDK-954
+[GDK-1227]: https://gadak.dev/backlog/#/?ks=GDK-1227
+[GDK-1488]: https://gadak.dev/backlog/#/?ks=GDK-1488
+[GDK-1759]: https://gadak.dev/backlog/#/?ks=GDK-1759
+[GDK-1107]: https://gadak.dev/backlog/#/?ks=GDK-1107
+[GDK-1105]: https://gadak.dev/backlog/#/?ks=GDK-1105
+[GDK-1108]: https://gadak.dev/backlog/#/?ks=GDK-1108
+[GDK-1110]: https://gadak.dev/backlog/#/?ks=GDK-1110
+[GDK-1485]: https://gadak.dev/backlog/#/?ks=GDK-1485
+[GDK-1546]: https://gadak.dev/backlog/#/?ks=GDK-1546
+[GDK-1518]: https://gadak.dev/backlog/#/?ks=GDK-1518
+[GDK-1554]: https://gadak.dev/backlog/#/?ks=GDK-1554

@@ -614,6 +614,28 @@ would reopen the question ([GDK-1429]). And the teardown window the audit
 asked about no longer exists — the advertise file it worried about went with
 GDK-936 ([GDK-954]).
 
+The gates got cheaper and stopped drifting apart. `tools/doc-checks.sh`
+starts its six delegated gates together the moment they are unblocked and
+replays each one's output in its original place, and an exit trap prints
+where the time went — 74 s to 42 s on a quiet machine ([GDK-1227],
+[GDK-1488]); `complexity.sh` no longer goes red on a deleted file that is
+still in the index ([GDK-1759]). Four regexes that lived in two places each
+and had to agree by hand — the tenant-host allowlist, the home-path pattern,
+the profile-name grammar the deep link mirrors, the ui-token family the Go
+and web sides both parse — are read from both live sources by
+`tools/mirror-pins.sh`, and a divergence names both positions ([GDK-1107],
+[GDK-1105], [GDK-1108]); `scan-internal` keeps its two-pattern tree scope on
+purpose, with the measurement that shows why written down ([GDK-1110]). Four
+probes that rounds had built by hand are tools now: `export-census.sh` lists
+exported Go identifiers nothing outside their package uses — and its seed
+script had been writing its index inside the tree it scanned, so every run
+after the first reported a hollow zero; the honest count is thirty-one
+([GDK-1485]); `skill-overwrite-probe.sh` plants a stale skill in a throwaway
+home and says PRESERVED or OVERWRITTEN ([GDK-1546]); `adf-render.mjs` prints
+the rendered HTML for one issue's description and comments ([GDK-1518]); and
+`scope-sheet.mjs` prints the phone's scope sheet from the demo snapshot
+([GDK-1554]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2253,3 +2275,14 @@ priority sorting keyed on `priority_rank`.
 [GDK-978]: https://gadak.dev/backlog/#/?ks=GDK-978
 [GDK-1429]: https://gadak.dev/backlog/#/?ks=GDK-1429
 [GDK-954]: https://gadak.dev/backlog/#/?ks=GDK-954
+[GDK-1227]: https://gadak.dev/backlog/#/?ks=GDK-1227
+[GDK-1488]: https://gadak.dev/backlog/#/?ks=GDK-1488
+[GDK-1759]: https://gadak.dev/backlog/#/?ks=GDK-1759
+[GDK-1107]: https://gadak.dev/backlog/#/?ks=GDK-1107
+[GDK-1105]: https://gadak.dev/backlog/#/?ks=GDK-1105
+[GDK-1108]: https://gadak.dev/backlog/#/?ks=GDK-1108
+[GDK-1110]: https://gadak.dev/backlog/#/?ks=GDK-1110
+[GDK-1485]: https://gadak.dev/backlog/#/?ks=GDK-1485
+[GDK-1546]: https://gadak.dev/backlog/#/?ks=GDK-1546
+[GDK-1518]: https://gadak.dev/backlog/#/?ks=GDK-1518
+[GDK-1554]: https://gadak.dev/backlog/#/?ks=GDK-1554

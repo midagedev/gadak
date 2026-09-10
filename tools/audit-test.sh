@@ -91,6 +91,21 @@ else
   echo "- none"
 fi
 
+echo "== pipeline shape: no census page pipes git ls-files straight into xargs"
+# Same laptop-green / CI-red class as the head lint above: `git ls-files`
+# reads the index, and a file deleted from the working tree but still tracked
+# (mid-rebase, a neighbor round's rm repro) reached `wc` as a stderr
+# complaint while the page still rendered and the script still exited 0 —
+# the stdout-only contract below caught it only incidentally. Pages pass the
+# NUL list through an existence filter before xargs (wc_of_tracked in
+# complexity.sh); `src "..."` lines are prose, not pipelines. FAIL-first
+# 2026-09-10: this grep against the pre-fix complexity.sh listed lines 47-49.
+if grep -nE 'git ls-files.*\| *xargs' tools/audit/*.sh | grep -vE ':[0-9]+:\s*src "'; then
+  fail "a census page pipes git ls-files straight into xargs — filter to files that exist first (an index entry can be deleted from the tree, and the tool then writes to stderr)"
+else
+  echo "- none"
+fi
+
 echo "== census contract: every tools/audit/*.sh (gh faked unauthenticated)"
 for script in tools/audit/*.sh; do
   name="$(basename "$script" .sh)"
