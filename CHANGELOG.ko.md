@@ -665,6 +665,19 @@ Confluence 동기화·Jira 동기화·retro 패스는 각자 가장 긴 구간�
 ([GDK-1776]), 릴리스 감사 런북의 느린 테스트 행은 실제로 필요한 타임아웃을
 적습니다 ([GDK-1764]).
 
+화면 쪽에서는 터미널 패널과 폰의 셸이 아흔 줄짜리 소켓 골격을 복사로 나눠
+쓰고 있었습니다. 붙이기, 세대 가드, 재접속 사다리, 60초 유예, 크기 협상까지,
+같은 사고 주석을 두 벌로 관리하던 것을 드라이버 하나가 소유하고 두 패널은
+전송과 측정값만 넘깁니다. 그 과정에서 떼어낸 패널이 옛 세션 id에 계속
+답하던 회귀를 찾아 고쳤습니다 ([GDK-1767]). 폰의 셸 드롭 테스트 시임은
+화면이 아니라 전송 모듈에 있고 ([GDK-1768]), 폰의 상대 시각은 5m·9h 대신
+5분·9시간으로 읽힙니다 ([GDK-1765]). 설정 화면에는 똑같은 "복사됨" 문자열이
+둘 있었고 필드 편집기는 "단일 선택"이 있어야 할 자리에 wire enum을 그대로
+보여 줬습니다. 토스트 키 하나와 라벨 넷이 그것을 고치고, 폰 푸터는 Tauri
+설정에서 버전을 읽으며, 캘린더 포매터는 로케일을 필수로 받습니다
+([GDK-1788]). 프라이버시 페이지와 FAQ는 업데이트 확인이 빠진 뒤의 보안
+정책과 같이 나가는 목적지를 다섯으로 셉니다 ([GDK-1763]).
+
 900px 아래에는 좁은 레짐이 하나입니다. 사이드바의 좁은 폭이 760px 미디어 쿼리 아래 다섯
 자리에 재선언돼 있어서 800px 창은 272px 사이드바를 유지하고 리스트는 남는 만큼만 받았습니다.
 이제 좁은 값은 인라인 토큰 설치에 실리고, `app.css` 는 `--layout-sidebar` 를 어디에도 정의하지
@@ -2338,7 +2351,11 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1760]: https://gadak.dev/backlog/#/?ks=GDK-1760
 [GDK-1761]: https://gadak.dev/backlog/#/?ks=GDK-1761
 [GDK-1762]: https://gadak.dev/backlog/#/?ks=GDK-1762
+[GDK-1763]: https://gadak.dev/backlog/#/?ks=GDK-1763
 [GDK-1764]: https://gadak.dev/backlog/#/?ks=GDK-1764
+[GDK-1765]: https://gadak.dev/backlog/#/?ks=GDK-1765
+[GDK-1767]: https://gadak.dev/backlog/#/?ks=GDK-1767
+[GDK-1768]: https://gadak.dev/backlog/#/?ks=GDK-1768
 [GDK-1769]: https://gadak.dev/backlog/#/?ks=GDK-1769
 [GDK-1771]: https://gadak.dev/backlog/#/?ks=GDK-1771
 [GDK-1772]: https://gadak.dev/backlog/#/?ks=GDK-1772
@@ -2355,3 +2372,4 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1783]: https://gadak.dev/backlog/#/?ks=GDK-1783
 [GDK-1785]: https://gadak.dev/backlog/#/?ks=GDK-1785
 [GDK-1786]: https://gadak.dev/backlog/#/?ks=GDK-1786
+[GDK-1788]: https://gadak.dev/backlog/#/?ks=GDK-1788

@@ -849,6 +849,22 @@ that lived in a browser spec moved to the unit suite that owns the catalog
 ([GDK-1776]); and the release-audit runbook's slowest-test row names the
 timeout it actually needs ([GDK-1764]).
 
+On the surfaces, the terminal pane and the phone's shell shared a
+ninety-line socket skeleton by copy — attach, the generation guard, the
+reconnect ladder, the sixty-second grace, the resize handshake — with the
+same incident comments maintained twice. One driver owns it now and both
+panes hand it their transport and their measurements; the round found and
+fixed a regression on the way, a detached pane that still answered to its old
+session id ([GDK-1767]). The phone's shell-drop test seam lives in the
+transport module rather than on the screen ([GDK-1768]), and the phone's
+relative times say 5분 and 9時間 instead of 5m and 9h ([GDK-1765]). The
+settings screens had two identical "Copied" strings and a field editor that
+showed raw wire enums where a person expected "single select"; one toast key
+and four labels fix that, the phone's footer reads its version from the
+Tauri config, and the calendar formatter requires a locale ([GDK-1788]). The
+privacy page and the FAQ now count five outbound destinations, matching the
+security policy after the update check was removed ([GDK-1763]).
+
 Under 900 pixels there is one narrow regime. The sidebar's narrow width was
 redeclared in five places under a 760-pixel media query, so an 800-pixel
 window kept a 272-pixel sidebar and squeezed the list into what was left;
@@ -2594,7 +2610,11 @@ priority sorting keyed on `priority_rank`.
 [GDK-1760]: https://gadak.dev/backlog/#/?ks=GDK-1760
 [GDK-1761]: https://gadak.dev/backlog/#/?ks=GDK-1761
 [GDK-1762]: https://gadak.dev/backlog/#/?ks=GDK-1762
+[GDK-1763]: https://gadak.dev/backlog/#/?ks=GDK-1763
 [GDK-1764]: https://gadak.dev/backlog/#/?ks=GDK-1764
+[GDK-1765]: https://gadak.dev/backlog/#/?ks=GDK-1765
+[GDK-1767]: https://gadak.dev/backlog/#/?ks=GDK-1767
+[GDK-1768]: https://gadak.dev/backlog/#/?ks=GDK-1768
 [GDK-1769]: https://gadak.dev/backlog/#/?ks=GDK-1769
 [GDK-1771]: https://gadak.dev/backlog/#/?ks=GDK-1771
 [GDK-1772]: https://gadak.dev/backlog/#/?ks=GDK-1772
@@ -2611,3 +2631,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1783]: https://gadak.dev/backlog/#/?ks=GDK-1783
 [GDK-1785]: https://gadak.dev/backlog/#/?ks=GDK-1785
 [GDK-1786]: https://gadak.dev/backlog/#/?ks=GDK-1786
+[GDK-1788]: https://gadak.dev/backlog/#/?ks=GDK-1788

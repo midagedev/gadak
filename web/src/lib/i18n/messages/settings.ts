@@ -486,11 +486,6 @@ export const settings = {
     ko: '복사',
     ja: 'コピー',
   },
-  'settings.copied': {
-    en: 'Copied',
-    ko: '복사됨',
-    ja: 'コピーしました',
-  },
   'settings.copySqlite': {
     en: 'Copy sqlite3 command',
     ko: 'sqlite3 명령 복사',
@@ -1311,6 +1306,28 @@ export const settings = {
     en: 'read-only',
     ko: '읽기 전용',
     ja: '読み取り専用',
+  },
+  // Editor-kind labels (GDK-1788) — the select used to show the raw wire
+  // enums.
+  'settings.kindOption': {
+    en: 'single select',
+    ko: '단일 선택',
+    ja: '単一選択',
+  },
+  'settings.kindMultiOption': {
+    en: 'multi select',
+    ko: '다중 선택',
+    ja: '複数選択',
+  },
+  'settings.kindUser': {
+    en: 'user picker',
+    ko: '사용자 선택',
+    ja: 'ユーザー選択',
+  },
+  'settings.kindVersionArray': {
+    en: 'version list',
+    ko: '버전 목록',
+    ja: 'バージョン一覧',
   },
   'settings.removeField': {
     en: 'remove',

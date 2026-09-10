@@ -181,7 +181,7 @@
           >{cta.command}</span
         >
         <button type="button" class={COPY_BTN} onclick={() => void copyCmd()}>
-          {copiedCmd ? t('settings.copied') : t('settings.copy')}
+          {copiedCmd ? t('detail.linkCopied') : t('settings.copy')}
         </button>
       </div>
     </section>

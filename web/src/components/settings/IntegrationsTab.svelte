@@ -333,7 +333,7 @@
               onclick={() => void copyCommand(item)}
               aria-label={t('settings.integrationCopyCommand')}
             >
-              {copiedId === item.id ? t('settings.copied') : t('settings.copy')}
+              {copiedId === item.id ? t('detail.linkCopied') : t('settings.copy')}
             </button>
           </div>
         {/if}

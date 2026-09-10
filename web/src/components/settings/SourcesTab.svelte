@@ -93,7 +93,7 @@
         class={INPUT}
         bind:value={draft.projectsText}
         oninput={() => (projectsTouched = true)}
-        placeholder="NMB, NMA"
+        placeholder="NMA, NMB"
       />
       <span class="text-micro text-text-muted">
         {projectsLoading ? t('settings.scopeLoading') : t('settings.projectsManual')}

@@ -116,7 +116,11 @@ describe('GDK-896 — behavior wiring (source contract)', () => {
     const applyIdx = shellSrc.indexOf(
       'renderer?.applyBehavior({ scrollback: doc.scrollback, cursorBlink: doc.cursorBlink })',
     )
-    const attachIdx = shellSrc.indexOf('attachSocket(doc.id, { afterCreate: true })')
+    // GDK-1767 (2026-09-11): the attach verb became driver.attach when the
+    // socket skeleton moved to the shared driver; the ordering claim —
+    // apply before attach, so the ring replay lands in a sized buffer — is
+    // unchanged.
+    const attachIdx = shellSrc.indexOf('driver.attach(doc.id, { afterCreate: true })')
     expect(applyIdx).toBeGreaterThan(-1)
     expect(attachIdx).toBeGreaterThan(applyIdx)
   })

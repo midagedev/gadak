@@ -82,7 +82,7 @@
         <span class="break-words font-mono text-text-primary">{runtime.dbPath || t('settings.none')}</span>
         {#if runtime.dbPath}
           <button type="button" class={COPY_BTN} onclick={() => copyValue('db', runtime.dbPath)}>
-            {copiedKey === 'db' ? t('settings.copied') : t('settings.copy')}
+            {copiedKey === 'db' ? t('detail.linkCopied') : t('settings.copy')}
           </button>
           <button
             type="button"
@@ -91,7 +91,7 @@
             onclick={() => copyValue('sqlite', `sqlite3 ${runtime.dbPath}`)}
           >
             {copiedKey === 'sqlite'
-              ? t('settings.copied')
+              ? t('detail.linkCopied')
               : onDesktop
                 ? t('settings.copySqliteLabelDesktop')
                 : 'sqlite3'}
@@ -112,7 +112,7 @@
         <div class="flex flex-wrap items-center gap-1.5">
           <span class="break-words font-mono text-text-primary">{runtime.originPath}</span>
           <button type="button" class={COPY_BTN} onclick={() => copyValue('origin', runtime.originPath ?? '')}>
-            {copiedKey === 'origin' ? t('settings.copied') : t('settings.copy')}
+            {copiedKey === 'origin' ? t('detail.linkCopied') : t('settings.copy')}
           </button>
         </div>
         <div class="mt-0.5 text-text-muted">
@@ -133,7 +133,7 @@
               class={COPY_BTN}
               onclick={() => copyValue('attachments', runtime.attachmentsPath ?? '')}
             >
-              {copiedKey === 'attachments' ? t('settings.copied') : t('settings.copy')}
+              {copiedKey === 'attachments' ? t('detail.linkCopied') : t('settings.copy')}
             </button>
           {:else}
             <span class="text-text-primary">{t('settings.runtimeAttachmentsRemote')}</span>
@@ -162,7 +162,7 @@
             class={COPY_BTN}
             onclick={() => copyValue('cfg', runtime.configPath)}
           >
-            {copiedKey === 'cfg' ? t('settings.copied') : t('settings.copy')}
+            {copiedKey === 'cfg' ? t('detail.linkCopied') : t('settings.copy')}
           </button>
         {/if}
       </div>
@@ -219,7 +219,7 @@
           data-testid="built-in-init-copy"
           onclick={() => copyValue('built-in-init', STANDALONE_INIT_COMMAND)}
         >
-          {copiedKey === 'built-in-init' ? t('settings.copied') : t('settings.copy')}
+          {copiedKey === 'built-in-init' ? t('detail.linkCopied') : t('settings.copy')}
         </button>
       </div>
       <div class="mt-0.5 text-text-muted">{t('settings.workspaceBuiltInHint')}</div>

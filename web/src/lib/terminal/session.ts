@@ -27,6 +27,7 @@ import { config, isDesktop } from '../config'
 import { classifyUnavailable, coerceDroppedReason } from './protocol'
 import type { SocketHandle, SocketHandlers, UnavailableCause } from './protocol'
 import { openWailsSessionSocket } from './wails-stream'
+import { TERMINAL_RECONNECT_BACKOFF_MS } from './driver'
 
 // The wire vocabulary lives in ./protocol so the two transports do not import
 // each other; re-exported here because this is where the pane already looks.
@@ -39,10 +40,10 @@ export {
 } from './protocol'
 export type { DroppedReason, SocketHandle, SocketHandlers, UnavailableCause } from './protocol'
 
-export const TERMINAL_GRACE_MS = 60_000
-export const TERMINAL_RECONNECT_BACKOFF_MS = [500, 1000, 2000, 4000] as const
-/** Bound for "WS that never opens" (desktop / wails:// has no TCP socket). */
-export const TERMINAL_WS_OPEN_MS = 8_000
+// The socket-driver timing constants live in ./driver (GDK-1767) — the
+// phone imports them without pulling this file's wails transport. Re-exported
+// here because this is where the existing importers (gdk-944.test.ts) look.
+export { TERMINAL_GRACE_MS, TERMINAL_RECONNECT_BACKOFF_MS, TERMINAL_WS_OPEN_MS } from './driver'
 
 /** Sibling of dashboardsBase(): apiBase ends in issues/, this swaps the suffix
  *  so /w/<name>/ mounts keep working. */

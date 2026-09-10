@@ -6,13 +6,13 @@ import Base from '../layouts/Base.astro'
 // SECURITY.md, which stays the enforcement record. en-only: a store listing
 // needs one URL, and the store reviewer reads English.
 const security = 'https://github.com/midagedev/gadak/blob/main/SECURITY.md'
-const updated = '2026-09-03'
+const updated = '2026-09-11'
 ---
 
 <Base
   lang="en"
   title="Privacy — gadak"
-  description="gadak has no account, no server, and no telemetry. What the app stores on your machine, the six places it can send bytes, and what this website records."
+  description="gadak has no account, no server, and no telemetry. What the app stores on your machine, the five places it can send bytes, and what this website records."
   noAltLang
 >
   <h1>Privacy</h1>
@@ -73,11 +73,6 @@ const updated = '2026-09-03'
       <strong>The tracker you configured</strong> — your own Atlassian site, or Linear — over
       HTTPS with your own token, to sync and to write back the comments, transitions, and edits
       you make. The tracker's own privacy policy governs what happens there.
-    </li>
-    <li>
-      <strong>GitHub Releases</strong> — at most one anonymous request per day to check whether a
-      newer version exists. It carries no identifier and no local data, and can be turned off in
-      settings. Development builds never check.
     </li>
     <li>
       <strong>A machine you paired with</strong> — if you bind a workspace to your own

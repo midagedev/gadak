@@ -112,13 +112,15 @@ export function startOfWeekMonday(now: Date = new Date(), zone: CalendarZone = l
 
 /**
  * Absolute display. Date-only strings stay on their calendar day (no UTC
- * midnight). Instants use the given zone.
+ * midnight). Instants use the given zone. The locale is required (GDK-1788):
+ * an ambient 'en-US' default is how a ko/ja reader gets latin dates no caller
+ * asked for — every caller names the locale it is rendering for.
  */
 export function formatAbs(
   raw: string | null | undefined,
   kind: DateKind,
   zone: CalendarZone = localZone(),
-  locale = 'en-US',
+  locale: string,
 ): string {
   if (!raw) return ''
   const s = raw.trim()

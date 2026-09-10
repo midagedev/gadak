@@ -199,20 +199,39 @@ describe('GDK-1497 A6 — Shell wiring (source contract)', () => {
     join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'screens', 'Shell.svelte'),
     'utf8',
   )
+  /*
+   * GDK-1767 (2026-09-11): the epoch — like the rest of the socket
+   * skeleton — moved out of the screen into the shared driver
+   * (web/src/lib/terminal/driver.ts), so the guard is pinned where it now
+   * lives. The claim is unchanged, and its incident (a stale socket
+   * scheduling the wrong session's reconnect) is the driver's own header
+   * comment. FAIL-first against the pre-refactor screen:
+   * scratch/sc-w13-webphone/mobile-unit-1767.log.
+   */
+  const driver = readFileSync(
+    join(
+      dirname(fileURLToPath(import.meta.url)),
+      '..', '..', '..', '..',
+      'web', 'src', 'lib', 'terminal', 'driver.ts',
+    ),
+    'utf8',
+  )
 
   it('stamps every attachment with an epoch and guards each callback with it', () => {
-    expect(shell).toMatch(/const mySeq = \+\+socketSeq/)
-    expect(shell).toMatch(/const mine = \(\): boolean => mySeq === socketSeq/)
+    expect(shell).toContain('createTerminalDriver')
+    expect(driver).toMatch(/const gen = this\.#gen/)
+    expect(driver).toMatch(/const mine = \(\): boolean => gen === this\.#gen/)
     // Detaching must move the counter, or a handler from the socket just
-    // closed still reads as current.
-    const detach = shell.slice(shell.indexOf('const detachSocket'), shell.indexOf('const fittedSize'))
-    expect(detach).toContain('socketSeq += 1')
+    // closed still reads as current. Bump before close(): close can call
+    // back synchronously.
+    const detach = driver.slice(driver.indexOf('detach(): void {'), driver.indexOf('dispose(): void {'))
+    expect(detach).toContain('#gen += 1')
     // Every handler that touches pane state leads with the guard.
-    for (const cb of ['onOpen()', 'onBytes(data)', 'onExit(code)', 'onDropped(reason)', 'onClose(neverOpened)']) {
-      const at = shell.indexOf(cb)
+    for (const cb of ['onOpen: () =>', 'onBytes: (data) =>', 'onExit: (code) =>', 'onDropped: (reason) =>', 'onClose: (neverOpened) =>']) {
+      const at = driver.indexOf(cb)
       expect(at, `${cb} must exist`).toBeGreaterThan(-1)
-      const head = shell.slice(at, at + 160)
-      expect(head, `${cb} must lead with the epoch guard`).toMatch(/^\s*\S+\s*\{\s*\n\s*if \(!mine\(\)\) return/)
+      const head = driver.slice(at, at + 200)
+      expect(head, `${cb} must lead with the epoch guard`).toMatch(/\{\s*\n\s*if \(!mine\(\)\) return/)
     }
   })
 

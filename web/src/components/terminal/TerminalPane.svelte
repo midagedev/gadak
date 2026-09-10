@@ -21,23 +21,18 @@
   import LoadingState from '../ui/LoadingState.svelte'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import { createRenderer, type BehaviorTerminalRenderer } from '../../lib/terminal/renderer'
-  import { settleResize } from '../../lib/terminal/resize'
+  import { createTerminalDriver } from '../../lib/terminal/driver'
   import {
     createSession,
-    coerceDroppedReason,
     classifyCreateFail,
     droppedAllowsRestart,
     firstAttachRetryDelayMs,
     openSessionSocket,
     unavailableAllowsRestart,
     UNAVAILABLE_KEYS,
-    TERMINAL_GRACE_MS,
-    TERMINAL_RECONNECT_BACKOFF_MS,
-    TERMINAL_WS_OPEN_MS,
     TERMINAL_SCROLLBACK_FALLBACK,
     TERMINAL_CURSOR_BLINK_FALLBACK,
     type DroppedReason,
-    type SocketHandle,
     type UnavailableCause,
   } from '../../lib/terminal/session'
   import { TERMINAL_OVERLAY_ROSTER_PX,
@@ -145,59 +140,8 @@
   onMount(() => {
     let cancelled = false
     let renderer: BehaviorTerminalRenderer | null = null
-    let socket: SocketHandle | null = null
     let ro: ResizeObserver | null = null
-    let stopSettle: (() => void) | null = null
-    let fitTimer: ReturnType<typeof setTimeout> | undefined
-    let openTimer: ReturnType<typeof setTimeout> | undefined
-    let reconnectTimer: ReturnType<typeof setTimeout> | undefined
-    let reconnectAttempt = 0
-    let reconnectSince = 0
-    let lastCols = 0
-    let lastRows = 0
-    let phase: 'live' | 'ended' | 'unavailable' | 'reconnecting' = 'live'
-    // Which session this pane's socket is on. The selected id is the wish;
-    // this is what actually happened, and the two being separate is what
-    // makes the switch idempotent.
-    let attachedId: string | null = null
     let stopIssueLinks: (() => void) | null = null
-
-    const clearTimers = () => {
-      stopSettle?.()
-      stopSettle = null
-      if (fitTimer !== undefined) clearTimeout(fitTimer)
-      if (openTimer !== undefined) clearTimeout(openTimer)
-      if (reconnectTimer !== undefined) clearTimeout(reconnectTimer)
-      fitTimer = undefined
-      openTimer = undefined
-      reconnectTimer = undefined
-    }
-
-    /*
-     * GDK-1153: a socket the pane has moved off is not allowed to speak.
-     *
-     * Every attach stamps a generation; every callback checks it first, so
-     * a socket closed on the way to another session cannot run the pane's
-     * reconnect for the session it just left. Measured before this guard:
-     * switching sessions closed a *live* socket, its onClose read
-     * phase === 'live' and reconnected the old id, and the two attachments
-     * then took turns replaying their rings into one buffer — the pane
-     * showed both shells' scrollback, spliced, and neither session's
-     * keystrokes landed where they were aimed.
-     *
-     * The class this closes is wider than the switch: any late callback
-     * from a socket the pane no longer holds — a slow close, a drop that
-     * arrives after a reattach — used to be indistinguishable from the
-     * current one's.
-     */
-    let socketGen = 0
-
-    const detachSocket = () => {
-      socketGen += 1
-      socket?.close()
-      socket = null
-      attached = false
-    }
 
     const fittedSize = (): { cols: number; rows: number } => {
       renderer?.fit()
@@ -216,29 +160,41 @@
      */
     const paneLaidOut = (): boolean => !!hostEl && hostEl.clientWidth > 0 && hostEl.clientHeight > 0
 
-    // The single owner of "tell the server how big the pane is" (GDK-1154).
-    // lastCols/lastRows mean "what the server was last told", so they advance
-    // here and nowhere else — a cache that runs ahead of an actual send turns
-    // every later check into a false negative.
-    const sendResize = () => {
-      if (!renderer || !socket || phase !== 'live') return
-      if (!paneLaidOut()) return
-      const { cols, rows } = fittedSize()
-      if (cols === lastCols && rows === lastRows) return
-      lastCols = cols
-      lastRows = rows
-      socket.resize(cols, rows)
-    }
-
-    const scheduleFit = () => {
-      if (fitTimer !== undefined) clearTimeout(fitTimer)
-      fitTimer = setTimeout(sendResize, 100)
-    }
+    /*
+     * The socket skeleton — generation guard, backoff ladder, grace, open
+     * timeout, resize cache — lives in lib/terminal/driver (GDK-1767),
+     * shared with the phone. This pane supplies the transport (ws or
+     * wails, via ./session), the measurements, and the reactions that are
+     * pane-owned: which selection id to drop and what a recreate starts.
+     */
+    const driver = createTerminalDriver({
+      open: (id, handlers) => openSessionSocket(id, handlers),
+      fittedSize,
+      measurable: () => renderer !== null && paneLaidOut(),
+      onAttached: () => renderer?.focus(),
+      onBytes: (data) => renderer?.write(data),
+      onExit: () => terminalSessions.select(null),
+      onDropped: (reason) => {
+        if (reason === 'token_revoked' || reason === 'server_shutdown' || reason === 'idle_timeout') {
+          terminalSessions.select(null)
+        }
+      },
+      onSessionGone: () => terminalSessions.select(null),
+      onRecreate: () => {
+        terminalSessions.select(null)
+        void startNew().catch(onCreateFail)
+      },
+      onStatus: (s) => {
+        status = s
+      },
+      onLive: (live) => {
+        attached = live
+      },
+      firstAttachRetry: (attempt) => firstAttachRetryDelayMs(attempt),
+    })
 
     async function startNew(): Promise<void> {
-      const { cols, rows } = fittedSize()
-      lastCols = cols
-      lastRows = rows
+      const { cols, rows } = driver.measureForCreate()
       // What the pane was on when this create was asked for. A person can
       // move the selection while the POST is in flight — a strip row is live
       // the moment the *server* has the session, which is before its response
@@ -263,121 +219,7 @@
       // the row was still empty). kill() already refreshes on its own verb;
       // create is the other one.
       terminalSessions.nudge()
-      attachSocket(doc.id, { afterCreate: true })
-    }
-
-    function attachSocket(id: string, opts: { afterCreate: boolean; recreateOnFail?: boolean }): void {
-      detachSocket()
-      let opened = false
-      phase = 'live'
-      attachedId = id
-      // Claimed after detachSocket bumped it: this closure owns the pane
-      // only while the counter still reads its own number.
-      const gen = socketGen
-      const stale = () => gen !== socketGen
-      const handle = openSessionSocket(id, {
-        onOpen() {
-          if (stale()) return
-          opened = true
-          if (openTimer !== undefined) {
-            clearTimeout(openTimer)
-            openTimer = undefined
-          }
-          attached = true
-          reconnectAttempt = 0
-          reconnectSince = 0
-          if (status.kind === 'reconnecting') status = { kind: 'none' }
-          // The size may have changed while the socket was down, and the
-          // cache is "what the server was told" — a new socket has been
-          // told nothing. Empty it, then let the one owner send, guard and
-          // all. This used to call handle.resize() with its own unguarded
-          // fittedSize(), the side door a hidden pane's 10x5 reached the
-          // PTY through on a late reattach (GDK-1154).
-          lastCols = 0
-          lastRows = 0
-          sendResize()
-          // …and again across the window in which layout settles: one read
-          // at open used to be the last word on the size for the life of
-          // the session. sendResize no-ops once the sizes agree.
-          stopSettle?.()
-          stopSettle = settleResize(sendResize)
-          renderer?.focus()
-        },
-        onBytes(data) {
-          if (stale()) return
-          renderer?.write(data)
-        },
-        onExit(code) {
-          if (stale()) return
-          phase = 'ended'
-          status = { kind: 'exited', code }
-          terminalSessions.select(null)
-        },
-        onDropped(reason) {
-          if (stale()) return
-          phase = 'ended'
-          status = { kind: 'dropped', reason: coerceDroppedReason(reason) }
-          if (reason === 'token_revoked' || reason === 'server_shutdown' || reason === 'idle_timeout') {
-            terminalSessions.select(null)
-          }
-        },
-        onClose(neverOpened) {
-          if (stale()) return
-          attached = false
-          if (cancelled || phase === 'ended' || phase === 'unavailable') return
-          if (neverOpened && opts.recreateOnFail) {
-            terminalSessions.select(null)
-            void startNew().catch(onCreateFail)
-            return
-          }
-          if (neverOpened && opts.afterCreate) {
-            const delay = firstAttachRetryDelayMs(reconnectAttempt)
-            if (delay !== null) {
-              phase = 'reconnecting'
-              status = { kind: 'reconnecting' }
-              reconnectAttempt += 1
-              reconnectTimer = setTimeout(() => {
-                if (cancelled) return
-                attachSocket(id, { afterCreate: true })
-              }, delay)
-              return
-            }
-            phase = 'unavailable'
-            status = { kind: 'unavailable', cause: 'network' }
-            terminalSessions.select(null)
-            return
-          }
-          scheduleReconnect(id)
-        },
-      })
-      socket = handle
-      if (openTimer !== undefined) clearTimeout(openTimer)
-      openTimer = setTimeout(() => {
-        if (opened || cancelled) return
-        handle.close()
-        // onClose handles recreate / unavailable / reconnect.
-      }, TERMINAL_WS_OPEN_MS)
-    }
-
-    function scheduleReconnect(id: string): void {
-      if (reconnectSince === 0) reconnectSince = Date.now()
-      if (Date.now() - reconnectSince >= TERMINAL_GRACE_MS) {
-        phase = 'ended'
-        status = { kind: 'dropped', reason: 'idle_timeout' }
-        terminalSessions.select(null)
-        return
-      }
-      phase = 'reconnecting'
-      status = { kind: 'reconnecting' }
-      const delay =
-        TERMINAL_RECONNECT_BACKOFF_MS[
-          Math.min(reconnectAttempt, TERMINAL_RECONNECT_BACKOFF_MS.length - 1)
-        ]
-      reconnectAttempt += 1
-      reconnectTimer = setTimeout(() => {
-        if (cancelled) return
-        attachSocket(id, { afterCreate: false })
-      }, delay)
+      driver.attach(doc.id, { afterCreate: true })
     }
 
     /*
@@ -388,21 +230,18 @@
      * the sink does not trust its caller.
      */
     function handleTerminalData(bytes: Uint8Array): void {
-      if (phase === 'ended' || phase === 'unavailable') {
+      if (driver.phase === 'ended' || driver.phase === 'unavailable') {
         const enter = bytes.length === 1 && (bytes[0] === 13 || bytes[0] === 10)
         if (enter) {
           if (status.kind === 'unavailable' && !unavailableAllowsRestart(status.cause)) return
           if (status.kind === 'dropped' && !droppedAllowsRestart(status.reason)) return
           status = { kind: 'none' }
-          phase = 'live'
-          reconnectSince = 0
-          reconnectAttempt = 0
+          driver.revive()
           void startNew().catch(onCreateFail)
         }
         return
       }
-      if (phase !== 'live') return
-      socket?.send(bytes)
+      driver.send(bytes)
     }
     sendTerminalData = handleTerminalData
 
@@ -424,16 +263,13 @@
       })
       renderer.fit()
       renderer.onData(handleTerminalData)
-      // Route xterm's own resize through the single sender rather than
-      // repeating it here. The duplicate advanced lastCols/lastRows and
-      // *then* `socket?.resize(...)`, which is a no-op before the socket is
-      // live — so the cache recorded a size the server had never been told,
-      // every later check found "no change", and the PTY kept its
-      // pre-layout size for the life of the session. Measured on the phone
-      // pane, which carried the same six lines (GDK-1154): cols 10 rows 5
-      // under a pane rendering 48x34, which is the size SIGWINCH hands
-      // every TUI running in it.
-      renderer.onResize(() => sendResize())
+      // Route xterm's own resize through the driver's single sender rather
+      // than repeating it here. A duplicate used to advance the size cache
+      // and *then* try to send on a socket that was not live — so the cache
+      // recorded a size the server had never been told, every later check
+      // found "no change", and the PTY kept its pre-layout size for the
+      // life of the session (GDK-1154).
+      renderer.onResize(() => driver.resizeNow())
       // GDK-1160: issue keys already flow through this pane in git logs,
       // build output and agent reports. Opening one goes through the app's
       // existing verb — there is no second route to an issue here.
@@ -441,13 +277,13 @@
         projects: paneProjectKeys,
         open: (key) => selection.select(key, 'terminal-link'),
       })
-      ro = new ResizeObserver(scheduleFit)
+      ro = new ResizeObserver(() => driver.scheduleFit())
       ro.observe(hostEl)
 
       const kept = terminalSessions.selectedId
       try {
         if (kept) {
-          attachSocket(kept, { afterCreate: false, recreateOnFail: true })
+          driver.attach(kept, { afterCreate: false, recreateOnFail: true })
         } else {
           await startNew()
         }
@@ -459,7 +295,9 @@
     function onCreateFail(err: unknown): void {
       if (cancelled) return
       const classified = classifyCreateFail(err)
-      phase = 'unavailable'
+      // The phase column is the driver's, and the Enter gate reads it: a
+      // pane whose create failed must not look live to its own keystrokes.
+      driver.markUnavailable()
       status = classified.detail
         ? { kind: 'unavailable', cause: classified.cause, detail: classified.detail }
         : { kind: 'unavailable', cause: classified.cause }
@@ -481,13 +319,12 @@
       // No renderer yet means boot() is still in its dynamic import; it
       // reads the selected id after that, so a wish made in this window is
       // honoured there rather than attaching a socket with nowhere to draw.
-      if (cancelled || !renderer || want === null || want === attachedId) return
-      clearTimers()
-      reconnectAttempt = 0
-      reconnectSince = 0
+      if (cancelled || !renderer || want === null || want === driver.currentId) return
+      driver.clearTimers()
+      driver.resetBackoff()
       status = { kind: 'none' }
       renderer?.reset()
-      attachSocket(want, { afterCreate: false })
+      driver.attach(want, { afterCreate: false })
     }
 
     /*
@@ -498,11 +335,9 @@
     newSession = () => {
       // Same window as switchTo: boot() is about to create one of its own.
       if (cancelled || !renderer) return
-      clearTimers()
-      reconnectAttempt = 0
-      reconnectSince = 0
+      driver.clearTimers()
+      driver.revive()
       status = { kind: 'none' }
-      phase = 'live'
       renderer?.reset()
       // Leave the old session *now*, not when the new one's POST comes back
       // (GDK-1185). The buffer is already blank, so a socket still on the
@@ -515,8 +350,7 @@
       // `select()` is idempotent, so clicking the row it still points at
       // changed nothing and no attach happened. Null is the honest value —
       // the pane is between shells.
-      detachSocket()
-      attachedId = null
+      driver.detach()
       terminalSessions.select(null)
       void startNew().catch(onCreateFail)
     }
@@ -527,11 +361,10 @@
       cancelled = true
       switchTo = null
       newSession = null
-      clearTimers()
       stopIssueLinks?.()
       stopIssueLinks = null
       ro?.disconnect()
-      detachSocket()
+      driver.dispose()
       renderer?.dispose()
       renderer = null
       sendTerminalData = null

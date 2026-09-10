@@ -201,8 +201,10 @@ const ALLOWED = new Map<string, string>([
     'CLI command shown verbatim in the hint (mono span)',
   ],
   [
-    'screens/PairingTab.svelte :: gadak mobile 0.1.0',
-    'brand + version footer, locale-neutral by construction',
+    // GDK-1788 (2026-09-11): the version left the literal — it is now the
+    // tauri.conf.json import, so the footer cannot drift from the build.
+    'screens/PairingTab.svelte :: gadak mobile',
+    'brand footer, locale-neutral by construction (version from tauri.conf.json)',
   ],
   [
     'screens/PairingTab.svelte :: DEV',

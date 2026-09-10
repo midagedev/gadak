@@ -9,9 +9,9 @@ import (
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
-// StartWatch starts the optional update check and the incremental sync
-// loops (primary profile + workspace mounts). Order and log strings match
-// the previous inlined cmdServe / desktop ApplicationStarted body.
+// StartWatch starts the incremental sync loops (primary profile +
+// workspace mounts). Order and log strings match the previous inlined
+// cmdServe / desktop ApplicationStarted body.
 //
 // Watch re-entry is syncer.WatchLoop, not Watch (GDK-663): Watch returns
 // on fatal auth and would leave the process alive with sync permanently

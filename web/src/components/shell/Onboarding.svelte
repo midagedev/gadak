@@ -736,7 +736,7 @@
               data-testid="onboarding-copy-skill"
               onclick={() => void copyCommand(SKILL_COMMAND)}
             >
-              {copiedCommand === SKILL_COMMAND ? t('settings.copied') : t('settings.copy')}
+              {copiedCommand === SKILL_COMMAND ? t('detail.linkCopied') : t('settings.copy')}
             </button>
           </div>
           <p class="text-micro text-text-muted">{t('onboarding.agentSkillCaption')}</p>
@@ -762,7 +762,7 @@
                   data-testid={cmd === CLAUDE_COMMAND ? 'onboarding-copy-claude' : undefined}
                   onclick={() => void copyCommand(cmd)}
                 >
-                  {copiedCommand === cmd ? t('settings.copied') : t('settings.copy')}
+                  {copiedCommand === cmd ? t('detail.linkCopied') : t('settings.copy')}
                 </button>
               </div>
             {/each}

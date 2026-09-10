@@ -45,9 +45,17 @@ describe('GDK-908 first-attach connecting state', () => {
   })
 
   it('clears connecting when the socket opens', () => {
-    const onOpen = shell.slice(shell.indexOf('onOpen('), shell.indexOf('onBytes('))
-    expect(onOpen).toMatch(/'connecting'/)
+    // GDK-1767 (2026-09-11): onOpen moved into the shared driver with the
+    // socket skeleton. It paints `none` unconditionally on open — which
+    // clears 'connecting' and 'reconnecting' alike, the claim this test has
+    // pinned since GDK-908 — and the screen hands that verdict to its
+    // status state verbatim. FAIL-first against the pre-refactor screen:
+    // scratch/sc-w13-webphone/mobile-unit-1767.log.
+    const driver = read('../../web/src/lib/terminal/driver.ts')
+    const onOpen = driver.slice(driver.indexOf('onOpen: () =>'), driver.indexOf('onBytes: (data)'))
     expect(onOpen).toMatch(/kind:\s*'none'/)
+    const onStatus = shell.slice(shell.indexOf('onStatus: (s)'), shell.indexOf('onLive:'))
+    expect(onStatus).toMatch(/status = s/)
   })
 
   it('says loading in shapes, not a spinner', () => {
@@ -181,7 +189,7 @@ describe('GDK-908 the attach effect must not depend on status', () => {
    * called from the `$effect` that watches app.tab and hostEl, so every
    * $state it *reads* becomes that effect's dependency. Reading `status`
    * there subscribed the attach effect to the field attaching updates:
-   * onOpen sets 'none', the effect re-runs, actSeq bumps, and attachSocket()
+   * onOpen sets 'none', the effect re-runs, actSeq bumps, and the attach
    * detaches the socket that had just opened — connecting → reconnecting,
    * forever. Writing a fresh object each pass made the cycle synchronous and
    * fatal (Svelte effect_update_depth_exceeded killed the pane on the first

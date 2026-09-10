@@ -59,10 +59,10 @@
                   }}
                 >
                   <option value="">{t('settings.kindNone')}</option>
-                  <option value="option">option</option>
-                  <option value="multi_option">multi_option</option>
-                  <option value="user">user</option>
-                  <option value="version_array">version_array</option>
+                  <option value="option">{t('settings.kindOption')}</option>
+                  <option value="multi_option">{t('settings.kindMultiOption')}</option>
+                  <option value="user">{t('settings.kindUser')}</option>
+                  <option value="version_array">{t('settings.kindVersionArray')}</option>
                 </select>
                 <Icon name="chevron-right" size={13} class={SELECT_CHEVRON} />
               </span>

@@ -145,7 +145,7 @@
          the v0.20 audit read it. -->
     <div>
       <button type="button" class={COPY_BTN} onclick={() => void copyShellCommands()}>
-        {copiedShell ? t('settings.copied') : t('settings.copy')}
+        {copiedShell ? t('detail.linkCopied') : t('settings.copy')}
       </button>
     </div>
   </section>

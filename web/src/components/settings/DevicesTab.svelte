@@ -319,7 +319,7 @@
             aria-label={t('settings.devicesCopyOffer')}
             data-testid="devices-offer-copy"
           >
-            {offerCopied ? t('settings.copied') : t('settings.copy')}
+            {offerCopied ? t('detail.linkCopied') : t('settings.copy')}
           </button>
         </div>
       </div>

@@ -93,7 +93,7 @@ workspace) rather than assuming the pipe is private.
 ## How do I know "no telemetry" is true?
 
 Run the grep in [`SECURITY.md`](../SECURITY.md#data-flow) — every
-outbound request constructor in the tree resolves to one of six destinations:
+outbound request constructor in the tree resolves to one of five destinations:
 your own Atlassian site; Linear (`api.linear.app` GraphQL and a signed PUT to
 `uploads.linear.app`); a pairing home serve; user-invoked `gh`; and a library
 download you asked for. Loopback is gadak talking to itself and is

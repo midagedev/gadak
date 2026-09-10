@@ -16,6 +16,11 @@
   import { decodeOffer, OfferError, OfferScopeError } from '../lib/offer'
   import { ApiError, errorMessage } from '../lib/api'
   import { getActiveHostId, listHosts, type KnownHost } from '../lib/hosts'
+  // The one version string this screen may print. tauri.conf.json owns the
+  // version (the TestFlight script reads and bumps it there), so the footer
+  // cannot drift from the shipping build again (GDK-1788). A JSON import, not
+  // a runtime Tauri call, so the line renders identically in dev and preview.
+  import tauriConf from '../../src-tauri/tauri.conf.json'
 
   // Rarely visited, always honest: what am I paired to, how fresh is the
   // snapshot, who does the serve think I am. The one destructive rarity —
@@ -448,7 +453,7 @@
       </section>
     {/if}
 
-    <p class="ver">gadak mobile 0.1.0</p>
+    <p class="ver">gadak mobile {tauriConf.version}</p>
     {#if DEV}
       <p class="probe" data-testid="viewport-probe" hidden>DEV {viewportProbe}</p>
     {/if}

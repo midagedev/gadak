@@ -199,6 +199,29 @@ export function openShellSocket(
   return dev ? openDevSocket(id, handlers, opts) : openPackagedSocket(id, handlers, opts)
 }
 
+/*
+ * The drop seam (GDK-865, GDK-1768): e2e closes the live socket to watch
+ * the pane reattach and replay the ring. Same shape as the renderer's
+ * __gadakTerm above it — a test seam, not a back door: nothing in the app
+ * reads it, and it is only ever a close. The name stays a __gadak* global
+ * because that is the idiom every other seam in this app already uses
+ * (e2e/shell.spec.ts is the sole consumer).
+ */
+export const SHELL_DROP_TEST_HOOK = '__gadakShellDrop'
+
+export function exposeShellDrop(close: (() => void) | null): void {
+  if (typeof window === 'undefined') return
+  if (close) window[SHELL_DROP_TEST_HOOK] = close
+  else delete window[SHELL_DROP_TEST_HOOK]
+}
+
+declare global {
+  interface Window {
+    /** Closes the live socket so e2e can watch reattach (GDK-865). */
+    __gadakShellDrop?: () => void
+  }
+}
+
 function openDevSocket(id: string, handlers: SocketHandlers, opts: ShellSocketOpts): SocketHandle {
   const Ctor = opts.webSocket ?? (globalThis.WebSocket as unknown as new (url: string) => BrowserSocket)
   if (typeof Ctor !== 'function') {

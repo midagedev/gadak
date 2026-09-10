@@ -822,12 +822,13 @@ export function relTime(
   const ts = new Date(iso)
   if (isNaN(ts.getTime())) return ''
   const sec = Math.floor((now.getTime() - ts.getTime()) / 1000)
-  // Same catalog key the web's compact relative time reads (GDK-1704 —
-  // this branch used to hardcode the English word 'now').
+  // Same catalog keys the web's compact relative time reads (GDK-1704 fixed
+  // the justNow step; GDK-1765 the other three — they hardcoded latin
+  // 'm'/'h'/'d' units, which ko/ja phones rendered as latin glyphs).
   if (sec < 60) return t('time.justNow')
-  if (sec < 3600) return `${Math.floor(sec / 60)}m`
-  if (sec < 86400) return `${Math.floor(sec / 3600)}h`
-  if (sec < 7 * 86400) return `${Math.floor(sec / 86400)}d`
+  if (sec < 3600) return t('time.minute', { n: Math.floor(sec / 60) })
+  if (sec < 86400) return t('time.hour', { n: Math.floor(sec / 3600) })
+  if (sec < 7 * 86400) return t('time.day', { n: Math.floor(sec / 86400) })
   return calendarLabel(ts, localeTag)
 }
 

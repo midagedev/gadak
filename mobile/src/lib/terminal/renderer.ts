@@ -92,8 +92,7 @@ declare global {
   interface Window {
     /** Underlying xterm Terminal, tests only (GDK-865). */
     __gadakTerm?: TermHook
-    /** Closes the live socket so e2e can watch reattach (GDK-865). */
-    __gadakShellDrop?: () => void
+    // __gadakShellDrop lives in ./transport, beside the seam that sets it.
   }
 }
 
