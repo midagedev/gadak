@@ -1,0 +1,188 @@
+<!doctype html>
+<!--
+  gadak label-ratio dashboard (GDK-1745 example).
+
+  Register it:
+
+    gadak dashboards save label_ratio --html examples/dashboards/label-ratio.html \
+      --datasource "by_label=sql:select json_each.value as label, count(*) as n \
+from issues_full, json_each(issues_full.labels) group by 1 order by n desc limit 20"
+
+  Open it:
+
+    gadak dashboards open label_ratio
+
+  Why this file exists (GDK-1745): the ja hero take opened a wall of this
+  shape and its twelfth legend row, "flaky", stopped at the panel's bottom
+  edge with its glyphs cut through the middle and nothing on screen saying
+  there was more. The frame does scroll — measured, scrollHeight 1616 against
+  clientHeight 852 — so the rows were reachable; what was missing was any
+  sign that they were. A cut glyph with no scrollbar reads as a render fault,
+  not as a fold.
+
+  The rule this file demonstrates: **the wall's height belongs to the panel,
+  not to the document.** A terminal strip, a narrower window, or a second
+  column can halve it between one open and the next. So a list that can grow
+  past the fold gets three things here:
+
+    1. its own scroll container (overflow-y: auto) — the page itself never
+       scrolls, so the header and the chart stay put;
+    2. a height snapped down to a whole number of rows, so the last row
+       inside the container is a full glyph height and never a half one;
+    3. a "+N more" line, shown only while rows are actually hidden — an
+       affordance on a list that fits would be a lie, and a gradient fade
+       was tried first and dropped: it dims the very row rule 2 just
+       promised was whole.
+
+  Everything else follows examples/dashboards/triage.html: no queries of its
+  own (the host runs the datasource and posts the result in), column lookup
+  by name and never by position, mirror text inserted with textContent only,
+  and colours from this document's own custom properties.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Label ratio</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f4efe4;
+    --surface: #e4d9c4;
+    --border: #d5c9b2;
+    --ink: #1c1812;
+    --muted: #635a4f;
+    /* One row's box, in one place: the snap arithmetic below and the CSS
+       both read it, so they cannot drift apart. */
+    --row-h: 34px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #0d1017;
+      --surface: #161b26;
+      --border: #232a3a;
+      --ink: #e8ecf4;
+      --muted: #8b94a7;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  /* overflow: hidden on the page is deliberate and is only safe because the
+     one thing that can grow — .legend — carries its own scroller below. */
+  body {
+    background: var(--bg); color: var(--ink); overflow: hidden;
+    font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 20px 22px; display: flex; flex-direction: column; gap: 14px;
+  }
+  h1 { font-size: 19px; font-weight: 650; }
+  .sub { color: var(--muted); font-size: 12.5px; }
+  /* min-height: 0 is what lets the flex child shrink below its content and
+     hand the overflow to .legend instead of to the page. */
+  main { display: flex; gap: 24px; align-items: stretch; flex: 1; min-height: 0; }
+  .pie { flex: 0 0 auto; align-self: center; border-radius: 50%; }
+  .legend-wrap { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+  .legend { overflow-y: auto; overscroll-behavior: contain; }
+  .legend-row {
+    display: flex; align-items: center; gap: 12px;
+    height: var(--row-h); padding: 0 2px;
+  }
+  .sw { flex: 0 0 auto; width: 11px; height: 11px; border-radius: 3px; }
+  .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .n { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .more {
+    flex: 0 0 auto; height: var(--row-h); display: flex; align-items: center;
+    color: var(--muted); font-size: 12.5px;
+    border-top: 1px solid var(--border);
+  }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<h1 id="title">Label ratio</h1>
+<div class="sub" id="sub">…</div>
+<main>
+  <div class="pie" id="pie" style="width:220px;height:220px;background:var(--surface)"></div>
+  <div class="legend-wrap">
+    <div class="legend" id="legend"></div>
+    <div class="more" id="more" hidden></div>
+  </div>
+</main>
+<script>
+  // A 12-step wheel, fixed so a label keeps its colour between refreshes.
+  const COLORS = ['#5b8cff','#f2913d','#3ecf8e','#e05aa6','#a97bf0','#e8c33c',
+                  '#4cc9e0','#ef5f5f','#8fa3bd','#67d38a','#c98cf0','#8bb7f0']
+
+  let rows = []
+
+  function render() {
+    const legend = document.getElementById('legend')
+    legend.replaceChildren(...rows.map(([label, n, pct], i) => {
+      const row = document.createElement('div'); row.className = 'legend-row'
+      row.dataset.legendRow = String(i)
+      const sw = document.createElement('div'); sw.className = 'sw'
+      sw.style.background = COLORS[i % COLORS.length]
+      const nm = document.createElement('div'); nm.className = 'name'
+      nm.textContent = label
+      const num = document.createElement('div'); num.className = 'n'
+      num.textContent = `${n} (${pct}%)`
+      row.append(sw, nm, num)
+      return row
+    }))
+    // Paint the pie from the same order, so swatch i is slice i.
+    let at = 0
+    const stops = rows.map(([, , pct], i) => {
+      const from = at; at += Number(pct)
+      return `${COLORS[i % COLORS.length]} ${from}% ${at}%`
+    })
+    document.getElementById('pie').style.background =
+      stops.length ? `conic-gradient(${stops.join(',')})` : 'var(--surface)'
+    fit()
+  }
+
+  /*
+   * The whole point of this file. Available height is whatever the panel
+   * left us; a fractional row is what produced the cut glyphs, so the
+   * container floors to a whole number of rows and the remainder becomes
+   * the "+N more" line rather than half a row of text.
+   */
+  function fit() {
+    const wrap = document.querySelector('.legend-wrap')
+    const legend = document.getElementById('legend')
+    const more = document.getElementById('more')
+    const rowH = parseFloat(getComputedStyle(document.documentElement)
+      .getPropertyValue('--row-h')) || 34
+    const avail = wrap.clientHeight
+    if (!avail || !rows.length) return
+    const fitsAll = Math.floor(avail / rowH) >= rows.length
+    // When the list does not fit, one row's worth of space goes to the
+    // "+N more" line — so the count is never itself the thing cut off.
+    const budget = fitsAll ? avail : avail - rowH
+    const shown = Math.max(1, Math.floor(budget / rowH))
+    legend.style.height = `${shown * rowH}px`
+    const hidden = Math.max(0, rows.length - shown)
+    more.hidden = hidden === 0
+    if (hidden > 0) more.textContent = `+${hidden} more · scroll for the rest`
+  }
+
+  addEventListener('resize', fit)
+
+  addEventListener('message', (e) => {
+    const m = e.data
+    if (!m || m.type !== 'data' || m.name !== 'by_label') return
+    if (m.error) {
+      document.getElementById('sub').textContent = String(m.error)
+      return
+    }
+    // Rows are POSITIONAL arrays keyed by columns — never row.n.
+    const iL = m.columns.indexOf('label'), iN = m.columns.indexOf('n')
+    const raw = m.rows.map((r) => [String(r[iL]), Number(r[iN])])
+    const total = raw.reduce((a, r) => a + r[1], 0) || 1
+    rows = raw.map(([label, n]) => [label, n, ((n / total) * 100).toFixed(1)])
+    document.getElementById('sub').textContent =
+      `${total} label assignments · ${rows.length} labels`
+    render()
+  })
+</script>
+</body>
+</html>

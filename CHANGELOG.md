@@ -343,6 +343,12 @@ the log names the upgrade ([GDK-1691]). And a sprint has a burn-up:
 scope, started and done series, reconstructed from the changelog and
 withheld on an origin that keeps none ([GDK-1710]); the chart is next.
 
+A dashboard list no longer ends in a row cut through its glyphs: the wall's
+height is the panel's, so the label-ratio example and the skill's copyable
+snippet give the list its own scroll region floored to whole rows, with a
+`+N more` line shown only while rows are hidden, and an e2e gate measures
+the cut-row count at both window sizes ([GDK-1745]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -1921,3 +1927,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1132]: https://gadak.dev/backlog/#/?ks=GDK-1132
 [GDK-1691]: https://gadak.dev/backlog/#/?ks=GDK-1691
 [GDK-1710]: https://gadak.dev/backlog/#/?ks=GDK-1710
+[GDK-1745]: https://gadak.dev/backlog/#/?ks=GDK-1745

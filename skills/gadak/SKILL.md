@@ -906,6 +906,15 @@ gadak dashboards list / show / rm   # lifecycle; same name on save = update
   hosts). `<script src="/api/v1/dashboards/vendor/uPlot.iife.min.js">` (+ its
   CSS) — leading slash required. The frame inherits no app styling: set your
   own explicit palette.
+- **The wall's height is the panel's, not yours.** A terminal strip or a
+  second column can halve it between one open and the next, and the frame
+  scrolls with an overlay scrollbar that is invisible at rest — so a list
+  that runs past the fold ends in a row cut through its glyphs and says
+  nothing about the rest. Give any list that can grow its own
+  `overflow-y: auto` region, floor its height to a whole number of rows so
+  the last one inside it is a full row, and show a `+N more` line while rows
+  are hidden (and only then). `examples/dashboards/label-ratio.html`
+  in gadak's source tree is this shape end to end.
 **A complete one. Copy this shape — there is no example file to go find.**
 Everything the contract requires is here: the listener, the positional read,
 and a paint. Nothing is elided.
@@ -917,14 +926,26 @@ and a paint. Nothing is elided.
   body { margin:0; padding:24px; font:14px/1.5 ui-sans-serif,system-ui,sans-serif;
          background:#12141a; color:#e8eaf0 }
   h1 { font-size:15px; font-weight:600; margin:0 0 16px; letter-spacing:.01em }
-  .row { display:flex; align-items:center; gap:12px; margin:6px 0 }
+  /* One row's box in one place — the snap arithmetic reads the same value. */
+  :root { --row-h: 30px }
+  * { box-sizing:border-box }
+  html, body { height:100% }
+  body { display:flex; flex-direction:column; overflow:hidden }
+  /* min-height:0 lets this shrink below its content, so the overflow lands
+     in #out's own scroller instead of running off the panel's bottom edge. */
+  #wrap { flex:1; min-height:0; display:flex; flex-direction:column }
+  #out { overflow-y:auto; overscroll-behavior:contain }
+  #more { height:var(--row-h); display:flex; align-items:center;
+          color:#a8aec0; font-size:12.5px; border-top:1px solid #262a35 }
+  .row { display:flex; align-items:center; gap:12px; height:var(--row-h) }
   .name { width:180px; color:#a8aec0; overflow:hidden; text-overflow:ellipsis;
           white-space:nowrap }
   .bar { height:18px; background:#5b8cff; border-radius:3px; min-width:2px }
   .n { color:#a8aec0; font-variant-numeric:tabular-nums }
+  [hidden] { display:none !important }
 </style>
 <h1 id="t">…</h1>
-<div id="out"></div>
+<div id="wrap"><div id="out"></div><div id="more" hidden></div></div>
 <script>
   addEventListener('message', (e) => {
     const m = e.data
@@ -943,7 +964,25 @@ and a paint. Nothing is elided.
       const num = document.createElement('div'); num.className = 'n'; num.textContent = n
       row.append(nm, bar, num); return row
     }))
+    fit()
   })
+
+  // The height is the panel's: floor the list to whole rows so the last one
+  // is never cut through its glyphs, and spend the remainder on "+N more"
+  // — shown only while rows are actually hidden.
+  function fit() {
+    const wrap = document.getElementById('wrap'), out = document.getElementById('out')
+    const more = document.getElementById('more'), rowH = 30
+    const n = out.children.length, avail = wrap.clientHeight
+    if (!avail || !n) return
+    const fits = Math.floor(avail / rowH) >= n
+    const shown = Math.max(1, Math.floor((fits ? avail : avail - rowH) / rowH))
+    out.style.height = `${shown * rowH}px`
+    const hidden = Math.max(0, n - shown)
+    more.hidden = hidden === 0
+    if (hidden) more.textContent = `+${hidden} more · scroll for the rest`
+  }
+  addEventListener('resize', fit)
 </script>
 ```
 
