@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -220,7 +222,7 @@ func ToLinear(ctx context.Context, client *linear.Client, doc *Doc, st *Stats, o
 	}
 	relations := linearRelations(issues)
 
-	for _, c := range sortedKeys(cats) {
+	for _, c := range slices.Sorted(maps.Keys(cats)) {
 		rep.Mapping = append(rep.Mapping, fmt.Sprintf("status_category %-10s → the team's lowest workflow state in that category", c))
 	}
 	rankList := make([]int, 0, len(ranks))
@@ -334,7 +336,7 @@ func ToLinear(ctx context.Context, client *linear.Client, doc *Doc, st *Stats, o
 	for _, l := range all {
 		labelID[strings.ToLower(l.Name)] = l.ID
 	}
-	for _, name := range sortedKeys(labelSet) {
+	for _, name := range slices.Sorted(maps.Keys(labelSet)) {
 		if labelID[strings.ToLower(name)] != "" {
 			skipped["labels"]++
 			continue
@@ -536,7 +538,7 @@ func ToLinear(ctx context.Context, client *linear.Client, doc *Doc, st *Stats, o
 	if len(userLookupFailed) > 0 {
 		rep.NotMigrated = append(rep.NotMigrated,
 			fmt.Sprintf("assignee lookups failed for %d accounts (%s) — their issues migrated unassigned; a lookup error, not a confirmed miss",
-				len(userLookupFailed), strings.Join(sortedKeys(userLookupFailed), ", ")))
+				len(userLookupFailed), strings.Join(slices.Sorted(maps.Keys(userLookupFailed)), ", ")))
 	}
 	counts(created, skipped)
 	return rep, nil

@@ -1077,7 +1077,7 @@ func formatDoctorText(r doctorReport) string {
 	switch r.Mirror.Status {
 	case "present":
 		if r.Mirror.Bytes != nil {
-			line("mirror", fmt.Sprintf("present (%s)", formatBytes(*r.Mirror.Bytes)))
+			line("mirror", fmt.Sprintf("present (%s)", store.HumanBytes(*r.Mirror.Bytes)))
 		} else {
 			line("mirror", "present")
 		}
@@ -1183,7 +1183,7 @@ func formatDoctorText(r doctorReport) string {
 	if r.Logs.Path != "" {
 		line("logs.path", r.Logs.Path)
 		if r.Logs.Size != nil {
-			line("logs.size", formatBytes(*r.Logs.Size))
+			line("logs.size", store.HumanBytes(*r.Logs.Size))
 		} else {
 			line("logs.size", "not found")
 		}
@@ -1697,7 +1697,7 @@ func collectAttachments(db *store.DB) *doctorAttachments {
 // formatDoctorAttachments is the one-line answer to "are this workspace's
 // attachment bytes local yet?".
 func formatDoctorAttachments(a doctorAttachments) string {
-	s := fmt.Sprintf("%d mirrored, %d cached (%s)", a.Mirrored, a.Cached, formatBytes(a.CachedBytes))
+	s := fmt.Sprintf("%d mirrored, %d cached (%s)", a.Mirrored, a.Cached, store.HumanBytes(a.CachedBytes))
 	if a.PerFileCapMB > 0 {
 		s += fmt.Sprintf(", per-file cap %d MB", a.PerFileCapMB)
 	}

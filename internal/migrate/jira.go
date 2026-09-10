@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"math"
+	"slices"
 	"sort"
 	"strings"
 
@@ -328,7 +330,7 @@ func ToJira(ctx context.Context, client *jira.Client, doc *Doc, st *Stats, opt J
 	}
 	sort.Ints(rankList)
 
-	for _, c := range sortedKeys(cats) {
+	for _, c := range slices.Sorted(maps.Keys(cats)) {
 		rep.Mapping = append(rep.Mapping, fmt.Sprintf("status_category %-10s → one transition into a target status of the same category (names are never matched)", c))
 	}
 	rep.Mapping = append(rep.Mapping,
@@ -675,7 +677,7 @@ func ToJira(ctx context.Context, client *jira.Client, doc *Doc, st *Stats, opt J
 	if len(unlinkable) > 0 {
 		rep.NotMigrated = append(rep.NotMigrated,
 			fmt.Sprintf("links of %d type(s) absent from the target site, which also has no Relates type: %s",
-				len(unlinkable), strings.Join(sortedKeys(unlinkable), ", ")))
+				len(unlinkable), strings.Join(slices.Sorted(maps.Keys(unlinkable)), ", ")))
 	}
 
 	counts(created, skipped)

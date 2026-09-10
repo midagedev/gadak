@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/midagedev/gadak/internal/sqlhint"
 )
@@ -33,24 +32,15 @@ func clampLimit(n int) int {
 // ATTACH, and multi-statement payloads still need an explicit check so the
 // agent gets a clear error instead of a surprising empty result.
 func rejectNonSelect(query string) error {
-	s := sqlhint.StripComments(query)
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return errors.New("empty SQL")
-	}
-	// Allow one trailing semicolon; anything else is multi-statement.
-	body := strings.TrimRight(s, " \t\n\r;")
-	if strings.Contains(body, ";") {
-		return errors.New("multiple statements are not allowed; send one SELECT or WITH")
-	}
-	kw := sqlhint.FirstKeyword(body)
-	switch strings.ToUpper(kw) {
-	case "SELECT", "WITH":
+	switch verdict, kw := sqlhint.ClassifySingleSelect(query); verdict {
+	case sqlhint.SingleSelectOK:
 		return nil
-	case "":
-		return errors.New("empty SQL")
-	default:
+	case sqlhint.SingleSelectMultiStatement:
+		return errors.New("multiple statements are not allowed; send one SELECT or WITH")
+	case sqlhint.SingleSelectOtherKeyword:
 		return fmt.Errorf("only SELECT or WITH statements are allowed (got %q)", kw)
+	default:
+		return errors.New("empty SQL")
 	}
 }
 

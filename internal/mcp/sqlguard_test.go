@@ -175,3 +175,21 @@ func TestRunQueryWaitsForWriterThenSucceeds(t *testing.T) {
 		t.Fatalf("runQuery returned in %v; expected to wait for the holder (~80ms)", elapsed)
 	}
 }
+
+// The MCP surface's own rejection sentences. They differ from the settings
+// surface's on purpose (GDK-928 kept the wording with the caller), so each
+// side pins its own strings.
+func TestRejectNonSelectMessages(t *testing.T) {
+	cases := []struct{ q, want string }{
+		{"", "empty SQL"},
+		{"-- only a comment", "empty SQL"},
+		{"SELECT 1; SELECT 2", "multiple statements are not allowed; send one SELECT or WITH"},
+		{"INSERT INTO t VALUES (1)", `only SELECT or WITH statements are allowed (got "INSERT")`},
+	}
+	for _, c := range cases {
+		err := rejectNonSelect(c.q)
+		if err == nil || err.Error() != c.want {
+			t.Errorf("rejectNonSelect(%q) = %v, want %q", c.q, err, c.want)
+		}
+	}
+}

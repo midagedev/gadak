@@ -364,6 +364,13 @@ Jira Cloud 의 근사 개수를 근사로 읽어, origin 숫자의 1% 안이면 
 없어서 악의적인 링크가 할 수 있는 최악은 엉뚱한 이슈를 보여주는 것입니다
 ([GDK-873]).
 
+중복 구현 셋이 각각 소유자 하나로 모입니다. 바이트 수를 찍는 함수가 하나가
+되어 `gadak snapshot` 이 1기가바이트를 `1024.0 MB` 로 쓰던 것과 음수 크기가
+그대로 새어 나오던 것이 사라집니다 ([GDK-927]). MCP 질의 도구와 저장된 그룹
+쿼리가 각자 하던 단일 SELECT/WITH 검사는 이제 한 번의 검사이고, 두 표면은
+읽는 사람이 달라서 거절 문장은 각자 유지합니다 ([GDK-928]). migrate 패키지가
+따로 갖고 있던 키 정렬 헬퍼는 표준 라이브러리에 자리를 내줍니다 ([GDK-1320]).
+
 ## v0.21.0 — 2026-09-08
 
 **자리를 비운 사이 무슨 일이 있었는지 미러가 말해 줍니다.** 상태 변경·코멘트·
@@ -1902,3 +1909,6 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-803]: https://gadak.dev/backlog/#/?ks=GDK-803
 [GDK-804]: https://gadak.dev/backlog/#/?ks=GDK-804
 [GDK-873]: https://gadak.dev/backlog/#/?ks=GDK-873
+[GDK-927]: https://gadak.dev/backlog/#/?ks=GDK-927
+[GDK-928]: https://gadak.dev/backlog/#/?ks=GDK-928
+[GDK-1320]: https://gadak.dev/backlog/#/?ks=GDK-1320

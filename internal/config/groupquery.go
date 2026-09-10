@@ -12,26 +12,19 @@ import (
 // Writes, PRAGMA, ATTACH, and multi-statement payloads are refused here so a
 // bad save fails before the derived view tries to run it.
 func ValidateGroupQuery(q string) error {
-	q = strings.TrimSpace(q)
-	if q == "" {
+	if strings.TrimSpace(q) == "" {
 		return nil
 	}
-	s := sqlhint.StripComments(q)
-	s = strings.TrimSpace(s)
-	if s == "" {
+	switch verdict, kw := sqlhint.ClassifySingleSelect(q); verdict {
+	case sqlhint.SingleSelectOK:
+		return nil
+	case sqlhint.SingleSelectEmpty:
 		return errors.New("groupQuery is empty after comments")
-	}
-	body := strings.TrimRight(s, " \t\n\r;")
-	if strings.Contains(body, ";") {
+	case sqlhint.SingleSelectMultiStatement:
 		return errors.New("groupQuery must be one SELECT or WITH")
-	}
-	kw := sqlhint.FirstKeyword(body)
-	switch strings.ToUpper(kw) {
-	case "SELECT", "WITH":
-		return nil
-	case "":
-		return errors.New("groupQuery is empty")
-	default:
+	case sqlhint.SingleSelectOtherKeyword:
 		return fmt.Errorf("groupQuery must be SELECT or WITH (got %q)", kw)
+	default:
+		return errors.New("groupQuery is empty")
 	}
 }

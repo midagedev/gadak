@@ -621,7 +621,7 @@ func (s *server) runtimeInfo(ctx context.Context) *runtimeInfo {
 		info.DBPath = dbPath
 		if st, err := os.Stat(dbPath); err == nil {
 			info.DBSizeBytes = st.Size()
-			info.DBSizeHuman = humanBytes(st.Size())
+			info.DBSizeHuman = store.HumanBytes(st.Size())
 			mod := st.ModTime().UTC().Format(time.RFC3339)
 			info.DBModifiedAt = &mod
 		} else {
@@ -636,7 +636,7 @@ func (s *server) runtimeInfo(ctx context.Context) *runtimeInfo {
 				info.OriginPath = persist
 				if st, err := os.Stat(persist); err == nil {
 					info.OriginSizeBytes = st.Size()
-					info.OriginSizeHuman = humanBytes(st.Size())
+					info.OriginSizeHuman = store.HumanBytes(st.Size())
 				}
 				info.AttachmentsPath = filepath.Join(filepath.Dir(persist), "blobs")
 			}
@@ -647,7 +647,7 @@ func (s *server) runtimeInfo(ctx context.Context) *runtimeInfo {
 		// machine — walking silently reported zero there (GDK-1617).
 		if st, err := s.originAttachmentStorage(ctx); err == nil {
 			info.AttachmentsBytes = st.Bytes
-			info.AttachmentsHuman = humanBytes(st.Bytes)
+			info.AttachmentsHuman = store.HumanBytes(st.Bytes)
 			info.AttachmentsFileCount = st.Files
 			info.AttachmentCount = st.Attachments
 			info.AttachmentsOldestAt = st.OldestAt
@@ -732,22 +732,6 @@ func (s *server) originAttachmentStorage(ctx context.Context) (originStorage, er
 		return out.Attachments, err
 	}
 	return out.Attachments, nil
-}
-
-func humanBytes(n int64) string {
-	if n < 0 {
-		n = 0
-	}
-	const unit = 1024
-	if n < unit {
-		return fmt.Sprintf("%d B", n)
-	}
-	div, exp := int64(unit), 0
-	for v := n / unit; v >= unit; v /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "KMGTPE"[exp])
 }
 
 // The helpers below only replace nil with empty, so the documents carry `[]` and

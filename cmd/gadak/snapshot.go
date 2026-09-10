@@ -9,6 +9,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/snapshot"
+	"github.com/midagedev/gadak/internal/store"
 )
 
 // cmdSnapshot writes a shareable mirror copy (no personal tables, no credentials).
@@ -94,26 +95,11 @@ func cmdSnapshot(args []string) error {
 		}
 	}
 	fmt.Printf("snapshot %s: %d issues, %d comments, %d changelog%s (%s)\n",
-		res.Path, res.Issues, res.Comments, res.Changelog, extra, formatBytes(res.Bytes))
+		res.Path, res.Issues, res.Comments, res.Changelog, extra, store.HumanBytes(res.Bytes))
 	// GDK-1739: how work moves through the file that was just written. Printed
 	// unconditionally rather than behind a flag — the fixture shipped for weeks
 	// with two-month-old WIP beside a one-day cycle time, and nothing in the
 	// pipeline said so out loud.
 	fmt.Println(res.Flow.String())
 	return nil
-}
-
-func formatBytes(n int64) string {
-	const (
-		kb = 1024
-		mb = 1024 * kb
-	)
-	switch {
-	case n >= mb:
-		return fmt.Sprintf("%.1f MB", float64(n)/float64(mb))
-	case n >= kb:
-		return fmt.Sprintf("%.1f KB", float64(n)/float64(kb))
-	default:
-		return fmt.Sprintf("%d B", n)
-	}
 }

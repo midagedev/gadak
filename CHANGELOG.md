@@ -471,6 +471,15 @@ the app is paired, another app's scheme passes in silence, and the scheme
 carries no verb, so the worst a hostile link does is show the wrong issue
 ([GDK-873]).
 
+Three duplicate implementations collapse to one owner each. A byte count is
+rendered by one function everywhere, so `gadak snapshot` stops printing
+`1024.0 MB` for a gigabyte and a negative size stops leaking through
+([GDK-927]). The single-statement SELECT/WITH check the MCP query tool and the
+saved group query both make is one walk now, with each surface keeping its own
+refusal sentence because they address different readers ([GDK-928]). And the
+migrate package's own sorted-keys helper gives way to the standard library
+([GDK-1320]).
+
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2075,3 +2084,6 @@ priority sorting keyed on `priority_rank`.
 [GDK-803]: https://gadak.dev/backlog/#/?ks=GDK-803
 [GDK-804]: https://gadak.dev/backlog/#/?ks=GDK-804
 [GDK-873]: https://gadak.dev/backlog/#/?ks=GDK-873
+[GDK-927]: https://gadak.dev/backlog/#/?ks=GDK-927
+[GDK-928]: https://gadak.dev/backlog/#/?ks=GDK-928
+[GDK-1320]: https://gadak.dev/backlog/#/?ks=GDK-1320

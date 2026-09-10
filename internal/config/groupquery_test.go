@@ -45,3 +45,23 @@ func TestValidateGroupQueryCommentEdges(t *testing.T) {
 		t.Errorf("double-quoted -- must not hide a second statement: %q", q)
 	}
 }
+
+// The settings surface's own rejection sentences, kept distinct from the MCP
+// tool's (GDK-928). Empty input stays accepted: that is how the group query is
+// disabled.
+func TestValidateGroupQueryMessages(t *testing.T) {
+	if err := ValidateGroupQuery("   "); err != nil {
+		t.Errorf("blank groupQuery = %v, want nil (disabled)", err)
+	}
+	cases := []struct{ q, want string }{
+		{"-- only a comment", "groupQuery is empty after comments"},
+		{"SELECT 1; SELECT 2", "groupQuery must be one SELECT or WITH"},
+		{"INSERT INTO t VALUES (1)", `groupQuery must be SELECT or WITH (got "INSERT")`},
+	}
+	for _, c := range cases {
+		err := ValidateGroupQuery(c.q)
+		if err == nil || err.Error() != c.want {
+			t.Errorf("ValidateGroupQuery(%q) = %v, want %q", c.q, err, c.want)
+		}
+	}
+}

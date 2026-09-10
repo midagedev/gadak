@@ -884,24 +884,6 @@ func TestWebConfigUIFonts(t *testing.T) {
 	}
 }
 
-func TestHumanBytes(t *testing.T) {
-	cases := []struct {
-		n    int64
-		want string
-	}{
-		{0, "0 B"},
-		{500, "500 B"},
-		{1024, "1.0 KB"},
-		{1536, "1.5 KB"},
-		{1024 * 1024, "1.0 MB"},
-	}
-	for _, tc := range cases {
-		if got := humanBytes(tc.n); got != tc.want {
-			t.Errorf("humanBytes(%d) = %q, want %q", tc.n, got, tc.want)
-		}
-	}
-}
-
 func TestPutSettingsAppearanceRoundtrip(t *testing.T) {
 	t.Setenv("GADAK_HOME", t.TempDir())
 	db, cfg := fixture(t)

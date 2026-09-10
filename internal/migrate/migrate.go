@@ -22,6 +22,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -629,7 +631,7 @@ func buildCatalogs(ctx context.Context, db *sql.DB, doc *Doc, st *Stats) error {
 	// — an unknown category lands on "new", same as the hand-rolled map it
 	// replaced, and a stray Cloud key now folds correctly instead of
 	// falling to "new".
-	for _, id := range sortedKeys(statusIDs) {
+	for _, id := range slices.Sorted(maps.Keys(statusIDs)) {
 		n := name[id]
 		if n == "" {
 			n = histName[id]
@@ -649,7 +651,7 @@ func buildCatalogs(ctx context.Context, db *sql.DB, doc *Doc, st *Stats) error {
 		return err
 	}
 	derivePriorityIDs(doc, st, prioIDs, prios)
-	ids := sortedKeys(prioIDs)
+	ids := slices.Sorted(maps.Keys(prioIDs))
 	sort.Slice(ids, func(i, j int) bool {
 		a, b := ids[i], ids[j]
 		if len(a) != len(b) {
@@ -682,7 +684,7 @@ func buildCatalogs(ctx context.Context, db *sql.DB, doc *Doc, st *Stats) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	for _, id := range sortedKeys(typeIDs) {
+	for _, id := range slices.Sorted(maps.Keys(typeIDs)) {
 		t := IssueType{ID: id, Name: types[id][0]}
 		if t.Name == "" {
 			t.Name = id
@@ -720,7 +722,7 @@ func buildPages(ctx context.Context, db *sql.DB, doc *Doc, st *Stats, want []str
 	if len(spaceKeys) == 0 {
 		return nil
 	}
-	st.Spaces = sortedKeys(spaceKeys)
+	st.Spaces = slices.Sorted(maps.Keys(spaceKeys))
 
 	names := map[string]string{}
 	if err := scanPairs(ctx, db, `SELECT key, name FROM spaces`, names); err != nil {
@@ -834,7 +836,7 @@ func buildUsers(ctx context.Context, db *sql.DB, doc *Doc, st *Stats) error {
 		}
 	}
 
-	for _, id := range sortedKeys(ids) {
+	for _, id := range slices.Sorted(maps.Keys(ids)) {
 		var u User
 		u.AccountID = id
 		var acctType string
@@ -938,13 +940,4 @@ func scanPairs(ctx context.Context, db *sql.DB, q string, into map[string]string
 		}
 	}
 	return rows.Err()
-}
-
-func sortedKeys(m map[string]bool) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
 }
