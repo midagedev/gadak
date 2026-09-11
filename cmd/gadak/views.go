@@ -672,7 +672,7 @@ var desktopAppExists = func() bool {
 }
 
 var startOpen = func(args ...string) error {
-	return exec.Command("open", args...).Start()
+	return execCommand("open", args...).Start()
 }
 
 // startOpenWait is startOpen for a launch whose failure has to be seen.
@@ -685,7 +685,7 @@ var startOpen = func(args ...string) error {
 // and on the success path `open` returns as soon as LaunchServices accepts
 // the request rather than when the app finishes launching.
 var startOpenWait = func(args ...string) error {
-	return exec.Command("open", args...).Run()
+	return execCommand("open", args...).Run()
 }
 
 // desktopProcessName is the executable inside Gadak.app
@@ -701,7 +701,7 @@ var lookDesktopProcess = func(name string) bool {
 	if desktopFocusGOOS == "windows" {
 		return lookWindowsProcess(name)
 	}
-	return exec.Command("pgrep", "-xq", name).Run() == nil
+	return execCommand("pgrep", "-xq", name).Run() == nil
 }
 
 // desktopAppRunning is true when a Gadak.app process is already up.
@@ -862,7 +862,7 @@ func startWindowsDesktopImpl(link string) error {
 	if link != "" {
 		args = []string{link}
 	}
-	return exec.Command(exe, args...).Start()
+	return execCommand(exe, args...).Start()
 }
 
 // findWindowsDesktopExe is the portable-bundle layout: gadak.exe and
@@ -900,7 +900,7 @@ func lookWindowsProcess(name string) bool {
 	if runtime.GOOS != "windows" {
 		return false
 	}
-	out, err := exec.Command("tasklist", "/FI", "IMAGENAME eq "+image, "/NH").Output()
+	out, err := execCommand("tasklist", "/FI", "IMAGENAME eq "+image, "/NH").Output()
 	if err != nil {
 		return false
 	}

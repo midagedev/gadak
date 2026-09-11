@@ -191,7 +191,7 @@ var tailnetStatusJSON = func() ([]byte, error) {
 	// binary can itself take a second or two.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return exec.CommandContext(ctx, "tailscale", "status", "--json").Output()
+	return execCommandContext(ctx, "tailscale", "status", "--json").Output()
 }
 
 // writePairingMintOutput is the device-mint output contract (GDK-456).

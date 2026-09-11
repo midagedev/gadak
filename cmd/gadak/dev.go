@@ -325,7 +325,7 @@ func devLinkFromBuild(b jira.DevBuild) store.DevLink {
 // outside a repository or on a detached HEAD (git prints the literal "HEAD"
 // there).
 func currentGitBranch() string {
-	out, err := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").Output()
+	out, err := execCommand("git", "rev-parse", "--abbrev-ref", "HEAD").Output()
 	if err != nil {
 		return ""
 	}
@@ -438,7 +438,7 @@ func cmdDevScan(args []string) error {
 	if _, err := exec.LookPath("gh"); err != nil {
 		return fmt.Errorf("dev scan reads pull requests via the `gh` CLI, which is not on PATH — install it, or record one PR with `gadak dev link`")
 	}
-	out, err := exec.Command("gh", "pr", "list", "--state", "all", "--limit", strconv.Itoa(*limit),
+	out, err := execCommand("gh", "pr", "list", "--state", "all", "--limit", strconv.Itoa(*limit),
 		"--json", "url,title,state,headRefName,author").Output()
 	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
@@ -551,7 +551,7 @@ func devScanMatchExtras(author, branch string) string {
 // The hooks path is resolved through git so worktrees (where .git is a file)
 // work; an existing hook is never overwritten.
 func installDevScanHook() error {
-	out, err := exec.Command("git", "rev-parse", "--git-path", "hooks/pre-push").Output()
+	out, err := execCommand("git", "rev-parse", "--git-path", "hooks/pre-push").Output()
 	if err != nil {
 		return fmt.Errorf("dev scan --install-hook: not inside a git repository")
 	}

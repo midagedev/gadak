@@ -1509,7 +1509,7 @@ func listMirrorHolders(mirrorPath string) *doctorMirrorHolders {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	args := []string{"-F", "pc", "--", mirrorPath, mirrorPath + "-wal", mirrorPath + "-shm"}
-	cmd := exec.CommandContext(ctx, "lsof", args...)
+	cmd := execCommandContext(ctx, "lsof", args...)
 	out, err := cmd.Output()
 	if ctx.Err() != nil {
 		return nil

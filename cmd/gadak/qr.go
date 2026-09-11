@@ -32,7 +32,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 
@@ -77,7 +76,7 @@ func shouldDrawQR(stderrIsTTY, noQRFlag, asJSON, noColor, termIsDumb bool) bool 
 // stdlib syscall has no TIOCGWINSZ): stty does not exist there, the run
 // fails, and the 80-column fallback answers.
 func terminalWidth() int {
-	cmd := exec.Command("stty", "size")
+	cmd := execCommand("stty", "size")
 	cmd.Stdin = os.Stderr
 	out, err := cmd.Output()
 	if err != nil {

@@ -353,7 +353,14 @@ narrower cost the title 60% of its width and every row at 1000px clipped
 mid-verb. The strip is now priced against a width at which a title is still a
 title, and folds away in order, whole, until that width is there: 222px to
 302px at 1000, 166px to 336px at 800, and 1440 unchanged to the pixel
-([GDK-1791]).
+([GDK-1791]). `docs/PROMISES.md` grew a twelfth
+claim, and it is about *when* rather than what: a read verb answers from the
+disk and opens no socket — no request, no name lookup, and no child process
+started to make one behind your back. Its verification block runs every read
+verb in the usage list against the demo cache with the HTTP transport and the
+DNS resolver replaced by hooks that fail on use, and with a child-process
+ledger armed, because a detached sync has a transport of its own and would
+have walked past the first hook ([GDK-1792]).
 
 The CLI itself says when its skill file is behind: a read verb prints one
 stderr line when the installed copy differs from this build's, so an agent
@@ -2788,3 +2795,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1788]: https://gadak.dev/backlog/#/?ks=GDK-1788
 [GDK-1789]: https://gadak.dev/backlog/#/?ks=GDK-1789
 [GDK-1791]: https://gadak.dev/backlog/#/?ks=GDK-1791
+[GDK-1792]: https://gadak.dev/backlog/#/?ks=GDK-1792

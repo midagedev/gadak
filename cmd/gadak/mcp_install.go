@@ -252,7 +252,7 @@ func mcpInstallClaude(exe, profile string, dryRun bool) error {
 		return errClaudeNotFound(exe, profile)
 	}
 	argv := claudeMCPAddArgv(exe, profile)
-	cmd := exec.Command(claudePath, argv...)
+	cmd := execCommand(claudePath, argv...)
 	// Claude's UX is interactive-ish messaging on both streams; capture both so
 	// "already exists" detection and the user see the same text.
 	out, err := cmd.CombinedOutput()

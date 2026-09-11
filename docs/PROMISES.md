@@ -1,7 +1,7 @@
 # Promises
 
-Eleven claims about gadak, each with one command that checks it in a clone of
-this repository. Run them: that is the point of the file. Six need a Go
+Twelve claims about gadak, each with one command that checks it in a clone of
+this repository. Run them: that is the point of the file. Seven need a Go
 toolchain, the rest `sqlite3` or `grep`. Every block was run on this tree and
 produced the output shown, and `tools/check-promises.sh` re-runs them all in
 CI — a block that stops passing is a broken promise and a bug worth reporting.
@@ -11,8 +11,8 @@ gadak intends to do. The threat model and the reasoning behind these claims
 are in [`SECURITY.md`](../SECURITY.md); this file is the evidence.
 
 The first three are the ones that decide whether you can install this at work.
-The rest answer, in order: can you get your data back out, and what can reach
-gadak once it is running.
+The rest answer, in order: can you get your data back out, what can reach
+gadak once it is running, and when it goes to the network at all.
 
 ## What leaves this machine
 
@@ -166,4 +166,29 @@ printf 'ring in memory: %s\nfiles the package writes: %s\n' \
      | grep -v _test | wc -l | tr -d ' ')"
 # → ring in memory: 1
 # → files the package writes: 0
+```
+
+## When the network moves
+
+**12. A read verb answers from the disk and opens no socket.**
+`gadak sql`, `issue`, `search`, `list` and the rest of the read section of
+`gadak --help` read the cache and nothing else: no request, not even a name
+lookup, and no child process started to make one behind your back. The network
+moves when you run `sync`, or while `serve`, `mcp` or the app is up — never as
+a side effect of a question. If the cache is behind, they say so in one line on
+stderr and teach the command that fixes it (`warnIfStale`, the preamble every
+read verb shares), but they do not fix it themselves. Unplug the cable and
+every one of them answers the same.
+
+The test below runs each of those verbs in-process against the bundled demo
+cache with the HTTP transport and the DNS resolver replaced by hooks that fail
+on use, and with this package's child-process ledger armed — a detached sync
+would slip past the first hook, having a transport of its own. The list of
+verbs is read out of the `Reading the mirror` section of the usage string, so a
+read verb added later is covered or named as an exception; it cannot arrive
+uncounted.
+
+```bash
+go test ./cmd/gadak/ -run 'TestReadVerbsAnswerWithoutNetwork|TestPromiseReadVerbsAreClassified|TestSpawnHasOneOwner|TestOutboundHTTPHasNoPrivateTransport' -count=1
+# → ok  github.com/midagedev/gadak/cmd/gadak
 ```

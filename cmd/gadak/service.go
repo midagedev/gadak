@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -14,9 +13,9 @@ import (
 const serviceLabel = "dev.midagedev.gadak"
 
 // runServiceCmd is the launchctl/systemctl runner. Tests replace it so we
-// never touch a real session bus. Default is exec.Command(name, arg...).Run.
+// never touch a real session bus. Default is execCommand(name, arg...).Run.
 var runServiceCmd = func(name string, arg ...string) error {
-	return exec.Command(name, arg...).Run()
+	return execCommand(name, arg...).Run()
 }
 
 // serviceNames is the single owner of unit identity. Default/empty keeps the

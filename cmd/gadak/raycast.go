@@ -192,7 +192,7 @@ func npmMissingMessage() string {
 }
 
 func runNPMCi(npm, dir string) error {
-	cmd := exec.Command(npm, "ci", "--no-audit", "--no-fund", "--loglevel=error")
+	cmd := execCommand(npm, "ci", "--no-audit", "--no-fund", "--loglevel=error")
 	cmd.Dir = dir
 	cmd.Env = prependPATH(os.Environ(), filepath.Dir(npm))
 	cmd.Stdout = os.Stdout
@@ -204,7 +204,7 @@ func runNPMCi(npm, dir string) error {
 }
 
 func runRayDevelop(npx, dir string, timeout, settle time.Duration) error {
-	cmd := exec.Command(npx, "ray", "develop")
+	cmd := execCommand(npx, "ray", "develop")
 	cmd.Dir = dir
 	cmd.Env = prependPATH(os.Environ(), filepath.Dir(npx))
 
