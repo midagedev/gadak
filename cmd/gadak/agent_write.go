@@ -248,14 +248,45 @@ func batchAfterWrite(key string, changed bool, err error) batchResult {
 
 // mutate is the whole write-through shape: call the origin that owns the
 // key, re-read the issue into the mirror, then print the refreshed row.
-func mutate(key string, asJSON bool, fn func(context.Context, origin.Writer, string) (map[string]any, error)) error {
+// verb is the ledger name (GDK-1440): the row local.agent_writes gets when
+// the origin accepts the write — dry runs and refusals never reach the
+// recording, which sits after fn's nil and before the write-through tail.
+func mutate(verb, key string, asJSON bool, fn func(context.Context, origin.Writer, string) (map[string]any, error)) error {
 	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
 		extra, err := fn(ctx, c, src)
 		if err != nil {
 			return err
 		}
+		recordAgentWrite(ctx, db, key, verb)
 		return emitAfterWrite(ctx, cfg, db, src, key, asJSON, extra)
 	})
+}
+
+// recordAgentWrite lands one row in local.agent_writes (GDK-1440) — the
+// ledger of what agent sessions actually wrote, keyed by whatever the verb
+// addresses. Best-effort by design: the origin already accepted the write,
+// so a history failure must not turn a landed write into an error; it says
+// so on stderr and the write stands. Callers place it after the origin call
+// returns nil, so a refused or dry-run write never reaches it.
+func recordAgentWrite(ctx context.Context, db *store.DB, key, verb string) {
+	if db == nil {
+		return
+	}
+	if err := db.RecordAgentWrite(ctx, key, verb, store.VisitSourceCLI); err != nil {
+		fmt.Fprintf(os.Stderr, "gadak: local history: %v (the write itself landed)\n", err)
+	}
+}
+
+// recordAPIWrite is `gadak api --write`'s ledger row (GDK-1440): the raw
+// escape hatch records what it can honestly know — the route as typed under
+// verb "api", not a guessed issue key or verb (a POST there can create
+// anything). Only a 2xx counts; the origin refused everything else. Rides
+// the store handle the usage flush already opened in both api branches.
+func recordAPIWrite(ctx context.Context, db *store.DB, method, path string, mutating bool, status int) {
+	if !mutating || status < 200 || status >= 300 {
+		return
+	}
+	recordAgentWrite(ctx, db, path, "api")
 }
 
 // maxMentionWords is the longest @-candidate we will ask the origin about.
@@ -327,7 +358,7 @@ func cmdComment(args []string) error {
 		if err != nil {
 			return fmt.Errorf("comment %s: %w", key, err)
 		}
-		return foldDryRun(mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
+		return foldDryRun(mutate("comment", key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
 			if *dryRun {
 				// The file is the body the origin would carry verbatim, so
 				// the plan carries it verbatim too — no mention pass runs on
@@ -350,7 +381,7 @@ func cmdComment(args []string) error {
 	if strings.TrimSpace(body) == "" {
 		return errors.New("empty comment — pass -m <text>, or -m - to read stdin, or gadak comment KEY <text>")
 	}
-	return foldDryRun(mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
+	return foldDryRun(mutate("comment", key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
 		if *dryRun {
 			// Run the body reader a real write runs — placeholder refusal, the
 			// mention pass — so a plan that would refuse refuses instead of
@@ -422,7 +453,7 @@ func cmdCommentEdit(args []string) error {
 		if err != nil {
 			return fmt.Errorf("comment %s: %w", key, err)
 		}
-		return foldDryRun(mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
+		return foldDryRun(mutate("comment edit", key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
 			if *dryRun {
 				if err := emitDryRun("comment edit", map[string]any{"comment_id": id, "body_adf": doc}, key); err != nil {
 					return nil, err
@@ -442,7 +473,7 @@ func cmdCommentEdit(args []string) error {
 	if strings.TrimSpace(body) == "" {
 		return errors.New("empty comment — pass -m <text>, or -m - to read stdin, or --adf-file F")
 	}
-	return foldDryRun(mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
+	return foldDryRun(mutate("comment edit", key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
 		if *dryRun {
 			// Same validation contract as comment's dry run (GDK-1446): the
 			// body reader runs, the plan carries the typed text.
@@ -490,7 +521,7 @@ func cmdCommentRm(args []string) error {
 		// so there is no origin session to open (GDK-1446).
 		return emitDryRun("comment rm", map[string]any{"comment_id": id}, key)
 	}
-	return mutate(key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
+	return mutate("comment rm", key, *asJSON, func(ctx context.Context, c origin.Writer, _ string) (map[string]any, error) {
 		ed, err := origin.AsCommentEditor(c)
 		if err != nil {
 			return nil, err
@@ -637,6 +668,7 @@ func runCommentBatch(asJSON, internalDefault bool, visDefault *jira.CommentVisib
 			if _, err := postComment(ctx, c, key, body, vis, internal); err != nil {
 				return err
 			}
+			recordAgentWrite(ctx, db, key, "comment")
 			wrote = true
 			return syncer.RefreshIssue(ctx, cfg, db, key, src)
 		})
@@ -813,6 +845,7 @@ func applyTransitionWrite(verb, key, want, resolution string, fields map[string]
 		if err != nil {
 			return err
 		}
+		recordAgentWrite(ctx, db, key, verb)
 		return emitTransitionResult(ctx, cfg, db, src, key, want, comment, asJSON, res)
 	}))
 }
@@ -885,6 +918,7 @@ func runTransitionBatch(asJSON, dryRun bool, resolutionDefault string, fieldsDef
 			if err != nil {
 				return err
 			}
+			recordAgentWrite(ctx, db, key, "transition")
 			changed = res.Changed
 			return syncer.RefreshIssue(ctx, cfg, db, key, src)
 		})
@@ -1052,6 +1086,7 @@ func cmdAssign(args []string) error {
 		if err := assignTo(ctx, c, src, key, who); err != nil {
 			return err
 		}
+		recordAgentWrite(ctx, db, key, "assign")
 		return emitAfterWrite(ctx, cfg, db, src, key, *asJSON, nil)
 	}))
 }
@@ -1086,6 +1121,7 @@ func runAssignBatch(asJSON bool) error {
 			if err := assignTo(ctx, c, src, key, who); err != nil {
 				return err
 			}
+			recordAgentWrite(ctx, db, key, "assign")
 			wrote = true
 			return syncer.RefreshIssue(ctx, cfg, db, key, src)
 		})
@@ -1177,6 +1213,7 @@ func cmdClaim(args []string) error {
 		if !res.Atomic {
 			fmt.Fprintf(os.Stderr, "warning: this origin has no atomic claim — assignee and in-progress transition were two calls, so a concurrent claim could interleave\n")
 		}
+		recordAgentWrite(ctx, db, key, "claim")
 		// GDK-1158: inside a gadak pane, reflect the landed claim into the
 		// session this command ran in, so the serve can say which issue a
 		// terminal is for. Best-effort by contract — the origin write above

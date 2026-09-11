@@ -93,6 +93,41 @@ func TestFindGhSprintField(t *testing.T) {
 	}
 }
 
+// TestFindFlaggedField (GDK-1449) — the Flagged checkbox has no gh-* schema
+// key to suffix-match, so discovery keys on the field's own name, which Jira
+// Software creates as the literal "Flagged" and admins cannot rename. The
+// clauses the gate owes: the plain custom field, case tolerance, a non-custom
+// field of the same name (a site's own "Flagged" text field is not the
+// checkbox), and a site without Jira Software where empty is the honest
+// answer — there is no flagged history to normalise there.
+func TestFindFlaggedField(t *testing.T) {
+	catalog := []jira.FieldInfo{
+		{ID: "customfield_10021", Name: "Flagged", Custom: true},
+	}
+	if got := findGhSprintField(catalog); got.flagged != "customfield_10021" {
+		t.Fatalf("got %q", got.flagged)
+	}
+	// Jira spells it "Flagged"; a differently-cased name still names the same
+	// field, and the first sighting wins.
+	lower := []jira.FieldInfo{
+		{ID: "customfield_10022", Name: "flagged", Custom: true},
+	}
+	if got := findGhSprintField(lower); got.flagged != "customfield_10022" {
+		t.Fatalf("case: got %q", got.flagged)
+	}
+	// A built-in (non-custom) field named Flagged is not the checkbox.
+	builtin := []jira.FieldInfo{
+		{ID: "flagged", Name: "Flagged"},
+	}
+	if got := findGhSprintField(builtin); got.flagged != "" {
+		t.Fatalf("non-custom: got %q, want empty", got.flagged)
+	}
+	// No Jira Software, no checkbox, no discovery.
+	if got := findGhSprintField(nil); got.flagged != "" {
+		t.Fatalf("empty catalog: got %q", got.flagged)
+	}
+}
+
 func ghSprintField() map[string]any {
 	return map[string]any{
 		"id": "customfield_10020", "name": "Sprint", "custom": true,

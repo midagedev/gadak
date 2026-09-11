@@ -727,6 +727,19 @@ origin이 자기가 할 수 있는 일을 스스로 말합니다. config.json에
 유닛 게이트가 그 파일을 읽으며, 공유 홈을 직접 만지는 스펙을 잡는 다섯째
 표지가 생겼습니다 ([GDK-1758]).
 
+캐시가 이슈가 얼마나 오래 막혀 있었는지를 알게 됐습니다. 스키마 v51이
+blocked_hours와 blocked_since를 더하고, Jira의 Flagged 전환에서 스프린트와
+같은 방식으로 파생하며, 변경 기록이 없는 origin에서는 정직하게 NULL입니다
+([GDK-1449]). 로컬 기록에는 표 둘이 새로 생겼습니다. sessions는 "지난 세션
+이후"를 조회 한 번으로 만들고 ([GDK-1439]), agent_writes는 CLI·MCP 세션이
+실제로 남긴 쓰기의 장부입니다 ([GDK-1440]). 커밋된 데모 픽스처가 저장소의
+정본 FTS DDL을 갖게 되어 열 때마다 인덱스를 다시 만들지 않습니다. Datasette
+Lite용 변환은 gadak.dev/demo에 게시되는 사본으로 옮겼고 독자용 링크도 그쪽을
+가리킵니다 ([GDK-1756]). `gadak page get --storage`와 `page edit
+--storage-file`이 페이지 본문을 손실 없이 왕복시키고 ([GDK-1303]), Confluence
+클라이언트가 스페이스를 받아오기 전에 페이지 수를 셀 수 있으며 ([GDK-965]),
+flow p85는 동기화 버전마다 한 번만 계산합니다 ([GDK-1429]).
+
 900px 아래에는 좁은 레짐이 하나입니다. 사이드바의 좁은 폭이 760px 미디어 쿼리 아래 다섯
 자리에 재선언돼 있어서 800px 창은 272px 사이드바를 유지하고 리스트는 남는 만큼만 받았습니다.
 이제 좁은 값은 인라인 토큰 설치에 실리고, `app.css` 는 `--layout-sidebar` 를 어디에도 정의하지
@@ -2066,6 +2079,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-960]: https://gadak.dev/backlog/#/?ks=GDK-960
 [GDK-963]: https://gadak.dev/backlog/#/?ks=GDK-963
 [GDK-964]: https://gadak.dev/backlog/#/?ks=GDK-964
+[GDK-965]: https://gadak.dev/backlog/#/?ks=GDK-965
 [GDK-967]: https://gadak.dev/backlog/#/?ks=GDK-967
 [GDK-968]: https://gadak.dev/backlog/#/?ks=GDK-968
 [GDK-971]: https://gadak.dev/backlog/#/?ks=GDK-971
@@ -2190,6 +2204,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1299]: https://gadak.dev/backlog/#/?ks=GDK-1299
 [GDK-1300]: https://gadak.dev/backlog/#/?ks=GDK-1300
 [GDK-1302]: https://gadak.dev/backlog/#/?ks=GDK-1302
+[GDK-1303]: https://gadak.dev/backlog/#/?ks=GDK-1303
 [GDK-1305]: https://gadak.dev/backlog/#/?ks=GDK-1305
 [GDK-1306]: https://gadak.dev/backlog/#/?ks=GDK-1306
 [GDK-1307]: https://gadak.dev/backlog/#/?ks=GDK-1307
@@ -2263,6 +2278,9 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1428]: https://gadak.dev/backlog/#/?ks=GDK-1428
 [GDK-1429]: https://gadak.dev/backlog/#/?ks=GDK-1429
 [GDK-1438]: https://gadak.dev/backlog/#/?ks=GDK-1438
+[GDK-1439]: https://gadak.dev/backlog/#/?ks=GDK-1439
+[GDK-1440]: https://gadak.dev/backlog/#/?ks=GDK-1440
+[GDK-1449]: https://gadak.dev/backlog/#/?ks=GDK-1449
 [GDK-1451]: https://gadak.dev/backlog/#/?ks=GDK-1451
 [GDK-1453]: https://gadak.dev/backlog/#/?ks=GDK-1453
 [GDK-1455]: https://gadak.dev/backlog/#/?ks=GDK-1455

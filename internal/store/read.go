@@ -112,6 +112,14 @@ type IssueLite struct {
 	// would tell a reader "never carried" where the mirror means "cannot be
 	// read" (GDK-1711).
 	CarryoverCount *int `json:"carryover_count"`
+	// BlockedHours / BlockedSince are the flagged columns (v51, Derive-owned
+	// — DERIVE.md): closed flag intervals summed in hours, and the open
+	// interval's start. BlockedHours is nil only on an origin that supplies
+	// no changelog (the same nil-vs-0 rule as CarryoverCount); 0 means never
+	// flagged. BlockedSince is nil when no flag is up — a stamp, not a live
+	// duration, so "how long blocked" is the reader's now − blocked_since.
+	BlockedHours *float64 `json:"blocked_hours"`
+	BlockedSince *string  `json:"blocked_since"`
 }
 
 // MarshalJSON adds `key` as an alias of `issue_key` so JSON surfaces and
@@ -168,7 +176,7 @@ const issueLiteSelect = `
 	       i.sprint_id, i.sprint_name, i.sprint_state,
 	       i.security_level_id, i.security_level, COALESCE(it.url, ''),
 	       i.started_at, i.last_activity_at, i.cycle_hours, i.open_blockers,
-	       i.carryover_count
+	       i.carryover_count, i.blocked_hours, i.blocked_since
 	FROM issues i JOIN items it ON it.id = i.item_id`
 
 // ErrKeyAmbiguous means one key exists under more than one source (a Jira
@@ -352,7 +360,7 @@ func (db *DB) issueLites(ctx context.Context, query string, args ...any) ([]Issu
 			&v.SprintID, &v.SprintName, &v.SprintState,
 			&v.SecurityLevelID, &v.SecurityLevel, &v.URL,
 			&v.StartedAt, &v.LastActivityAt, &v.CycleHours, &v.OpenBlockers,
-			&v.CarryoverCount,
+			&v.CarryoverCount, &v.BlockedHours, &v.BlockedSince,
 		); err != nil {
 			return nil, err
 		}

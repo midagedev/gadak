@@ -18,14 +18,13 @@ Replacements (matching the original T6.5 scrub of the committed snapshot):
 Gravatar URLs are left as-is, same as the original scrub (opaque hashes,
 already in the committed snapshot).
 
-The snapshot is also served raw and opened in the reader's browser by
-Datasette Lite (GDK-101), whose SQLite (pyodide) is older than the mirror's
-build target: `contentless_delete=1` (SQLite 3.43+, internal/store/schema.go)
-makes every Lite page fail with `unrecognized option`. The mirror keeps the
-option — its engine is modern and needs row replacement — but the snapshot is
-read-only, so this script rebuilds its FTS without it (same tokenizer, same
-content, verified by MATCH-count probes). CI rejects a snapshot that regresses
-on this (see the "snapshot portability" step in ci.yml).
+The snapshot keeps the mirror's own canonical items_fts DDL —
+`contentless_delete=1` included — because a stripped copy makes every
+store.Open of the fixture rebuild the whole index before doing anything
+(GDK-1756). The Datasette Lite portability strip (pyodide's SQLite predates
+the option, GDK-101) now happens where that file is actually published:
+tools/hosted-demo strips the option on its own output copy, never on the
+committed one.
 """
 
 import json
@@ -104,47 +103,44 @@ def fts_labels_text(labels_json: str) -> str:
     return " ".join(l for l in labels if isinstance(l, str))
 
 
-def rebuild_portable_fts(con: sqlite3.Connection) -> None:
-    """Rebuild items_fts without options Datasette Lite's SQLite cannot parse.
+# "tech-debt" is quoted as a phrase on purpose: bare `tech-debt` is not a
+# valid FTS5 query — the hyphen makes the parser read `tech` as a column
+# filter list and fail with "no such column: debt". The phrase form is what
+# the label probe must be to exercise the labels column (GDK-1021).
+FTS_PROBES = ["upload", "retri*", "webhook AND retry", "로그인", '"tech-debt"']
+
+
+def fts_probe_counts(con: sqlite3.Connection) -> dict:
+    """Row count plus MATCH hits per probe — the parity fingerprint."""
+    out = {"rows": con.execute("SELECT count(*) FROM items_fts").fetchone()[0]}
+    out.update(
+        {p: con.execute(
+            "SELECT count(*) FROM items_fts WHERE items_fts MATCH ?", (p,)
+        ).fetchone()[0] for p in FTS_PROBES}
+    )
+    return out
+
+
+def rebuild_fts(con: sqlite3.Connection, ddl: str) -> None:
+    """Drop items_fts, recreate it with `ddl`, reload every row, prove parity.
 
     Contentless tables return no stored text, so parity is checked with MATCH
-    counts over a fixed probe set (plus total row count) before and after.
+    counts over the probe set (plus total row count) before and after.
     Comment text is re-concatenated in insertion order, matching writeFTS in
     internal/store/write.go. The cjk_bigram column is computed here in
     Python (SQL cannot emit overlapping 2-grams) and must match
-    store.FTSCJKBigramColumn, or the hosted snapshot silently loses CJK
-    mid-compound search (GDK-259 / docs/decisions/0009). The labels column
-    (GDK-1021) is the space-joined label list from whichever projection the
-    item has, mirroring store.FTSLabelsText — without it the snapshot loses
-    label-only hits while a local mirror keeps them.
+    store.FTSCJKBigramColumn, or the snapshot silently loses CJK mid-compound
+    search (GDK-259 / docs/decisions/0009). The labels column (GDK-1021) is
+    the space-joined label list from whichever projection the item has,
+    mirroring store.FTSLabelsText — without it the snapshot loses label-only
+    hits while a local mirror keeps them. Shared with the publish-side strip
+    in tools/hosted-demo/portable-db.py, which passes the DDL without
+    contentless_delete.
     """
-    fts_sql = con.execute(
-        "SELECT sql FROM sqlite_master WHERE name = 'items_fts'"
-    ).fetchone()
-    if not fts_sql:
-        return
-    ddl = fts_sql[0] or ""
-    if "contentless_delete" not in ddl and "labels" in ddl:
-        return  # already the portable shape this build produces
-
-    # "tech-debt" is quoted as a phrase on purpose: bare `tech-debt` is not a
-    # valid FTS5 query — the hyphen makes the parser read `tech` as a column
-    # filter list and fail with "no such column: debt". The phrase form is what
-    # the label probe must be to exercise the labels column (GDK-1021).
-    probes = ["upload", "retri*", "webhook AND retry", "로그인", '"tech-debt"']
-    before = {"rows": con.execute("SELECT count(*) FROM items_fts").fetchone()[0]}
-    before.update(
-        {p: con.execute(
-            "SELECT count(*) FROM items_fts WHERE items_fts MATCH ?", (p,)
-        ).fetchone()[0] for p in probes}
-    )
+    before = fts_probe_counts(con)
 
     con.execute("DROP TABLE items_fts")
-    con.execute(
-        "CREATE VIRTUAL TABLE items_fts USING fts5("
-        "title, labels, body_text, comments_text, cjk_bigram, content='', "
-        "tokenize='porter unicode61 remove_diacritics 2')"
-    )
+    con.execute(ddl)
     rows = con.execute(
         """
         SELECT i.rowid, i.title, COALESCE(i.body_text, ''),
@@ -168,18 +164,39 @@ def rebuild_portable_fts(con: sqlite3.Connection) -> None:
         ],
     )
 
-    after = {"rows": con.execute("SELECT count(*) FROM items_fts").fetchone()[0]}
-    after.update(
-        {p: con.execute(
-            "SELECT count(*) FROM items_fts WHERE items_fts MATCH ?", (p,)
-        ).fetchone()[0] for p in probes}
-    )
+    after = fts_probe_counts(con)
     if before != after:
         raise SystemExit(
             f"FTS rebuild changed search behavior: {before} -> {after}"
         )
     con.commit()
-    print(f"rebuilt items_fts without contentless_delete ({after['rows']} rows)")
+
+
+def rebuild_scrubbed_fts(con: sqlite3.Connection) -> None:
+    """Re-index after the text scrub, keeping the source's own canonical DDL.
+
+    The scrub rewrote text the index still tokenizes (emails, names), so the
+    index must be reloaded from the tables — and it must come back with the
+    same DDL the store wrote, re-used verbatim from sqlite_master rather than
+    retyped here. A second copy of itemsFTSCreate in Python is exactly the
+    trap schemaV1's splice closed (GDK-444): it would drift, and every
+    store.Open of the fixture would pay a full rebuild (GDK-1756).
+    """
+    fts_sql = con.execute(
+        "SELECT sql FROM sqlite_master WHERE name = 'items_fts'"
+    ).fetchone()
+    if not fts_sql:
+        return
+    ddl = fts_sql[0] or ""
+    if "contentless_delete" not in ddl:
+        raise SystemExit(
+            "source items_fts lacks contentless_delete — the store writes the "
+            "canonical DDL (internal/store/schema.go itemsFTSCreate); build "
+            "the source with this tree's gadak, or strip only at publish time "
+            "(tools/hosted-demo)"
+        )
+    rebuild_fts(con, ddl)
+    print(f"rebuilt items_fts with the canonical DDL ({fts_probe_counts(con)['rows']} rows)")
 
 
 def main() -> int:
@@ -231,7 +248,7 @@ def main() -> int:
                 total += 1
     con.commit()
 
-    rebuild_portable_fts(con)
+    rebuild_scrubbed_fts(con)
 
     con.execute("VACUUM")
     # The snapshot is served as bare bytes (raw.githubusercontent) and opened
@@ -243,11 +260,16 @@ def main() -> int:
               file=sys.stderr)
         return 1
 
+    # The committed fixture must carry the store's canonical DDL: a stripped
+    # copy makes every Open rebuild the index (GDK-1756). The Datasette Lite
+    # strip belongs to the publish step (tools/hosted-demo), not this file.
     fts_sql = con.execute(
         "SELECT sql FROM sqlite_master WHERE name = 'items_fts'"
     ).fetchone()
-    if fts_sql and "contentless_delete" in (fts_sql[0] or ""):
-        print("items_fts still carries contentless_delete after rebuild", file=sys.stderr)
+    if fts_sql and "contentless_delete" not in (fts_sql[0] or ""):
+        print("items_fts lost contentless_delete in the scrub rebuild — the "
+              "committed fixture must stay canonical (GDK-1756); the Datasette "
+              "strip is publish-side (tools/hosted-demo)", file=sys.stderr)
         return 1
     if fts_sql and "cjk_bigram" not in (fts_sql[0] or ""):
         print("items_fts lost the cjk_bigram column in the portable rebuild", file=sys.stderr)

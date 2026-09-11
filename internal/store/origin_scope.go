@@ -188,6 +188,14 @@ var originScopedTables = []tableRule{
 		why: "protected history; hidden from the timeline by origin_epoch instead of deleted"},
 	{table: "searches", scope: scopeLocal,
 		why: "protected history; hidden from the timeline by origin_epoch instead of deleted"},
+	{table: "sessions", scope: scopeLocal,
+		why: "protected history (GDK-1439) — the person-session rows LastSessionEnd reads; " +
+			"epoch-stamped like the visits they summarize, so a replaced origin's sessions " +
+			"are not the new origin's"},
+	{table: "agent_writes", scope: scopeLocal,
+		why: "protected history (GDK-1440) — the write ledger. Kept across conversion " +
+			"(export names it as data gadak must hand over); epoch-stamped so the " +
+			"ledger says which origin a write landed on"},
 	{table: "local_meta", scope: scopeLocal,
 		why: "holds origin_epoch itself"},
 }

@@ -18,7 +18,7 @@ list is skipped with a notice on stderr — never silently re-matched.
 
 Every recipe also runs against the demo snapshot in a plain browser tab, no
 install, no account: [open the epic `GROUP BY` in Datasette
-Lite](<https://lite.datasette.io/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmidagedev%2Fgadak%2Fmain%2Fexamples%2Fdemo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc>)
+Lite](<https://lite.datasette.io/?url=https%3A%2F%2Fgadak.dev%2Fdemo%2Fgadak-demo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc>)
 and edit the SQL in place — the URL carries the query, so the link you share
 is the answer.
 

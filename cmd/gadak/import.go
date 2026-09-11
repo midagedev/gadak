@@ -50,9 +50,9 @@ func cmdImport(args []string) error {
 	// year of reads as one blob at import time would corrupt the timeline it
 	// claims to restore. Say so instead of half-doing it; export keeps every
 	// row readable for the version that gains the writer.
-	if len(doc.Visits) > 0 || len(doc.Searches) > 0 {
-		fmt.Fprintf(os.Stderr, "note: the file carries %d visits and %d searches; this build does not restore history yet\n",
-			len(doc.Visits), len(doc.Searches))
+	if len(doc.Visits) > 0 || len(doc.Searches) > 0 || len(doc.Sessions) > 0 || len(doc.AgentWrites) > 0 {
+		fmt.Fprintf(os.Stderr, "note: the file carries %d visits, %d searches, %d sessions and %d agent writes; this build does not restore history yet\n",
+			len(doc.Visits), len(doc.Searches), len(doc.Sessions), len(doc.AgentWrites))
 	}
 	return nil
 }
@@ -73,6 +73,8 @@ func parsePersonalExport(raw []byte) (personalExport, []string, error) {
 		"searches":     true,
 		"recipes":      true,
 		"dashboards":   true,
+		"sessions":     true,
+		"agent_writes": true,
 	}
 	var unknown []string
 	for k := range top {

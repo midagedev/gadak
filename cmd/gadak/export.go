@@ -15,7 +15,7 @@ import (
 // parse side still imports every version back to minPersonalExportVersion
 // — a format bump that refuses the old files strands every backup a
 // person already has, which is a deletion wearing a version number.
-const personalExportVersion = 2
+const personalExportVersion = 3
 
 // minPersonalExportVersion is the oldest gadak_export this build still
 // imports. 1 is the pre-history format: its files simply carry no visits,
@@ -31,17 +31,25 @@ const minPersonalExportVersion = 1
 // recipes/dashboards a person authored. Import applies the sections that
 // have faithful writers (recipes, dashboards); history rides in the file
 // until a store-level import exists (see cmdImport's note).
+//
+// v3 (GDK-1439/1440) adds the two history summaries local.db now keeps:
+// the person-session rows and the write ledger. They are derived from the
+// visits (and, for the ledger, the writes) already in the file — they ride
+// along for the same reason the raw events do, and import ignores them the
+// same way.
 type personalExport struct {
-	Version    int               `json:"gadak_export"`
-	ExportedAt string            `json:"exported_at"`
-	Views      []store.SavedView `json:"views"`
-	Watches    []string          `json:"watches"`
-	Favorites  []string          `json:"favorites"`
-	Recents    []store.Recent    `json:"recents"`
-	Visits     []store.Visit     `json:"visits"`
-	Searches   []store.Search    `json:"searches"`
-	Recipes    []store.Recipe    `json:"recipes"`
-	Dashboards []store.Dashboard `json:"dashboards"`
+	Version     int                `json:"gadak_export"`
+	ExportedAt  string             `json:"exported_at"`
+	Views       []store.SavedView  `json:"views"`
+	Watches     []string           `json:"watches"`
+	Favorites   []string           `json:"favorites"`
+	Recents     []store.Recent     `json:"recents"`
+	Visits      []store.Visit      `json:"visits"`
+	Searches    []store.Search     `json:"searches"`
+	Recipes     []store.Recipe     `json:"recipes"`
+	Dashboards  []store.Dashboard  `json:"dashboards"`
+	Sessions    []store.Session    `json:"sessions"`
+	AgentWrites []store.AgentWrite `json:"agent_writes"`
 }
 
 func cmdExport(args []string) error {
@@ -89,18 +97,24 @@ func cmdExport(args []string) error {
 	if err != nil {
 		return err
 	}
+	sessions, writes, err := exportHistorySummaries()
+	if err != nil {
+		return err
+	}
 
 	doc := personalExport{
-		Version:    personalExportVersion,
-		ExportedAt: time.Now().UTC().Format(time.RFC3339),
-		Views:      views,
-		Watches:    watches,
-		Favorites:  favorites,
-		Recents:    recents,
-		Visits:     visits,
-		Searches:   searches,
-		Recipes:    recipes,
-		Dashboards: dashboards,
+		Version:     personalExportVersion,
+		ExportedAt:  time.Now().UTC().Format(time.RFC3339),
+		Views:       views,
+		Watches:     watches,
+		Favorites:   favorites,
+		Recents:     recents,
+		Visits:      visits,
+		Searches:    searches,
+		Recipes:     recipes,
+		Dashboards:  dashboards,
+		Sessions:    sessions,
+		AgentWrites: writes,
 	}
 	raw, err := marshalPersonalExport(doc)
 	if err != nil {
@@ -114,9 +128,10 @@ func cmdExport(args []string) error {
 	if err := os.WriteFile(*outPath, raw, 0o600); err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "exported %d views, %d watches, %d favorites, %d recents, %d visits, %d searches, %d recipes, %d dashboards to %s\n",
+	fmt.Fprintf(os.Stderr, "exported %d views, %d watches, %d favorites, %d recents, %d visits, %d searches, %d recipes, %d dashboards, %d sessions, %d agent writes to %s\n",
 		len(doc.Views), len(doc.Watches), len(doc.Favorites), len(doc.Recents),
-		len(doc.Visits), len(doc.Searches), len(doc.Recipes), len(doc.Dashboards), *outPath)
+		len(doc.Visits), len(doc.Searches), len(doc.Recipes), len(doc.Dashboards),
+		len(doc.Sessions), len(doc.AgentWrites), *outPath)
 	return nil
 }
 
@@ -171,6 +186,55 @@ func exportHistory() ([]store.Visit, []store.Search, error) {
 	return visits, searches, nil
 }
 
+// exportHistorySummaries reads the two history summaries local.db keeps —
+// the person-session rows (GDK-1439) and the write ledger (GDK-1440) —
+// through the same read-only surface exportHistory uses. All epochs, same
+// as the raw events: a replaced origin's sessions are still that person's
+// evenings. The ledger's epoch column says which origin a write landed on
+// and stays out of the file for the same reason the visits' does.
+func exportHistorySummaries() ([]store.Session, []store.AgentWrite, error) {
+	ro, err := openReadOnly()
+	if err != nil {
+		return nil, nil, err
+	}
+	defer ro.Close()
+
+	srows, err := ro.Query(`SELECT started_at, ended_at, first_write_at, visits FROM local.sessions ORDER BY started_at`)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer srows.Close()
+	var sessions []store.Session
+	for srows.Next() {
+		var s store.Session
+		if err := srows.Scan(&s.StartedAt, &s.EndedAt, &s.FirstWriteAt, &s.Visits); err != nil {
+			return nil, nil, err
+		}
+		sessions = append(sessions, s)
+	}
+	if err := srows.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	wrows, err := ro.Query(`SELECT id, key, at, verb, source FROM local.agent_writes ORDER BY id`)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer wrows.Close()
+	var writes []store.AgentWrite
+	for wrows.Next() {
+		var w store.AgentWrite
+		if err := wrows.Scan(&w.ID, &w.Key, &w.At, &w.Verb, &w.Source); err != nil {
+			return nil, nil, err
+		}
+		writes = append(writes, w)
+	}
+	if err := wrows.Err(); err != nil {
+		return nil, nil, err
+	}
+	return sessions, writes, nil
+}
+
 func marshalPersonalExport(doc personalExport) ([]byte, error) {
 	if doc.Views == nil {
 		doc.Views = []store.SavedView{}
@@ -195,6 +259,12 @@ func marshalPersonalExport(doc personalExport) ([]byte, error) {
 	}
 	if doc.Dashboards == nil {
 		doc.Dashboards = []store.Dashboard{}
+	}
+	if doc.Sessions == nil {
+		doc.Sessions = []store.Session{}
+	}
+	if doc.AgentWrites == nil {
+		doc.AgentWrites = []store.AgentWrite{}
 	}
 	raw, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {

@@ -442,7 +442,7 @@ Markers:
 [^82]: Same routes (`issuetap/docs/COMPATIBILITY.md:59`, `:75`).
 
 [^83]: `gadak page create|edit|comment` → Confluence REST through the wiki
-    client (`cmd/gadak/page.go:189`, `:410`, `:326`;
+    client (`cmd/gadak/page.go:217`, `:444`, `:357`;
     `internal/origin/origin.go:408`).
 
 [^84]: `POST /wiki/rest/api/content`, `PUT …/{id}` with a version check

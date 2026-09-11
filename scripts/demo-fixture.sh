@@ -17,9 +17,11 @@
 # this pin does not age what those recordings show.
 #
 # The scrub step is not optional and this script offers no flag to skip it:
-# Datasette Lite reads the committed file raw (GDK-101), and a regen that
-# skipped the scrub rebuilt items_fts with contentless_delete and went red on
-# CI (2026-08-21).
+# it also rewrites the personal data (emails, names, site host) the live
+# profile synced, including inside the FTS index's own tokens — a regen that
+# skipped it committed the real account. The committed file keeps the
+# canonical items_fts DDL (GDK-1756); the Datasette Lite strip for the
+# published copy is publish-side (tools/hosted-demo).
 
 set -euo pipefail
 

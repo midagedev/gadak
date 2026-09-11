@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -207,14 +208,19 @@ func TestExportCarriesInvariantsExceptions(t *testing.T) {
 		t.Fatal(err)
 	}
 	body := string(raw)
+	// The version line follows the constant, not a literal — the v3 bump
+	// (GDK-1439/1440: sessions + agent_writes) is exactly the kind of change
+	// a hardcoded 2 would turn red for no reason. Section presence is the
+	// invariant; the number is personalExportVersion's business.
 	for _, want := range []string{
-		`"gadak_export": 2`,
+		fmt.Sprintf(`"gadak_export": %d`, personalExportVersion),
 		`"visits"`, `"searches"`, `"recipes"`, `"dashboards"`,
+		`"sessions"`, `"agent_writes"`,
 		"NMB-1", "payment edge cases", "night-report", "wall",
 		`"source": "cli"`,
 	} {
 		if !strings.Contains(body, want) {
-			t.Fatalf("export v2 missing %q:\n%s", want, body)
+			t.Fatalf("export missing %q:\n%s", want, body)
 		}
 	}
 }

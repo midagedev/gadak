@@ -45,9 +45,18 @@ func cmdPage(args []string) error {
 // the write verbs. Same shape as `gadak issue KEY`: no origin
 // call, the detail document comes from the store, and the text form follows
 // printIssue's rhythm so a session that knows one knows the other.
+//
+// --storage (GDK-1303) prints the body's storage document — the raw ADF the
+// origin handed the mirror, verbatim — and nothing else, so it can be piped
+// to a file. That file is what `page edit --storage-file` takes back whole:
+// the lossless round trip for bodies whose formatting markdown cannot carry
+// (panels, layouts, embeds). The mirror's copy is a sync-time snapshot; an
+// edit built on it should pin --version from the same read, exactly like any
+// other replace.
 func cmdPageGet(args []string) error {
 	fs := newFlagSet("page get")
 	asJSON := fs.Bool("json", false, "emit JSON (the page detail document)")
+	storage := fs.Bool("storage", false, "print the raw storage (ADF) document only — the verbatim body `page edit --storage-file` replaces; lossless round trip")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("page", fs))
 		return nil
@@ -57,7 +66,10 @@ func cmdPageGet(args []string) error {
 		return err
 	}
 	if len(rest) != 1 {
-		return fmt.Errorf("page get: exactly one page id (usage: gadak page get <ID> [--json]; ids: gadak page list)")
+		return fmt.Errorf("page get: exactly one page id (usage: gadak page get <ID> [--json|--storage]; ids: gadak page list)")
+	}
+	if *storage && *asJSON {
+		return fmt.Errorf("page get: --storage already prints only the storage document — pick one of --storage, --json")
 	}
 	db, err := openStore()
 	if err != nil {
@@ -71,6 +83,14 @@ func cmdPageGet(args []string) error {
 	}
 	if p == nil {
 		return fmt.Errorf("no page %s in the mirror — check the id, or list them: gadak page list", rest[0])
+	}
+	if *storage {
+		body := strings.TrimSpace(string(p.BodyADF))
+		if body == "" {
+			return fmt.Errorf("page get: %s holds no storage body in the mirror — it was created empty or synced without one", rest[0])
+		}
+		fmt.Println(body)
+		return nil
 	}
 	if *asJSON {
 		return json.NewEncoder(os.Stdout).Encode(p)
@@ -243,7 +263,7 @@ func cmdPageCreate(args []string) error {
 		doc = string(jira.Doc(body, nil))
 	}
 
-	created, detail, mirrorStale, err := createPageViaOrigin(*space, *title, doc, *parent)
+	created, detail, mirrorStale, err := createPageViaOrigin("page create", *space, *title, doc, *parent)
 	if err != nil {
 		return err
 	}
@@ -267,11 +287,13 @@ func cmdPageCreate(args []string) error {
 // createPageViaOrigin is the one page-create write path every verb shares
 // (page create, memory add): config → origin.Wiki → CreatePage → the
 // mirror refresh from that same origin. Sharing the function is what keeps
-// memory add from drifting into a second write path. The returned detail is
-// the refreshed mirror row (nil when mirrorStale — there may be no row to
-// read). mirrorStale means the write applied at the origin but the refresh
-// did not land; the warning is already on stderr by then.
-func createPageViaOrigin(space, title, adfBody, parent string) (created confluence.Page, detail *store.PageDetail, mirrorStale bool, err error) {
+// memory add from drifting into a second write path. verb is the ledger
+// name (GDK-1440) — the row local.agent_writes gets, keyed by the new page
+// id. The returned detail is the refreshed mirror row (nil when
+// mirrorStale — there may be no row to read). mirrorStale means the write
+// applied at the origin but the refresh did not land; the warning is
+// already on stderr by then.
+func createPageViaOrigin(verb, space, title, adfBody, parent string) (created confluence.Page, detail *store.PageDetail, mirrorStale bool, err error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return confluence.Page{}, nil, false, err
@@ -293,6 +315,7 @@ func createPageViaOrigin(space, title, adfBody, parent string) (created confluen
 		return created, nil, false, err
 	}
 	defer db.Close()
+	recordAgentWrite(ctx, db, created.ID, verb)
 	if err := syncer.RefreshPage(ctx, cfg, db, created.ID); err != nil {
 		warnWriteAppliedMirrorStale(created.ID, err)
 		return created, nil, true, nil
@@ -403,6 +426,7 @@ func cmdPageComment(args []string) error {
 		return err
 	}
 	defer db.Close()
+	recordAgentWrite(ctx, db, id, "page comment")
 	if err := syncer.RefreshPage(ctx, cfg, db, id); err != nil {
 		warnWriteAppliedMirrorStale(id, err)
 		if *asJSON {
@@ -427,6 +451,7 @@ func cmdPageEdit(args []string) error {
 	text := fs.String("m", "", "new body as markdown; `-` reads stdin. REPLACES the whole body; refused when the page holds formatting markdown cannot carry unless --force (use --adf-file to keep it)")
 	appendBody := fs.Bool("append", false, "append -m's paragraphs to the current body instead of replacing it (keeps formatting, works on rich pages)")
 	adfFile := fs.String("adf-file", "", "new body as an ADF JSON document file; wins over -m")
+	storageFile := fs.String("storage-file", "", "new body as the storage document `page get --storage` prints; REPLACES the whole body verbatim (the lossless round trip); wins over -m")
 	version := fs.Int("version", 0, "base version for optimistic lock (the mirror's pages.version); omit to last-write-wins from origin HEAD")
 	force := fs.Bool("force", false, "replace a rich page with -m anyway")
 	asJSON := fs.Bool("json", false, "emit JSON")
@@ -439,7 +464,7 @@ func cmdPageEdit(args []string) error {
 		return err
 	}
 	if len(rest) != 1 {
-		return fmt.Errorf("page edit: exactly one page id (usage: gadak page edit <ID> [--title T] [-m <text|-> [--append]|--adf-file F] [--version N] [--force])")
+		return fmt.Errorf("page edit: exactly one page id (usage: gadak page edit <ID> [--title T] [-m <text|-> [--append]|--adf-file F|--storage-file F] [--version N] [--force])")
 	}
 	id := rest[0]
 	body := *text
@@ -450,19 +475,26 @@ func cmdPageEdit(args []string) error {
 		}
 		body = string(buf)
 	}
+	if *adfFile != "" && *storageFile != "" {
+		return fmt.Errorf("page edit: --adf-file and --storage-file both replace the whole body — pick one")
+	}
 	var fileADF string
-	if *adfFile != "" {
-		b, err := os.ReadFile(*adfFile)
+	replaceFlag := *adfFile
+	if *storageFile != "" {
+		replaceFlag = *storageFile
+	}
+	if replaceFlag != "" {
+		b, err := os.ReadFile(replaceFlag)
 		if err != nil {
 			return err
 		}
 		if !json.Valid(b) {
-			return fmt.Errorf("page edit: %s is not valid JSON (an ADF document)", *adfFile)
+			return fmt.Errorf("page edit: %s is not valid JSON (an ADF document)", replaceFlag)
 		}
 		fileADF = string(b)
 	}
 	if *title == "" && body == "" && fileADF == "" {
-		return fmt.Errorf("page edit: nothing to change — pass --title, -m, or --adf-file")
+		return fmt.Errorf("page edit: nothing to change — pass --title, -m, --adf-file, or --storage-file")
 	}
 	if *appendBody && fileADF != "" {
 		return fmt.Errorf("page edit: --append takes -m text and --adf-file replaces the whole body — pick one")
@@ -527,6 +559,7 @@ func cmdPageEdit(args []string) error {
 		return err
 	}
 	defer db.Close()
+	recordAgentWrite(ctx, db, id, "page edit")
 	if err := syncer.RefreshPage(ctx, cfg, db, id); err != nil {
 		warnWriteAppliedMirrorStale(id, err)
 		detail, _ := db.PageDetail(ctx, id)

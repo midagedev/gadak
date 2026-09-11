@@ -118,6 +118,9 @@ func sprintAdd(args []string) error {
 		if err := sb.MoveToSprint(ctx, id, keys); err != nil {
 			return err
 		}
+		for _, k := range keys {
+			recordAgentWrite(ctx, db, k, "sprint add")
+		}
 		fmt.Fprintf(os.Stdout, "%s\tmoved to sprint %d\n", strings.Join(keys, ","), id)
 		if err := syncer.RefreshAgile(ctx, cfg, db, src); err != nil {
 			return err
@@ -138,6 +141,9 @@ func sprintRemove(args []string) error {
 		}
 		if err := sb.MoveToBacklog(ctx, keys); err != nil {
 			return err
+		}
+		for _, k := range keys {
+			recordAgentWrite(ctx, db, k, "sprint remove")
 		}
 		fmt.Fprintf(os.Stdout, "%s\tmoved to the backlog\n", strings.Join(keys, ","))
 		if err := syncer.RefreshAgile(ctx, cfg, db, src); err != nil {
@@ -171,6 +177,9 @@ func sprintCreate(args []string) error {
 		if err != nil {
 			return err
 		}
+		// Sprint verbs key the ledger row on the sprint id — the thing the
+		// write addressed (an issue key would be a different verb).
+		recordAgentWrite(ctx, db, strconv.FormatInt(s.ID, 10), "sprint create")
 		fmt.Fprintf(os.Stdout, "%d\t%s\t%s\n", s.ID, s.State, s.Name)
 		return syncer.RefreshAgile(ctx, cfg, db, src)
 	})
@@ -209,6 +218,7 @@ func sprintSetState(args []string, state string) error {
 		if err != nil {
 			return err
 		}
+		recordAgentWrite(ctx, db, strconv.FormatInt(id, 10), "sprint "+stateVerb(state))
 		fmt.Fprintf(os.Stdout, "%d\t%s\t%s\n", s.ID, s.State, s.Name)
 		if err := syncer.RefreshAgile(ctx, cfg, db, src); err != nil {
 			return err

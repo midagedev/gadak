@@ -37,7 +37,7 @@ export type Section =
 export const CANONICAL_SQL = `gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
            and epic_key <> '' group by epic_key order by 2 desc"`
 export const DATASETTE_DEMO_URL =
-  "https://lite.datasette.io/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmidagedev%2Fgadak%2Fmain%2Fexamples%2Fdemo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc"
+  "https://lite.datasette.io/?url=https%3A%2F%2Fgadak.dev%2Fdemo%2Fgadak-demo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc"
 
 /**
  * The strings one locale carries. The three locales are parallel editions,

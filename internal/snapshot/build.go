@@ -187,6 +187,12 @@ func buildInto(tmp string, opts Options) (rotationStats, error) {
 	if err := store.BackfillCarryoverTx(tx); err != nil {
 		return rot, fmt.Errorf("derive carry-over: %w", err)
 	}
+	// The flagged/blocked columns read the changelog the same way (GDK-1449);
+	// a source with no `flagged` rows answers an honest 0/NULL through the
+	// same nil-vs-0 rule carry-over uses.
+	if err := store.BackfillBlockedTx(tx); err != nil {
+		return rot, fmt.Errorf("derive blocked: %w", err)
+	}
 
 	// status_catalog is a sync artifact no snapshot ever carried, and retro
 	// resolves the changelog through it — see deriveStatusCatalog (GDK-1680).

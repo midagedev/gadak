@@ -46,11 +46,14 @@ const maxSinceDays = 365
 // SessionGap splits person reads into sessions: a counted visit more
 // than this after the previous one starts a new session. Exactly the gap is
 // still the same session — strictly greater, so a test can sit on the line.
-// Exported because the server's session strip (internal/server/read.go)
-// walks the same boundary — one owner for the rule. It is also the default
-// of the --session-gap parameter and of Options.SessionGap; Compute is free
-// to be told a different one.
-const SessionGap = 30 * time.Minute
+// It re-exports store.SessionGap, the single owner of the 30-minute value
+// since GDK-1439 (local.sessions rows are chained at it, and the server's
+// session strip — internal/server/read.go — reads that table through
+// store.LastSessionEnd). This name stays exported because retro's own walk
+// and Options.SessionGap still need the default; Compute is free to be told
+// a different one, and that custom-gap walk deliberately re-bins visits
+// rather than reading the chained-at-30m table.
+const SessionGap = store.SessionGap
 
 // MinSessionGap and MaxSessionGap bound the --session-gap parameter. Below
 // five minutes a session is every coffee refill; above a day the split has

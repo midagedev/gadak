@@ -133,6 +133,7 @@ func refAdd(key, target, relationship string, asJSON bool) error {
 		}); err != nil {
 			return refOriginTooOld(cfg, err)
 		}
+		recordAgentWrite(ctx, db, key, "ref")
 		if err := refreshRefs(ctx, cfg, db, rl, key); err != nil {
 			return err
 		}
@@ -150,6 +151,7 @@ func refRemove(key, id string, asJSON bool) error {
 		if err := rl.DeleteRemoteLink(ctx, key, id); err != nil {
 			return refOriginTooOld(cfg, err)
 		}
+		recordAgentWrite(ctx, db, key, "ref rm")
 		if err := refreshRefs(ctx, cfg, db, rl, key); err != nil {
 			return err
 		}

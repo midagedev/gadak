@@ -29,11 +29,15 @@ func captureLog(t *testing.T, fn func()) string {
 	return buf.String()
 }
 
-// GDK-112: the committed demo snapshot's items_fts was rebuilt without
-// contentless_delete=1 (GDK-101, Datasette Lite portability), but writeFTS
-// replaces rows with DELETE FROM items_fts — which a contentless table without
-// that option rejects. Open must detect the diverged DDL and rebuild the index
+// GDK-112: a database can carry an items_fts whose DDL omits
+// contentless_delete=1 — the shape the published demo copy strips for
+// Datasette Lite (tools/hosted-demo, since GDK-1756) and any
+// externally-produced copy can differ the same way — but writeFTS replaces
+// rows with DELETE FROM items_fts, which a contentless table without that
+// option rejects. Open must detect the diverged DDL and rebuild the index
 // from items/comments before the first write dies with "SQL logic error".
+// The committed fixture is canonical since GDK-1756, so the diverged shape is
+// degraded onto a copy of it here.
 //
 // The failing write has to UPDATE an existing item: a brand-new item's DELETE
 // targets a rowid that is not in the index yet, matches nothing, and is
@@ -52,6 +56,32 @@ func TestOpenRepairsSnapshotFTSBeforeWrite(t *testing.T) {
 	db, err := Open(path)
 	if err != nil {
 		t.Fatalf("open snapshot copy: %v", err)
+	}
+	// Degrade the index to the shape the repair exists for: same statement
+	// minus the delete option. The empty-index state is fine — repairItemsFTS
+	// reloads from items/comments regardless of what the diverged table held.
+	if _, err := db.sql.Exec(`DROP TABLE items_fts`); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	diverged := strings.Replace(itemsFTSCreate, "contentless_delete=1,", "", 1)
+	if _, err := db.sql.Exec(diverged); err != nil {
+		db.Close()
+		t.Fatalf("degrade to the stripped shape: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	logged := captureLog(t, func() {
+		db, err = Open(path)
+	})
+	if err != nil {
+		t.Fatalf("reopen degraded copy: %v", err)
+	}
+	if !strings.Contains(logged, "rebuilt items_fts") {
+		db.Close()
+		t.Fatalf("Open did not repair a diverged items_fts; log: %s", logged)
 	}
 
 	// One batch that goes through writeFTS both ways: an update of an existing
@@ -129,7 +159,7 @@ func TestOpenRepairsSnapshotFTSBeforeWrite(t *testing.T) {
 
 	// Reopening the repaired copy must not rebuild again.
 	var reopened *DB
-	logged := captureLog(t, func() {
+	logged = captureLog(t, func() {
 		reopened, err = Open(path)
 	})
 	if err != nil {
@@ -184,6 +214,42 @@ func TestOpenLeavesCanonicalFTSAlone(t *testing.T) {
 	}
 	if strings.Contains(logged, "items_fts") {
 		t.Errorf("fresh mirror Open rebuilt items_fts; log: %s", logged)
+	}
+}
+
+// TestCommittedFixturesOpenWithoutFTSRebuild (GDK-1756) — both committed
+// fixtures are built by this tree's store, so each must already carry the
+// canonical items_fts DDL and Open must stay quiet. The scrub used to strip
+// contentless_delete for Datasette Lite, which made every Open of the fixture
+// — every e2e serve, every fixture-reading test — pay a full index rebuild
+// (605 rows on demo.db) before doing anything. The portability strip moved to
+// where the file is published (tools/hosted-demo), so a rebuild line here
+// means the scrub regressed to writing a diverged DDL.
+func TestCommittedFixturesOpenWithoutFTSRebuild(t *testing.T) {
+	for _, name := range []string{"demo.db", "demo-linear.db"} {
+		t.Run(name, func(t *testing.T) {
+			src, err := os.ReadFile(filepath.Join("..", "..", "examples", name))
+			if err != nil {
+				t.Fatalf("examples/%s is part of the tree: %v", name, err)
+			}
+			path := filepath.Join(t.TempDir(), "gadak.db")
+			if err := os.WriteFile(path, src, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			var db *DB
+			logged := captureLog(t, func() {
+				db, err = Open(path)
+			})
+			if err != nil {
+				t.Fatalf("open fixture copy: %v", err)
+			}
+			if err := db.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(logged, "rebuilt items_fts") {
+				t.Errorf("Open of examples/%s rebuilt items_fts — the fixture must be born canonical (GDK-1756); log: %s", name, logged)
+			}
+		})
 	}
 }
 

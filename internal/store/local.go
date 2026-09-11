@@ -35,7 +35,24 @@ const localRetention = 180 * 24 * time.Hour
 
 // localMigrations is independent of the mirror's migrations slice. Index+1 is
 // PRAGMA user_version on local.db.
-var localMigrations = []string{localSchemaV1, localSchemaV2, localSchemaV3, localSchemaV4, localSchemaV5, localSchemaV6, localSchemaV7, localSchemaV8, localSchemaV9}
+var localMigrations = []string{localSchemaV1, localSchemaV2, localSchemaV3, localSchemaV4, localSchemaV5, localSchemaV6, localSchemaV7, localSchemaV8, localSchemaV9, localSchemaV10, localSchemaV11}
+
+// localSessionsVersion is the migration that created local.sessions; its Go
+// hook (migrateLocal) backfills the table from the person visits already on
+// disk, so the boundary does not reset to "no previous session" the first
+// time an upgraded build opens an existing home.
+const localSessionsVersion = 10
+
+// SessionGap is the read gap that splits person reads into sessions: a
+// counted visit more than this after the previous one starts a new session;
+// exactly the gap is still the same session (strictly greater splits). This
+// is the single owner of the 30-minute boundary (GDK-1439) — local.sessions
+// rows are chained at exactly this value, retro re-exports it as
+// retro.SessionGap, and both LastSessionEnd callers pass it. retro's
+// --session-gap may still re-bin visits for its own report; that walk
+// deliberately does not read this table (a custom gap re-bins, and the
+// report needs per-session issue keys the table does not carry).
+const SessionGap = 30 * time.Minute
 
 const localSchemaV1 = `
 CREATE TABLE visits (
@@ -201,6 +218,54 @@ INSERT INTO me (id) VALUES (1);
 // rather than "changed", because an unknown seen must not invent a change.
 const localSchemaV9 = `
 ALTER TABLE visits ADD COLUMN seen_updated_at TEXT NOT NULL DEFAULT '';
+`
+
+// localSchemaV10 materializes the session boundary (GDK-1439). Person reads
+// (source ui, or the empty pre-V7 unknown) used to be re-chained from
+// `local.visits` on every bootstrap and delta — LastSessionEnd's 2000-row
+// walk — because the 30-minute boundary existed only as a rule. This table
+// is that rule folded into rows at record time: one row per person session,
+// started_at the first read, ended_at the last, visits the read count.
+// RecordVisit maintains it (extend the newest row when the read is within
+// SessionGap of its end, else insert), the V10 migration backfills it from
+// the visits already on disk, and LastSessionEnd reads it instead of
+// walking. agent (cli/mcp) reads never touch it, matching the boundary's
+// person-read filter. origin_epoch for the same GDK-418 reason visits carry.
+//
+// first_write_at starts empty and is stamped by RecordAgentWrite (V11): the
+// first CLI write that landed inside the session — the retro Resume metric's
+// input. Empty means "no write recorded in this session yet", which for
+// backfilled rows is also honestly "unknown" (the ledger did not exist).
+const localSchemaV10 = `
+CREATE TABLE sessions (
+  started_at     TEXT PRIMARY KEY,
+  ended_at       TEXT NOT NULL,
+  first_write_at TEXT NOT NULL DEFAULT '',
+  visits         INTEGER NOT NULL DEFAULT 1,
+  origin_epoch   INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX sessions_epoch_end ON sessions(origin_epoch, ended_at);
+`
+
+// localSchemaV11 is the agent write ledger (GDK-1440): one row per write the
+// CLI landed at the origin, keyed by the issue key (or page id, sprint id,
+// … — whatever the verb addresses). "What did the agent sessions actually
+// write" used to be archaeology across changelog/comments/authorship; this
+// is the same answer as a table. source is the recording surface (cli; mcp
+// is reserved exactly as in visits — no MCP write surface exists), verb the
+// command that wrote (comment, transition, page edit, …). Epoch-scoped and
+// pruned with the rest of local history; exported with it (the product
+// invariant names history as data gadak must be able to hand over).
+const localSchemaV11 = `
+CREATE TABLE agent_writes (
+  id           INTEGER PRIMARY KEY,
+  key          TEXT NOT NULL,
+  at           TEXT NOT NULL,
+  verb         TEXT NOT NULL,
+  source       TEXT NOT NULL DEFAULT 'cli',
+  origin_epoch INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX agent_writes_at ON agent_writes(at);
 `
 
 func init() {
@@ -497,6 +562,15 @@ func migrateLocal(sqlDB *sql.DB, path string) error {
 		if _, err := tx.Exec(localMigrations[i]); err != nil {
 			return fmt.Errorf("local migration %d: %w", i+1, err)
 		}
+		if i+1 == localSessionsVersion {
+			// V10's rows come from the visits the file already holds — the
+			// same chain rule RecordVisit now maintains; without the
+			// backfill an upgraded home would answer "no previous session"
+			// until its next person read.
+			if err := backfillSessionsTx(ctx, tx); err != nil {
+				return fmt.Errorf("local migration %d: %w", i+1, err)
+			}
+		}
 	}
 	if _, err := tx.Exec(fmt.Sprintf("PRAGMA user_version = %d", want)); err != nil {
 		return err
@@ -652,12 +726,198 @@ func (db *DB) RecordVisit(ctx context.Context, kind, key, source string) (Visit,
 			return err
 		}
 		id, err = res.LastInsertId()
-		return err
+		if err != nil {
+			return err
+		}
+		if source == VisitSourceUI || source == "" {
+			return maintainSessionTx(ctx, tx, at)
+		}
+		return nil
 	})
 	if err != nil {
 		return zero, err
 	}
 	return Visit{ID: id, Kind: kind, Key: key, ViewedAt: at, Source: source, SeenUpdatedAt: seen}, nil
+}
+
+// Session is one row of local.sessions: a run of person reads no two of
+// which are more than SessionGap apart (GDK-1439). Visits is the person-read
+// count in the run; FirstWriteAt is the first recorded CLI write that landed
+// inside it (GDK-1440), empty until one does.
+type Session struct {
+	StartedAt    string `json:"started_at"`
+	EndedAt      string `json:"ended_at"`
+	FirstWriteAt string `json:"first_write_at"`
+	Visits       int    `json:"visits"`
+}
+
+// AgentWrite is one row of the write ledger (GDK-1440): what a CLI/MCP
+// session wrote, when, under which verb. Export reads it raw; the epoch
+// column is workspace-local bookkeeping and stays out of the file.
+type AgentWrite struct {
+	ID     int64  `json:"id"`
+	Key    string `json:"key"`
+	At     string `json:"at"`
+	Verb   string `json:"verb"`
+	Source string `json:"source"`
+}
+
+// newestSessionTx reads the newest session row of the current epoch — the
+// one a new person read or a landed write folds into. Index-ordered
+// (sessions_epoch_end), one row, on the person-read path.
+func newestSessionTx(ctx context.Context, tx *sql.Tx) (started, ended string, found bool, err error) {
+	err = tx.QueryRowContext(ctx, `SELECT started_at, ended_at FROM sessions
+		WHERE origin_epoch = `+currentEpochSQLOnLocal+`
+		ORDER BY ended_at DESC LIMIT 1`).Scan(&started, &ended)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", "", false, nil
+	}
+	if err != nil {
+		return "", "", false, err
+	}
+	return started, ended, true, nil
+}
+
+// maintainSessionTx folds one person read at stamp `at` (ISOMilli) into
+// local.sessions: extend the newest row when the read is within SessionGap
+// of its end, otherwise start a new row. The ≤ is the boundary rule exactly
+// as the walk stated it — exactly the gap is still the same session — and an
+// ended_at that does not parse never glues two sessions together (it starts
+// a new row instead). Rows are chained at SessionGap, which is what makes
+// LastSessionEnd's two-row read equivalent to the old 2000-row walk.
+func maintainSessionTx(ctx context.Context, tx *sql.Tx, at string) error {
+	started, ended, found, err := newestSessionTx(ctx, tx)
+	if err != nil {
+		return err
+	}
+	if found {
+		if end, ok := parseStamp(ended); ok {
+			if t, ok := parseStamp(at); ok && t.Sub(end) <= SessionGap {
+				_, err := tx.ExecContext(ctx, `UPDATE sessions SET ended_at = ?, visits = visits + 1 WHERE started_at = ?`, at, started)
+				return err
+			}
+		}
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO sessions (started_at, ended_at, visits, origin_epoch)
+		VALUES (?,?,1,`+currentEpochSQLOnLocal+`)`, at, at)
+	return err
+}
+
+// backfillSessionsTx is the V10 migration's Go half: chain the person visits
+// the file already holds into session rows with the same rule
+// maintainSessionTx applies from now on — fold while within SessionGap of
+// the session's end, start a row otherwise. The chaining is not optional:
+// LastSessionEnd's two-row read is only equivalent to the old walk when
+// consecutive session rows are separated by more than the gap, which is
+// maintainSessionTx's construction and must be the backfill's too (one row
+// per visit would answer "second-newest read" to the boundary question).
+// first_write_at stays empty — the ledger (V11) did not exist when those
+// reads happened, and an unknown first write is an honest empty, not a
+// zero. Current-epoch person reads only, matching every other reader.
+func backfillSessionsTx(ctx context.Context, tx *sql.Tx) error {
+	rows, err := tx.QueryContext(ctx, `SELECT viewed_at FROM visits
+		WHERE source IN ('ui','') AND origin_epoch = `+currentEpochSQLOnLocal)
+	if err != nil {
+		return err
+	}
+	var stamps []time.Time
+	for rows.Next() {
+		var at string
+		if err := rows.Scan(&at); err != nil {
+			rows.Close()
+			return err
+		}
+		if t, ok := parseStamp(at); ok {
+			stamps = append(stamps, t)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	// Insert order is time order in practice, but the pre-ISOMilli stamps
+	// the walk also defended against are still readable here — sort, then
+	// chain.
+	sort.Slice(stamps, func(i, j int) bool { return stamps[i].Before(stamps[j]) })
+	type sessRow struct {
+		started, ended string
+		visits         int
+	}
+	var out []sessRow
+	for _, t := range stamps {
+		at := t.UTC().Format(config.ISOMilli)
+		if n := len(out); n > 0 {
+			if end, ok := parseStamp(out[n-1].ended); ok {
+				if cur, ok := parseStamp(at); ok && cur.Sub(end) <= SessionGap {
+					out[n-1].ended = at
+					out[n-1].visits++
+					continue
+				}
+			}
+		}
+		out = append(out, sessRow{started: at, ended: at, visits: 1})
+	}
+	const chunk = 500
+	for start := 0; start < len(out); start += chunk {
+		end := start + chunk
+		if end > len(out) {
+			end = len(out)
+		}
+		var b strings.Builder
+		args := make([]any, 0, (end-start)*3)
+		for i, s := range out[start:end] {
+			if i == 0 {
+				b.WriteString(`INSERT INTO sessions (started_at, ended_at, visits, origin_epoch) VALUES `)
+			} else {
+				b.WriteString(",")
+			}
+			b.WriteString("(?,?,?," + currentEpochSQLOnLocal + ")")
+			args = append(args, s.started, s.ended, s.visits)
+		}
+		if _, err := tx.ExecContext(ctx, b.String(), args...); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// RecordAgentWrite appends one row to local.agent_writes (GDK-1440): a
+// write the calling surface landed at the origin. One row per accepted
+// write — a refused or dry-run write never reaches this. When the write
+// lands while a person session is open (within SessionGap of its end), it
+// also stamps that session's first_write_at, keeping the earliest.
+func (db *DB) RecordAgentWrite(ctx context.Context, key, verb, source string) error {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return errors.New("key required")
+	}
+	verb = strings.TrimSpace(verb)
+	if verb == "" {
+		return errors.New("verb required")
+	}
+	if !validVisitSource(source) {
+		return errors.New(`source must be "cli", "ui" or "mcp"`)
+	}
+	at := Now()
+	return db.withLocalWrite(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO agent_writes (key, at, verb, source, origin_epoch)
+			VALUES (?,?,?,?,`+currentEpochSQLOnLocal+`)`, key, at, verb, source); err != nil {
+			return err
+		}
+		started, ended, found, err := newestSessionTx(ctx, tx)
+		if err != nil || !found {
+			return err
+		}
+		end, ok1 := parseStamp(ended)
+		t, ok2 := parseStamp(at)
+		if !ok1 || !ok2 || t.Sub(end) > SessionGap {
+			// No open session: the ledger row stands alone.
+			return nil
+		}
+		_, err = tx.ExecContext(ctx, `UPDATE sessions SET first_write_at = ? WHERE started_at = ? AND first_write_at = ''`, at, started)
+		return err
+	})
 }
 
 // RecordSearch appends one search. openedKind/openedKey may both be empty, or
@@ -1052,24 +1312,83 @@ const lastSessionEndSQL = `
 		ORDER BY viewed_at DESC
 		LIMIT ?`
 
+// sessionBoundarySQL is LastSessionEnd's primary read (GDK-1439): the newest
+// two session rows of the current epoch. Two rows are the whole answer —
+// when the newest is still within `gap` of now it is the current session and
+// the second-newest is the boundary; otherwise the newest itself is. The
+// rows are chained at SessionGap by maintainSessionTx, which is what makes
+// this equivalent to walking every visit: consecutive sessions always start
+// more than SessionGap after the previous one ended, so a chain from now can
+// never pass through a session boundary. Rides sessions_epoch_end (epoch
+// equality, reverse scan, two rows); the table is bounded by localRetention,
+// so this is a constant-time read on a hot path that used to walk 2000
+// visits per bootstrap and per delta.
+const sessionBoundarySQL = `
+		SELECT ended_at
+		FROM local.sessions INDEXED BY sessions_epoch_end
+		WHERE origin_epoch = ` + currentEpochSQL + `
+		ORDER BY ended_at DESC
+		LIMIT 2`
+
 // LastSessionEnd returns the viewed_at of the newest person read that is not
 // part of the session containing `now` — i.e. where the previous session
 // ended. nil when there is no previous session (zero visits, or only the
 // current session's reads).
 //
-// The session rule is retro's (internal/retro/retro.go SessionGap): person
-// reads are visits with source ui or the empty pre-V7 source, and a gap to
-// the previous read *exceeding* `gap` starts a new session — exactly `gap` is
-// still the same session. The current session is the chain walked backwards
-// from `now` while every step is ≤ gap (the chain may be empty); a mid-session
-// tab reload only lengthens that chain, so the boundary stays the previous
-// session's last read. Person reads only, and LastVisits' epoch clause for
-// the same GDK-418 reason: a visit from a replaced origin is not this
-// workspace's session.
+// The session rule is SessionGap above (retro re-exports it): person reads
+// are visits with source ui or the empty pre-V7 source, and a gap to the
+// previous read *exceeding* the gap starts a new session — exactly the gap is
+// still the same session. Since GDK-1439 the boundary is read from
+// local.sessions (the table RecordVisit maintains at exactly that rule);
+// lastSessionEndSQL's visit walk below remains as the fallback for a local.db
+// whose sessions table holds no current-epoch rows — a file seeded beside
+// this build (tests, and any state that wrote visits without the migration's
+// backfill). Person reads only, and the epoch clause for the same GDK-418
+// reason: a visit from a replaced origin is not this workspace's session.
 func (db *DB) LastSessionEnd(ctx context.Context, now time.Time, gap time.Duration) (*time.Time, error) {
 	if gap <= 0 {
 		return nil, errors.New("gap must be > 0")
 	}
+	rows, err := db.sql.QueryContext(ctx, sessionBoundarySQL)
+	if err != nil {
+		return nil, err
+	}
+	var stamps []time.Time
+	for rows.Next() {
+		var at string
+		if err := rows.Scan(&at); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		if t, ok := parseStamp(at); ok {
+			stamps = append(stamps, t)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
+	if len(stamps) > 0 {
+		// Newest session still open (its last read is within gap of now)?
+		// Then the boundary is the session before it, if any.
+		if now.Sub(stamps[0]) <= gap {
+			if len(stamps) < 2 {
+				return nil, nil
+			}
+			t := stamps[1]
+			return &t, nil
+		}
+		t := stamps[0]
+		return &t, nil
+	}
+	return db.lastSessionEndFromVisits(ctx, now, gap)
+}
+
+// lastSessionEndFromVisits is the pre-GDK-1439 walk, kept as the fallback for
+// a sessions table with no current-epoch rows. See lastSessionEndSQL for the
+// plan contract this read must keep (GDK-1547).
+func (db *DB) lastSessionEndFromVisits(ctx context.Context, now time.Time, gap time.Duration) (*time.Time, error) {
 	rows, err := db.sql.QueryContext(ctx, lastSessionEndSQL, lastSessionVisitsBound)
 	if err != nil {
 		return nil, err
@@ -1118,7 +1437,16 @@ func pruneLocalHistoryTx(ctx context.Context, tx *sql.Tx, cutoff string) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM local.visits WHERE viewed_at < ?`, cutoff); err != nil {
 		return err
 	}
-	_, err := tx.ExecContext(ctx, `DELETE FROM local.searches WHERE searched_at < ?`, cutoff)
+	if _, err := tx.ExecContext(ctx, `DELETE FROM local.searches WHERE searched_at < ?`, cutoff); err != nil {
+		return err
+	}
+	// Sessions prune by ended_at (a row older than the retention window can no
+	// longer chain to anything the boundary needs), the ledger by at (GDK-1439/
+	// GDK-1440). Both ride the same window as the events they summarize.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM local.sessions WHERE ended_at < ?`, cutoff); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `DELETE FROM local.agent_writes WHERE at < ?`, cutoff)
 	return err
 }
 
