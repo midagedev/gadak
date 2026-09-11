@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -38,16 +39,42 @@ import (
 // half-day "Atlassian outage".
 const doctorBanner = "# gadak doctor — safe to paste: no keys, names, emails or tokens; the site hostname is shown (it names the server, not you)"
 
+// Code-signature verdicts for the running binary. adhoc is what the local
+// toolchain leaves on every build (the linker signs it); developer-id is
+// what the released app is signed with. unsigned is no signature at all;
+// unknown is every shape the classifier cannot name — no codesign, an
+// error, a non-darwin OS.
+const (
+	doctorSigDeveloperID = "developer-id"
+	doctorSigAdhoc       = "adhoc"
+	doctorSigUnsigned    = "unsigned"
+	doctorSigUnknown     = "unknown"
+)
+
+// doctorCodeSignTimeout bounds the codesign probe. doctor hanging on a stuck
+// subprocess would be worse than the question this line exists to answer.
+const doctorCodeSignTimeout = 2 * time.Second
+
 // doctorReport is the redacted diagnostic document. Field names are stable for
 // --json consumers; values never carry tokens, emails, project keys,
 // custom-field names, or raw error strings. The one exception
 // is Site, which shows the configured hostname — a wrong site is a config
 // error this document must be able to name.
 type doctorReport struct {
-	GadakVersion    string `json:"gadak_version"`
-	GoVersion       string `json:"go_version"`
-	OS              string `json:"os"`
-	Arch            string `json:"arch"`
+	GadakVersion string `json:"gadak_version"`
+	GoVersion    string `json:"go_version"`
+	OS           string `json:"os"`
+	Arch         string `json:"arch"`
+	// BinaryPath and BinarySignature answer "which build is this?": the
+	// executable's real path — /opt/homebrew/bin/gadak is a symlink into
+	// /Applications/Gadak.app, so unresolved it names the link, not the build —
+	// and the kind of code signature on it. A dev build that overwrote the
+	// installed app reports the app path with an adhoc signature; that pair is
+	// what turns "the release is broken" into "you are not running the
+	// release". Signature is one of the doctorSig* tokens; tilde-abbreviated
+	// like every other path in this document.
+	BinaryPath      string `json:"binary_path,omitempty"`
+	BinarySignature string `json:"binary_signature,omitempty"`
 	Profile         string `json:"profile"`
 	WorkspaceSource string `json:"workspace_source"`
 	WorkspaceKind   string `json:"workspace_kind"`
@@ -449,6 +476,7 @@ func collectDoctor() doctorReport {
 
 	mirrorWal, mirrorShm := probeDoctorHome(&rep)
 	probeDoctorConfig(&rep)
+	rep.BinaryPath, rep.BinarySignature = collectBuildIdentity()
 
 	// Agent wiring is independent of the mirror, and the mirror branch below
 	// returns early — collect it first so a user with no mirror still gets the
@@ -1200,6 +1228,10 @@ func formatDoctorText(r doctorReport) string {
 	}
 
 	line("gadak_version", r.GadakVersion)
+	// The version and the binary beside each other are the pair that
+	// catches a dev build over /Applications: the version says what brew
+	// installed, the binary line says what is actually running.
+	line("binary", formatDoctorBuild(r.BinaryPath, r.BinarySignature))
 	line("go_version", r.GoVersion)
 	line("os", r.OS+"/"+r.Arch)
 	line("profile", r.Profile)
@@ -1374,6 +1406,25 @@ func formatDoctorText(r doctorReport) string {
 	return b.String()
 }
 
+// formatDoctorBuild renders the one line that answers "is the thing I am
+// running the release or a local build?" The glosses are the point: the
+// path alone cannot tell a dev build that overwrote the installed
+// app from the app itself — the signature can, so the line says which is
+// which. unknown stays unglossed: off darwin there is no signature axis to
+// name, and the line reports the path only.
+func formatDoctorBuild(path, sig string) string {
+	switch sig {
+	case doctorSigAdhoc:
+		return path + " (adhoc — a local build, not the released app)"
+	case doctorSigDeveloperID:
+		return path + " (developer-id — the released app's signature)"
+	case doctorSigUnsigned:
+		return path + " (unsigned)"
+	default:
+		return path
+	}
+}
+
 func collectLogs() doctorLogs {
 	dir, err := config.DirFor("")
 	if err != nil {
@@ -1493,6 +1544,76 @@ func formatDoctorMirrorHolders(h doctorMirrorHolders) string {
 		return strconv.Itoa(h.Count)
 	}
 	return fmt.Sprintf("%d (%s)", h.Count, strings.Join(parts, ", "))
+}
+
+// collectBuildIdentity answers "which build is running?" — the
+// executable's real path and the kind of signature on it. executablePath
+// (service.go) is this package's one owner of os.Executable + EvalSymlinks —
+// the resolution brew needs (/opt/homebrew/bin/gadak is a symlink into
+// /Applications) — and tildeHome is the one owner of the paste-safe
+// abbreviation; this composes them and probes the signature.
+func collectBuildIdentity() (path, sig string) {
+	exe, err := executablePath()
+	if err != nil {
+		return "unknown", doctorSigUnknown
+	}
+	return tildeHome(exe), probeCodeSignature(exe)
+}
+
+// probeCodeSignature is the thin wrapper around the classifier: one
+// codesign -dvv call under a deadline. codesign reports its details on
+// stderr, so that is what is captured; a missing binary, a timeout, or a
+// non-darwin OS all land in the classifier's unknown bucket, and doctor
+// never hangs on the subprocess.
+func probeCodeSignature(path string) string {
+	if runtime.GOOS != "darwin" {
+		return doctorSigUnknown
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), doctorCodeSignTimeout)
+	defer cancel()
+	cmd := execCommandContext(ctx, "codesign", "-dvv", path)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	runErr := cmd.Run()
+	if ctx.Err() != nil {
+		return doctorSigUnknown
+	}
+	return classifyCodeSignature(stderr.String(), runErr)
+}
+
+// classifyCodeSignature is the single owner of the codesign -dvv verdict
+// for the build-identity line. The flags token is checked first because an
+// adhoc signature carries no Authority line at all — that order is what
+// keeps a local build from reading as anything else; then the Developer ID
+// authority line, which is what the released app carries; then the verdict
+// codesign reports with a nonzero exit for a file with no signature.
+// Everything else — a missing codesign, a timeout, an output this table
+// cannot back — is unknown: a token the table cannot back is worse than
+// none.
+func classifyCodeSignature(out string, err error) string {
+	for _, line := range strings.Split(out, "\n") {
+		i := strings.Index(line, "flags=")
+		if i < 0 {
+			continue
+		}
+		v := line[i+len("flags="):]
+		// The flags value ends at the first space: flags=0x20002(adhoc,
+		// linker-signed) hashes=… — keying on the token, not the whole line,
+		// is what keeps an Identifier like com.adhoc.app from matching.
+		if sp := strings.IndexByte(v, ' '); sp >= 0 {
+			v = v[:sp]
+		}
+		if strings.Contains(v, "adhoc") || strings.Contains(v, "linker-signed") {
+			return doctorSigAdhoc
+		}
+	}
+	if strings.Contains(out, "Authority=Developer ID Application:") {
+		return doctorSigDeveloperID
+	}
+	if err != nil && strings.Contains(out, "code object is not signed at all") {
+		return doctorSigUnsigned
+	}
+	return doctorSigUnknown
 }
 
 // listMirrorHolders is best-effort: darwin and linux run lsof on the mirror

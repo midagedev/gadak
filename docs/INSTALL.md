@@ -429,7 +429,10 @@ got it past SmartScreen). Five things catch people, learned the hard way:
 `gadak --version` against the
 [releases page](https://github.com/midagedev/gadak/releases) settles any doubt,
 and `gadak doctor` prints the same thing alongside everything else worth
-knowing about your install.
+knowing about your install. Its `binary` line names the executable actually
+running — symlink resolved — and the kind of signature on it, so a locally
+built binary that overwrote the installed app says so instead of wearing the
+release's version.
 
 ## Run it in a container
 

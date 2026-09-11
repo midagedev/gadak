@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -2247,6 +2249,161 @@ func TestDoctorSessionBoundary(t *testing.T) {
 	}
 	if !strings.Contains(human, "session_boundary:") {
 		t.Fatalf("human form missing session_boundary:\n%s", human)
+	}
+}
+
+// TestDoctorReportsBuildIdentity — GDK-1798. A locally built binary that
+// overwrote the installed app made every symptom read as the release's: brew
+// and the user both believed the cask build was running (measured 2026-09-11:
+// the app path carried flags=0x20002(adhoc,linker-signed), and one report
+// blamed the cask's quarantine policy for what a Gatekeeper block of the
+// unsigned overwrite was doing). doctor's binary line names the executable
+// actually running — symlink resolved, tilde-abbreviated — and the kind of
+// signature on it, so "which build is this?" is answered by the paste instead
+// of a codesign incantation.
+//
+// FAIL-first: this ran against the unwired source as an anonymous-struct
+// decode — the JSON carried no binary_path and the human form had no binary
+// line (output in the round report).
+func TestDoctorReportsBuildIdentity(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Setenv("HOME", home)
+	config.SetProfile("")
+
+	raw, err := capture(t, func() error { return cmdDoctor([]string{"--json"}) })
+	if err != nil {
+		t.Fatalf("doctor --json: %v\n%s", err, raw)
+	}
+	var rep struct {
+		BinaryPath      string `json:"binary_path"`
+		BinarySignature string `json:"binary_signature"`
+	}
+	if err := json.Unmarshal([]byte(raw), &rep); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, raw)
+	}
+	exe, err := executablePath()
+	if err != nil {
+		t.Fatalf("executablePath: %v", err)
+	}
+	// The tilde cross-check is the banner's rule made executable: the value
+	// in the document must be exactly tildeHome of the resolved executable,
+	// so a binary under $HOME can never carry the account username. On CI the
+	// test binary lives in the temp dir and both sides agree unabbreviated;
+	// on a developer tree under $HOME — the "run my own build" case this line
+	// exists for — this is the assertion that bites.
+	if rep.BinaryPath != tildeHome(exe) {
+		t.Fatalf("binary_path = %q, want the tilde-abbreviated %q", rep.BinaryPath, tildeHome(exe))
+	}
+	switch runtime.GOOS {
+	case "darwin":
+		// The test binary is built by the local toolchain, which
+		// linker-signs — the exact signature class this line exists to name.
+		if rep.BinarySignature != "adhoc" {
+			t.Fatalf("binary_signature = %q on darwin, want adhoc (the toolchain linker-signs its output)", rep.BinarySignature)
+		}
+	default:
+		if rep.BinarySignature != "unknown" {
+			t.Fatalf("binary_signature = %q on %s, want unknown (no codesign axis off darwin)", rep.BinarySignature, runtime.GOOS)
+		}
+	}
+
+	human, err := capture(t, func() error { return cmdDoctor(nil) })
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, human)
+	}
+	line := doctorValue(t, human, "binary")
+	if !strings.Contains(line, tildeHome(exe)) {
+		t.Fatalf("binary line = %q, want it to name the running executable %q", line, tildeHome(exe))
+	}
+	if runtime.GOOS == "darwin" && !strings.Contains(line, "adhoc") {
+		t.Fatalf("binary line = %q, want the adhoc verdict on darwin", line)
+	}
+	// Off darwin the line says the path only — no signature word to read.
+	if runtime.GOOS != "darwin" && strings.Contains(line, "(") {
+		t.Fatalf("binary line = %q on %s, want the path only", line, runtime.GOOS)
+	}
+}
+
+// TestClassifyCodeSignature pins the four tokens against codesign -dvv
+// output shapes measured on this machine (2026-09-12): a go-built binary
+// (flags=0x20002(adhoc,linker-signed)), a notarized app
+// (Authority=Developer ID Application with flags=0x10000(runtime)), an
+// unsigned file (exit 1, "code object is not signed at all"), and the shapes
+// that must not claim a token. Pure input, no subprocess — every row is the
+// classifier's own logic, which is what lets CI pin the darwin verdicts.
+func TestClassifyCodeSignature(t *testing.T) {
+	cases := []struct {
+		name string
+		out  string
+		err  error
+		want string
+	}{
+		{
+			name: "toolchain build is linker-signed",
+			out:  "Executable=/private/tmp/gadak\nIdentifier=a.out\nCodeDirectory v=20400 size=209438 flags=0x20002(adhoc,linker-signed) hashes=6542+0 location=embedded\nSignature=adhoc\nTeamIdentifier=not set\n",
+			want: doctorSigAdhoc,
+		},
+		{
+			name: "linker-signed without the adhoc word",
+			out:  "CodeDirectory v=20400 size=1 flags=0x20002(linker-signed) hashes=1+0 location=embedded\n",
+			want: doctorSigAdhoc,
+		},
+		{
+			name: "notarized release (developer-id, runtime flag)",
+			out:  "CodeDirectory v=20500 size=8737 flags=0x10000(runtime) hashes=261+7 location=embedded\nAuthority=Developer ID Application: Example LLC (EQHXZ8M8AV)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\n",
+			want: doctorSigDeveloperID,
+		},
+		{
+			name: "adhoc is checked before the authority line",
+			out:  "CodeDirectory v=20400 size=1 flags=0x20002(adhoc,linker-signed) hashes=1+0\nAuthority=Developer ID Application: Example LLC (EQHXZ8M8AV)\n",
+			want: doctorSigAdhoc,
+		},
+		{
+			name: "unsigned",
+			out:  "gadak: code object is not signed at all\n",
+			err:  errors.New("exit status 1"),
+			want: doctorSigUnsigned,
+		},
+		{
+			name: "unsigned verdict requires the failed exit",
+			out:  "gadak: code object is not signed at all\n",
+			want: doctorSigUnknown,
+		},
+		{
+			name: "codesign missing (no output at all)",
+			err:  errors.New("exec: \"codesign\": executable file not found in $PATH"),
+			want: doctorSigUnknown,
+		},
+		{
+			name: "apple platform signature is not a gadak release shape",
+			out:  "Authority=macOS Software Signing\nAuthority=Apple Code Signing Certification Authority\nAuthority=Apple Root CA\n",
+			want: doctorSigUnknown,
+		},
+		{
+			name: "developer-id certification authority alone is not the application class",
+			out:  "Authority=Developer ID Certification Authority\n",
+			want: doctorSigUnknown,
+		},
+		{
+			name: "adhoc outside the flags token does not match",
+			out:  "Identifier=com.adhoc.app\nCodeDirectory v=20400 size=1 flags=0x0(none) hashes=1+0 location=embedded\n",
+			want: doctorSigUnknown,
+		},
+		{
+			name: "unrecognized flags value with no authority",
+			out:  "CodeDirectory v=20400 size=1 flags=0x0(none) hashes=1+0 location=embedded\n",
+			want: doctorSigUnknown,
+		},
+		{
+			name: "empty",
+			want: doctorSigUnknown,
+		},
+	}
+	for _, tc := range cases {
+		if got := classifyCodeSignature(tc.out, tc.err); got != tc.want {
+			t.Errorf("%s: classifyCodeSignature(%q, %v) = %q, want %q", tc.name, tc.out, tc.err, got, tc.want)
+		}
 	}
 }
 
