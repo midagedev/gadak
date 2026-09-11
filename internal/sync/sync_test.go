@@ -2067,3 +2067,34 @@ func TestChangelogFieldNormalisesSprint(t *testing.T) {
 		})
 	}
 }
+
+// TestChangelogFieldNormalisesFlagged — the second per-site-id custom field
+// behind a stable name (GDK-1449), sprint's mirror image. Without the
+// normalisation the history lands as customfield_10021 here and another
+// number there, and Derive's `flagged` case answers nothing anywhere.
+func TestChangelogFieldNormalisesFlagged(t *testing.T) {
+	site := agileFields{flagged: "customfield_10021"}
+	for _, c := range []struct {
+		name  string
+		it    jira.HistoryItem
+		agile agileFields
+		want  string
+	}{
+		// The site's own discovered id, whatever number it is.
+		{"site id", jira.HistoryItem{Field: "Flagged", FieldID: "customfield_10021"}, site, "flagged"},
+		{"other site id", jira.HistoryItem{Field: "Flagged", FieldID: "customfield_10130"}, agileFields{flagged: "customfield_10130"}, "flagged"},
+		// No fieldId (Server shape): the display name is stable here — Jira
+		// Software creates the field as the literal "Flagged".
+		{"name only", jira.HistoryItem{Field: "Flagged"}, agileFields{}, "flagged"},
+		{"lowercase name", jira.HistoryItem{Field: "flagged"}, agileFields{}, "flagged"},
+		// A different site's custom field is untouched even when this site has
+		// discovered its own — the id decides, not the name.
+		{"other custom field", jira.HistoryItem{Field: "심각도", FieldID: "customfield_10130"}, site, "customfield_10130"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if got := changelogField(c.it, c.agile); got != c.want {
+				t.Errorf("changelogField = %q, want %q", got, c.want)
+			}
+		})
+	}
+}

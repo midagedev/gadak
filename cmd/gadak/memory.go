@@ -122,7 +122,7 @@ func cmdMemoryAdd(args []string) error {
 	if err := adf.RefusePlaceholders(body); err != nil {
 		return fmt.Errorf("memory: %w", err)
 	}
-	created, _, mirrorStale, err := createPageViaOrigin(space, pageTitle, string(jira.Doc(body, nil)), "")
+	created, _, mirrorStale, err := createPageViaOrigin("memory add", space, pageTitle, string(jira.Doc(body, nil)), "")
 	if err != nil {
 		return err
 	}

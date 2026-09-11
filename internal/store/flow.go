@@ -477,3 +477,59 @@ func backfillCarryover(tx *sql.Tx) error {
 // package — the single owner of the rule — for the columns. Exported for
 // that one caller, the same reason BackfillFlow is.
 func BackfillCarryoverTx(tx *sql.Tx) error { return backfillCarryover(tx) }
+
+// backfillBlocked is the v51 migration hook (the v48 carryover shape): run
+// every mirrored issue back through Derive so the stored blocked columns and
+// the sync path cannot disagree. Only the two new columns are written back.
+// There is deliberately no normalisation step in front of it — a checkbox
+// field has no sprints-like table to join the per-site field id against, so
+// pre-v51 rows keep their id until their issue's next sync (schemaV51's
+// comment owns that decision).
+func backfillBlocked(tx *sql.Tx) error {
+	type row struct{ itemID, kind string }
+	var issues []row
+	if err := txEach(tx, `
+		SELECT ir.item_id, COALESCE(s.kind,'')
+		FROM issues_raw ir JOIN items it ON it.id = ir.item_id
+		LEFT JOIN sources s ON s.id = it.source_id`,
+		func(rows *sql.Rows) error {
+			var r row
+			if err := rows.Scan(&r.itemID, &r.kind); err != nil {
+				return err
+			}
+			issues = append(issues, r)
+			return nil
+		}); err != nil {
+		return err
+	}
+	for _, r := range issues {
+		entries := []ChangeEntry{}
+		if err := txEach(tx, `
+			SELECT COALESCE(field,''), COALESCE(at,''), COALESCE(to_value,''), COALESCE(to_id,'')
+			FROM changelog WHERE item_id = ? AND field = 'flagged'`,
+			func(rows *sql.Rows) error {
+				var e ChangeEntry
+				if err := rows.Scan(&e.Field, &e.At, &e.ToValue, &e.ToID); err != nil {
+					return err
+				}
+				entries = append(entries, e)
+				return nil
+			}, r.itemID); err != nil {
+			return err
+		}
+		d := Derive(DeriveInput{Changelog: entries, NoHistory: r.kind == "linear"})
+		if _, err := tx.Exec(`
+			UPDATE issues_raw SET blocked_hours = ?, blocked_since = ?
+			WHERE item_id = ?`,
+			d.BlockedHours, d.BlockedSince, r.itemID); err != nil {
+			return fmt.Errorf("backfill blocked %s: %w", r.itemID, err)
+		}
+	}
+	return nil
+}
+
+// BackfillBlockedTx is backfillBlocked on a caller's transaction — the
+// snapshot pipeline's seat beside BackfillCarryoverTx: the column-bag mover
+// does not know the derived columns, so the fixture recomputes them from its
+// own rows through the single owner of the rule.
+func BackfillBlockedTx(tx *sql.Tx) error { return backfillBlocked(tx) }

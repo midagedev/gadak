@@ -129,6 +129,7 @@ func cmdCreate(args []string) error {
 		if err != nil {
 			return err
 		}
+		recordAgentWrite(ctx, db, key, "create")
 		err = emitAfterWrite(ctx, cfg, db, src, key, *asJSON, extra)
 		var missed writeNotMirroredError
 		if errors.As(err, &missed) {
@@ -246,6 +247,7 @@ func cmdCreateBatch(projectFlag, typeFlag, defaultBody, defaultPriority, default
 			if err != nil {
 				return fmt.Errorf("line %d: %w", lineNo, err)
 			}
+			recordAgentWrite(ctx, db, key, "create")
 			if err := emitBatchLine(ctx, cfg, db, lineSrc, key, summary, asJSON, extra); err != nil {
 				return fmt.Errorf("line %d: %w", lineNo, err)
 			}

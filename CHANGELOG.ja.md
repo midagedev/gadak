@@ -577,6 +577,34 @@ GDK-645 のスイープに例外はなくなりました ([GDK-693])。スコー
 言い、ワーカーごとの分離設計は測った最悪ファイルの一覧とともに書かれています
 ([GDK-1758])。
 
+キャッシュが課題のブロック時間を知るようになりました。スキーマ v51 が
+blocked_hours と blocked_since を加え、Jira の Flagged 遷移からスプリントと
+同じ方法で導出し、変更履歴のない origin では正直に NULL です ([GDK-1449])。
+ローカル履歴に表が二つ増えました。sessions は「前回のセッション以降」を
+一回の問い合わせにし ([GDK-1439])、agent_writes は CLI・MCP セッションが
+実際に行った書き込みの台帳です ([GDK-1440])。コミット済みのデモ
+フィクスチャがストアの正規 FTS DDL を持つようになり、開くたびに索引を
+作り直さなくなりました。Datasette Lite 向けの変換は gadak.dev/demo に
+公開する複製へ移し、読者向けリンクもそちらを指します ([GDK-1756])。
+`gadak page get --storage` と `page edit --storage-file` がページ本文を
+無損失で往復させ ([GDK-1303])、Confluence クライアントはスペースを取り込む
+前にページ数を数えられ ([GDK-965])、flow p85 は同期バージョンごとに一度だけ
+計算します ([GDK-1429])。
+
+キャッシュが課題のブロック時間を知るようになりました。スキーマ v51 が
+blocked_hours と blocked_since を加え、Jira の Flagged 遷移からスプリントと
+同じ方法で導出し、変更履歴のない origin では正直に NULL です ([GDK-1449])。
+ローカル履歴に表が二つ増えました。sessions は「前回のセッション以降」を
+一回の問い合わせにし ([GDK-1439])、agent_writes は CLI・MCP セッションが
+実際に行った書き込みの台帳です ([GDK-1440])。コミット済みのデモ
+フィクスチャがストアの正規 FTS DDL を持つようになり、開くたびに索引を
+作り直さなくなりました。Datasette Lite 向けの変換は gadak.dev/demo に
+公開する複製へ移し、読者向けリンクもそちらを指します ([GDK-1756])。
+`gadak page get --storage` と `page edit --storage-file` がページ本文を
+無損失で往復させ ([GDK-1303])、Confluence クライアントはスペースを取り込む
+前にページ数を数えられ ([GDK-965])、flow p85 は同期バージョンごとに一度だけ
+計算します ([GDK-1429])。
+
 デモのフィクスチャがコードの写すものを実際に通ります。`examples/demo.db` に `dev_links`
 の行がひとつもなく、PR チップの open/merged/declined の対応はフィクスチャで一度も走って
 いませんでした。`make demo-fixture` のパイプラインに入った `tools/demo-enrich` の播種器が
@@ -2194,6 +2222,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-960]: https://gadak.dev/backlog/#/?ks=GDK-960
 [GDK-963]: https://gadak.dev/backlog/#/?ks=GDK-963
 [GDK-964]: https://gadak.dev/backlog/#/?ks=GDK-964
+[GDK-965]: https://gadak.dev/backlog/#/?ks=GDK-965
 [GDK-967]: https://gadak.dev/backlog/#/?ks=GDK-967
 [GDK-968]: https://gadak.dev/backlog/#/?ks=GDK-968
 [GDK-971]: https://gadak.dev/backlog/#/?ks=GDK-971
@@ -2318,6 +2347,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1299]: https://gadak.dev/backlog/#/?ks=GDK-1299
 [GDK-1300]: https://gadak.dev/backlog/#/?ks=GDK-1300
 [GDK-1302]: https://gadak.dev/backlog/#/?ks=GDK-1302
+[GDK-1303]: https://gadak.dev/backlog/#/?ks=GDK-1303
 [GDK-1305]: https://gadak.dev/backlog/#/?ks=GDK-1305
 [GDK-1306]: https://gadak.dev/backlog/#/?ks=GDK-1306
 [GDK-1307]: https://gadak.dev/backlog/#/?ks=GDK-1307
@@ -2391,6 +2421,9 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1428]: https://gadak.dev/backlog/#/?ks=GDK-1428
 [GDK-1429]: https://gadak.dev/backlog/#/?ks=GDK-1429
 [GDK-1438]: https://gadak.dev/backlog/#/?ks=GDK-1438
+[GDK-1439]: https://gadak.dev/backlog/#/?ks=GDK-1439
+[GDK-1440]: https://gadak.dev/backlog/#/?ks=GDK-1440
+[GDK-1449]: https://gadak.dev/backlog/#/?ks=GDK-1449
 [GDK-1451]: https://gadak.dev/backlog/#/?ks=GDK-1451
 [GDK-1453]: https://gadak.dev/backlog/#/?ks=GDK-1453
 [GDK-1455]: https://gadak.dev/backlog/#/?ks=GDK-1455

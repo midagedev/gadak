@@ -137,6 +137,7 @@ func cmdAPI(args []string) error {
 			log.Printf("api usage flush: %v", oerr)
 		} else {
 			syncer.FlushAPIUsage(ctx, db, cc, log.Printf)
+			recordAPIWrite(ctx, db, method, path, mutating, status)
 			_ = db.Close()
 		}
 	} else {
@@ -152,6 +153,7 @@ func cmdAPI(args []string) error {
 			log.Printf("api usage flush: %v", oerr)
 		} else {
 			syncer.FlushAPIUsage(ctx, db, client, log.Printf)
+			recordAPIWrite(ctx, db, method, path, mutating, status)
 			_ = db.Close()
 		}
 	}

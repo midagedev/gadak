@@ -920,6 +920,34 @@ stamp file next to the binary ([GDK-1555]). The mutating-spec census lives
 in one text file the unit gate parses, with a fifth marker for specs that
 touch the shared home directly ([GDK-1758]).
 
+The mirror learned how long an issue was flagged: schema v51 adds
+blocked_hours and blocked_since, derived from Jira's Flagged transitions
+the same way sprint is, and honestly NULL on an origin without a changelog
+([GDK-1449]). Local history grew two tables of its own — sessions, so
+"since my last session" is one query ([GDK-1439]), and agent_writes, a
+ledger of every write a CLI or MCP session landed ([GDK-1440]). The
+committed demo fixture now carries the store's canonical FTS DDL, so
+opening it no longer rebuilds the index; the Datasette Lite strip moved to
+the published copy at gadak.dev/demo, and the reader-facing links point
+there ([GDK-1756]). `gadak page get --storage` and `page edit
+--storage-file` round-trip a page body losslessly ([GDK-1303]), the
+Confluence client can count a space's pages before it is mirrored
+([GDK-965]), and the flow p85 is memoized per sync version ([GDK-1429]).
+
+The mirror learned how long an issue was flagged: schema v51 adds
+blocked_hours and blocked_since, derived from Jira's Flagged transitions
+the same way sprint is, and honestly NULL on an origin without a changelog
+([GDK-1449]). Local history grew two tables of its own — sessions, so
+"since my last session" is one query ([GDK-1439]), and agent_writes, a
+ledger of every write a CLI or MCP session landed ([GDK-1440]). The
+committed demo fixture now carries the store's canonical FTS DDL, so
+opening it no longer rebuilds the index; the Datasette Lite strip moved to
+the published copy at gadak.dev/demo, and the reader-facing links point
+there ([GDK-1756]). `gadak page get --storage` and `page edit
+--storage-file` round-trip a page body losslessly ([GDK-1303]), the
+Confluence client can count a space's pages before it is mirrored
+([GDK-965]), and the flow p85 is memoized per sync version ([GDK-1429]).
+
 Under 900 pixels there is one narrow regime. The sidebar's narrow width was
 redeclared in five places under a 760-pixel media query, so an 800-pixel
 window kept a 272-pixel sidebar and squeezed the list into what was left;
@@ -2331,6 +2359,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-960]: https://gadak.dev/backlog/#/?ks=GDK-960
 [GDK-963]: https://gadak.dev/backlog/#/?ks=GDK-963
 [GDK-964]: https://gadak.dev/backlog/#/?ks=GDK-964
+[GDK-965]: https://gadak.dev/backlog/#/?ks=GDK-965
 [GDK-967]: https://gadak.dev/backlog/#/?ks=GDK-967
 [GDK-968]: https://gadak.dev/backlog/#/?ks=GDK-968
 [GDK-971]: https://gadak.dev/backlog/#/?ks=GDK-971
@@ -2455,6 +2484,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1299]: https://gadak.dev/backlog/#/?ks=GDK-1299
 [GDK-1300]: https://gadak.dev/backlog/#/?ks=GDK-1300
 [GDK-1302]: https://gadak.dev/backlog/#/?ks=GDK-1302
+[GDK-1303]: https://gadak.dev/backlog/#/?ks=GDK-1303
 [GDK-1305]: https://gadak.dev/backlog/#/?ks=GDK-1305
 [GDK-1306]: https://gadak.dev/backlog/#/?ks=GDK-1306
 [GDK-1307]: https://gadak.dev/backlog/#/?ks=GDK-1307
@@ -2528,6 +2558,9 @@ priority sorting keyed on `priority_rank`.
 [GDK-1428]: https://gadak.dev/backlog/#/?ks=GDK-1428
 [GDK-1429]: https://gadak.dev/backlog/#/?ks=GDK-1429
 [GDK-1438]: https://gadak.dev/backlog/#/?ks=GDK-1438
+[GDK-1439]: https://gadak.dev/backlog/#/?ks=GDK-1439
+[GDK-1440]: https://gadak.dev/backlog/#/?ks=GDK-1440
+[GDK-1449]: https://gadak.dev/backlog/#/?ks=GDK-1449
 [GDK-1451]: https://gadak.dev/backlog/#/?ks=GDK-1451
 [GDK-1453]: https://gadak.dev/backlog/#/?ks=GDK-1453
 [GDK-1455]: https://gadak.dev/backlog/#/?ks=GDK-1455

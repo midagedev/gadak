@@ -70,6 +70,25 @@ type server struct {
 	mu     sync.Mutex
 	cached *derivedView
 
+	// flowMu guards the flowFields memo (GDK-1429): bootstrap and every delta
+	// each walked the done issues' cycle-percentile SQL, so a warm tab polling
+	// deltas re-ran the same aggregate on an unchanged mirror once per poll.
+	// The memo is keyed by sync version — that is the single owner of "the
+	// answer can have moved" — and a nil answer is memoized too (below-minimum
+	// samples is an answer, not a miss). flowMemoSet distinguishes "no memo
+	// yet" from a memoized nil. The config gate in flowFields stays outside
+	// the memo: staleThresholdHours is live and a settings PUT must not be
+	// masked by a remembered answer.
+	flowMu      sync.Mutex
+	flowVersion int64
+	flowMemo    *flowOut
+	flowMemoSet bool
+
+	// cycleP85 computes the percentile flowFields memoizes. Nil means the
+	// store's. Tests pin a counter to prove the memo holds on unchanged
+	// mirrors (same seat as syncKick's test override).
+	cycleP85 func(ctx context.Context, since time.Time) (float64, int, error)
+
 	// cache holds attachment bytes on disk. nil disables caching and every view
 	// proxies, which is the pre-cache behavior.
 	cache *attachcache.Cache

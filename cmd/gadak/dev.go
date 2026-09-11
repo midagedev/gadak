@@ -109,6 +109,7 @@ func cmdDevLink(args []string) error {
 	if err != nil {
 		return err
 	}
+	recordAgentWrite(ctx, db, key, "dev link")
 
 	refreshDevLinks(ctx, db, client, key, issueID)
 
@@ -192,6 +193,7 @@ func cmdDevDeploy(args []string) error {
 	if err != nil {
 		return err
 	}
+	recordAgentWrite(ctx, db, key, "dev deploy")
 
 	refreshDevLinks(ctx, db, client, key, issueID, devLinkFromDeployment(created))
 
@@ -259,6 +261,7 @@ func cmdDevBuild(args []string) error {
 	if err != nil {
 		return err
 	}
+	recordAgentWrite(ctx, db, key, "dev build")
 
 	refreshDevLinks(ctx, db, client, key, issueID, devLinkFromBuild(created))
 
@@ -506,6 +509,9 @@ func cmdDevScan(args []string) error {
 				writeFailed = true
 				continue
 			}
+			// Same ledger row shape as the verbs, its own verb: a scan that
+			// wrote is a write, whatever its user-facing name.
+			recordAgentWrite(ctx, db, key, "dev scan")
 			linked++
 		}
 		if !*dryRun && client != nil {

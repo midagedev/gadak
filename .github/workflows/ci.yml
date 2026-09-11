@@ -260,15 +260,20 @@ jobs:
       - name: Snapshot portability (Datasette Lite contract)
         run: |
           set -euo pipefail
-          DB=examples/demo.db
-          # The snapshot is opened by Datasette Lite in the reader's browser
-          # (GDK-101), whose SQLite predates contentless_delete (3.43). A
-          # snapshot regenerated without the scrub script's FTS rebuild makes
-          # every Lite page fail with `unrecognized option`.
+          # The file Datasette Lite opens in the reader's browser (GDK-101) is
+          # the PUBLISHED copy, not the committed fixture: since GDK-1756 the
+          # committed examples/demo.db keeps the store's canonical FTS DDL
+          # (contentless_delete=1, so store.Open never rebuilds it), and
+          # tools/hosted-demo/portable-db.py strips the option on the copy
+          # Pages serves. This step runs that strip and checks its output —
+          # pyodide's SQLite predates the option (3.43), and a copy that kept
+          # it makes every Lite page fail with `unrecognized option`.
+          DB=$(mktemp -d)/gadak-demo.db
+          python3 tools/hosted-demo/portable-db.py examples/demo.db "$DB"
           schema=$(sqlite3 "$DB" "SELECT sql FROM sqlite_master WHERE name='items_fts'")
           if grep -q contentless_delete <<<"$schema"; then
-            echo "items_fts carries contentless_delete — Datasette Lite returns Error 500." >&2
-            echo "Regenerate: python3 scripts/scrub-demo-db.py <demo-profile.db> examples/demo.db" >&2
+            echo "published copy still carries contentless_delete — Datasette Lite returns Error 500." >&2
+            echo "tools/hosted-demo/portable-db.py did not strip it; fix the strip, not the fixture." >&2
             exit 1
           fi
           # Read-only open without -shm/-wal siblings (how the raw URL opens).

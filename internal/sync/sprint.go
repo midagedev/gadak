@@ -29,6 +29,14 @@ const ghSprintCustom = "com.pyxis.greenhopper.jira:gh-sprint"
 type agileFields struct {
 	sprint   string
 	epicLink string
+	// flagged is the site's Flagged checkbox field id (GDK-1449). It is not
+	// in ids() — the issue field's current value is never fetched: the
+	// blocked columns read the changelog, and a checkbox with no transition
+	// inside the mirror's horizon has no honest since-stamp to report. The
+	// id's one job is changelogField, normalising the field's history rows
+	// to the stable name `flagged` (the sprint story: the id is per-site,
+	// the name is stable).
+	flagged string
 }
 
 func (a agileFields) ids() []string {
@@ -99,6 +107,15 @@ func findGhSprintField(catalog []jira.FieldInfo) agileFields {
 		case strings.HasSuffix(fi.Schema.Custom, jira.GhEpicLinkCustom):
 			if f.epicLink == "" {
 				f.epicLink = fi.ID
+			}
+		// The Flagged checkbox has no gh-* custom key to suffix-match — its
+		// discovery key is the field's own name, which Jira Software creates
+		// as the literal "Flagged" and admins cannot rename (GDK-1449). A
+		// site without Jira Software has no such field and no flagged
+		// history to normalise; empty is the honest answer there.
+		case strings.EqualFold(fi.Name, "Flagged") && fi.Custom:
+			if f.flagged == "" {
+				f.flagged = fi.ID
 			}
 		}
 	}

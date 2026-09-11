@@ -87,6 +87,20 @@ type Derived struct {
 	// sprints(source_id, id) space.
 	FirstSprintID *int64
 	FirstSprintAt *string
+	// BlockedHours is the time the issue has spent flagged, in hours — every
+	// closed flag interval summed (GDK-1449). A flag still up does not
+	// contribute: only a clear closes an interval, so the number never moves
+	// while the user watches it. 0.0 with a changelog and no flag rows means
+	// never flagged; nil, never 0, under NoHistory — the carryover_count
+	// doctrine: never blocked and cannot be read are different answers.
+	BlockedHours *float64
+	// BlockedSince is the open flag interval's start — when the issue was
+	// last flagged and never unflagged. Nil when no flag is up, and nil under
+	// NoHistory with BlockedHours (an origin that cannot say how long cannot
+	// say since when). A stamp, not a live duration: aging against it is the
+	// reader's query, and the flag's own age is `now − blocked_since`, which
+	// is why the stamp is the column.
+	BlockedSince *string
 	// LastActivityAt is the newest of the item's updated stamp, the newest
 	// changelog entry and the newest comment. Nil when all three are absent.
 	// ISO-8601 UTC strings compare lexicographically, so "newest" is a string
@@ -114,6 +128,10 @@ func Derive(in DeriveInput) Derived {
 	// Sprint membership, accumulated across the pass — see the "sprint" case.
 	var seenSprints map[int64]bool
 	sprintEntries := 0
+
+	// The open flag interval, if one is up — see the "flagged" case.
+	var blockedStart *string
+	var blockedHours float64
 
 	for _, e := range entries {
 		if e.At == "" {
@@ -160,6 +178,29 @@ func Derive(in DeriveInput) Derived {
 					d.FirstSprintAt = &firstAt
 				}
 			}
+		case "flagged":
+			// Jira's Flagged is a checkbox: a set names its option
+			// ("Impediment" by default) in to_value/to_id, a clear leaves both
+			// empty — no status-category map to consult, the values
+			// themselves are the whole verdict. A set while already up does
+			// not restart the interval (there is no gap to measure); a clear
+			// with nothing up closes nothing (the set predates the mirror's
+			// changelog horizon, and an unmeasurable interval is skipped, not
+			// guessed). Entries are sorted, so the last write wins.
+			if e.ToValue != "" || e.ToID != "" {
+				if blockedStart == nil {
+					blockedStart = &at
+				}
+			} else if blockedStart != nil {
+				if start, ok := parseStamp(*blockedStart); ok {
+					if end, ok := parseStamp(at); ok {
+						if h := end.Sub(start).Hours(); h > 0 {
+							blockedHours += h
+						}
+					}
+				}
+				blockedStart = nil
+			}
 		}
 		// LastActivityAt seeds from the newest changelog entry — any field,
 		// because a priority edit is activity too: entries are sorted, so the
@@ -175,6 +216,17 @@ func Derive(in DeriveInput) Derived {
 			n = 0
 		}
 		d.CarryoverCount = &n
+	}
+
+	// Blocked time is a changelog answer the same way: with a history the
+	// column is always set (0.0 = never flagged), without one it stays NULL —
+	// and the open interval's start is gated with it, because an origin that
+	// cannot say how long cannot say since when either (the carryover gate's
+	// shape: NoHistory decides, not the entry count).
+	if !in.NoHistory {
+		h := blockedHours
+		d.BlockedHours = &h
+		d.BlockedSince = blockedStart
 	}
 
 	// Born in progress (2026-09-07, flow canon: work item age counts from the

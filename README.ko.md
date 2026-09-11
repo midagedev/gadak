@@ -135,7 +135,7 @@ gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
 ```
 
 같은 쿼리를 [Datasette Lite가 데모 스냅샷에서 브라우저 안에서 돌려
-줍니다](<https://lite.datasette.io/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmidagedev%2Fgadak%2Fmain%2Fexamples%2Fdemo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc>).
+줍니다](<https://lite.datasette.io/?url=https%3A%2F%2Fgadak.dev%2Fdemo%2Fgadak-demo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc>).
 나머지 쿼리는 [`docs/RECIPES.md`](docs/RECIPES.md).
 
 ## 성능 측정

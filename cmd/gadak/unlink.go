@@ -102,6 +102,7 @@ func cmdUnlink(args []string) error {
 		if err := linker.DeleteIssueLink(ctx, id); err != nil {
 			return err
 		}
+		recordAgentWrite(ctx, db, a, "unlink")
 		srcB, err := db.KeySource(ctx, b)
 		if err != nil {
 			return err

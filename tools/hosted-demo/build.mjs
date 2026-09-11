@@ -121,18 +121,20 @@ function assertSharedBundle(demoDir, backlogDir) {
  * claim needs a URL, so this copies the same examples/demo.db the freeze
  * reads. One source, two consumers: they cannot drift.
  *
- * The load-bearing property is portability, not size. The operational schema
- * builds items_fts with contentless_delete=1 (SQLite 3.43+), which pyodide's
- * older SQLite cannot open; snapshots are rebuilt without it (GDK-101/112,
- * internal/store/fts_repair.go). If someone ever regenerates demo.db from
- * the operational schema, the published file silently stops opening in
- * Datasette Lite and only a human clicking the link would notice — so assert
- * it here, where the file is published, and fail the build instead.
+ * The load-bearing property is portability, and since GDK-1756 the strip
+ * that buys it lives HERE, on the published copy — the committed fixture
+ * keeps the store's canonical DDL (contentless_delete=1), because a stripped
+ * copy made every store.Open of the fixture rebuild the whole FTS index.
+ * pyodide's SQLite predates the option (3.43), so the file Datasette Lite
+ * downloads is rebuilt without it by tools/hosted-demo/portable-db.py.
+ * The source is asserted canonical first, so a fixture that regressed to a
+ * pre-stripped shape fails the build instead of the strip silently no-op'ing.
  *
- * The check is a byte search rather than a query because .nvmrc pins Node 20,
- * which has no node:sqlite. sqlite_master stores DDL as plain text in the
- * file, so absence from the whole file is a strictly stronger claim than
- * absence from the DDL.
+ * The checks are byte searches rather than queries because .nvmrc pins
+ * Node 20, which has no node:sqlite. sqlite_master stores DDL as plain text
+ * in the file, so absence from the whole file is a strictly stronger claim
+ * than absence from the DDL — and byte surgery cannot do the strip itself:
+ * the DDL sits inside a b-tree cell whose length the page format pins.
  */
 const DEMO_DB_NAME = 'gadak-demo.db'
 
@@ -143,16 +145,26 @@ function publishPortableDb(dbSrc, demoDir) {
     console.error(`hosted-demo: ${dbSrc} has no items_fts — not a gadak mirror`)
     process.exit(1)
   }
-  if (text.includes('contentless_delete')) {
+  if (!text.includes('contentless_delete')) {
     console.error(
-      `hosted-demo: ${dbSrc} carries contentless_delete — that file will not open in Datasette Lite.\n` +
-        '            Snapshots must be rebuilt without it (scripts/scrub-demo-db.py, GDK-101/112).',
+      `hosted-demo: ${dbSrc} lacks contentless_delete — the committed fixture must be canonical (GDK-1756).\n` +
+        '            A pre-stripped fixture makes every store.Open rebuild the FTS index; regenerate with `make demo-fixture`.',
     )
     process.exit(1)
   }
   const out = join(demoDir, DEMO_DB_NAME)
-  copyFileSync(dbSrc, out)
-  const mb = (bytes.length / (1024 * 1024)).toFixed(1)
+  const strip = spawnSync('python3', [join(root, 'tools', 'hosted-demo', 'portable-db.py'), dbSrc, out])
+  if (strip.status !== 0) {
+    console.error(`hosted-demo: publish-side FTS strip failed for ${dbSrc}`)
+    process.exit(1)
+  }
+  // Assert on what was actually written, not on what the strip intended.
+  const outText = readFileSync(out).toString('latin1')
+  if (outText.includes('contentless_delete')) {
+    console.error(`hosted-demo: ${out} still carries contentless_delete — it will not open in Datasette Lite`)
+    process.exit(1)
+  }
+  const mb = (statSync(out).size / (1024 * 1024)).toFixed(1)
   console.log(`hosted-demo: ${DEMO_DB_NAME} published at ${demoBase}${DEMO_DB_NAME} (${mb} MB, portable FTS)`)
 }
 

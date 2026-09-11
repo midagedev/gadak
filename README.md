@@ -41,7 +41,7 @@ gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
 JQL has no `GROUP BY`. This query counts unresolved issues in each epic; the
 REST API returns the rows and leaves the counting to you. [Datasette Lite runs
 this query on the demo snapshot in your
-browser](<https://lite.datasette.io/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmidagedev%2Fgadak%2Fmain%2Fexamples%2Fdemo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc>)
+browser](<https://lite.datasette.io/?url=https%3A%2F%2Fgadak.dev%2Fdemo%2Fgadak-demo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc>)
 with nothing installed. More questions JQL cannot ask, as SQL:
 [`docs/RECIPES.md`](docs/RECIPES.md).
 

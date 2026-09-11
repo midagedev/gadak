@@ -180,6 +180,8 @@ part of the `issues` view). Joined to `items` on `item_id`.
 | `carryover_count` | INTEGER | Derived (v48): distinct sprints the issue has ever entered, minus one — how many times it was carried past a sprint boundary. NULL, never 0, on an origin that supplies no changelog. See `docs/DERIVE.md` |
 | `first_sprint_id` | INTEGER | Derived (v48): the first sprint the issue entered, in the `sprints(source_id, id)` space. NULL when it never entered one |
 | `first_sprint_at` | TEXT | Derived (v48): when that first entry happened. `first_sprint_at` against that sprint's `start_at` is the added-mid-sprint question |
+| `blocked_hours` | REAL | Derived (v51): time spent flagged, in hours — closed flag intervals summed (set followed by clear), read from the changelog's `flagged` rows. 0 means never flagged; NULL, never 0, on an origin that supplies no changelog. See `docs/DERIVE.md` |
+| `blocked_since` | TEXT | Derived (v51): the open flag interval's start. NULL when no flag is up. A stamp — the flag's age is the reader's `now − blocked_since` |
 
 Indexes: `(project_key, status_category)`, `(assignee_id)`, `(updated_at)`,
 `(status_category, updated_at)`, `(reopen_count)`, `(key)` — the last one serves
@@ -703,6 +705,8 @@ prefix:
 | `local.feed_reads` | `event_id` PK, `read_at` | above |
 | `local.visits` | `id` PK, `kind`, `key`, `viewed_at`, `origin_epoch`, `source`, `seen_updated_at` | Issue/page read history. `source` names the surface that caused the read (`cli`, `ui`); unknown counts with the person. `seen_updated_at` stamps the issue's `updated_at` at the moment of the read — the "changed since I last opened it" join (docs/RECIPES.md, Mine) |
 | `local.searches` | `id` PK, `query`, `searched_at`, `result_count`, `opened_kind`, `opened_key`, `origin_epoch` | What was searched and what it opened |
+| `local.sessions` | `started_at` PK, `ended_at`, `first_write_at`, `visits`, `origin_epoch` | One row per person read-session (GDK-1439), maintained at RecordVisit time — the materialized 30-minute boundary `store.LastSessionEnd` reads instead of re-walking visits. `first_write_at` is the first CLI write that landed inside the session (GDK-1440); empty means none recorded — for backfilled rows also honestly unknown |
+| `local.agent_writes` | `id` PK, `key`, `at`, `verb`, `source`, `origin_epoch` | The write ledger (GDK-1440): one row per write the CLI landed at the origin, keyed by whatever the verb addresses (issue key, page id, sprint id). `verb` is the command (`comment`, `transition`, `page edit`, …); `source` names the surface (`cli`; `mcp` reserved) |
 | `local.recents` | `id` PK, `kind`, `value`, `used_at` | Picker-ranking history (assignee, transition, create-type, …), newest-first, unique per `(kind, value)` |
 | `local.recipes` | `name` PK, `sql`, `created_at`, `updated_at` | Named read-only SQL (GDK-503) — a name for a mirror SELECT; distinct from `saved_views`, which store ViewConfig JSON |
 | `local.dashboards` | `id` PK, `name`, `config` (JSON), `created_at`, `updated_at` | Agent-authored dashboards (GDK-780/781); config validated at every writer, open tabs poll the change counter in `local_meta` |
@@ -733,7 +737,7 @@ four tables added by later migrations):
 | mirror | dropped | the mirror spine and everything the `sources` cascade reaches |
 | derived | dropped | `local.watches`, `local.favorites`, `enrichments`, `sync_runs`, `local.feed_reads`, `field_usage`, `local.recents` — ours, but every row names a key, project, source or account id the origin minted |
 | authored | kept | `local.saved_views`. Views whose stored query names a retired project are reported, never deleted |
-| local | kept | `api_usage`, and `local.visits` / `local.searches`, which carry an `origin_epoch`: the timeline shows the current generation only, and retired rows stay readable with `gadak sql` |
+| local | kept | `api_usage`, and `local.visits` / `local.searches` / `local.sessions` / `local.agent_writes`, which carry an `origin_epoch`: the timeline shows the current generation only, and retired rows stay readable with `gadak sql` |
 
 ## `source_queries` (v18)
 

@@ -482,3 +482,14 @@ the new shape:
 
 The §2/§3 measurement tables above were taken under bare unicode61 and are
 kept as-is; this addendum is the only deltas measured under porter.
+
+## Addendum (2026-09-11, GDK-1756)
+
+The row above that says the `examples/demo.db` snapshot **drops**
+`contentless_delete=1` is no longer true of the committed file. The
+committed fixture now keeps the store's canonical `itemsFTSCreate` DDL,
+because a stripped copy made every `store.Open` of it rebuild the whole
+`items_fts` index. The Datasette Lite strip still happens, but on the copy
+that is published (`tools/hosted-demo/portable-db.py` →
+`https://gadak.dev/demo/gadak-demo.db`), and the reader-facing links point
+there. Nothing about the tokenizer or the cjk_bigram column changed.

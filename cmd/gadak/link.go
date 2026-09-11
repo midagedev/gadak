@@ -77,6 +77,7 @@ func cmdLink(args []string) error {
 		if err := linker.LinkIssues(ctx, lt.ID, outward, inward); err != nil {
 			return err
 		}
+		recordAgentWrite(ctx, db, a, "link")
 		srcB, err := db.KeySource(ctx, b)
 		if err != nil {
 			return err

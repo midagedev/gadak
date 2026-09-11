@@ -1481,6 +1481,7 @@ var changelogFieldNames = map[string]string{
 	"sprint":           "sprint",
 	"스프린트":             "sprint",
 	"スプリント":            "sprint",
+	"flagged":          "flagged",
 	"environment":      "environment",
 	"상태":               "status",
 	"담당자":              "assignee",
@@ -1511,10 +1512,16 @@ var changelogFieldNames = map[string]string{
 // site's own id is already discovered for the issue field (agileFields), so
 // it is normalised to the stable name here too. This is the mirror image of
 // the display-name hazard: for sprint there is no stable id, only a stable
-// name, and gadak owns it.
+// name, and gadak owns it. Flagged (GDK-1449) is the second field of exactly
+// that shape and rides the same discovery.
 func changelogField(it jira.HistoryItem, agile agileFields) string {
 	if agile.sprint != "" && it.FieldID == agile.sprint {
 		return "sprint"
+	}
+	// Flagged is sprint's mirror image (GDK-1449): per-site custom field id,
+	// stable name, and Derive's `flagged` case reads the normalised rows.
+	if agile.flagged != "" && it.FieldID == agile.flagged {
+		return "flagged"
 	}
 	if it.FieldID != "" {
 		return it.FieldID

@@ -356,6 +356,52 @@ func (c *Client) SearchPages(ctx context.Context, cql string, fn func([]Page) er
 	return nil
 }
 
+// SpacePageCount answers how many pages one space holds, in a single CQL
+// request (GDK-965). "How big is this space?" is the question the space
+// picker's rows want to answer before a user commits a sync scope, and
+// walking every page to count it would cost the very scan the picker exists
+// to avoid. The CQL is the sync pass's own shape — space=<key> AND type=page
+// — so the count and the scope it describes cannot disagree about what a
+// "page" is.
+//
+// The number comes from the search response's totalSize, read
+// self-verifyingly rather than trusted: totalSize is not in the documented
+// v1 schema on every deployment, and on some endpoints it just echoes the
+// returned page's size (a community-documented behavior —
+// community.developer.atlassian.com/t/54435). The request asks for
+// limit=1, which makes the two distinguishable in one round trip: an echoed
+// totalSize cannot exceed 1, so a totalSize above 1 is a real total;
+// totalSize 0 or 1 is accepted only when no _links.next follows (a space
+// with no pages or exactly one). Every other shape — field absent, echoed
+// with more pages behind it, transport error — reports ok=false, and the
+// caller draws its placeholder instead of a confident wrong number.
+func (c *Client) SpacePageCount(ctx context.Context, key string) (int, bool) {
+	var page struct {
+		TotalSize *int `json:"totalSize"`
+		Links     struct {
+			Next string `json:"next"`
+		} `json:"_links"`
+	}
+	cql := fmt.Sprintf("space=%q AND type=page", key)
+	p := fmt.Sprintf("%s/content/search?cql=%s&limit=1", apiPath, url.QueryEscape(cql))
+	if err := c.do(ctx, http.MethodGet, p, nil, &page); err != nil {
+		return 0, false
+	}
+	if page.TotalSize == nil || *page.TotalSize < 0 {
+		return 0, false
+	}
+	n := *page.TotalSize
+	if n > 1 {
+		return n, true
+	}
+	if page.Links.Next != "" {
+		// One row (or none) came back but the answer says there are more:
+		// totalSize is echoing the page size, not counting the space.
+		return 0, false
+	}
+	return n, true
+}
+
 // Page fetches one content id with ADF body, version, space, ancestors, and
 // labels. metadata.labels is the first page only (≤25 results); see LabelNames.
 func (c *Client) Page(ctx context.Context, id string) (Page, error) {

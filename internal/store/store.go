@@ -388,6 +388,14 @@ func (db *DB) migrate() error {
 					return fmt.Errorf("migration 49 backfill: %w", err)
 				}
 			}
+			// v51: derive the flagged/blocked columns from the changelog rows
+			// already normalised to `flagged` (flow.go). Pre-v51 rows under a
+			// per-site custom field id are not guessed at here — see schemaV51.
+			if i+1 == 51 {
+				if err := backfillBlocked(tx); err != nil {
+					return fmt.Errorf("migration 51 backfill: %w", err)
+				}
+			}
 		}
 		// user_version is the migration level; sync_state.schema_version is the
 		// documented mirror of it and has to move with it.

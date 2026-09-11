@@ -398,7 +398,11 @@ func applyEditChange(ctx context.Context, cfg *config.Config, db *store.DB, c or
 	}
 	err := c.EditIssue(ctx, key, fields, update)
 	err = withParentHint(ctx, err, ch.parentKey)
-	return withComponentHint(ctx, c, key, err, ch.hasComponent)
+	err = withComponentHint(ctx, c, key, err, ch.hasComponent)
+	if err == nil {
+		recordAgentWrite(ctx, db, key, "edit")
+	}
+	return err
 }
 
 // resolveEditType turns edit --type into the issuetype id the PUT carries.

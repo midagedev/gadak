@@ -393,8 +393,9 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (upsertResult, error) {
 			hierarchy_level, sprint_id, sprint_name, sprint_state,
 			security_level_id, security_level,
 			started_at, cycle_hours, last_activity_at, open_blockers,
-			carryover_count, first_sprint_id, first_sprint_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			carryover_count, first_sprint_id, first_sprint_at,
+			blocked_hours, blocked_since)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		it.ID, it.Key, nz(is.ProjectKey), nz(is.IssueType), nz(is.IssueTypeID),
 		nz(is.Status), nz(is.StatusID), nz(is.StatusCategory), nz(is.Priority), is.PriorityID, d.PriorityRank,
 		nz(is.Assignee), nz(is.AssigneeID), nz(is.AssigneeEmail), nz(is.Reporter),
@@ -409,6 +410,7 @@ func upsertRecord(tx *sql.Tx, b Batch, r IssueRecord) (upsertResult, error) {
 		nz(is.SecurityLevelID), nz(is.SecurityLevel),
 		d.StartedAt, d.CycleHours, d.LastActivityAt, 0,
 		d.CarryoverCount, d.FirstSprintID, d.FirstSprintAt,
+		d.BlockedHours, d.BlockedSince,
 	); err != nil {
 		return upsertResult{}, err
 	}

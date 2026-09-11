@@ -73,6 +73,7 @@ func cmdAttach(args []string) error {
 		if err != nil {
 			return err
 		}
+		recordAgentWrite(ctx, db, key, "attach")
 		if err := emitAfterWrite(ctx, cfg, db, src, key, *asJSON, map[string]any{"attached": attached}); err != nil {
 			return err
 		}

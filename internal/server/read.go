@@ -220,7 +220,7 @@ func (s *server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		SyncHealth:     s.health(r.Context(), st),
 		FieldSpecs:     s.fieldSpecsOut(),
 		FieldUsage:     s.fieldUsageOut(r.Context()),
-		Flow:           s.flowFields(r.Context()),
+		Flow:           s.flowFields(r.Context(), st.Version),
 	})
 }
 
@@ -262,19 +262,50 @@ type flowOut struct {
 }
 
 // flowFields computes the flow block for bootstrap/delta. nil means absent.
-func (s *server) flowFields(ctx context.Context) *flowOut {
+//
+// version is the mirror's sync version, and the memo hangs off it (GDK-1429):
+// the percentile reads only done issues in the mirror, so it cannot move
+// without the sync version moving. Bootstrap and every delta used to walk the
+// aggregate each time — a warm tab polling deltas once a minute paid the walk
+// per poll on an unchanged mirror. The store call is injectable (s.cycleP85)
+// so a test can count recomputes; the config gate and the error path stay
+// live: a threshold set by a settings PUT must mask the memo immediately, and
+// a transient store error must not be memoized as a permanent answer.
+func (s *server) flowFields(ctx context.Context, version int64) *flowOut {
 	if s.config().StaleThresholdHours > 0 {
 		return nil
 	}
-	p85, samples, err := s.db.CycleTimeP85Hours(ctx, time.Now().Add(-90*24*time.Hour))
+	s.flowMu.Lock()
+	if s.flowMemoSet && s.flowVersion == version {
+		memo := s.flowMemo
+		s.flowMu.Unlock()
+		return memo
+	}
+	s.flowMu.Unlock()
+
+	p85, samples, err := s.cycleTimeP85(ctx, time.Now().Add(-90*24*time.Hour))
 	if err != nil {
 		log.Printf("server: flow cycle p85: %v", err)
 		return nil
 	}
-	if samples < store.CycleP85MinSamples {
-		return nil
+	out := (*flowOut)(nil)
+	if samples >= store.CycleP85MinSamples {
+		out = &flowOut{CycleP85Hours: p85, Samples: samples}
 	}
-	return &flowOut{CycleP85Hours: p85, Samples: samples}
+	s.flowMu.Lock()
+	s.flowVersion = version
+	s.flowMemo = out
+	s.flowMemoSet = true
+	s.flowMu.Unlock()
+	return out
+}
+
+// cycleTimeP85 is the store call behind flowFields, via the injectable slot.
+func (s *server) cycleTimeP85(ctx context.Context, since time.Time) (float64, int, error) {
+	if s.cycleP85 != nil {
+		return s.cycleP85(ctx, since)
+	}
+	return s.db.CycleTimeP85Hours(ctx, since)
 }
 
 // fieldUsageOut is project → alias → filled from the field_usage table. Never
@@ -333,7 +364,7 @@ func (s *server) handleDelta(w http.ResponseWriter, r *http.Request) {
 		SyncHealth:     s.health(r.Context(), st),
 		FieldSpecs:     s.fieldSpecsOut(),
 		FieldUsage:     s.fieldUsageOut(r.Context()),
-		Flow:           s.flowFields(r.Context()),
+		Flow:           s.flowFields(r.Context(), st.Version),
 	}
 	// members ride along only when the client's hash is stale.
 	if r.URL.Query().Get("mv") != view.membersVersion {

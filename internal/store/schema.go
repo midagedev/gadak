@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48, schemaV49, schemaV50}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48, schemaV49, schemaV50, schemaV51}
 
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
@@ -14,9 +14,10 @@ var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, sche
 // single owner of the shape every writable mirror must have:
 // contentless_delete=1 is what lets writeFTS replace rows with DELETE, and
 // Open (fts_repair.go) checks live DDL against this statement and rebuilds
-// the index when a database carries a different shape (GDK-112: the portable
-// examples/demo.db snapshot deliberately drops the option for Datasette
-// Lite). cjk_bigram (GDK-259) is filled by FTSCJKBigramColumn; leaving it out
+// the index when a database carries a different shape (GDK-112; the
+// committed fixtures carry it since GDK-1756, and the Datasette Lite strip
+// happens on the published copy only, tools/hosted-demo). cjk_bigram
+// (GDK-259) is filled by FTSCJKBigramColumn; leaving it out
 // of any writer is the silent-miss trap. labels (GDK-1021) is the space-joined
 // label list (FTSLabelsText) — issues and pages both carry labels, so the
 // column is per-item, not per-projection. The porter wrapper (GDK-1021) keeps
@@ -1053,3 +1054,28 @@ SELECT 1;
 // user_version (and with it sync_state.schema_version) moves to the
 // documented level; the body is a no-op on purpose.
 const schemaV50 = `SELECT 1`
+
+// schemaV51 (GDK-1449) adds the flagged/blocked columns. Jira's Flagged
+// checkbox arrives in the changelog under the site's own custom field id —
+// sprint's exact story — so sync normalises it to the stable name `flagged`
+// (internal/sync changelogField, the id discovered from the field catalog by
+// the field's own name, "Flagged") and Derive folds the set/clear
+// transitions into two columns: blocked_hours, the closed intervals summed
+// in hours, and blocked_since, the open interval's start. blocked_hours is
+// nullable for the same reason carryover_count is: an origin with no
+// changelog (Linear) cannot answer, and 0 would claim "never blocked" where
+// the mirror means "cannot be read".
+//
+// Unlike v48 there is no migration-time normalisation of pre-existing rows:
+// normalising sprint could join the changelog against the sprints the mirror
+// already holds, but a checkbox has no such table to join against, and the
+// option's display name ("Impediment" by default) is site configuration a
+// migration must not guess on. Rows written before this version keep their
+// per-site field id until their issue's next sync rewrites the changelog —
+// a `--full` resync heals every row, and the columns stay honestly NULL/0
+// for the ones not yet rewritten.
+const schemaV51 = `
+ALTER TABLE issues_raw ADD COLUMN blocked_hours REAL;
+ALTER TABLE issues_raw ADD COLUMN blocked_since TEXT;
+CREATE INDEX issues_blocked ON issues_raw(blocked_since);
+`

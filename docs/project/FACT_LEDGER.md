@@ -195,7 +195,12 @@ gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
 ```
 
 - Datasette Lite runs that same query on the demo snapshot in the browser with
-  nothing installed (link in `README.md`, keep it intact if used).
+  nothing installed (link in `README.md`, keep it intact if used). The link
+  targets the **published** copy, `https://gadak.dev/demo/gadak-demo.db`
+  (`tools/hosted-demo/portable-db.py` strips `contentless_delete` there),
+  never the committed `examples/demo.db` — since GDK-1756 the committed
+  fixture carries the store's canonical FTS DDL, which pyodide's SQLite
+  cannot open.
 
 ## 8. Agents
 

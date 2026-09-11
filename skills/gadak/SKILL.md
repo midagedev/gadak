@@ -762,6 +762,12 @@ gadak page edit <ID> --title "Renamed"
 gadak page comment <ID> -m "a question"
 ```
 
+To edit a rich page without losing its formatting (panels, layouts, embeds —
+anything markdown cannot carry), round-trip the storage document:
+`gadak page get <ID> --storage > body.json`, edit that JSON, then
+`gadak page edit <ID> --storage-file body.json` replaces the whole body with it —
+pin `--version` from the same read when the page may have moved since.
+
 Writes go to the origin, then the issue (or page) is re-read into the mirror.
 On a **Jira** Cloud workspace the origin is Jira — a create, comment,
 or transition is visible to their whole team; confirm first.

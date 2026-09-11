@@ -48,7 +48,7 @@ gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
 
 エピックごとに未完了の課題を数えるだけの SQL です。同じことを REST API でやるなら、ページを
 めくって自分で足すしかありません。上の SQL は、何もインストールせずに
-[Datasette Lite でデモのスナップショットに対して実行](<https://lite.datasette.io/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmidagedev%2Fgadak%2Fmain%2Fexamples%2Fdemo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc>)できます。
+[Datasette Lite でデモのスナップショットに対して実行](<https://lite.datasette.io/?url=https%3A%2F%2Fgadak.dev%2Fdemo%2Fgadak-demo.db#/demo?sql=select+epic_key%2C+count(*)+from+issues_full+where+resolved_at+is+null+and+epic_key+%3C%3E+''+group+by+epic_key+order+by+2+desc>)できます。
 SQL を書き換えて、そのまま試せます。続きのクエリは [docs/RECIPES.md](docs/RECIPES.md) にあります。
 
 ### 計測値

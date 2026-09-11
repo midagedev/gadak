@@ -81,3 +81,64 @@ func TestLastSessionEndQueryRidesTheIndex(t *testing.T) {
 		t.Errorf("LastSessionEnd plan builds a temp B-tree (GDK-1547) — the scan-and-sort shape, 113–120ms/call on a 300k-visit history:\n%s", joined)
 	}
 }
+
+// TestSessionBoundaryQueryRidesTheIndex is the table half of the GDK-1547
+// gate (GDK-1439): once local.sessions exists, LastSessionEnd's primary
+// read is sessionBoundarySQL, so the same per-request budget now depends on
+// that query's shape — the boundary must be answered by the epoch-end
+// composite index reading at most two rows, not a sort over the table.
+// Same stance as the walk gate above: EXPLAIN the production query itself,
+// fail loudly on plan-wording drift, re-pin rather than delete.
+func TestSessionBoundaryQueryRidesTheIndex(t *testing.T) {
+	db := openTemp(t)
+	if _, err := db.sql.ExecContext(context.Background(),
+		`INSERT INTO local.sessions (started_at, ended_at, first_write_at, visits) VALUES (?,?,?,1)`,
+		"2026-09-10T10:00:00.000Z", "2026-09-10T10:05:00.000Z", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := db.sql.QueryContext(context.Background(), `EXPLAIN QUERY PLAN `+sessionBoundarySQL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var plan []string
+	for rows.Next() {
+		var id, parent, notused int
+		var detail string
+		if err := rows.Scan(&id, &parent, &notused, &detail); err != nil {
+			t.Fatal(err)
+		}
+		plan = append(plan, detail)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(plan, "\n")
+	t.Logf("plan:\n%s", joined)
+
+	var sessionSteps int
+	for _, line := range plan {
+		if !strings.Contains(line, "local.sessions") || strings.Contains(line, "local_meta") {
+			continue
+		}
+		sessionSteps++
+		// COVERING or not, the step must ride the epoch-end composite — a
+		// table scan or another index is the per-request cost this gate pins.
+		if !strings.Contains(line, "INDEX sessions_epoch_end") {
+			t.Errorf("sessionBoundarySQL sessions step does not ride sessions_epoch_end (GDK-1439/1547) — the boundary read left the index:\n%s", joined)
+		}
+	}
+	if sessionSteps == 0 {
+		t.Fatalf("plan mentions no sessions step — the gate is no longer looking at sessionBoundarySQL:\n%s", joined)
+	}
+	if strings.Contains(joined, "TEMP B-TREE") {
+		t.Errorf("sessionBoundarySQL plan builds a temp B-tree — the boundary must be two index rows, not a sort:\n%s", joined)
+	}
+	// The bound itself: the LIMIT is the whole cost argument (at most two
+	// rows read however many sessions the history has). A dropped or widened
+	// LIMIT is a silent per-request cost change — assert the SQL text.
+	if !strings.Contains(sessionBoundarySQL, "LIMIT 2") {
+		t.Errorf("sessionBoundarySQL lost its LIMIT 2 bound:\n%s", sessionBoundarySQL)
+	}
+}

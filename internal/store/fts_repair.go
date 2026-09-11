@@ -17,12 +17,13 @@ func normalizeFTSDDL(s string) string {
 }
 
 // repairItemsFTS closes GDK-112: a database can carry an items_fts whose DDL
-// is not the shape this binary writes — the committed examples/demo.db
-// snapshot is rebuilt without contentless_delete=1 for Datasette Lite
-// portability (GDK-101), and any other externally-produced copy can differ the
-// same way. Writes then die on the DELETE half of writeFTS ("cannot DELETE
-// from contentless fts5 table") at the first changed issue of a sync, with
-// nothing at Open time pointing at the cause.
+// is not the shape this binary writes — the published demo copy is stripped
+// of contentless_delete=1 for Datasette Lite portability (GDK-101; the strip
+// is publish-side since GDK-1756, tools/hosted-demo), and any other
+// externally-produced copy can differ the same way. Writes then die on the
+// DELETE half of writeFTS ("cannot DELETE from contentless fts5 table") at
+// the first changed issue of a sync, with nothing at Open time pointing at
+// the cause.
 //
 // The index is a disposable cache over items/comments (the mirror contract),
 // so the fix is to compare live DDL against itemsFTSCreate — the same
@@ -55,8 +56,8 @@ func (db *DB) repairItemsFTS(ctx context.Context) error {
 // CJK bigram column. SQL cannot emit overlapping 2-grams, so rows are walked
 // in Go (insertFTSBatch); the walk pages by items.rowid so a large mirror
 // rebuilds without holding every body in memory. The comment concatenation
-// still mirrors scripts/scrub-demo-db.py's rebuild_portable_fts, verified
-// against this shape by MATCH-count probes.
+// still mirrors scripts/scrub-demo-db.py's rebuild_fts, verified against
+// this shape by MATCH-count probes.
 func (db *DB) rebuildItemsFTS(ctx context.Context) (int64, error) {
 	var rows int64
 	err := db.write(ctx, func(tx *sql.Tx) error {
