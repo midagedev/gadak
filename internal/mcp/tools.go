@@ -278,9 +278,11 @@ func toolDefinitions() []Tool {
 			},
 		},
 	}
-	// The ui.tokens surface (GDK-769) is built next door, from the settings
-	// catalog: its axis enum and its prose are generated, so a description
-	// here cannot teach a value the server does not accept.
+	// gadak_retro is built next door from internal/retro, and the ui.tokens
+	// surface (GDK-769) next to it from the settings catalog: both have
+	// generated enums and generated prose, so a description here cannot teach
+	// a value the server does not accept.
+	out = append(out, retroToolDefinition())
 	return append(out, uiToolDefinitions()...)
 }
 
@@ -313,6 +315,8 @@ func (s *Server) callTool(name string, args map[string]any) (content []contentIt
 		out, err = s.toolStatus(args)
 	case toolShow:
 		out, err = s.toolShow(args)
+	case toolRetro:
+		out, err = s.toolRetro(args)
 	case toolUITokens:
 		out, err = s.toolUITokens(args)
 	case toolUISet:

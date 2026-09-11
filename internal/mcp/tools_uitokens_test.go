@@ -131,20 +131,30 @@ func TestUIToolDescriptionsMatchSettingsCatalog(t *testing.T) {
 		t.Fatalf("uiToolDefinitions() has %d tools, want 2", len(defs))
 	}
 	for _, tool := range defs {
-		// The schema enum is the machine-readable half.
+		// The schema enum is the machine-readable half. The read tool publishes
+		// the axes; the write tool publishes the axes plus dataColors, which is
+		// a settings path of its own rather than a ui.tokens axis.
+		want := fromCatalog
+		if tool.Name == toolUISet {
+			want = uiWriteTargets()
+		}
 		props, _ := tool.InputSchema["properties"].(map[string]any)
 		axisProp, _ := props["axis"].(map[string]any)
 		enum, _ := axisProp["enum"].([]any)
-		if len(enum) != len(fromCatalog) {
-			t.Fatalf("%s axis enum = %v, want %v", tool.Name, enum, fromCatalog)
+		if len(enum) != len(want) {
+			t.Fatalf("%s axis enum = %v, want %v", tool.Name, enum, want)
 		}
 		for i, v := range enum {
 			s, _ := v.(string)
-			if s != fromCatalog[i] {
-				t.Fatalf("%s axis enum[%d] = %q, want %q", tool.Name, i, s, fromCatalog[i])
+			if s != want[i] {
+				t.Fatalf("%s axis enum[%d] = %q, want %q", tool.Name, i, s, want[i])
 			}
-			if _, ok := config.SettingByPath("ui.tokens." + s); !ok {
-				t.Fatalf("%s teaches axis %q, which is not a settings path", tool.Name, s)
+			path, err := uiTargetPath(s)
+			if err != nil {
+				t.Fatalf("%s teaches %q, which does not resolve: %v", tool.Name, s, err)
+			}
+			if _, ok := config.SettingByPath(path); !ok {
+				t.Fatalf("%s teaches %q → %q, which is not a settings path", tool.Name, s, path)
 			}
 		}
 		// The prose half: every catalog axis is named, and no word sitting in
@@ -231,12 +241,23 @@ func TestUITokensReadShape(t *testing.T) {
 		t.Fatal("rules.colors.description is not the settings catalog's own text")
 	}
 
-	catalog, _ := out["catalog"].(map[string]any)
+	// The catalogs come only with a named axis (the no-argument call is the
+	// cheap one); TestUITokensNoArgumentOmitsCatalog pins the other half.
+	colorOut, err := callUITool(t, s, toolUITokens, map[string]any{"axis": colorsAxis})
+	if err != nil {
+		t.Fatalf("gadak_ui_tokens axis=%s: %v", colorsAxis, err)
+	}
+	catalog, _ := colorOut["catalog"].(map[string]any)
 	colors, _ := catalog["colors"].([]any)
 	if want := len(tokencheck.CatalogTokens()); len(colors) != want {
 		t.Fatalf("catalog.colors has %d rows, tokencheck.CatalogTokens() has %d", len(colors), want)
 	}
-	dims, _ := catalog["dimensions"].([]any)
+	dimOut, err := callUITool(t, s, toolUITokens, map[string]any{"axis": "spacing"})
+	if err != nil {
+		t.Fatalf("gadak_ui_tokens axis=spacing: %v", err)
+	}
+	dimCatalog, _ := dimOut["catalog"].(map[string]any)
+	dims, _ := dimCatalog["dimensions"].([]any)
 	if len(dims) == 0 {
 		t.Fatal("catalog.dimensions is empty — the dim-catalog owner was not consulted")
 	}
@@ -521,5 +542,245 @@ func TestEveryListedToolIsCallable(t *testing.T) {
 			t.Fatalf("tools/list advertises %s but tools/call answers a protocol error: %s",
 				toolDefinitions()[i].Name, resp.Error.Message)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// The cheapest call must be the default call (GDK-w18).
+//
+// gadak_ui_tokens with no axis used to answer the entire colour catalog — its
+// own description said "a few tens of KB". An agent almost always omits an
+// optional argument, so the commonest call was the most expensive one. The
+// no-argument answer now carries the cheap half for every axis (which axes
+// exist, what is stored, the write rules, the standing warnings) and the
+// catalog only when an axis is named.
+func TestUITokensNoArgumentOmitsCatalog(t *testing.T) {
+	home := uiHome(t)
+	s := uiServer(home)
+
+	all, err := callUITool(t, s, toolUITokens, map[string]any{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cat, _ := all["catalog"].(map[string]any)
+	if len(cat) != 0 {
+		keys := make([]string, 0, len(cat))
+		for k := range cat {
+			keys = append(keys, k)
+		}
+		t.Errorf("no-argument answer carries the catalog (%v); it must not", keys)
+	}
+	// The cheap half is all still there — this is a payload change, not a
+	// smaller tool.
+	for _, key := range []string{"axes", "tokens", "rules", "warnings"} {
+		if _, ok := all[key]; !ok {
+			t.Errorf("no-argument answer dropped %q", key)
+		}
+	}
+	if hint, _ := all["catalog_hint"].(string); !strings.Contains(hint, "axis") {
+		t.Errorf("no-argument answer should say how to get the catalog, got %q", hint)
+	}
+
+	// Naming an axis is what buys the heavy half.
+	one, err := callUITool(t, s, toolUITokens, map[string]any{"axis": "colors"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cat, _ = one["catalog"].(map[string]any)
+	if _, ok := cat["colors"]; !ok {
+		t.Error("axis=colors did not carry the colour catalog")
+	}
+
+	// And the description has to say exactly that.
+	d := uiTokensDescription()
+	if strings.Contains(d, "omit it for every axis (the color catalog is a") {
+		t.Error("description still promises the catalog on a no-argument call")
+	}
+	if !strings.Contains(d, "catalog") || !strings.Contains(d, "axis") {
+		t.Error("description should say the catalog comes only with an axis")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// A change must be undoable (GDK-w18). gadak_ui_set returned the merged
+// result and nothing else, so an agent asked to "undo that one" had nothing
+// unless it still held the old value. The response now carries `previous`:
+// the named keys as they were immediately before the merge, in the shape
+// `values` takes, so handing it straight back undoes the change.
+func TestUISetPreviousUndoesTheChange(t *testing.T) {
+	home := uiHome(t)
+	s := uiServer(home)
+
+	// An existing key so previous has a real value to restore, and a new key
+	// so previous has to carry a null for it.
+	if _, err := callUITool(t, s, toolUISet, map[string]any{
+		"axis": "colors", "values": map[string]any{"accent": "#3355cc"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(filepath.Join(home, "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := callUITool(t, s, toolUISet, map[string]any{
+		"axis": "colors", "values": map[string]any{"accent": "#aa2211", "bg": "#101014"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	prev, ok := out["previous"].(map[string]any)
+	if !ok {
+		t.Fatalf("response has no previous: %v", out)
+	}
+	if prev["accent"] != "#3355cc" {
+		t.Errorf("previous.accent = %v, want the pre-merge #3355cc", prev["accent"])
+	}
+	if v, present := prev["bg"]; !present || v != nil {
+		t.Errorf("previous.bg = %v (present=%v), want an explicit null so the undo deletes it", v, present)
+	}
+
+	// The round trip: hand previous straight back.
+	if _, err := callUITool(t, s, toolUISet, map[string]any{"axis": "colors", "values": prev}); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(filepath.Join(home, "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Errorf("undo did not restore the config bytes:\nbefore %s\nafter  %s", before, after)
+	}
+	if !strings.Contains(uiSetDescription(), "previous") {
+		t.Error("description does not mention previous")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Stop teaching what the tool will not do (GDK-w18). The description told the
+// reader that ui.tokensByTheme and ui.dataColors are preserved by the merge,
+// while neither was reachable over MCP at all. Both are now writable through
+// the same settings-catalog paths the axes use.
+func TestUISetWritesPerThemeColors(t *testing.T) {
+	home := uiHome(t)
+	s := uiServer(home)
+
+	out, err := callUITool(t, s, toolUISet, map[string]any{
+		"axis": "colors", "palette": "dark", "values": map[string]any{"accent": "#9a6be0"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out["path"] != "ui.tokensByTheme" {
+		t.Errorf("path = %v, want ui.tokensByTheme", out["path"])
+	}
+	doc := readConfigJSON(t, home)
+	ui, _ := doc["ui"].(map[string]any)
+	byTheme, _ := ui["tokensByTheme"].(map[string]any)
+	dark, _ := byTheme["dark"].(map[string]any)
+	colors, _ := dark["colors"].(map[string]any)
+	if colors["accent"] != "#9a6be0" {
+		t.Fatalf("ui.tokensByTheme.dark.colors.accent not stored: %v", doc)
+	}
+
+	// The catalog's own rule still owns the refusals: a palette-agnostic axis
+	// per theme is refused there, not restated here.
+	if _, err := callUITool(t, s, toolUISet, map[string]any{
+		"axis": "spacing", "palette": "dark", "values": map[string]any{"gap": "8px"},
+	}); err == nil {
+		t.Error("per-theme spacing should be refused")
+	}
+
+	// And undo works the same way here.
+	prev, _ := out["previous"].(map[string]any)
+	if v, present := prev["accent"]; !present || v != nil {
+		t.Errorf("previous.accent = %v (present=%v), want null", v, present)
+	}
+}
+
+func TestUISetWritesDataColors(t *testing.T) {
+	home := uiHome(t)
+	s := uiServer(home)
+
+	if _, err := callUITool(t, s, toolUISet, map[string]any{
+		"axis": uiDataColorsTarget, "values": map[string]any{"label.urgent": "#c03030"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	doc := readConfigJSON(t, home)
+	ui, _ := doc["ui"].(map[string]any)
+	data, _ := ui["dataColors"].(map[string]any)
+	label, _ := data["label"].(map[string]any)
+	if label["urgent"] != "#c03030" {
+		t.Fatalf("ui.dataColors.label.urgent not stored: %v", doc)
+	}
+
+	// The family rule is the catalog's: a display-name status key is refused
+	// there, with the sentence that teaches the right key kind.
+	if _, err := callUITool(t, s, toolUISet, map[string]any{
+		"axis": uiDataColorsTarget, "values": map[string]any{"status.In Progress": "#7e5904"},
+	}); err == nil {
+		t.Error("a status display name should be refused")
+	}
+	// A key that is not family-qualified is refused by name.
+	if _, err := callUITool(t, s, toolUISet, map[string]any{
+		"axis": uiDataColorsTarget, "values": map[string]any{"urgent": "#c03030"},
+	}); err == nil {
+		t.Error("an unqualified dataColors key should be refused")
+	}
+}
+
+// The read tool has to show what the write tool can now reach, or the pair
+// teaches a capability with no way to discover its current value.
+func TestUITokensReportsThemeAndDataColors(t *testing.T) {
+	home := uiHome(t)
+	s := uiServer(home)
+	if _, err := callUITool(t, s, toolUISet, map[string]any{
+		"axis": "colors", "palette": "dark", "values": map[string]any{"accent": "#9a6be0"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := callUITool(t, s, toolUISet, map[string]any{
+		"axis": uiDataColorsTarget, "values": map[string]any{"label.urgent": "#c03030"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	out, err := callUITool(t, s, toolUITokens, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tokens, _ := out["tokens"].(map[string]any)
+	if _, ok := tokens["tokensByTheme"]; !ok {
+		t.Error("read tool does not report tokensByTheme")
+	}
+	if _, ok := tokens[uiDataColorsTarget]; !ok {
+		t.Error("read tool does not report dataColors")
+	}
+}
+
+// The write targets published in the schema enum and named in the prose must
+// all be settings-catalog paths, and every one the tool accepts must be
+// published — the same assertion the axis enum already carries.
+func TestUIWriteTargetsComeFromSettingsCatalog(t *testing.T) {
+	for _, target := range uiWriteTargets() {
+		path, err := uiTargetPath(target)
+		if err != nil {
+			t.Errorf("published target %q does not resolve: %v", target, err)
+			continue
+		}
+		if _, ok := config.SettingByPath(path); !ok {
+			t.Errorf("target %q resolves to %q, which the settings catalog does not carry", target, path)
+		}
+	}
+	if !slices.Contains(uiWriteTargets(), uiDataColorsTarget) {
+		t.Errorf("dataColors is writable but not published")
+	}
+	// The description must not name a capability the reader cannot have.
+	d := uiSetDescription()
+	if strings.Contains(d, "ui.tokensByTheme and ui.dataColors are preserved") {
+		t.Error("description still teaches the old unreachable-keys sentence")
+	}
+	if !strings.Contains(d, "palette") {
+		t.Error("description does not say how to reach a per-palette colour")
 	}
 }

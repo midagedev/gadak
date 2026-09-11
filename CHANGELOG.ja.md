@@ -269,7 +269,13 @@ Atlassian アカウントのない人は、内蔵トラッカーの存在を知�
 半ばまで降りる必要がありました。`gadak init` の締めくくりも両方の経路で同じです:
 まず `gadak skill install`、MCP はそれが要るホストのために。パレットの約束は、
 ゲートが最初から測っていた文に書き直しました — すべての目的地と、キー入力以外に
-居場所のない操作。「すべての操作」はリスト一行だけでもう偽でした ([GDK-732])。
+居場所のない操作。「すべての操作」はリスト一行だけでもう偽でした ([GDK-732])。 `gadak retro` も MCP の面に乗りました。
+`gadak_retro` は `gadak retro --json` と同じ文書を答えます — ISO 週(またはスプリント)
+ごとに一列、数字の下に定義まで。シェルのないホストでも、バックログだけでなく
+今週を隣に置けます ([GDK-1404])。同じレビューからトークンの二つも三点直しました:
+引数なしの呼び出しが色カタログ全体を運ばなくなり、`gadak_ui_set` が `previous` を
+返して元に戻せるようになり、`ui.tokensByTheme` と `ui.dataColors` が説明に名前が
+出るだけでなく実際に書ける対象になりました。
 
 CLI 自身がスキルファイルの古さを言います。インストール済みの写しがこのビルドのものと
 違えば、読み取り動詞が stderr に一行出すので、エージェントは doctor を走らせると
@@ -2450,6 +2456,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1399]: https://gadak.dev/backlog/#/?ks=GDK-1399
 [GDK-1400]: https://gadak.dev/backlog/#/?ks=GDK-1400
 [GDK-1401]: https://gadak.dev/backlog/#/?ks=GDK-1401
+[GDK-1404]: https://gadak.dev/backlog/#/?ks=GDK-1404
 [GDK-1407]: https://gadak.dev/backlog/#/?ks=GDK-1407
 [GDK-1413]: https://gadak.dev/backlog/#/?ks=GDK-1413
 [GDK-1427]: https://gadak.dev/backlog/#/?ks=GDK-1427

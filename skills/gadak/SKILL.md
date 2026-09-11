@@ -98,6 +98,8 @@ gadak recents                    # kind, key, viewed_at — TSV with a header
 gadak recents --json --limit 50
 ```
 
+## How the work went (`gadak retro`)
+
 When the question is how the work itself went — sessions, how long before a
 session produced its first write, how old the in-progress tail is, what closed,
 whether comments claim work is done on issues that are not — run `gadak retro`
@@ -123,6 +125,9 @@ is, why it is there and how to read it. `--json` carries all of that plus the
 parts the table has no room for: the ordered event list per bucket, closures
 by epic, the unplanned subset, one row per cycle sample, and the issues you
 opened that nothing touched beside the ones that moved while you never looked.
+
+A host without a shell reaches the same document as the `gadak_retro` MCP tool,
+with the flags as its arguments.
 Issues labelled `retro-action` come back under `actions`, and one whose
 description opens with `metric: <row name>` carries that row's value when the
 action was written beside its value now. `--open` follows any of these to the

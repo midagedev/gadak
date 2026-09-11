@@ -14,7 +14,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"sort"
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -28,77 +27,23 @@ const retroUsageLine = "usage: gadak retro [--since 14d|<N>d|<N>w | --by-sprint 
 // week" read without paging.
 const retroDefaultSince = "14d"
 
-// retroOpenMetrics are the --open values, in help order. Each names a cell
-// of the table by its row.
-//
-// The last five name the material lists under the table rather than a cell
-// of it (materials.go). `aging` is the one that is not per bucket — it is
-// measured at now — so --week does not apply to it and saying so is better
-// than quietly ignoring the flag.
-var retroOpenMetrics = []string{"closed", "in-progress", "mismatch", "cycle",
-	"aging", "unplanned", "surprises", "seen-not-moved", "moved-not-seen"}
-
-// retroReportMetrics are the --open values answered by the report rather
-// than by one bucket.
-var retroReportMetrics = []string{"aging"}
-
 // retroNow is the one clock a retro run reads. A test pins it so that a
 // hand query it compares against can bind the same instant instead of
 // asking SQLite for a second "now" — two readings of now round to
 // different tenths at an x.x5 day boundary (GDK-1594, CI 2026-09-08).
 var retroNow = time.Now
 
-// retroBucketKeys is the key set behind one cell.
-func retroBucketKeys(b retro.Bucket, metric string) []string {
-	switch metric {
-	case "closed":
-		return b.ClosedKeys
-	case "in-progress":
-		return b.InProgressKeys
-	case "mismatch":
-		return b.MismatchKeys
-	case "cycle":
-		return b.CycleKeys
-	case "unplanned":
-		return b.Unplanned.Keys
-	case "surprises":
-		keys := make([]string, 0, len(b.Surprises))
-		seen := map[string]bool{}
-		for _, s := range b.Surprises {
-			if !seen[s.Key] {
-				seen[s.Key] = true
-				keys = append(keys, s.Key)
-			}
-		}
-		sort.Strings(keys)
-		return keys
-	case "seen-not-moved":
-		return b.SeenNotMoved.Keys
-	case "moved-not-seen":
-		return b.MovedNotSeen.Keys
-	}
-	return nil
-}
+// retroOpenMetrics, retroBucketKeys and retroReportKeys moved to
+// internal/retro (open.go): the MCP gadak_retro tool answers the same cells
+// and a second copy of the list is the drift that surface has no gate
+// against. The CLI keeps the thin aliases so the call sites below read as
+// they did.
+var retroOpenMetrics = retro.OpenMetrics
 
-// retroReportKeys is the key set behind a report-level --open name: aging is
-// measured at now, not inside a bucket, so it has no week.
+func retroBucketKeys(b retro.Bucket, metric string) []string { return retro.KeysFor(b, metric) }
+
 func retroReportKeys(rep retro.Report, metric string) ([]string, bool) {
-	report := false
-	for _, m := range retroReportMetrics {
-		if m == metric {
-			report = true
-			break
-		}
-	}
-	if !report {
-		return nil, false
-	}
-	keys := make([]string, 0, len(rep.Aging.Items))
-	for _, it := range rep.Aging.Items {
-		keys = append(keys, it.Key)
-	}
-	sort.Strings(keys)
-	return keys, true
+	return retro.ReportKeysFor(rep, metric)
 }
 
 func cmdRetro(args []string) error {
@@ -282,13 +227,4 @@ func cmdRetro(args []string) error {
 }
 
 // joinRetroMetrics is the --open value list for its usage error.
-func joinRetroMetrics() string {
-	out := ""
-	for i, m := range retroOpenMetrics {
-		if i > 0 {
-			out += ", "
-		}
-		out += m
-	}
-	return out
-}
+func joinRetroMetrics() string { return retro.JoinOpenMetrics() }

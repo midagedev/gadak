@@ -113,8 +113,9 @@ settings catalog `gadak config set` uses.
 | `gadak_issue` | `{key}` → full detail including comments and history (plus list fields) |
 | `gadak_status` | `{}` → sync state (watermark, version, last_error, counts) |
 | `gadak_show` | `{jql}` \| `{keys}` \| `{issue}` \| `{name}` (exactly one) → `{hash, applied, unsupported, file}`. Writes the process workspace's ui-focus file; does not open a window; does not return issue rows |
-| `gadak_ui_tokens` | `{axis?}` → `{axes, tokens, rules, catalog, warnings, config_file, config_version}`. The stored `ui.tokens` plus the read-only color / dimension catalogs, read through `config.SettingByPath` — the owner the CLI and PUT `/api/settings` share |
-| `gadak_ui_set` | `{axis, values}` → `{axis, path, saved, tokens, warnings}`. Key-wise merge into one axis (`null` deletes, `{}` is a no-op); unparseable values refuse by field name, judgments warn and save. Writes `config.json`, never the mirror or the origin |
+| `gadak_retro` | `{since?, session-gap?, by-sprint?, board?, open?, week?}` → the `gadak retro --json` document, through `retro.Compute` / `retro.Report.JSON()` — the owners the CLI and `GET /api/v1/issues/retro/` already share. The table answer omits each column's event log and key lists (`omitted` names them); `open` answers one cell's issue keys |
+| `gadak_ui_tokens` | `{axis?}` → `{axes, targets, tokens, rules, catalog, warnings, config_file, config_version}`. The stored `ui.tokens`, `ui.tokensByTheme` and `ui.dataColors`, read through `config.SettingByPath` — the owner the CLI and PUT `/api/settings` share. The read-only color / dimension catalogs come only when an `axis` is named: they are tens of KB and an omitted optional argument must not be the expensive call |
+| `gadak_ui_set` | `{axis, values, palette?}` → `{axis, path, saved, tokens, previous, warnings}`. Key-wise merge into one axis (`null` deletes, `{}` is a no-op); `palette` targets `ui.tokensByTheme.<palette>`, `axis: "dataColors"` targets `ui.dataColors` with `<family>.<key>` keys. `previous` is the undo patch for the keys named. Unparseable values refuse by field name, judgments warn and save. Writes `config.json`, never the mirror or the origin |
 
 Tool execution failures (bad SQL, missing key, no mirror) return
 `isError: true` with a readable message so the agent can fix and retry.

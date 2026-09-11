@@ -338,7 +338,15 @@ init` finishes the same way on both paths too — `gadak skill install` first,
 MCP for the hosts that need it. And the palette's promise was rewritten to the
 one its gate has always measured: every destination, plus any action whose only
 home is a keystroke — not "every action", which a single list row already
-outnumbers ([GDK-732]).
+outnumbers ([GDK-732]). `gadak retro` is on the MCP surface too:
+`gadak_retro` answers the same document `gadak retro --json` prints — one
+column per ISO week or sprint, definitions under the numbers — so a host
+without a shell can put the week beside you instead of only the backlog
+([GDK-1404]). The token pair got three corrections from the same review: the
+no-argument call no longer ships the whole colour catalog, `gadak_ui_set`
+returns `previous` so a merge can be undone by passing it back, and
+`ui.tokensByTheme` and `ui.dataColors` are writable rather than merely named
+in a description.
 
 The CLI itself says when its skill file is behind: a read verb prints one
 stderr line when the installed copy differs from this build's, so an agent
@@ -2591,6 +2599,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1399]: https://gadak.dev/backlog/#/?ks=GDK-1399
 [GDK-1400]: https://gadak.dev/backlog/#/?ks=GDK-1400
 [GDK-1401]: https://gadak.dev/backlog/#/?ks=GDK-1401
+[GDK-1404]: https://gadak.dev/backlog/#/?ks=GDK-1404
 [GDK-1407]: https://gadak.dev/backlog/#/?ks=GDK-1407
 [GDK-1413]: https://gadak.dev/backlog/#/?ks=GDK-1413
 [GDK-1427]: https://gadak.dev/backlog/#/?ks=GDK-1427

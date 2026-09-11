@@ -12,6 +12,10 @@
 # standing aid that answers "what is the surface saying right now" in one
 # command, including for tools a future round adds.
 #
+# It prints, per tool, the argument names (required ones starred) and whether
+# the schema refuses extras, then every enum value with the Go file that emits
+# it — the whole published vocabulary of the surface in one command.
+#
 # Usage: bash tools/mcp-tool-enums.sh
 # Exit 0 always: it prints evidence for a human and makes no judgment.
 
@@ -44,7 +48,12 @@ def emitted(value):
 
 for t in tools:
     print(f"── {t['name']}")
-    props = (t.get("inputSchema") or {}).get("properties") or {}
+    schema = t.get("inputSchema") or {}
+    props = schema.get("properties") or {}
+    required = set(schema.get("required") or [])
+    extra = schema.get("additionalProperties")
+    args = ", ".join(f"{a}*" if a in required else a for a in sorted(props)) or "(none)"
+    print(f"   args     {args}   additionalProperties={extra!r}   (* = required)")
     found = False
     for arg, spec in sorted(props.items()):
         enum = spec.get("enum")

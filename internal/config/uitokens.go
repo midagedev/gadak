@@ -738,3 +738,10 @@ func configFileVersion(path string) string {
 	}
 	return fmt.Sprintf("%d.%d", fi.ModTime().UnixNano(), fi.Size())
 }
+
+// UIDataFamilies is the closed family set of ui.dataColors, exported so a
+// surface that offers the families (the MCP write tool) can publish them
+// instead of restating them. The rule for the KEYS inside a family stays
+// here: it is the enforcement point of the repo-wide "never key on display
+// names" trap.
+func UIDataFamilies() []string { return append([]string(nil), uiDataFamilies...) }

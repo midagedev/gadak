@@ -246,7 +246,13 @@ origin 이 셀 수 없는 스페이스에는 0 도 '알 수 없음' 도 아닌 �
 했습니다. `gadak init` 의 마지막 안내도 두 경로가 같아졌습니다: `gadak skill install`
 이 먼저이고 MCP 는 그것이 필요한 호스트용입니다. 팔레트의 약속은 게이트가 원래부터
 재고 있던 문장으로 고쳐 썼습니다 — 모든 목적지, 그리고 키 입력 말고는 갈 곳이 없는
-액션. '모든 액션' 은 리스트 한 행만으로도 이미 거짓이었습니다 ([GDK-732]).
+액션. '모든 액션' 은 리스트 한 행만으로도 이미 거짓이었습니다 ([GDK-732]). `gadak retro` 도 MCP 표면에 올라왔습니다.
+`gadak_retro` 가 `gadak retro --json` 과 같은 문서를 답합니다 — ISO 주(또는 스프린트)
+한 열씩, 숫자 밑에 정의까지. 셸 없는 호스트도 백로그만이 아니라 이번 주를 옆에
+놓을 수 있습니다 ([GDK-1404]). 같은 검토에서 토큰 두 툴도 셋 고쳤습니다: 인자 없는
+호출이 색 카탈로그 전체를 싣지 않고, `gadak_ui_set` 이 `previous` 를 돌려줘 그대로
+되돌릴 수 있으며, `ui.tokensByTheme` 와 `ui.dataColors` 가 서술에만 나오는 이름이
+아니라 실제로 쓸 수 있는 대상이 됐습니다.
 
 CLI 가 스킬 파일이 낡았다고 스스로 말합니다. 설치된 사본이 이 빌드의 것과
 다르면 읽기 동사가 stderr 에 한 줄을 찍으므로, 에이전트가 doctor 를 돌리기로
@@ -2319,6 +2325,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1399]: https://gadak.dev/backlog/#/?ks=GDK-1399
 [GDK-1400]: https://gadak.dev/backlog/#/?ks=GDK-1400
 [GDK-1401]: https://gadak.dev/backlog/#/?ks=GDK-1401
+[GDK-1404]: https://gadak.dev/backlog/#/?ks=GDK-1404
 [GDK-1407]: https://gadak.dev/backlog/#/?ks=GDK-1407
 [GDK-1413]: https://gadak.dev/backlog/#/?ks=GDK-1413
 [GDK-1427]: https://gadak.dev/backlog/#/?ks=GDK-1427
