@@ -126,9 +126,9 @@ unless you pass **`--write`**, which also switches to the write retry policy
 URLs (`https://…`, `//host/…`) are rejected so a prompt-injected path cannot
 walk the token off your site.
 
-**Not on MCP.** `gadak api` is CLI-only. MCP stays eight tools
+**Not on MCP.** `gadak api` is CLI-only. MCP stays nine tools
 (`gadak_query`, `gadak_search`, `gadak_issue`, `gadak_status`, `gadak_show`,
-`gadak_retro`, `gadak_ui_tokens`, `gadak_ui_set`) with no writes to the mirror or to Jira and
+`gadak_retro`, `gadak_recents`, `gadak_ui_tokens`, `gadak_ui_set`) with no writes to the mirror or to Jira and
 no raw proxy — the `ui` pair reaches this workspace's `config.json` and nothing
 else. `gadak_show` is presentation (local ui-focus), ranked below SQL, and the
 `ui` pair is the design-token surface. A host without a shell is
@@ -142,8 +142,8 @@ MCP is shipped (`gadak mcp`) for hosts without a shell — Claude Desktop and th
 like. Prefer the CLI or SQL when the agent can spawn a process: no tool schemas
 in the context window, and the same capabilities. The MCP surface stays a
 thin wrapper: `gadak_query`, `gadak_search`, `gadak_issue`, `gadak_status`,
-`gadak_show`, `gadak_retro`, and the `gadak_ui_tokens` / `gadak_ui_set`
-settings pair.
+`gadak_show`, `gadak_retro`, `gadak_recents`, and the `gadak_ui_tokens` /
+`gadak_ui_set` settings pair.
 Deliberately not one tool per question — every extra tool is context an agent
 must read before it can act, and `gadak_query` plus the
 documented schema subsumes the reads. `gadak_show` is how a shell-less host

@@ -126,13 +126,13 @@ func TestProtocolRoundTrip(t *testing.T) {
 	// path to at all. The list stays pinned (every extra tool is context the
 	// agent reads before acting) — a new tool must change this line
 	// deliberately.
-	for _, want := range []string{toolQuery, toolSearch, toolIssue, toolStatus, toolShow, toolRetro, toolUITokens, toolUISet} {
+	for _, want := range []string{toolQuery, toolSearch, toolIssue, toolStatus, toolShow, toolRetro, toolUITokens, toolUISet, toolRecents} {
 		if !names[want] {
 			t.Errorf("tools/list missing %s", want)
 		}
 	}
-	if len(list.Tools) != 8 {
-		t.Errorf("tools/list has %d tools, want 8", len(list.Tools))
+	if len(list.Tools) != 9 {
+		t.Errorf("tools/list has %d tools, want 9", len(list.Tools))
 	}
 	// gadak_query description must carry the localization warning and examples.
 	var qdesc string

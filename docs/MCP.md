@@ -210,13 +210,14 @@ Raycast's AI/MCP features may require a paid plan.
 
 ## Tools
 
-Eight tools: six reads, one presentation act, one local write. There is no plan
+Nine tools: seven reads, one presentation act, one local write. There is no plan
 to add one tool per question — `gadak_query` plus the schema in
 `specs/000-product/data-model.md` subsumes pre-baked queries. `gadak_show` is
 presentation, not another way to answer, `gadak_retro` is the one report that
 is not a query (sessions, resume medians, cycle percentiles, the reopen
-surfaces — computed together), and the `ui` pair is the settings surface a host
-without a shell otherwise cannot reach.
+surfaces — computed together), `gadak_recents` reads back the local trail the
+read tools leave (the first call after a context compaction), and the `ui` pair
+is the settings surface a host without a shell otherwise cannot reach.
 
 | Tool | Arguments | Returns |
 | --- | --- | --- |
@@ -226,6 +227,7 @@ without a shell otherwise cannot reach.
 | `gadak_status` | `{}` | Watermark, version, last_error, row counts, kind, frozen |
 | `gadak_show` | `{jql}` \| `{keys: string[]}` \| `{issue}` \| `{name}` (exactly one) | `{hash, applied, unsupported, file}` — writes the process workspace's ui-focus file; the running window picks it up (500 ms visible / 2 min TTL); does not open a window or return issue rows |
 | `gadak_retro` | `{since?, session-gap?, by-sprint?, board?, open?, week?}` (the flags of `gadak retro`) | The document `gadak retro --json` prints — one column per ISO week or sprint with sessions, resume median, WIP age, closed, cycle p50/p85, mismatch, plus the materials, the aging tail and the definitions. The per-column event log and key lists are left out (`omitted` says so); `open` names one cell and answers its issue keys |
+| `gadak_recents` | `{limit?: number}` (the flag of `gadak recents`) | `{recents: [{kind, key, viewed_at}]}` — this machine's read history, one row per distinct `(kind, key)` folded to its newest read, newest first (default 20). `gadak_issue` and `gadak_search` append to that trail as they run, with `source = 'mcp'`; keys read under a previous origin never resurface |
 | `gadak_ui_tokens` | `{axis?}` | `{axes, targets, tokens, rules, catalog, warnings, config_file, config_version}` — the stored `ui.tokens` overrides plus `ui.tokensByTheme` and `ui.dataColors`. With **no** argument the read-only catalogs are left out (they are tens of KB); naming an `axis` adds that axis's catalog, from the same owners `gadak config get ui.tokens.catalog` / `ui.tokens.dim-catalog` read |
 | `gadak_ui_set` | `{axis, values: {token: string \| null}, palette?}` | `{axis, path, saved, tokens, previous, warnings, …}` — the same key-wise merge as `gadak config set ui.tokens.<axis>`; `palette` merges into `ui.tokensByTheme.<palette>` and `axis: "dataColors"` into `ui.dataColors` (`<family>.<key>`). Unparseable values and the derived `layout.docked-min` are **refused** by name; locked tiers, contrast floors, ranges and relations **warn and save**. `previous` is the undo patch: pass it back as `values`. Writes `config.json` only |
 

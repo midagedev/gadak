@@ -180,6 +180,9 @@ Pick the tool by the shape of the question:
 - gadak_show to put keys on the human's running gadak window. It
   returns no issue rows. After you have keys, call show; do not paste
   a markdown table.
+- gadak_recents first after a context compaction: the keys you were
+  reading, newest first. gadak_issue and gadak_search append to that
+  trail as you call them.
 
 If a tool returns a message starting with ERROR:, that is not "no
 rows" — retry with the field names it lists. Empty rows after a

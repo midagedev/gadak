@@ -283,6 +283,10 @@ func toolDefinitions() []Tool {
 	// generated enums and generated prose, so a description here cannot teach
 	// a value the server does not accept.
 	out = append(out, retroToolDefinition())
+	// gadak_recents reads back the trail visits.go writes; its one argument is
+	// the CLI flag and its kind vocabulary is generated from the store
+	// constants RecordVisit validates against.
+	out = append(out, recentsToolDefinition())
 	return append(out, uiToolDefinitions()...)
 }
 
@@ -317,6 +321,8 @@ func (s *Server) callTool(name string, args map[string]any) (content []contentIt
 		out, err = s.toolShow(args)
 	case toolRetro:
 		out, err = s.toolRetro(args)
+	case toolRecents:
+		out, err = s.toolRecents(args)
 	case toolUITokens:
 		out, err = s.toolUITokens(args)
 	case toolUISet:
@@ -361,7 +367,7 @@ func (s *Server) toolSearch(args map[string]any) ([]contentItem, error) {
 	if limit > hardRowLimit {
 		limit = hardRowLimit
 	}
-	res, err := s.db.Search(context.Background(), text, limit)
+	res, err := s.runSearch(context.Background(), text, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -453,7 +459,7 @@ func (s *Server) toolIssue(args map[string]any) ([]contentItem, error) {
 // issuePayload is one `gadak issue --json` document: list row plus Detail
 // fields, including description_text / dev_links / wiki cross-refs.
 func (s *Server) issuePayload(key string) (map[string]any, error) {
-	d, err := s.db.Detail(context.Background(), key)
+	d, err := s.loadDetail(context.Background(), key)
 	if err != nil {
 		return nil, err
 	}
