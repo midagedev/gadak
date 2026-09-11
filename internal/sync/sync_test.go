@@ -1949,6 +1949,40 @@ func TestSyncRenameWarningNeedsBothSides(t *testing.T) {
 	}
 }
 
+func TestScopeLabelPairedOmitsAccount(t *testing.T) {
+	// GDK-1793's audit: a paired workspace has no Atlassian
+	// account — its origin is a gadak serve one machine away — so the
+	// fall-through sentence named something that does not exist. It reached
+	// this branch because HasBuiltInOrigin() answers the in-process
+	// question, and a paired workspace is false there.
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	paired, err := config.LoadFor("laptop")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pairing.SaveRemote(paired.Directory(), pairing.Remote{
+		Endpoint: "http://127.0.0.1:1/", Token: "pair-token", Label: "laptop",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := paired.OriginType(); got != config.OriginGadak {
+		t.Fatalf("fixture is not paired: OriginType = %q", got)
+	}
+	got := scopeLabel(paired)
+	if strings.Contains(got, "this account") {
+		t.Errorf("paired workspace named an account it does not have: %q", got)
+	}
+	if !strings.Contains(got, "serve") {
+		t.Errorf("paired scope should name the serve it syncs from, got %q", got)
+	}
+	// An explicit project list is still the list, on every origin.
+	paired.Projects = []string{"GDK"}
+	if got := scopeLabel(paired); got != "GDK" {
+		t.Errorf("explicit projects = %q, want GDK", got)
+	}
+}
+
 func TestScopeLabelBuiltInOmitsAccount(t *testing.T) {
 	// GDK-464
 	connected := scopeLabel(&config.Config{})

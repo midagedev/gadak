@@ -213,6 +213,12 @@ func serveScopeLog(cfg *config.Config) string {
 		return "syncing " + p
 	}
 	if len(cfg.Projects) == 0 {
+		if cfg.OriginType() == config.OriginGadak {
+			// Paired: the in-process branch above already returned, so this
+			// workspace's origin is another machine's serve and there is no
+			// account to name. GDK-1793's audit.
+			return "no project filter — syncing everything the paired serve holds"
+		}
 		return "no project filter — syncing everything this account can see"
 	}
 	return ""

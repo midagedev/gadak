@@ -12,6 +12,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
+	"github.com/midagedev/gadak/internal/pairing"
 	"github.com/midagedev/gadak/internal/serveaddr"
 )
 
@@ -36,6 +37,33 @@ func TestServeScopeLogBuiltInOmitsAccount(t *testing.T) {
 	})
 	if filtered != "" {
 		t.Fatalf("connected with projects must omit the filter line, got %q", filtered)
+	}
+}
+
+func TestServeScopeLogPairedOmitsAccount(t *testing.T) {
+	// GDK-1793's audit: a paired workspace's origin is another machine's serve, so
+	// the listen line must not claim an Atlassian account. It reached that
+	// sentence because HasBuiltInOrigin() is the in-process question.
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	paired, err := config.LoadFor("laptop")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pairing.SaveRemote(paired.Directory(), pairing.Remote{
+		Endpoint: "http://127.0.0.1:1/", Token: "pair-token", Label: "laptop",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := paired.OriginType(); got != config.OriginGadak {
+		t.Fatalf("fixture is not paired: OriginType = %q", got)
+	}
+	got := serveScopeLog(paired)
+	if strings.Contains(got, "this account") {
+		t.Errorf("paired serve line named an account it does not have: %q", got)
+	}
+	if !strings.Contains(got, "serve") {
+		t.Errorf("paired serve line should name the serve it syncs from, got %q", got)
 	}
 }
 

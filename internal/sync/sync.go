@@ -1689,7 +1689,9 @@ func reconcileJQL(projects []string) string {
 
 // scopeLabel is the human scope fragment on sync start lines.
 // GDK-464: kind=built-in has no account — name the seeded project, never
-// "this account". cfg.HasBuiltInOrigin() is the only discriminator.
+// "this account". GDK-1793's audit: neither does a paired workspace, whose origin is
+// another machine's serve; HasBuiltInOrigin answers the in-process question,
+// so paired falls past it and needs its own sentence.
 func scopeLabel(cfg *config.Config) string {
 	if cfg != nil && cfg.HasBuiltInOrigin() {
 		if len(cfg.Projects) > 0 {
@@ -1700,6 +1702,11 @@ func scopeLabel(cfg *config.Config) string {
 			p = origin.DefaultProjectKey
 		}
 		return p
+	}
+	if cfg != nil && len(cfg.Projects) == 0 && cfg.OriginType() == config.OriginGadak {
+		// Paired (the in-process branch above already returned): the origin
+		// is a gadak serve, so there is no account to name. GDK-1793's audit.
+		return "every project the paired serve holds"
 	}
 	if cfg == nil || len(cfg.Projects) == 0 {
 		return "every project this account can see"

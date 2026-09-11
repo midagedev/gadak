@@ -1102,7 +1102,10 @@ folded them, and the read path that fills `ui.warnings` did not ([GDK-769]).
 The fonts axis names its one token where it says "token names", instead of
 pointing at a command that returns the stored overrides; the gate that was
 meant to catch that had only been checking a command was mentioned
-([GDK-769]).
+([GDK-769]). Two more lines stopped claiming an Atlassian account a paired
+workspace does not have — the serve's listen line and sync's scope label now
+say the paired serve holds the projects, the last of the same misreading
+([GDK-1793]).
 
 ## v0.21.0 — 2026-09-08
 
