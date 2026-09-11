@@ -216,16 +216,36 @@ test.describe('terminal session strip', () => {
     const name = page.getByTestId('terminal-strip-name')
     await expect(name).toHaveText(/^shell \d+$/)
     const before = await name.textContent()
-    // Nothing under the name until the shell says something about itself.
-    await expect(page.getByTestId('terminal-strip-subtitle')).toHaveCount(0)
+    // NOT `toHaveCount(0)`. A shell whose own prompt sets a window title has a
+    // subtitle the moment it starts, and that is the feature working: Ubuntu's
+    // stock .bashrc puts the title in PS1, so on the Linux CI runner (and under
+    // `npm run test:e2e:wide-prompt`, which reproduces it) this row is already
+    // subtitled before the test types anything. macOS bash 3.2 sets no title,
+    // which is why asserting an empty start passed locally and failed only on
+    // CI. What the feature actually promises is the TRANSITION, so that is what
+    // is pinned: whatever the row says now, it is not what we are about to set.
+    // count() first, deliberately: textContent() auto-waits for the element, so
+    // reading it on a shell that has set no title burns the whole locator
+    // timeout before failing. count() answers now.
+    const startRow = page.getByTestId('terminal-strip-subtitle')
+    const subtitleAtStart = (await startRow.count()) ? await startRow.textContent() : null
+    expect(subtitleAtStart).not.toBe('running the bu ild')
 
-    // A title with a CR and a bare ESC in it: the shape a crafted title
-    // takes, and the one that would break a one-line row.
-    await typeLine(page, `printf '\\033]0;running the bu\\rild\\033x\\007%s\\n' ti''tled`)
+    // A title with a CR and a bare ESC in it: the shape a crafted title takes,
+    // and the one that would break a one-line row.
+    //
+    // The `sleep` is load-bearing, not padding. A prompt that sets the window
+    // title sets it again the moment the command returns — Ubuntu's stock
+    // .bashrc does exactly that, so on Linux the row goes back to
+    // `user@host: cwd` as soon as this printf finishes. Last title wins, which
+    // is the correct behaviour and the reason Claude Code's titles are visible
+    // at all: it holds the shell while it works. So the shell is held here too,
+    // and the assertion lands inside that window rather than racing the prompt.
+    await typeLine(page, `printf '\\033]0;running the bu\\rild\\033x\\007%s\\n' ti''tled; sleep 8`)
     await expect.poll(async () => readTerm(page)).toContain('titled')
 
     const subtitle = page.getByTestId('terminal-strip-subtitle')
-    await expect(subtitle).toHaveText('running the bu ild', { timeout: 10_000 })
+    await expect(subtitle).toHaveText('running the bu ild', { timeout: 6_000 })
     // The name a person reads is untouched by what the shell is printing.
     await expect(name).toHaveText(before!)
 
