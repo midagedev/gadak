@@ -69,7 +69,7 @@ that only works in Terminal is not found that way.
 ## Requirements
 
 - gadak installed — the [macOS app](https://github.com/midagedev/gadak#install)
-  or `brew install midagedev/tap/gadak`
+  or `brew install --cask midagedev/tap/gadak`
 - a synced mirror (`gadak init && gadak sync`)
 
 Without a binary, the command offers that install command and the install

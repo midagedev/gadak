@@ -1,13 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  Action,
-  ActionPanel,
-  Color,
-  Icon,
-  List,
-  getPreferenceValues,
-  open,
-} from "@raycast/api";
+import { Action, ActionPanel, Color, Icon, List, getPreferenceValues, open } from "@raycast/api";
 import {
   INSTALL_COMMAND,
   INSTALL_GUIDE_URL,
@@ -132,16 +124,8 @@ function MissingBinaryView() {
       description="Install gadak, then search again. Or set the gadak binary preference."
       actions={
         <ActionPanel>
-          <Action.CopyToClipboard
-            title="Copy Install Command"
-            icon={Icon.Clipboard}
-            content={INSTALL_COMMAND}
-          />
-          <Action.OpenInBrowser
-            title="Open Install Guide"
-            icon={Icon.Globe}
-            url={INSTALL_GUIDE_URL}
-          />
+          <Action.CopyToClipboard title="Copy Install Command" icon={Icon.Clipboard} content={INSTALL_COMMAND} />
+          <Action.OpenInBrowser title="Open Install Guide" icon={Icon.Globe} url={INSTALL_GUIDE_URL} />
         </ActionPanel>
       }
     />
@@ -156,11 +140,7 @@ function SearchErrorView({ fail }: { fail: SearchFail }) {
       description={searchErrorDetail(fail)}
       actions={
         <ActionPanel>
-          <Action.CopyToClipboard
-            title="Copy Full Error"
-            icon={Icon.Clipboard}
-            content={searchErrorFull(fail)}
-          />
+          <Action.CopyToClipboard title="Copy Full Error" icon={Icon.Clipboard} content={searchErrorFull(fail)} />
         </ActionPanel>
       }
     />
@@ -254,9 +234,7 @@ export default function Command() {
   const q = text.trim();
   const hasHits = issues.length > 0 || pages.length > 0;
   const header =
-    ms !== null && showLatency
-      ? `${ms.toFixed(0)}ms · ${issues.length} issues`
-      : `${issues.length} issues`;
+    ms !== null && showLatency ? `${ms.toFixed(0)}ms · ${issues.length} issues` : `${issues.length} issues`;
 
   return (
     <List
@@ -282,8 +260,7 @@ export default function Command() {
                     key={it.issue_key}
                     icon={{
                       source: Icon.Circle,
-                      tintColor:
-                        FIELD_COLOR[m?.field ?? "title"] ?? Color.SecondaryText,
+                      tintColor: FIELD_COLOR[m?.field ?? "title"] ?? Color.SecondaryText,
                     }}
                     title={it.issue_key}
                     // The row cannot colour a substring, so it shows the matched
@@ -297,9 +274,7 @@ export default function Command() {
                               ? {
                                   tag: {
                                     value: m.field,
-                                    color:
-                                      FIELD_COLOR[m.field] ??
-                                      Color.SecondaryText,
+                                    color: FIELD_COLOR[m.field] ?? Color.SecondaryText,
                                   },
                                 }
                               : {},
@@ -311,31 +286,17 @@ export default function Command() {
                         markdown={[
                           `## ${escapeMd(it.summary)}`,
                           "",
-                          m
-                            ? `> ${emphasize(m.snippet, q)}`
-                            : "_no snippet — the title carried the match_",
+                          m ? `> ${emphasize(m.snippet, q)}` : "_no snippet — the title carried the match_",
                         ].join("\n")}
                         metadata={
                           <List.Item.Detail.Metadata>
-                            <List.Item.Detail.Metadata.Label
-                              title="Key"
-                              text={it.issue_key}
-                            />
-                            <List.Item.Detail.Metadata.Label
-                              title="Status"
-                              text={it.status ?? "—"}
-                            />
-                            <List.Item.Detail.Metadata.Label
-                              title="Assignee"
-                              text={it.assignee ?? "—"}
-                            />
+                            <List.Item.Detail.Metadata.Label title="Key" text={it.issue_key} />
+                            <List.Item.Detail.Metadata.Label title="Status" text={it.status ?? "—"} />
+                            <List.Item.Detail.Metadata.Label title="Assignee" text={it.assignee ?? "—"} />
                             <List.Item.Detail.Metadata.TagList title="Matched in">
                               <List.Item.Detail.Metadata.TagList.Item
                                 text={m?.field ?? "title"}
-                                color={
-                                  FIELD_COLOR[m?.field ?? "title"] ??
-                                  Color.SecondaryText
-                                }
+                                color={FIELD_COLOR[m?.field ?? "title"] ?? Color.SecondaryText}
                               />
                             </List.Item.Detail.Metadata.TagList>
                           </List.Item.Detail.Metadata>
@@ -361,11 +322,7 @@ export default function Command() {
                           icon={Icon.Link}
                           content={deepLink(it.issue_key, profile)}
                         />
-                        <Action.CopyToClipboard
-                          title="Copy Issue Key"
-                          icon={Icon.Clipboard}
-                          content={it.issue_key}
-                        />
+                        <Action.CopyToClipboard title="Copy Issue Key" icon={Icon.Clipboard} content={it.issue_key} />
                       </ActionPanel>
                     }
                   />
@@ -381,33 +338,17 @@ export default function Command() {
                   icon={{ source: Icon.Document, tintColor: Color.Green }}
                   title={p.title}
                   subtitle={detail ? undefined : p.excerpt}
-                  accessories={
-                    detail
-                      ? undefined
-                      : [{ tag: { value: p.space_key, color: Color.Green } }]
-                  }
+                  accessories={detail ? undefined : [{ tag: { value: p.space_key, color: Color.Green } }]}
                   detail={
                     <List.Item.Detail
-                      markdown={[
-                        `## ${escapeMd(p.title)}`,
-                        "",
-                        `> ${emphasize(p.excerpt, q)}`,
-                      ].join("\n")}
+                      markdown={[`## ${escapeMd(p.title)}`, "", `> ${emphasize(p.excerpt, q)}`].join("\n")}
                       metadata={
                         <List.Item.Detail.Metadata>
-                          <List.Item.Detail.Metadata.Label
-                            title="Space"
-                            text={p.space_key || "—"}
-                          />
-                          <List.Item.Detail.Metadata.Label
-                            title="Author"
-                            text={p.author ?? "—"}
-                          />
+                          <List.Item.Detail.Metadata.Label title="Space" text={p.space_key || "—"} />
+                          <List.Item.Detail.Metadata.Label title="Author" text={p.author ?? "—"} />
                           <List.Item.Detail.Metadata.Label
                             title="Updated"
-                            text={
-                              p.updated_at ? p.updated_at.slice(0, 10) : "—"
-                            }
+                            text={p.updated_at ? p.updated_at.slice(0, 10) : "—"}
                           />
                         </List.Item.Detail.Metadata>
                       }
@@ -438,9 +379,7 @@ export default function Command() {
             </List.Section>
           )}
         </>
-      ) : !q &&
-        recent &&
-        (recent.viewed.length > 0 || recent.updated.length > 0) ? (
+      ) : !q && recent && (recent.viewed.length > 0 || recent.updated.length > 0) ? (
         <>
           {recent.viewed.length > 0 && (
             <List.Section title="Recently Viewed">
@@ -454,10 +393,7 @@ export default function Command() {
                   }
                   title={v.title}
                   subtitle={v.kind === "issue" ? v.key : undefined}
-                  accessories={[
-                    v.status ? { text: v.status } : {},
-                    { text: relativeTime(v.viewed_at) },
-                  ]}
+                  accessories={[v.status ? { text: v.status } : {}, { text: relativeTime(v.viewed_at) }]}
                   actions={
                     <ActionPanel>
                       {v.kind === "page" ? (
@@ -477,11 +413,7 @@ export default function Command() {
                       <Action.CopyToClipboard
                         title="Copy Deep Link"
                         icon={Icon.Link}
-                        content={
-                          v.kind === "page"
-                            ? docLink(v.key, profile)
-                            : deepLink(v.key, profile)
-                        }
+                        content={v.kind === "page" ? docLink(v.key, profile) : deepLink(v.key, profile)}
                       />
                     </ActionPanel>
                   }
@@ -490,9 +422,7 @@ export default function Command() {
             </List.Section>
           )}
           {(() => {
-            const seen = new Set(
-              recent.viewed.filter((v) => v.kind === "issue").map((v) => v.key),
-            );
+            const seen = new Set(recent.viewed.filter((v) => v.kind === "issue").map((v) => v.key));
             const rows = recent.updated.filter((u) => !seen.has(u.key));
             if (rows.length === 0) return null;
             return (
@@ -524,11 +454,7 @@ export default function Command() {
                           icon={Icon.Link}
                           content={deepLink(u.key, profile)}
                         />
-                        <Action.CopyToClipboard
-                          title="Copy Issue Key"
-                          icon={Icon.Clipboard}
-                          content={u.key}
-                        />
+                        <Action.CopyToClipboard title="Copy Issue Key" icon={Icon.Clipboard} content={u.key} />
                       </ActionPanel>
                     }
                   />
@@ -543,7 +469,13 @@ export default function Command() {
           title="Type to search"
           description="Searches the local gadak mirror. Enter opens the hit in the Gadak app."
         />
-      ) : null}
+      ) : loading ? null : (
+        <List.EmptyView
+          icon={Icon.MagnifyingGlass}
+          title="No matches"
+          description={`Nothing in the local gadak mirror matches “${q}”. Work created since the last sync is not in the mirror yet.`}
+        />
+      )}
     </List>
   );
 }

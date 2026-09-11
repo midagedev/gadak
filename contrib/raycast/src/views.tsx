@@ -1,12 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  Action,
-  ActionPanel,
-  Icon,
-  List,
-  getPreferenceValues,
-  open,
-} from "@raycast/api";
+import { Action, ActionPanel, Icon, List, getPreferenceValues, open } from "@raycast/api";
 import {
   INSTALL_COMMAND,
   INSTALL_GUIDE_URL,
@@ -36,16 +29,8 @@ function MissingBinaryView() {
       description="Install gadak, then try again. Or set the gadak binary preference."
       actions={
         <ActionPanel>
-          <Action.CopyToClipboard
-            title="Copy Install Command"
-            icon={Icon.Clipboard}
-            content={INSTALL_COMMAND}
-          />
-          <Action.OpenInBrowser
-            title="Open Install Guide"
-            icon={Icon.Globe}
-            url={INSTALL_GUIDE_URL}
-          />
+          <Action.CopyToClipboard title="Copy Install Command" icon={Icon.Clipboard} content={INSTALL_COMMAND} />
+          <Action.OpenInBrowser title="Open Install Guide" icon={Icon.Globe} url={INSTALL_GUIDE_URL} />
         </ActionPanel>
       }
     />
@@ -60,11 +45,7 @@ function CliErrorView({ fail }: { fail: SearchFail }) {
       description={searchErrorDetail(fail)}
       actions={
         <ActionPanel>
-          <Action.CopyToClipboard
-            title="Copy Full Error"
-            icon={Icon.Clipboard}
-            content={searchErrorFull(fail)}
-          />
+          <Action.CopyToClipboard title="Copy Full Error" icon={Icon.Clipboard} content={searchErrorFull(fail)} />
         </ActionPanel>
       }
     />
@@ -108,10 +89,7 @@ export default function Command() {
   }, [bin, profile]);
 
   return (
-    <List
-      isLoading={loading}
-      searchBarPlaceholder="Filter views from the local gadak mirror…"
-    >
+    <List isLoading={loading} searchBarPlaceholder="Filter views from the local gadak mirror…">
       {!bin ? (
         <MissingBinaryView />
       ) : error ? (
@@ -147,27 +125,9 @@ export default function Command() {
               }
               actions={
                 <ActionPanel>
-                  {link ? (
-                    <Action
-                      title="Open in Gadak"
-                      icon={Icon.ArrowRight}
-                      onAction={() => open(link)}
-                    />
-                  ) : null}
-                  {jql ? (
-                    <Action.CopyToClipboard
-                      title="Copy JQL"
-                      icon={Icon.Clipboard}
-                      content={jql}
-                    />
-                  ) : null}
-                  {link ? (
-                    <Action.CopyToClipboard
-                      title="Copy Deep Link"
-                      icon={Icon.Link}
-                      content={link}
-                    />
-                  ) : null}
+                  {link ? <Action title="Open in Gadak" icon={Icon.ArrowRight} onAction={() => open(link)} /> : null}
+                  {jql ? <Action.CopyToClipboard title="Copy JQL" icon={Icon.Clipboard} content={jql} /> : null}
+                  {link ? <Action.CopyToClipboard title="Copy Deep Link" icon={Icon.Link} content={link} /> : null}
                 </ActionPanel>
               }
             />

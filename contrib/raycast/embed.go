@@ -4,5 +4,9 @@ package raycastext
 
 import "embed"
 
-//go:embed src assets package.json package-lock.json tsconfig.json eslint.config.mjs README.md CHANGELOG.md
+// .prettierrc rides along because `ray lint` runs Prettier over the
+// installed tree: the sources are formatted at printWidth 120, so an
+// install without it reports every file as unformatted.
+//
+//go:embed src assets package.json package-lock.json tsconfig.json eslint.config.mjs README.md CHANGELOG.md .prettierrc
 var FS embed.FS

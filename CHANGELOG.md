@@ -1122,7 +1122,13 @@ running, a sync that failed, an hour past the last one — moved out of the CLI
 into one owner both callers share, so the MCP read tools append it to their
 result instead of writing it to a stderr no MCP host can see; the existing
 payload is untouched byte for byte, and a fresh mirror adds nothing
-([GDK-599]).
+([GDK-599]). The Raycast extension gadak installs answers two of its
+own. Its "gadak is not installed" screen copied `brew install
+midagedev/tap/gadak` to the clipboard, which is not how the app is installed —
+it is a cask — and a search that matched nothing rendered nothing at all, so an
+empty cache and a broken extension looked the same. Both say what they mean
+now, and the store listing carries the scaffolding its review asked for
+([GDK-1800]).
 
 ## v0.21.0 — 2026-09-08
 
@@ -2908,3 +2914,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1796]: https://gadak.dev/backlog/#/?ks=GDK-1796
 [GDK-1797]: https://gadak.dev/backlog/#/?ks=GDK-1797
 [GDK-1798]: https://gadak.dev/backlog/#/?ks=GDK-1798
+[GDK-1800]: https://gadak.dev/backlog/#/?ks=GDK-1800
