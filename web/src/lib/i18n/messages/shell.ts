@@ -226,6 +226,20 @@ export const shell = {
     ko: '목록 열 너비 조절',
     ja: 'リスト列の幅を変更',
   },
+  // The palette rows that focus those two grips (GDK-1796). Worded as the
+  // palette's own grammar ("the issue list", what the app calls the column)
+  // rather than the grip's aria-label above — a row says what it does to
+  // what, a handle says what it is.
+  'palette.resizeSidebar': {
+    en: 'Resize the sidebar',
+    ko: '사이드바 너비 조절',
+    ja: 'サイドバーの幅を変更',
+  },
+  'palette.resizeList': {
+    en: 'Resize the issue list',
+    ko: '이슈 목록 너비 조절',
+    ja: '課題リストの幅を変更',
+  },
   'layout.savedLocally': {
     en: 'Resized on this device only. The server did not take the width.',
     ko: '이 기기에만 적용됨. 서버에 너비를 쓰지 못했습니다.',

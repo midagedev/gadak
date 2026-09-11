@@ -11,6 +11,7 @@ import { persistThemePreference, THEME_MODES } from './theme'
 import { originTrackerName } from './config'
 import { issueOriginUrl } from './issue-origin'
 import { COMMANDS, type PaletteSpec, type TriageMenuKey } from './commands'
+import type { DraggableLayoutAxis } from './viewport-regime'
 
 export interface PaletteActionHost {
   requestMenu: (menu: TriageMenuKey) => void
@@ -38,6 +39,12 @@ export interface PaletteActionHost {
   copyIssueLink: (key: string) => void
   markAllFeedRead: () => void
   saveView: () => void
+  /**
+   * Put the keyboard on `axis`'s layout grip (GDK-1796). Focus-shaped on
+   * purpose: the grip's own key handler then does the resizing, which a
+   * click on it would not.
+   */
+  focusResizeGrip: (axis: DraggableLayoutAxis) => void
 }
 
 export interface PaletteActionInput {
@@ -53,6 +60,12 @@ export interface PaletteActionInput {
   feedUnread: number
   /** The column is on the issue list, so "save this view" has a view. */
   onIssueList: boolean
+  /**
+   * The viewport is in the docked regime — the only one that paints the two
+   * layout grips (App.svelte). Off it the resize rows have no target, and a
+   * row that cannot act is a promise the palette should not show.
+   */
+  docked: boolean
   query: string
   favoriteHas: (key: string) => boolean
   watchHas: (key: string) => boolean
@@ -327,6 +340,21 @@ function itemsFor(spec: PaletteSpec, input: PaletteActionInput): PaletteActionIt
           testid: spec.testid,
           stayOpen: true,
           run: () => host.createNow(raw),
+        },
+      ]
+    }
+    case 'focus-resize': {
+      const axis = spec.axis
+      // Same rule as issue-list/save-view: off the docked regime the grips
+      // are not mounted (App.svelte), and a row that cannot reach its
+      // target is a no-op wearing an action's clothes.
+      if (!axis || !input.docked) return []
+      return [
+        {
+          id: spec.id,
+          label: t(spec.labelKey),
+          testid: spec.testid,
+          run: () => host.focusResizeGrip(axis),
         },
       ]
     }

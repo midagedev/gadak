@@ -15,7 +15,10 @@
   Keyboard is not an extra: the handle is a real button in the tab order,
   arrows resize (8px, Shift for 1px — see lib/layout-resize.ts for why), and
   the same double-click that resets with a mouse is the Backspace/Delete key
-  here. It reports its numbers through the slider ARIA role so the value is
+  here. Tab alone is a long trip, though — this sits behind the whole sidebar
+  and the whole issue list — so the palette's resize rows (GDK-1796) are the
+  short door: they focus this element and let its own key handler work.
+  It reports its numbers through the slider ARIA role so the value is
   announced rather than inferred from a moving column. The seam is drawn
   vertically but aria-orientation is horizontal: on a slider that attribute
   names the direction the VALUE moves, which is the direction of the arrow
@@ -31,6 +34,8 @@
     startLayoutDrag,
   } from '../../lib/layout-resize'
   import { LAYOUT_DRAG_CLAMP, type DraggableLayoutAxis } from '../../lib/viewport-regime'
+  import { RESIZE_GRIP_TESTID } from '../../lib/commands'
+  import { asKeyTarget } from '../../lib/key-targets'
 
   let { axis }: { axis: DraggableLayoutAxis } = $props()
 
@@ -93,8 +98,9 @@
   aria-valuemax={clamp.max}
   aria-valuenow={valueNow}
   data-no-press
-  data-testid="layout-resize-{axis}"
+  data-testid={RESIZE_GRIP_TESTID[axis]}
   data-axis={axis}
+  use:asKeyTarget={RESIZE_GRIP_TESTID[axis]}
   onpointerdown={onPointerDown}
   ondblclick={() => resetLayoutWidth(axis)}
   onkeydown={onKeyDown}

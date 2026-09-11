@@ -230,9 +230,10 @@ pairs, unitless one-or-two-decimal numbers (`"1.4"`).
 
 **`layout.sidebar` and `layout.list` are also draggable** (GDK-759): the
 seam on each column's right edge is a grip — drag it, or focus it and use
-the arrow keys (8px a press, Shift for 1px). Reaching a grip by Tab alone is
-a long trip today: it sits after the column it follows, so the sidebar's is
-past every row in the sidebar and the list ([GDK-1796] shortens it). The
+the arrow keys (8px a press, Shift for 1px). Tab reaches a grip only after
+the column it follows, so the palette is the short road: its "Resize the
+sidebar" / "Resize the issue list" rows put you straight on the grip with
+the arrow keys live ([GDK-1796]). The
 drag writes these
 same two tokens, so a width set with the pointer and one set with `gadak
 config set ui.tokens.layout.sidebar 300px` are the same value in the same

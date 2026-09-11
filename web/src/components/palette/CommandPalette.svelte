@@ -61,6 +61,9 @@
   import { runSyncNow } from '../../lib/sync-now'
   import { openIssueOrigin, openOriginUrl } from '../../lib/desktop-links'
   import { paletteActionItems } from '../../lib/command-palette'
+  import { RESIZE_GRIP_TESTID } from '../../lib/commands'
+  import { keyTarget } from '../../lib/key-targets'
+  import { viewport } from '../../lib/viewport-regime.svelte'
   import { copyViewLink } from '../list/copy-view-link'
   import { saveViewRequest } from '../list/save-view-request.svelte'
   import { copyIssueLink } from '../detail/copy-issue-link'
@@ -644,6 +647,7 @@ import type { SettingsTab } from '../../lib/settings-tabs'
       feedEnabled: feature('feed'),
       feedUnread: me.feedUnread.all,
       onIssueList: column.is('list'),
+      docked: viewport.regime === 'docked',
       query: raw,
       favoriteHas: (key) => favorites.has(key),
       watchHas: (key) => watches.has(key),
@@ -692,6 +696,17 @@ import type { SettingsTab } from '../../lib/settings-tabs'
         copyIssueLink: (key) => void copyIssueLink(key),
         markAllFeedRead: () => void me.markAllFeedRead(),
         saveView: () => saveViewRequest.request(),
+        // GDK-1796: hand the keyboard to a layout grip — the element the
+        // handle registered under its testid (asKeyTarget), not a selector.
+        // A macrotask later on purpose: this row runs before closePalette,
+        // and the palette's focus trap restores the pre-open element when
+        // the dialog unmounts (lib/focus-trap.ts destroy) — a synchronous
+        // focus here would be eaten by that restore, and the unmount flush
+        // plus that restore are microtasks a setTimeout(0) is guaranteed to
+        // follow. Not rAF: a frame callback never fires in a hidden tab.
+        focusResizeGrip: (axis) => {
+          setTimeout(() => keyTarget(RESIZE_GRIP_TESTID[axis])?.focus(), 0)
+        },
       },
     })
     const createNow = defs.find((d) => d.id === 'a:create-now')

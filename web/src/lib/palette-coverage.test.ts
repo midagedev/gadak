@@ -20,6 +20,7 @@
 import { describe, expect, test } from 'vitest'
 import { COLUMN_KINDS, type ColumnKind } from './column-view'
 import { COMMANDS } from './commands'
+import { LAYOUT_DRAG_CLAMP, type DraggableLayoutAxis } from './viewport-regime'
 
 /**
  * Destinations that legitimately have no palette row. Every entry carries the
@@ -68,6 +69,68 @@ describe('palette covers every column destination', () => {
   test('no two palette rows claim the same destination', () => {
     for (const [kind, ids] of openers()) {
       expect(ids, `${kind} is opened by more than one palette row`).toHaveLength(1)
+    }
+  })
+})
+
+/*
+ * GDK-1796: the same audit for the layout grips. A grip is keyboard-capable
+ * (arrows resize, Shift steps 1px, Backspace resets — LayoutResizeHandle) but
+ * it sat roughly 150 tab stops deep, behind the whole sidebar and the whole
+ * issue list: capability without reachability, and nothing measured
+ * reachability. A palette row that focuses the grip is this app's grammar for
+ * a motion whose only home is a keystroke (UX_PRINCIPLES §3), and this block
+ * is what stops the next draggable axis from shipping without one.
+ *
+ * The axis list is read off LAYOUT_DRAG_CLAMP for the same reason the block
+ * above reads COLUMN_KINDS: the Record type is compiler-checked in both
+ * directions (every axis has a clamp, no clamp names a stranger), so this
+ * file keeps no second list to drift.
+ */
+const DRAGGABLE_AXES = Object.keys(LAYOUT_DRAG_CLAMP) as DraggableLayoutAxis[]
+
+/**
+ * Axes whose grip legitimately has no palette row. Empty today — kept (and
+ * kept the same shape as NO_PALETTE_ROW) so the first future exemption is
+ * forced to carry its reason rather than quietly delete a row.
+ */
+const NO_GRIP_ROW: Partial<Record<DraggableLayoutAxis, string>> = {}
+
+function gripFocusers(): Map<DraggableLayoutAxis, string[]> {
+  const out = new Map<DraggableLayoutAxis, string[]>()
+  for (const cmd of COMMANDS) {
+    const axis = cmd.palette?.axis
+    if (!axis) continue
+    out.set(axis, [...(out.get(axis) ?? []), cmd.palette!.id])
+  }
+  return out
+}
+
+describe('palette reaches every draggable axis grip', () => {
+  test('each DraggableLayoutAxis has a grip-focusing palette row or a documented exemption', () => {
+    const by = gripFocusers()
+    const uncovered = DRAGGABLE_AXES.filter((axis) => !by.has(axis) && !NO_GRIP_ROW[axis])
+    expect(
+      uncovered,
+      `draggable axes with no grip-focusing palette row and no exemption: ${uncovered.join(', ')}`,
+    ).toEqual([])
+  })
+
+  test('every grip exemption names a reason', () => {
+    for (const [axis, reason] of Object.entries(NO_GRIP_ROW)) {
+      expect(reason?.trim(), `exemption for '${axis}' must say why`).toBeTruthy()
+    }
+  })
+
+  test('the grip exemption list holds no axis that does have a row', () => {
+    const by = gripFocusers()
+    const stale = Object.keys(NO_GRIP_ROW).filter((a) => by.has(a as DraggableLayoutAxis))
+    expect(stale, `exempted but now covered — delete the exemption: ${stale.join(', ')}`).toEqual([])
+  })
+
+  test('no two palette rows claim the same axis', () => {
+    for (const [axis, ids] of gripFocusers()) {
+      expect(ids, `${axis} is focused by more than one palette row`).toHaveLength(1)
     }
   })
 })

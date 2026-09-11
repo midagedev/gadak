@@ -15,6 +15,7 @@ import type { MessageKey } from './i18n/catalog'
  * graph (keymap tests load this file), while `opens` below can still be
  * spelled in the column's own vocabulary instead of a parallel string set. */
 import type { ColumnKind } from './column-view'
+import type { DraggableLayoutAxis } from './viewport-regime'
 
 export type { MessageKey }
 
@@ -47,6 +48,18 @@ export const DETAIL_TESTID = {
   labelAdd: 'label-editor-add',
   comment: 'comment-composer',
 } as const
+
+/*
+ * GDK-1796: the layout grips, added to the same single-owner rule. The
+ * palette's resize rows focus these elements, and LayoutResizeHandle binds
+ * its `data-testid` (and its key-target registration) to the same constants
+ * — the values are the strings e2e/layout-resize.spec.ts already knows, so
+ * nothing downstream moves.
+ */
+export const RESIZE_GRIP_TESTID = {
+  sidebar: 'layout-resize-sidebar',
+  list: 'layout-resize-list',
+} as const satisfies Record<DraggableLayoutAxis, string>
 
 export type TriageMenuKey = 'status' | 'assignee' | 'labels' | 'priority'
 
@@ -292,6 +305,7 @@ type PaletteKind =
   | 'save-view'
   | 'issue-link'
   | 'feed-read-all'
+  | 'focus-resize'
 
 export interface PaletteSpec {
   id: string
@@ -311,6 +325,13 @@ export interface PaletteSpec {
    * a flag toggle, copy link — leave it unset.
    */
   opens?: ColumnKind
+  /**
+   * The draggable layout axis whose grip this row focuses (GDK-1796).
+   * Declared for the same reason `opens` is: the coverage gate compares the
+   * axes LAYOUT_DRAG_CLAMP knows against the palette without either side
+   * keeping a list of the other (same test file, second describe block).
+   */
+  axis?: DraggableLayoutAxis
 }
 
 export interface CommandDef {
@@ -940,6 +961,39 @@ export const COMMANDS: readonly CommandDef[] = [
       testid: 'palette-action-watch',
       labelKey: 'palette.actionWatch',
       altLabelKey: 'palette.actionUnwatch',
+    },
+  },
+  /*
+   * GDK-1796: the grips are real buttons with full keyboard support, but at
+   * roughly the 150th tab stop that support was unreachable — behind the
+   * whole sidebar and the whole issue list. The tab order is deliberately
+   * not reordered (that would add a stop to every column entry); a motion
+   * whose only home is a keystroke gets a palette row instead
+   * (UX_PRINCIPLES §3). One row per axis, focus-shaped: the row leaves you
+   * ON the handle so its own key handler does the sizing — it does not click.
+   */
+  {
+    id: 'a:resize-sidebar',
+    chords: [],
+    palette: {
+      id: 'a:resize-sidebar',
+      kind: 'focus-resize',
+      axis: 'sidebar',
+      sort: 126,
+      testid: 'palette-action-resize-sidebar',
+      labelKey: 'palette.resizeSidebar',
+    },
+  },
+  {
+    id: 'a:resize-list',
+    chords: [],
+    palette: {
+      id: 'a:resize-list',
+      kind: 'focus-resize',
+      axis: 'list',
+      sort: 127,
+      testid: 'palette-action-resize-list',
+      labelKey: 'palette.resizeList',
     },
   },
   {
