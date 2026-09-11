@@ -439,6 +439,27 @@ export function installBlocked(item: IntegrationItem): boolean {
  * or `/desktop/pairing` gets a 404 from `gadak serve`, so the tab must not
  * be offered — including via a `settings=devices` URL somebody pasted out
  * of the desktop app.
+ *
+ * This list is the single owner of surface-conditional VISIBILITY in the
+ * settings dialog, and `components/settings/surface-gating.test.ts` measures
+ * that it stays one (GDK-9). "Why is this row hidden here?" has exactly three
+ * answers, and none of them is a condition written inside a tab component:
+ *
+ *   1. The SURFACE — this list, read through `visibleSettingsTabs()`. It is
+ *      tab-granular on purpose: a whole tab has a server or it does not.
+ *   2. The HOST's capabilities — facts the running machine reports through
+ *      `GET settings/` runtime, e.g. `osNotifySupported` (GDK-349). Windows
+ *      desktop is the same surface as macOS desktop and answers differently,
+ *      so the surface cannot stand in for this.
+ *   3. The ORIGIN's capabilities — `credentialRequired()` and friends in
+ *      lib/config.ts (GDK-1152), which vary per workspace, not per surface.
+ *
+ * The third surface, `hosted`, is absent here because it never reaches the
+ * dialog: App.svelte mounts SettingsDialog under `hasServer()`, which is false
+ * exactly on the hosted snapshot. That is why the filter below takes a
+ * boolean and not a `GadakSurface` — and the gate pins that mount condition,
+ * so if the dialog ever renders on the snapshot this list has to grow a third
+ * value rather than quietly answering `serve` for it.
  */
 const DESKTOP_ONLY_SETTINGS_TABS = ['integrations', 'devices'] as const satisfies readonly SettingsTab[]
 
