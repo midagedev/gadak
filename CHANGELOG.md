@@ -407,9 +407,12 @@ committed into a fixture left the gate green. Slack, GitHub and both
 Authorization-header shapes now run over the tree as well, three of them
 spelled in POSIX ERE with the agreement asserted behaviourally because
 `(?i)` and `\b` have no portable spelling; a hit now names the shape that
-matched. PEM stays out on purpose, recorded in the script and pinned by a
-test, because two legitimate test vectors exist to contain a PEM header
-([GDK-1110]). The settings dialog got the gate its
+matched. PEM closed the set last: it is the one shape with legitimate
+hits in the tree, so covering it needed per-file exemptions, and those live
+in one file both readers share — an entry is an exact path plus the reason
+that file may carry a key header, an entry without a reason is refused at
+parse time, and an entry whose file no longer carries the shape fails the
+scan and names itself for deletion ([GDK-1110], [GDK-1797]). The settings dialog got the gate its
 registry never had: surface-conditional visibility there is tab-granular and
 one list already owned it, but nothing measured that the list still matched
 the tabs that actually need a desktop server, and nothing stopped a row
@@ -2863,3 +2866,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1791]: https://gadak.dev/backlog/#/?ks=GDK-1791
 [GDK-1792]: https://gadak.dev/backlog/#/?ks=GDK-1792
 [GDK-1795]: https://gadak.dev/backlog/#/?ks=GDK-1795
+[GDK-1797]: https://gadak.dev/backlog/#/?ks=GDK-1797
