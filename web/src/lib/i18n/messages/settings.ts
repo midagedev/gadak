@@ -381,6 +381,12 @@ export const settings = {
     ko: '로컬 사본 DB',
     ja: 'ローカルコピーのデータベース',
   },
+  // GDK-106: local.db beside the mirror — visits and searches only.
+  'settings.runtimeLocalDb': {
+    en: 'Personal history',
+    ko: '개인 기록',
+    ja: '個人の履歴',
+  },
   'settings.runtimeOrigin': {
     en: 'Built-in tracker',
     ko: '내장 트래커',

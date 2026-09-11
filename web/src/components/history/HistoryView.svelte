@@ -19,6 +19,7 @@
   import { emptyConfig } from '../../lib/view-config'
   import { isEscapeKey } from '../../lib/dom-actions'
   import { onRowMetricsInvalidated, rowMetrics } from '../../lib/row-metrics'
+  import * as api from '../../lib/api'
   import { history } from '../../stores/history.svelte'
   import { column } from '../../stores/column.svelte'
   import { pages } from '../../stores/pages.svelte'
@@ -135,6 +136,29 @@
     return `v:${item.entry.kind}:${item.entry.key}`
   }
 
+  /*
+   * The clear verb (GDK-106, spec 002's "a way to clear history"). No
+   * confirm dialog: the button's own label says it cannot be undone, which
+   * is the one sentence the spec asks the surface to carry before the click.
+   * After the DELETE the refetch is the feedback — an emptied timeline and
+   * the empty-state copy — so there is no toast to word. A failed clear
+   * leaves the rows on screen; the state itself says it did not happen.
+   */
+  let clearing = $state(false)
+
+  async function clearAll(): Promise<void> {
+    if (clearing) return
+    clearing = true
+    try {
+      await api.deleteHistory()
+      await history.reload()
+    } catch (e) {
+      console.debug('[history] clear failed', e)
+    } finally {
+      clearing = false
+    }
+  }
+
   function openEntry(entry: TimelineEntry): void {
     if (entry.type === 'search') {
       widenToServerSearch(entry.query, () => {
@@ -228,6 +252,17 @@
         onclick={openAsList}
       >
         {t('history.openAsList')}
+      </button>
+    {/if}
+    {#if history.items.length}
+      <button
+        type="button"
+        class="flex h-control-sm flex-none items-center rounded-md px-2 text-micro font-medium text-status-reopen hover:bg-bg-hover disabled:opacity-60"
+        data-testid="history-clear"
+        disabled={clearing}
+        onclick={() => void clearAll()}
+      >
+        {t('history.clear')}
       </button>
     {/if}
 

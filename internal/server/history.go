@@ -112,6 +112,19 @@ func (s *server) handlePatchSearch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, srow)
 }
 
+// handleDeleteHistory is the clear verb the history screen offers (GDK-106,
+// spec 002's "a way to clear history"): one DELETE empties local.visits and
+// local.searches. Scope is the timeline only — recents and saved views belong
+// to other surfaces and survive. The response counts what went.
+func (s *server) handleDeleteHistory(w http.ResponseWriter, r *http.Request) {
+	visits, searches, err := s.db.ClearLocalHistory(r.Context())
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int64{"visits": visits, "searches": searches})
+}
+
 func (s *server) handleGetHistory(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	opts := store.HistoryOpts{

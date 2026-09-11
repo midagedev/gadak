@@ -204,6 +204,10 @@ type runtimeInfo struct {
 	CommentCount         int    `json:"commentCount"`
 	SchemaVersion        int    `json:"schemaVersion"`
 	Watermark            string `json:"watermark,omitempty"`
+	// LocalDBPath is local.db beside the mirror — the visits and searches
+	// that never leave this machine (GDK-106). Named for what it is so the
+	// settings row can explain both the path and the clear verb's scope.
+	LocalDBPath string `json:"localDbPath,omitempty"`
 	// SyncVersion is sync_state.version — the mirror generation clients poll.
 	SyncVersion    int64   `json:"syncVersion"`
 	LastFullSyncAt *string `json:"lastFullSyncAt,omitempty"`
@@ -619,6 +623,7 @@ func (s *server) runtimeInfo(ctx context.Context) *runtimeInfo {
 		info.ConfigPath = filepath.Join(d, "config.json")
 		dbPath := filepath.Join(d, "gadak.db")
 		info.DBPath = dbPath
+		info.LocalDBPath = store.LocalPath(dbPath)
 		if st, err := os.Stat(dbPath); err == nil {
 			info.DBSizeBytes = st.Size()
 			info.DBSizeHuman = store.HumanBytes(st.Size())

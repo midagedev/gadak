@@ -738,6 +738,13 @@ export const detail = {
     ko: '연 이슈·문서와 실행한 검색이 여기에 모입니다.',
     ja: '開いた課題・ドキュメントと実行した検索がここに現れます。',
   },
+  // GDK-106: the clear verb's own label carries the undo warning — there is
+  // no confirm dialog, so this sentence is the whole gate.
+  'history.clear': {
+    en: 'Clear history — cannot be undone',
+    ko: '기록 지우기 — 되돌릴 수 없음',
+    ja: '履歴を消去 — 元に戻せません',
+  },
   'history.filterEmpty': {
     en: 'No matches',
     ko: '일치하는 항목 없음',

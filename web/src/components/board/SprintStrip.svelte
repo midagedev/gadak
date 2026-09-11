@@ -28,10 +28,14 @@
    * "8 of 20", never a grade, and the only judgement anywhere on the line is
    * the days-left phrase, which states a fact.
    *
-   * Room is left deliberately: the burn-up chart (GDK-1710) belongs on this
-   * line, and the bar is the element that will yield the width for it.
+   * The burn-up (GDK-1710/1752) sits on this line too, drawn by
+   * BurnupSpark from the document the burnup store fetches per sprint; the bar
+   * is the element that yields the width for it. The fetch lives here, not
+   * in the chart: this is the surface that knows which sprint and when.
    */
   import { t, localeTag } from '../../lib/i18n'
+  import BurnupSpark from '../sprint/BurnupSpark.svelte'
+  import { burnup } from '../../stores/burnup.svelte'
   import { calendarDay, formatAbs, localZone } from '../../lib/calendar'
   import { categoryMetaOf } from '../../lib/format'
   import { filters } from '../../stores/filters.svelte'
@@ -88,6 +92,14 @@
     if (n > 1) return t('board.sprintDaysLeft', { n })
     if (n === -1) return t('board.sprintEndedYesterday')
     return t('board.sprintEndedAgo', { n: -n })
+  })
+
+  /* Ask for the burn-up whenever the sprint on the line changes; the store
+   * owns the document and drops answers for ids we have left (GDK-1752). */
+  $effect(() => {
+    const id = sprint?.id
+    if (id == null) burnup.reset()
+    else burnup.load(id)
   })
 
   const total = $derived(sprint?.issue_count ?? 0)
@@ -156,9 +168,13 @@
         {range}{#if range && daysLabel}<span class="mx-1">·</span>{/if}{daysLabel}
       </span>
 
+      {#if burnup.doc}
+        <BurnupSpark doc={burnup.doc} />
+      {/if}
+
       {#if total > 0}
-        <!-- The bar takes what is left. When the burn-up lands (GDK-1710) it
-             is this element that gives up the width for it. -->
+        <!-- The bar takes what is left; the burn-up before it (GDK-1710) is
+             what this element gave up the width for. -->
         <span
           class="flex min-w-[80px] flex-1 items-center gap-2"
           data-testid="sprint-strip-bar"

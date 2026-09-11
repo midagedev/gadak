@@ -235,6 +235,8 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	mux.HandleFunc("POST "+apiBase+"feed/read/{$}", s.handleMarkFeedRead)
 	// Local history (local.db). Literals beat `{key}/{action}/`.
 	mux.HandleFunc("GET "+apiBase+"history/{$}", s.handleGetHistory)
+	// The clear verb (GDK-106): same resource, DELETE method.
+	mux.HandleFunc("DELETE "+apiBase+"history/{$}", s.handleDeleteHistory)
 	mux.HandleFunc("GET "+apiBase+"history/visited/{$}", s.handleGetVisited)
 	mux.HandleFunc("POST "+apiBase+"history/visits/{$}", s.handlePostVisit)
 	mux.HandleFunc("POST "+apiBase+"history/searches/{$}", s.handlePostSearch)

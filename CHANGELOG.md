@@ -884,6 +884,19 @@ team space names this computer rather than a disk ([GDK-1286]). The
 built-in tracker's display name was already Built-in on every surface the
 audit listed, so that item closed without a change ([GDK-1285]).
 
+Personal history became something you can see and clear: the settings
+runtime panel names the local.db file beside the cache, and the History
+screen has a clear button whose label says it cannot be undone; one DELETE
+empties visits and searches and leaves recents and saved views alone
+([GDK-106]). The sprint strip draws the burn-up: scope as a dashed neutral
+line, completed as the done-coloured line with an end-dot, both on one
+y-axis, with the CLI's own sentences for a tracker without history or a
+sprint without a window ([GDK-1752]). Three audit items closed on the
+current tree rather than on code: the toast full-stop rule was reversed by a
+later decision ([GDK-1242]), the second terminal renderer was removed a
+release ago ([GDK-957]), and the terminal panel already has a user-set
+height and no longer competes with the detail pane for width ([GDK-1183]).
+
 Under 900 pixels there is one narrow regime. The sidebar's narrow width was
 redeclared in five places under a 760-pixel media query, so an 800-pixel
 window kept a 272-pixel sidebar and squeezed the list into what was left;
@@ -1956,6 +1969,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-98]: https://gadak.dev/backlog/#/?ks=GDK-98
 [GDK-99]: https://gadak.dev/backlog/#/?ks=GDK-99
 [GDK-105]: https://gadak.dev/backlog/#/?ks=GDK-105
+[GDK-106]: https://gadak.dev/backlog/#/?ks=GDK-106
 [GDK-111]: https://gadak.dev/backlog/#/?ks=GDK-111
 [GDK-112]: https://gadak.dev/backlog/#/?ks=GDK-112
 [GDK-113]: https://gadak.dev/backlog/#/?ks=GDK-113
@@ -2290,6 +2304,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-952]: https://gadak.dev/backlog/#/?ks=GDK-952
 [GDK-954]: https://gadak.dev/backlog/#/?ks=GDK-954
 [GDK-956]: https://gadak.dev/backlog/#/?ks=GDK-956
+[GDK-957]: https://gadak.dev/backlog/#/?ks=GDK-957
 [GDK-960]: https://gadak.dev/backlog/#/?ks=GDK-960
 [GDK-963]: https://gadak.dev/backlog/#/?ks=GDK-963
 [GDK-964]: https://gadak.dev/backlog/#/?ks=GDK-964
@@ -2350,6 +2365,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1176]: https://gadak.dev/backlog/#/?ks=GDK-1176
 [GDK-1180]: https://gadak.dev/backlog/#/?ks=GDK-1180
 [GDK-1182]: https://gadak.dev/backlog/#/?ks=GDK-1182
+[GDK-1183]: https://gadak.dev/backlog/#/?ks=GDK-1183
 [GDK-1186]: https://gadak.dev/backlog/#/?ks=GDK-1186
 [GDK-1187]: https://gadak.dev/backlog/#/?ks=GDK-1187
 [GDK-1190]: https://gadak.dev/backlog/#/?ks=GDK-1190
@@ -2622,6 +2638,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1746]: https://gadak.dev/backlog/#/?ks=GDK-1746
 [GDK-1750]: https://gadak.dev/backlog/#/?ks=GDK-1750
 [GDK-1751]: https://gadak.dev/backlog/#/?ks=GDK-1751
+[GDK-1752]: https://gadak.dev/backlog/#/?ks=GDK-1752
 [GDK-1753]: https://gadak.dev/backlog/#/?ks=GDK-1753
 [GDK-1755]: https://gadak.dev/backlog/#/?ks=GDK-1755
 [GDK-1756]: https://gadak.dev/backlog/#/?ks=GDK-1756

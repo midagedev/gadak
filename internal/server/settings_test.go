@@ -227,6 +227,12 @@ func TestSettingsRuntimeReadOnlyNoSecrets(t *testing.T) {
 	if rt.DBPath != dbPath {
 		t.Fatalf("dbPath %q, want %q", rt.DBPath, dbPath)
 	}
+	// GDK-106: the personal-history file beside the mirror, so the settings
+	// panel can point at it (and the clear verb can be explained as "this
+	// file's visits + searches").
+	if rt.LocalDBPath != filepath.Join(home, "local.db") {
+		t.Fatalf("localDbPath %q, want %q", rt.LocalDBPath, filepath.Join(home, "local.db"))
+	}
 	if rt.ConfigPath != filepath.Join(home, "config.json") {
 		t.Fatalf("configPath %q", rt.ConfigPath)
 	}

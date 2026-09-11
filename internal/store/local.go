@@ -1122,6 +1122,28 @@ func pruneLocalHistoryTx(ctx context.Context, tx *sql.Tx, cutoff string) error {
 	return err
 }
 
+// ClearLocalHistory empties the visits and searches tables — the personal
+// timeline and nothing else (GDK-106). Recents and saved views are not
+// history: they are the pickers' own memory, and the clear verb the settings
+// and history surfaces offer must not reach them. Rows-affected counts come
+// back so the endpoint can say what it removed (a repeat call answers zeros).
+func (db *DB) ClearLocalHistory(ctx context.Context) (visits, searches int64, err error) {
+	err = db.write(ctx, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, `DELETE FROM local.visits`)
+		if err != nil {
+			return err
+		}
+		visits, _ = res.RowsAffected()
+		res, err = tx.ExecContext(ctx, `DELETE FROM local.searches`)
+		if err != nil {
+			return err
+		}
+		searches, _ = res.RowsAffected()
+		return nil
+	})
+	return visits, searches, err
+}
+
 // recentCap is the per-kind ceiling. Matches web/src/lib/recency.ts MAX.
 const recentCap = 10
 

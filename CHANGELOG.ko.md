@@ -695,6 +695,17 @@ Confluence 동기화·Jira 동기화·retro 패스는 각자 가장 긴 구간�
 ([GDK-1286]). 내장 트래커의 표시 이름은 감사가 지목한 자리 전부에서 이미
 Built-in이어서 그 항목은 변경 없이 닫았습니다 ([GDK-1285]).
 
+개인 기록을 보고 지울 수 있게 됐습니다. 설정의 런타임 패널이 캐시 옆의
+local.db 파일을 보여 주고, 기록 화면에는 되돌릴 수 없다고 적힌 지우기
+버튼이 생겼습니다. 한 번의 DELETE가 방문과 검색을 비우고 최근 항목과 저장된
+뷰는 남깁니다 ([GDK-106]). 스프린트 띠가 번업을 그립니다. 범위는 점선,
+완료는 완료 색 실선과 끝점으로, 둘은 같은 y축을 씁니다. 변경 기록이 없는
+트래커와 기간을 잡을 수 없는 스프린트에는 CLI와 같은 문장을 보여 줍니다
+([GDK-1752]). 감사 항목 셋은 코드가 아니라 현재 트리로 닫았습니다. 토스트
+마침표 규칙은 뒤의 결정이 뒤집었고 ([GDK-1242]), 두 번째 터미널 렌더러는 한
+릴리스 전에 제거됐으며 ([GDK-957]), 터미널 패널은 이미 높이를 사용자가 정하고
+상세 창과 폭을 다투지 않습니다 ([GDK-1183]).
+
 900px 아래에는 좁은 레짐이 하나입니다. 사이드바의 좁은 폭이 760px 미디어 쿼리 아래 다섯
 자리에 재선언돼 있어서 800px 창은 272px 사이드바를 유지하고 리스트는 남는 만큼만 받았습니다.
 이제 좁은 값은 인라인 토큰 설치에 실리고, `app.css` 는 `--layout-sidebar` 를 어디에도 정의하지
@@ -1695,6 +1706,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-98]: https://gadak.dev/backlog/#/?ks=GDK-98
 [GDK-99]: https://gadak.dev/backlog/#/?ks=GDK-99
 [GDK-105]: https://gadak.dev/backlog/#/?ks=GDK-105
+[GDK-106]: https://gadak.dev/backlog/#/?ks=GDK-106
 [GDK-111]: https://gadak.dev/backlog/#/?ks=GDK-111
 [GDK-112]: https://gadak.dev/backlog/#/?ks=GDK-112
 [GDK-113]: https://gadak.dev/backlog/#/?ks=GDK-113
@@ -2029,6 +2041,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-952]: https://gadak.dev/backlog/#/?ks=GDK-952
 [GDK-954]: https://gadak.dev/backlog/#/?ks=GDK-954
 [GDK-956]: https://gadak.dev/backlog/#/?ks=GDK-956
+[GDK-957]: https://gadak.dev/backlog/#/?ks=GDK-957
 [GDK-960]: https://gadak.dev/backlog/#/?ks=GDK-960
 [GDK-963]: https://gadak.dev/backlog/#/?ks=GDK-963
 [GDK-964]: https://gadak.dev/backlog/#/?ks=GDK-964
@@ -2089,6 +2102,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1176]: https://gadak.dev/backlog/#/?ks=GDK-1176
 [GDK-1180]: https://gadak.dev/backlog/#/?ks=GDK-1180
 [GDK-1182]: https://gadak.dev/backlog/#/?ks=GDK-1182
+[GDK-1183]: https://gadak.dev/backlog/#/?ks=GDK-1183
 [GDK-1186]: https://gadak.dev/backlog/#/?ks=GDK-1186
 [GDK-1187]: https://gadak.dev/backlog/#/?ks=GDK-1187
 [GDK-1190]: https://gadak.dev/backlog/#/?ks=GDK-1190
@@ -2361,6 +2375,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1746]: https://gadak.dev/backlog/#/?ks=GDK-1746
 [GDK-1750]: https://gadak.dev/backlog/#/?ks=GDK-1750
 [GDK-1751]: https://gadak.dev/backlog/#/?ks=GDK-1751
+[GDK-1752]: https://gadak.dev/backlog/#/?ks=GDK-1752
 [GDK-1753]: https://gadak.dev/backlog/#/?ks=GDK-1753
 [GDK-1755]: https://gadak.dev/backlog/#/?ks=GDK-1755
 [GDK-1756]: https://gadak.dev/backlog/#/?ks=GDK-1756

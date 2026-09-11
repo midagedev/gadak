@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -144,6 +145,68 @@ func TestHistoryPatchMissingSearch(t *testing.T) {
 	rec := patchJSON(t, h, apiBase+"history/searches/99/", `{"opened_kind":"issue","opened_key":"NMB-1"}`)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("code = %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+// GDK-106: the clear verb the settings/history surface offers — one DELETE
+// empties local.visits and local.searches and nothing else. The recent that
+// survives pins the scope: the verb is the personal timeline, not local.db.
+func TestHistoryDeleteClearsVisitsAndSearches(t *testing.T) {
+	db, cfg := fixture(t)
+	h := New(db, cfg)
+
+	for _, body := range []string{
+		`{"kind":"issue","key":"NMB-1"}`,
+		`{"kind":"page","key":"622723"}`,
+	} {
+		if rec := postJSON(t, h, apiBase+"history/visits/", body); rec.Code != http.StatusCreated {
+			t.Fatalf("visit %s: %d %s", body, rec.Code, rec.Body.String())
+		}
+	}
+	postJSON(t, h, apiBase+"history/searches/", `{"query":"flaky upload","result_count":5}`)
+	ctx := context.Background()
+	if _, err := db.RecordRecent(ctx, "assignee", "kim"); err != nil {
+		t.Fatalf("recent: %v", err)
+	}
+
+	req := testRequest(http.MethodDelete, apiBase+"history/", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("delete: %d %s", rec.Code, rec.Body.String())
+	}
+	var deleted struct {
+		Visits   int64 `json:"visits"`
+		Searches int64 `json:"searches"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &deleted); err != nil {
+		t.Fatal(err)
+	}
+	if deleted.Visits != 2 || deleted.Searches != 1 {
+		t.Fatalf("deleted = %+v, want visits=2 searches=1", deleted)
+	}
+
+	page := decode[store.HistoryPage](t, get(t, h, apiBase+"history/", nil))
+	if len(page.Items) != 0 {
+		t.Fatalf("after delete items = %d, want 0", len(page.Items))
+	}
+	recents, err := db.Recents(ctx, "assignee")
+	if err != nil || len(recents) != 1 || recents[0].Value != "kim" {
+		t.Fatalf("recents survived = %+v (err %v) — the clear must not touch local.recents", recents, err)
+	}
+
+	// Idempotent: a second clear is 200 with zeros, not an error.
+	req2 := testRequest(http.MethodDelete, apiBase+"history/", nil)
+	rec2 := httptest.NewRecorder()
+	h.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("second delete: %d %s", rec2.Code, rec2.Body.String())
+	}
+	if err := json.Unmarshal(rec2.Body.Bytes(), &deleted); err != nil {
+		t.Fatal(err)
+	}
+	if deleted.Visits != 0 || deleted.Searches != 0 {
+		t.Fatalf("second delete = %+v, want zeros", deleted)
 	}
 }
 

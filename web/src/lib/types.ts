@@ -1205,3 +1205,43 @@ export interface SprintRow {
 export interface SprintsResponse {
   sprints: SprintRow[]
 }
+
+/* ── Burn-up (GDK-1710/1752) ── One sprint's daily reconstruction, the same
+ *  document `gadak sprint show --json` prints — one function computed it
+ *  (store.SprintBurnup), so the wire is the CLI's own shape verbatim. */
+
+/** One UTC-bucketed day of the burn-up. The store guarantees
+ *  0 ≤ completed ≤ started ≤ scope by construction; scope can dip (an issue
+ *  left the sprint) and completed can hold while scope does. */
+export interface BurnupDay {
+  date: string
+  scope: number
+  started: number
+  completed: number
+}
+
+/** `GET sprints/{id}/burnup/` body, `burnup` half. `days` is empty on a
+ *  sprint whose window cannot be placed (no start_at, no sprint-field
+ *  changelog) or that has not started — an answer the empty state names,
+ *  not a flat chart. */
+export interface BurnupDoc {
+  id: number
+  name: string
+  state: string
+  start_at?: string
+  end_at?: string
+  complete_at?: string
+  /** Lowercase origin kind ("jira", "linear") — the input to the
+   * has_history judgement, which has one owner (retro.OriginSuppliesChangelog)
+   * and is served pre-computed below. */
+  source_kind: string
+  days: BurnupDay[]
+}
+
+/** `GET sprints/{id}/burnup/` response. `has_history=false` means the origin
+ *  keeps no changelog, so no day series can exist — the projection is
+ *  withheld (days absent), never drawn as a flat sprint. */
+export interface BurnupResponse {
+  burnup: BurnupDoc
+  has_history: boolean
+}

@@ -152,6 +152,26 @@
       </dd>
     {/if}
 
+    {#if runtime.localDbPath}
+      <!-- GDK-106: the personal-history file — visits and searches that never
+           leave this machine. Beside the mirror row so the pair reads as
+           "cache / personal", and the clear verb on the History screen has a
+           named thing it acts on. -->
+      <dt class="text-text-muted">{t('settings.runtimeLocalDb')}</dt>
+      <dd class="min-w-0" data-testid="runtime-localdb">
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span class="break-words font-mono text-text-primary">{runtime.localDbPath}</span>
+          <button
+            type="button"
+            class={COPY_BTN}
+            onclick={() => copyValue('localdb', runtime.localDbPath ?? '')}
+          >
+            {copiedKey === 'localdb' ? t('detail.linkCopied') : t('settings.copy')}
+          </button>
+        </div>
+      </dd>
+    {/if}
+
     <dt class="text-text-muted">{t('settings.runtimeConfig')}</dt>
     <dd class="min-w-0">
       <div class="flex flex-wrap items-center gap-1.5">

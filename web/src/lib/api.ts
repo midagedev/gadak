@@ -302,6 +302,14 @@ export function getSprints(): Promise<import('./types').SprintsResponse> {
   return json<import('./types').SprintsResponse>('sprints/')
 }
 
+/** One sprint's daily burn-up — the same document `gadak sprint show --json`
+ *  prints (GDK-1710). `has_history=false` is an answer, not an error: an
+ *  origin with no changelog cannot have days, and the caller shows the
+ *  sentence instead of a flat chart. */
+export function getBurnup(id: number): Promise<import('./types').BurnupResponse> {
+  return json<import('./types').BurnupResponse>(`sprints/${id}/burnup/`)
+}
+
 export function getHistory(opts?: {
   kind?: string
   limit?: number
@@ -313,6 +321,14 @@ export function getHistory(opts?: {
   if (opts?.cursor) q.set('cursor', opts.cursor)
   const qs = q.toString()
   return json<HistoryPage>(qs ? `history/?${qs}` : 'history/')
+}
+
+/** The clear verb (GDK-106): empties local.visits + local.searches — the
+ *  personal timeline only; recents and saved views survive. The response's
+ *  deletion counts are not read: the screen refetches, whose answer is the
+ *  honest one. */
+export async function deleteHistory(): Promise<void> {
+  await json('history/', { method: 'DELETE' })
 }
 
 /** The retro document — the same compute as `gadak retro`, served under the
@@ -1133,6 +1149,8 @@ export interface SettingsRuntime {
   attachmentsOldestAt?: string
   dbModifiedAt?: string | null
   configPath: string
+  /** local.db beside the mirror — the personal-history file (GDK-106). */
+  localDbPath?: string
   issueCount: number
   commentCount: number
   schemaVersion: number

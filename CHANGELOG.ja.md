@@ -741,6 +741,17 @@ Tauri 設定からバージョンを読み、カレンダーのフォーマッ�
 挙げた場所すべてで既に Built-in だったため、その項目は変更なしで閉じました
 ([GDK-1285])。
 
+個人の履歴を見て消せるようになりました。設定のランタイムパネルがキャッシュの
+隣の local.db ファイルを示し、履歴画面には元に戻せないと書かれた消去ボタンが
+付きました。一回の DELETE が訪問と検索を空にし、最近の項目と保存したビューは
+残します ([GDK-106])。スプリントの帯がバーンアップを描きます。スコープは
+点線、完了は完了色の実線と終点で、二本は同じ y 軸を使います。変更履歴のない
+トラッカーと期間を置けないスプリントには CLI と同じ文を示します
+([GDK-1752])。監査項目三件はコードではなく現在のツリーで閉じました。トースト
+の句点規則は後の決定が覆し ([GDK-1242])、二つ目のターミナルレンダラーは一つ前の
+リリースで削除され ([GDK-957])、ターミナルパネルは既に高さを利用者が決め、
+詳細ペインと幅を争いません ([GDK-1183])。
+
 900px より下では狭いレジームがひとつです。サイドバーの狭い幅が 760px のメディアクエリの
 下で五か所に再宣言されていたため、800px の窓は 272px のサイドバーを保ち、一覧は残りだけを
 受け取っていました。いまは狭い値がインラインのトークン設置に載り、`app.css` は
@@ -1821,6 +1832,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-98]: https://gadak.dev/backlog/#/?ks=GDK-98
 [GDK-99]: https://gadak.dev/backlog/#/?ks=GDK-99
 [GDK-105]: https://gadak.dev/backlog/#/?ks=GDK-105
+[GDK-106]: https://gadak.dev/backlog/#/?ks=GDK-106
 [GDK-111]: https://gadak.dev/backlog/#/?ks=GDK-111
 [GDK-112]: https://gadak.dev/backlog/#/?ks=GDK-112
 [GDK-113]: https://gadak.dev/backlog/#/?ks=GDK-113
@@ -2155,6 +2167,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-952]: https://gadak.dev/backlog/#/?ks=GDK-952
 [GDK-954]: https://gadak.dev/backlog/#/?ks=GDK-954
 [GDK-956]: https://gadak.dev/backlog/#/?ks=GDK-956
+[GDK-957]: https://gadak.dev/backlog/#/?ks=GDK-957
 [GDK-960]: https://gadak.dev/backlog/#/?ks=GDK-960
 [GDK-963]: https://gadak.dev/backlog/#/?ks=GDK-963
 [GDK-964]: https://gadak.dev/backlog/#/?ks=GDK-964
@@ -2215,6 +2228,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1176]: https://gadak.dev/backlog/#/?ks=GDK-1176
 [GDK-1180]: https://gadak.dev/backlog/#/?ks=GDK-1180
 [GDK-1182]: https://gadak.dev/backlog/#/?ks=GDK-1182
+[GDK-1183]: https://gadak.dev/backlog/#/?ks=GDK-1183
 [GDK-1186]: https://gadak.dev/backlog/#/?ks=GDK-1186
 [GDK-1187]: https://gadak.dev/backlog/#/?ks=GDK-1187
 [GDK-1190]: https://gadak.dev/backlog/#/?ks=GDK-1190
@@ -2487,6 +2501,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1746]: https://gadak.dev/backlog/#/?ks=GDK-1746
 [GDK-1750]: https://gadak.dev/backlog/#/?ks=GDK-1750
 [GDK-1751]: https://gadak.dev/backlog/#/?ks=GDK-1751
+[GDK-1752]: https://gadak.dev/backlog/#/?ks=GDK-1752
 [GDK-1753]: https://gadak.dev/backlog/#/?ks=GDK-1753
 [GDK-1755]: https://gadak.dev/backlog/#/?ks=GDK-1755
 [GDK-1756]: https://gadak.dev/backlog/#/?ks=GDK-1756

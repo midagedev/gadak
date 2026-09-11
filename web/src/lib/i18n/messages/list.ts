@@ -793,6 +793,28 @@ export const list = {
     ko: '스프린트 목표',
     ja: 'スプリントの目標',
   },
+  // The burn-up sparkline the strip reserves room for (GDK-1710/1752). The
+  // title is the hover/AT reading of the two lines — scope and completed on
+  // the newest day — because a 200×36 box has no room for a legend and the
+  // numbers beside the chart only carry the completed total. The two empty
+  // states are the CLI's own sentences (`gadak sprint show`): withheld
+  // projection and unplaceable window are different answers, and neither is
+  // a flat line.
+  'board.burnupTitle': {
+    en: 'Burn-up — scope {scope}, completed {done} ({date})',
+    ko: '번업 — 범위 {scope}, 완료 {done} ({date})',
+    ja: 'バーンアップ — スコープ {scope}、完了 {done}（{date}）',
+  },
+  'board.burnupNoHistory': {
+    en: 'This tracker keeps no change history, so the burn-up cannot be drawn.',
+    ko: '이 트래커는 변경 기록을 남기지 않아 번업을 그릴 수 없습니다.',
+    ja: 'このトラッカーは変更履歴を残さないため、バーンアップを描けません。',
+  },
+  'board.burnupNoWindow': {
+    en: 'This sprint has no start date and no sprint history yet, so there is nothing to draw.',
+    ko: '이 스프린트는 시작일도 스프린트 기록도 아직 없어 그릴 것이 없습니다.',
+    ja: 'このスプリントには開始日もスプリント履歴もまだないため、描くものがありません。',
+  },
   // The carry-over mark on a card and a row (GDK-1711). It counts sprint
   // boundaries crossed, so "2" means the issue is in its third sprint.
   'board.carriedOver': {
