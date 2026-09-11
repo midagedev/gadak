@@ -11,6 +11,19 @@ import { attachConsoleErrors, gotoApp, DEMO_ISSUE_COUNT_EN_RE } from './helpers'
  * bound inside the list's search box (so it died on a document screen), and the
  * document screens had no narrowing field at all. These pin the three entry
  * points, and that none of them costs a request on a keystroke.
+ *
+ * GDK-1790 — how "no request on a keystroke" is measured. The palette's server
+ * search is debounced (web/src/lib/unified-search.ts, UNIFIED_DEBOUNCE_MS =
+ * 250): seven keystrokes re-arm one timer, and ONE search fires 250ms after
+ * the last key — by design. So the claim is about the typing window, not about
+ * wall time after it: an assertion that reads the request log late (a loaded
+ * machine stretched the assertion chain past 250ms — reproduced 6/80 under
+ * 2.4x CPU oversubscription, one request, never a burst) sees the legitimate
+ * debounced request and calls it a leak. The clock is installed before boot
+ * and paused for the typing window, advancing 20ms of fake time per keystroke,
+ * so "nothing fired while typing" is a state, not a stopwatch; the same burst
+ * is then fast-forwarded past the window to pin the other half — it collapses
+ * into exactly one request that carries the final query.
  */
 
 /** Open the tabbed Documents view from the sidebar. */
@@ -41,7 +54,17 @@ async function settled(page: Page): Promise<void> {
   })
 }
 
-function recordApiDuringType(page: Page, sink: string[]): void {
+/** One /api/ hit, with when it fired (Node wall time, ms since the sink was
+ *  attached). GDK-1790: a future failure should read as "fired at +812ms" —
+ *  after the typing window, i.e. the debounce — or "at +96ms", mid-typing,
+ *  i.e. a real leak — without anyone re-deriving the timeline. */
+interface ApiHit {
+  line: string
+  atMs: number
+}
+
+function recordApiDuringType(page: Page, sink: ApiHit[]): void {
+  const t0 = Date.now()
   page.on('request', (req) => {
     const url = req.url()
     if (!url.includes('/api/') || url.includes('/ui-focus/')) return
@@ -51,8 +74,16 @@ function recordApiDuringType(page: Page, sink: string[]): void {
     } catch {
       /* keep raw */
     }
-    sink.push(`${req.method()} ${path}`)
+    sink.push({ line: `${req.method()} ${path}`, atMs: Date.now() - t0 })
   })
+}
+
+function hitLines(sink: ApiHit[]): string[] {
+  return sink.map((h) => h.line)
+}
+
+function hitReport(sink: ApiHit[]): string {
+  return sink.map((h) => `${h.line} @+${h.atMs}ms`).join(', ') || '(none)'
 }
 
 test.describe('search entry points', () => {
@@ -60,18 +91,42 @@ test.describe('search entry points', () => {
     page,
   }) => {
     const errors = attachConsoleErrors(page)
+    // Before boot, so the app's timers are fake from the moment they are armed
+    // (keys-focus.spec.ts's lesson: a mid-test install leaves boot-era timers
+    // on real native handles). The delta poll lives on the same fake clock.
+    await page.clock.install()
     await gotoApp(page)
     await settled(page)
-
-    const apiDuringType: string[] = []
-    recordApiDuringType(page, apiDuringType)
 
     await page.keyboard.press('ControlOrMeta+k')
     const palette = page.getByRole('dialog', { name: 'Command palette' })
     await expect(palette).toBeVisible()
 
+    // pauseAt takes an ABSOLUTE time, and the page's fake clock only loosely
+    // tracks Node's real clock — under load, CDP latency can leave a Node-side
+    // `new Date()` behind fake-now, and pauseAt refuses to move to the past
+    // (reproduced 4/80 under 2.4x oversubscription). Read fake now from the
+    // page and pause shortly after it; the small jump fires whatever was
+    // about to fire anyway, which is why the request sink attaches only after
+    // the pause, at the exact moment the typing window opens.
+    const fakeNow = await page.evaluate(() => Date.now())
+    await page.clock.pauseAt(fakeNow + 1000)
+
+    const apiDuringType: ApiHit[] = []
+    recordApiDuringType(page, apiDuringType)
+
+    // Deterministic typing (GDK-1790): the clock is paused and advances ONLY
+    // with the keystrokes — 20ms of fake time per key, the inter-key delay the
+    // old wall-clock test used. No timer the app arms can outpace the typing,
+    // because none of this depends on the machine's load; and a timer armed
+    // *per keystroke* (a debounce regression — setTimeout(..., 0)) fires inside
+    // its own 20ms step, ahead of the next key's cancel, exactly as it would
+    // for a real typist. Pure freezing would hide that class.
     // Seven pages in the mirror are runbooks; four of them fit the section.
-    await page.keyboard.type('runbook', { delay: 20 })
+    for (const ch of 'runbook') {
+      await page.keyboard.type(ch)
+      await page.clock.fastForward(20)
+    }
 
     const docRows = palette.getByTestId('palette-doc-row')
     await expect(docRows).toHaveCount(4)
@@ -101,9 +156,28 @@ test.describe('search entry points', () => {
     expect(sections.indexOf('doc')).toBeLessThan(sections.indexOf('issue'))
 
     expect(
-      apiDuringType,
-      `in-flight /api/ while typing (must be none): ${apiDuringType.join(', ') || '(none)'}`,
+      hitLines(apiDuringType),
+      `in-flight /api/ while typing (must be none): ${hitReport(apiDuringType)}`,
     ).toEqual([])
+
+    // The other half of the contract, made positive: the same seven keystrokes
+    // collapse into exactly ONE server search, and only the debounce window
+    // elapsing can arm it (unified-search.ts fires 250ms after the last
+    // request()). fastForward owns the elapse, so the machine's load owns
+    // nothing. Scoped to /search/ on purpose: the 15s delta poll rides the
+    // same fake clock, and if its deadline happens to fall inside this 300ms
+    // that is product behavior orthogonal to the debounce under test.
+    await page.clock.fastForward(300)
+    await expect
+      .poll(() => hitLines(apiDuringType).filter((l) => l.includes('/search/')).length, {
+        timeout: 5_000,
+        message: 'the debounced palette search never fired',
+      })
+      .toBe(1)
+    expect(hitLines(apiDuringType).filter((l) => l.includes('/search/'))).toEqual([
+      'GET /api/v1/issues/search/',
+    ])
+    await page.clock.resume()
 
     // Choosing one opens the page, the same as it always did from the recent list.
     await docRows.first().click()
@@ -150,6 +224,12 @@ test.describe('search entry points', () => {
     page,
   }) => {
     const errors = attachConsoleErrors(page)
+    // Same measurement discipline as the palette test above (GDK-1790): the
+    // filter itself never fetches (DocsFilter — local narrowing, Enter is the
+    // only way out to the server), so the one thing that could pollute the
+    // read is ambient traffic — the 15s delta poll — landing between typing
+    // and the log read on a slow machine. Frozen time closes that window.
+    await page.clock.install()
     await gotoApp(page)
     await openDocuments(page)
     await page.getByTestId('docs-view').getByTestId('docs-tab').filter({ hasText: 'Updated' }).click()
@@ -160,11 +240,18 @@ test.describe('search entry points', () => {
     const before = await view.getByTestId('doc-row').count()
     expect(before).toBeGreaterThan(0)
 
-    const apiDuringType: string[] = []
-    recordApiDuringType(page, apiDuringType)
-
     const filter = page.getByTestId('docs-filter-input')
     await filter.click()
+    // Same fake-now discipline as the palette test above: pause shortly after
+    // the page's own clock reading (a Node-side `new Date()` can be behind
+    // fake-now under load → "Cannot fast-forward to the past"), and count
+    // requests only from the moment time froze.
+    const fakeNow = await page.evaluate(() => Date.now())
+    await page.clock.pauseAt(fakeNow + 1000)
+
+    const apiDuringType: ApiHit[] = []
+    recordApiDuringType(page, apiDuringType)
+
     await filter.pressSequentially('runbook', { delay: 20 })
 
     // The count becomes a fraction: what is left, out of what the tab holds.
@@ -173,9 +260,10 @@ test.describe('search entry points', () => {
     expect(await view.getByTestId('doc-row').count()).toBeLessThan(before)
 
     expect(
-      apiDuringType,
-      `in-flight /api/ while filtering (must be none): ${apiDuringType.join(', ') || '(none)'}`,
+      hitLines(apiDuringType),
+      `in-flight /api/ while filtering (must be none): ${hitReport(apiDuringType)}`,
     ).toEqual([])
+    await page.clock.resume()
 
     // Nothing matched is a state with a way out of it, not a dead end.
     await filter.fill('zzzznotathing')
