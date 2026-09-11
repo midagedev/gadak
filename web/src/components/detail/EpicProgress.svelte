@@ -79,7 +79,7 @@
       <input
         type="checkbox"
         data-testid="epic-show-completed"
-        class="accent-[var(--color-accent)]"
+        class="accent-[var(--color-accent,#3b82f6)]"
         checked={showCompleted}
         onchange={(event) => (hideCompletedFor = event.currentTarget.checked ? null : issueKey)}
       />
