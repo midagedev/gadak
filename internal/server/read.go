@@ -401,6 +401,12 @@ type detailComment struct {
 	Body              string          `json:"body"`
 	RawBody           json.RawMessage `json:"raw_body"`
 	CreatedAt         *string         `json:"created_at"`
+	// The restriction the origin states (GDK-511 mirror columns → GDK-528
+	// web badge): empty visibility is unrestricted, jsd_public nil = key
+	// absent. Same wire keys handleComment echoes for a just-posted comment.
+	VisibilityType  string `json:"visibility_type,omitempty"`
+	VisibilityValue string `json:"visibility_value,omitempty"`
+	JsdPublic       *bool  `json:"jsd_public,omitempty"`
 }
 
 type detailAttachment struct {
@@ -727,6 +733,9 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 			Body:              c.Body, // the client's fallback when the ADF will not render
 			RawBody:           rawOrNull(adf.Present(c.BodyADF, c.Body, dialect).Display),
 			CreatedAt:         nilIfEmpty(c.CreatedAt),
+			VisibilityType:    c.VisibilityType,
+			VisibilityValue:   c.VisibilityValue,
+			JsdPublic:         c.JsdPublic,
 		})
 	}
 	for _, h := range d.History {

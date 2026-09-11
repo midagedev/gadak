@@ -230,6 +230,13 @@ const ALLOWED: Exception[] = [
     name: 'closeMention',
     why: 'per-key draft hydration resets the mention popup beside text/mentions — the same IO-reset reason as the entries above',
   },
+  ...shared(
+    'components/write/CommentComposer.svelte',
+    'per-key draft hydration resets the restriction beside the draft it belongs to: the visibility choice and the internal flag are this thread’s posture, sticky across submits on one issue and never carried to the next (GDK-528, comment at the effect)',
+    'visibilityKind',
+    'visibilityValue',
+    'internal',
+  ),
   {
     file: 'components/write/CommentComposer.svelte',
     name: 'autosize',
@@ -239,6 +246,11 @@ const ALLOWED: Exception[] = [
     file: 'components/write/NewIssueDialog.svelte',
     name: 'beginCreateFieldsLoad',
     why: 'create-meta fetch per (project,type): the site comment already owns the split — “I/O stays an $effect; writes live in beginCreateFieldsLoad”',
+  },
+  {
+    file: 'components/write/NewIssueDialog.svelte',
+    name: 'customValues',
+    why: 'a different project/type can carry the same field id with different options, so the custom-field drafts reset on the switch (GDK-533, comment at the effect) — the reset-a-new-key-demands shape',
   },
   {
     file: 'components/write/StatusTransition.svelte',

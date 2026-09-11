@@ -28,6 +28,7 @@ import { isHostedDemo, originTrackerName } from '../lib/config'
 import { issueOriginUrl } from '../lib/issue-origin'
 import type {
   CommentMention,
+  CommentPostOptions,
   CreateIssuePayload,
   CreateMetaProject,
   DetailComment,
@@ -712,17 +713,21 @@ class WriteStore {
    * Post a comment. Optimistically push a temp into pendingComments (CommentList shows
    *  it immediately); on success drop the temp, append the real comment to cache, and
    *  re-read detail (nonce); on failure drop the temp. false → caller restores input text.
+   *  `opts` (GDK-528) is the composer's restriction; the temp wears it as a badge
+   *  immediately and the server's echo confirms it.
    */
   async submitComment(
     key: string,
     text: string,
     mentions: CommentMention[] = [],
     attachments: UploadedAttachment[] = [],
+    opts?: CommentPostOptions,
   ): Promise<boolean> {
     if (!(await this.ensureWritableFor(key))) return false
     const tmpId = `temp-${++this.#tmpId}`
     // Optimistic paint: mentions as plain text; attachments as a filename list
-    // (real render after confirm).
+    // (real render after confirm). The restriction paints the same badge the
+    // confirmed comment will wear.
     const attachNote = attachments.length
       ? `\n${attachments.map((a) => `📎 ${a.filename}`).join('\n')}`
       : ''
@@ -733,6 +738,10 @@ class WriteStore {
       body: text + attachNote,
       raw_body: null,
       created_at: new Date().toISOString(),
+      ...(opts?.visibility
+        ? { visibility_type: opts.visibility.type, visibility_value: opts.visibility.value }
+        : {}),
+      ...(opts?.internal ? { jsd_public: false } : {}),
     }
     this.#pushPending(key, temp)
     // Demo: leave the pending comment in place. It lives in memory only, so it
@@ -747,6 +756,7 @@ class WriteStore {
         text,
         mentions,
         attachments.map((a) => a.id),
+        opts,
       )
       this.#removePending(key, tmpId)
       const real: DetailComment = {
@@ -756,6 +766,10 @@ class WriteStore {
         body: res.comment.body,
         raw_body: null,
         created_at: res.comment.created_at,
+        ...(res.comment.visibility_type
+          ? { visibility_type: res.comment.visibility_type, visibility_value: res.comment.visibility_value }
+          : {}),
+        ...(res.comment.jsd_public === false ? { jsd_public: false } : {}),
       }
       appendComment(key, real) // into cache → re-read shows the real comment
       this.#applyIssue(res.issue) // comment_count etc.
@@ -991,6 +1005,14 @@ function compactCreatePayload(input: CreateIssuePayload): CreateIssuePayload {
   }
   const due = input.duedate?.trim()
   if (due) body.duedate = due
+  // Same rule as the scalar optionals: blank is "omit", never "set empty".
+  if (input.custom_fields) {
+    const cf: Record<string, string> = {}
+    for (const [id, v] of Object.entries(input.custom_fields)) {
+      if (typeof v === 'string' && v.trim()) cf[id] = v.trim()
+    }
+    if (Object.keys(cf).length) body.custom_fields = cf
+  }
   return body
 }
 

@@ -14,8 +14,9 @@
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
   import { createUserSearch } from '../../lib/user-search.svelte'
-  import type { CommentMention, JiraUser, UploadedAttachment } from '../../lib/types'
-  import { isHostedDemo, originWritable } from '../../lib/config'
+  import type { CommentMention, CommentPostOptions, JiraUser, UploadedAttachment } from '../../lib/types'
+  import { config, isHostedDemo, originWritable } from '../../lib/config'
+  import { isJiraFamily } from '../../lib/workspace'
   import { commentDraftKey } from '../../lib/storage'
   import { DETAIL_TESTID } from '../../lib/commands'
   import { asKeyTarget } from '../../lib/key-targets'
@@ -35,6 +36,23 @@
   let busy = $state(false)
   /** Skip persisting while swapping drafts between issues. */
   let hydrating = $state(false)
+
+  /* ── Restriction (GDK-528) ──
+   * Jira-family origins only: the built-in and Linear origins have no comment
+   * visibility, so they draw nothing. The branch asks the origin type the
+   * server stated — never identity or workspace kind (GDK-1152). An untouched
+   * control set is a public comment: submit then sends the exact pre-GDK-528
+   * body (api.postComment omits unset keys). */
+  const canRestrict = $derived(isJiraFamily(config().originType))
+  let visibilityKind = $state<'' | 'role' | 'group'>('')
+  let visibilityValue = $state('')
+  let internal = $state(false)
+  /** A chosen kind with no name cannot be sent (the server refuses it) and
+   *  must not be silently dropped either — dropping would post a comment the
+   *  writer believes is restricted. Submit waits; the hint says why. */
+  const restrictionIncomplete = $derived(
+    canRestrict && visibilityKind !== '' && !visibilityValue.trim(),
+  )
 
   let ta: HTMLTextAreaElement | null = $state(null)
   let fileInput: HTMLInputElement | null = $state(null)
@@ -76,13 +94,19 @@
     }
   }
 
-  // Per-issue draft: load when the key changes; persist while typing.
+  // Per-issue draft: load when the key changes; persist while typing. The
+  // restriction resets with the issue too — it is part of this thread's
+  // posture, sticky across submits on one issue (an internal triage run
+  // posts several internal comments) but never carried to the next one.
   $effect(() => {
     const key = issueKey
     hydrating = true
     text = loadDraft(key)
     mentions = []
     attachments = []
+    visibilityKind = ''
+    visibilityValue = ''
+    internal = false
     escConsumed = false
     closeMention()
     queueMicrotask(() => {
@@ -237,16 +261,25 @@
   async function submit() {
     const body = text.trim()
     if ((!body && attachments.length === 0) || busy || uploading > 0) return
+    if (restrictionIncomplete) return
     busy = true
     const prev = { text, mentions, attachments }
     // Only mentions still present in the body (user may have deleted them). Backend matches strings.
     const used = mentions.filter((m) => body.includes(`@${m.display_name}`))
+    // The restriction rides only when it says something: unset controls stay
+    // off the wire (byte-identical public body).
+    let opts: CommentPostOptions | undefined
+    if (canRestrict) {
+      const value = visibilityValue.trim()
+      if (visibilityKind !== '' && value) opts = { visibility: { type: visibilityKind, value } }
+      if (internal) opts = { ...opts, internal: true }
+    }
     text = ''
     mentions = []
     attachments = []
     closeMention()
     queueMicrotask(autosize)
-    const ok = await write.submitComment(issueKey, body, used, prev.attachments)
+    const ok = await write.submitComment(issueKey, body, used, prev.attachments, opts)
     busy = false
     if (!ok) {
       text = prev.text
@@ -439,9 +472,59 @@
     </div>
   {/if}
 
+  <!-- GDK-528: restriction controls. Drawn only on the Jira family — the
+       built-in and Linear origins have no comment visibility to choose. The
+       row sits above the submit footer at the same control height; the
+       incomplete case (kind chosen, name empty) keeps submit disabled rather
+       than silently posting public. -->
+  {#if canRestrict}
+    <div class="flex flex-wrap items-center justify-end gap-2" data-testid="comment-restriction">
+      <label class="inline-flex items-center gap-1.5 text-micro text-text-secondary">
+        {t('write.commentVisibilityLabel')}
+        <select
+          value={visibilityKind}
+          onchange={(e) => (visibilityKind = e.currentTarget.value as '' | 'role' | 'group')}
+          data-testid="comment-visibility-kind"
+          class="h-control rounded-md border border-border-strong bg-bg-base px-2 text-body text-text-primary outline-none focus:border-accent"
+        >
+          <option value="">{t('write.commentVisibilityEveryone')}</option>
+          <option value="role">{t('write.commentVisibilityRole')}</option>
+          <option value="group">{t('write.commentVisibilityGroup')}</option>
+        </select>
+      </label>
+      {#if visibilityKind !== ''}
+        <input
+          value={visibilityValue}
+          oninput={(e) => (visibilityValue = e.currentTarget.value)}
+          placeholder={t('write.commentVisibilityPlaceholder')}
+          data-testid="comment-visibility-value"
+          class="h-control w-40 rounded-md border bg-bg-base px-2.5 text-body text-text-primary outline-none transition-colors focus:border-accent {restrictionIncomplete
+            ? 'border-status-reopen'
+            : 'border-border-strong'}"
+        />
+      {/if}
+      <label
+        class="inline-flex items-center gap-1.5 text-micro text-text-secondary"
+        title={t('write.commentInternalTitle')}
+      >
+        <input
+          type="checkbox"
+          checked={internal}
+          onchange={(e) => (internal = e.currentTarget.checked)}
+          data-testid="comment-internal"
+          class="flex-none accent-[var(--color-accent,#3b82f6)]"
+        />
+        {t('write.commentInternal')}
+      </label>
+    </div>
+    {#if restrictionIncomplete}
+      <p class="text-right text-micro text-status-reopen">{t('write.commentVisibilityHint')}</p>
+    {/if}
+  {/if}
+
   <CommentSubmitFooter
     busy={busy}
-    disabled={busy || !canSubmit}
+    disabled={busy || !canSubmit || restrictionIncomplete}
     onclick={submit}
     previewing={previewing}
     onpreview={isHostedDemo() ? undefined : togglePreview}

@@ -395,6 +395,29 @@ export const detail = {
     ko: '이 코멘트에 답글',
     ja: 'このコメントに返信',
   },
+  // GDK-528: the restriction the origin states, as a badge on the comment
+  // row. Internal is JSM (jsd_public false); restricted names the role/group
+  // the mirror column carries.
+  'detail.commentInternalBadge': {
+    en: 'Internal',
+    ko: '내부용',
+    ja: '内部用',
+  },
+  'detail.commentInternalTitle': {
+    en: 'Service desk customers cannot see this comment.',
+    ko: '서비스 데스크 고객에게는 보이지 않는 코멘트입니다.',
+    ja: 'サービスデスクの顧客には表示されないコメントです。',
+  },
+  'detail.commentRestrictedBadge': {
+    en: 'Restricted · {value}',
+    ko: '제한 · {value}',
+    ja: '制限 · {value}',
+  },
+  'detail.commentRestrictedTitle': {
+    en: 'Visible only to the {type} “{value}”.',
+    ko: '{type} “{value}”에게만 보입니다.',
+    ja: '{type}「{value}」にのみ表示されます。',
+  },
   // Coaching, M2 (THEORY.md "Writing a done-word comment", G2+G7): the verb
   // lives on the button; the hover states the fact that earned it. {status}
   // is the issue's current status name.

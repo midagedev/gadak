@@ -27,8 +27,10 @@
   import { isHostedDemo } from '../../lib/config'
   import {
     CREATE_DIALOG_ALWAYS_SENT,
-    extraRequiredCreateFields,
+    fillableCreateFields,
     isCreateFieldRequired,
+    unfillableCreateFields,
+    createFieldEditorKind,
     type CreateFieldMeta,
   } from '../../lib/create-fields'
   import type { CreateMetaProject, JiraUser, PriorityOption } from '../../lib/types'
@@ -184,7 +186,33 @@
     return sent
   })
 
-  const extraRequired = $derived(extraRequiredCreateFields(currentCreateFields, sentCreateFieldIds))
+  // GDK-533: the extra-required set splits by whether this dialog can fill
+  // it. Fillable fields render editors below; unfillable ones keep the
+  // footer sentence — and both block the submit while unfilled, because a
+  // create the origin is known to reject must never be sent. Blocking needs
+  // the list to have loaded: a failed create-fields fetch (404, no
+  // credential, older server) leaves the warn-only behavior of GDK-254.
+  const fillableRequired = $derived(fillableCreateFields(currentCreateFields, sentCreateFieldIds))
+  const unfillableRequired = $derived(
+    unfillableCreateFields(currentCreateFields, sentCreateFieldIds),
+  )
+  const missingFillable = $derived(
+    fillableRequired.filter((f) => !(customValues[f.field_id] ?? '').trim()),
+  )
+  const createBlocked = $derived(
+    currentCreateFields.length > 0 && (unfillableRequired.length > 0 || missingFillable.length > 0),
+  )
+
+  /** Raw editor values for required custom fields, keyed by field_id. The
+   *  server resolves the kind and wraps the value — the client never shapes it. */
+  let customValues = $state<Record<string, string>>({})
+
+  // A different project/type can carry the same field id with different
+  // options; drafts never survive the switch.
+  $effect(() => {
+    void createFieldsKey(effectiveProjectKey, effectiveTypeId)
+    customValues = {}
+  })
 
   function fieldRequired(id: string): boolean {
     return isCreateFieldRequired(currentCreateFields, id)
@@ -338,11 +366,16 @@
 
   async function submit(e: Event) {
     e.preventDefault()
-    if (submitting) return
+    if (submitting || createBlocked) return
     const s = summary.trim()
     if (!effectiveProjectKey || !effectiveTypeId || !s) {
       submitError = t('write.requiredFields')
       return
+    }
+    const custom_fields: Record<string, string> = {}
+    for (const f of fillableRequired) {
+      const v = (customValues[f.field_id] ?? '').trim()
+      if (v) custom_fields[f.field_id] = v
     }
     submitting = true
     submitError = null
@@ -355,6 +388,7 @@
       priority_id: priority || undefined,
       labels: labels.length ? labels : undefined,
       duedate: duedate || undefined,
+      custom_fields: Object.keys(custom_fields).length ? custom_fields : undefined,
     })
     submitting = false
     if (res.ok && res.key) {
@@ -379,12 +413,14 @@
 </script>
 
 {#snippet formFooter()}
-  {#if extraRequired.length}
+  {#if unfillableRequired.length}
     <!-- Same shape as this dialog's other advisory lines (needToken /
-         metaFailed above): text-body, not a new size. -->
+         metaFailed above): text-body, not a new size. Fillable-but-empty
+         fields are not named here — their editors sit in the form with the
+         required marker; this sentence is only for what cannot be filled. -->
     <p class="text-body text-status-reopen" data-testid="new-issue-required-warn">
       {t('write.createRequiresMore', {
-        names: extraRequired.map((f) => f.name).join(', '),
+        names: unfillableRequired.map((f) => f.name).join(', '),
       })}
     </p>
   {/if}
@@ -397,7 +433,7 @@
     >
     <button
       type="submit"
-      disabled={submitting}
+      disabled={submitting || createBlocked}
       class="inline-flex h-control items-center rounded-md bg-accent px-3 text-body font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
     >
       {submitting ? t('common.creating') : t('common.create')}
@@ -595,6 +631,49 @@
             class="h-control rounded-md border border-border-strong bg-bg-base px-2.5 text-body text-text-primary outline-none focus:border-accent"
           />
         </label>
+
+        <!-- GDK-533: required custom fields this dialog can fill. Same editor
+             idioms the form already uses (native select / text input / date
+             input) — no new editor kinds; createFieldEditorKind gates what
+             appears, everything else stays in the footer sentence. Text-ish
+             inputs commit on `input` (every keystroke), like the bound fields
+             above commit on their input events — `change` would only fire on
+             blur. -->
+        {#each fillableRequired as f (f.field_id)}
+          {@const kind = createFieldEditorKind(f)}
+          <label class="flex flex-col gap-1">
+            <span class="text-micro text-text-secondary"
+              >{f.name} <span class="text-status-reopen">*</span></span
+            >
+            {#if kind === 'option'}
+              <span class="relative flex">
+                <select
+                  value={customValues[f.field_id] ?? ''}
+                  onchange={(e) =>
+                    (customValues = { ...customValues, [f.field_id]: e.currentTarget.value })}
+                  class={SELECT}
+                  data-testid="create-custom-{f.field_id}"
+                >
+                  <option value="">{t('write.pickValue')}</option>
+                  {#each f.options ?? [] as o (o.id)}
+                    <option value={o.id}>{o.value}</option>
+                  {/each}
+                </select>
+                <Icon name="chevron-right" size={13} class={SELECT_CHEVRON} />
+              </span>
+            {:else}
+              <input
+                value={customValues[f.field_id] ?? ''}
+                oninput={(e) =>
+                  (customValues = { ...customValues, [f.field_id]: e.currentTarget.value })}
+                type={kind === 'date' ? 'date' : 'text'}
+                inputmode={kind === 'number' ? 'decimal' : undefined}
+                data-testid="create-custom-{f.field_id}"
+                class="h-control rounded-md border border-border-strong bg-bg-base px-2.5 text-body text-text-primary outline-none focus:border-accent"
+              />
+            {/if}
+          </label>
+        {/each}
 
         <!-- Labels -->
         <div class="relative flex flex-col gap-1">

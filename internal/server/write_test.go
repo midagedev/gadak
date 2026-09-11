@@ -179,9 +179,26 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 	case strings.HasSuffix(path, "/editmeta"):
 		_, _ = w.Write([]byte(`{"fields":` + f.editMeta + `}`))
 	case strings.HasSuffix(path, "/comment") && r.Method == http.MethodPost:
-		_, _ = w.Write([]byte(`{"id":"c-99","author":{"displayName":"김현철"},
+		// The restriction is echoed the way Cloud does, so the GDK-528 web
+		// half can badge a just-posted comment without a detail re-read.
+		resp := `{"id":"c-99","author":{"displayName":"김현철"},
 			"body":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"확인"}]}]},
-			"created":"2026-08-04T12:00:00.000+0900"}`))
+			"created":"2026-08-04T12:00:00.000+0900"`
+		if raw := f.bodies[tag]; len(raw) > 0 {
+			var req struct {
+				Visibility *jira.CommentVisibility `json:"visibility"`
+			}
+			if json.Unmarshal(raw, &req) == nil && req.Visibility != nil {
+				v, _ := json.Marshal(req.Visibility)
+				resp += `,"visibility":` + string(v)
+			}
+			// Internal is on the wire as the sd.public.comment property, not
+			// an "internal" key — Cloud answers jsdPublic:false for those.
+			if strings.Contains(string(raw), "sd.public.comment") {
+				resp += `,"jsdPublic":false`
+			}
+		}
+		_, _ = w.Write([]byte(resp + `}`))
 	case strings.HasSuffix(path, "/attachments") && r.Method == http.MethodPost:
 		if r.Header.Get("X-Atlassian-Token") != "no-check" {
 			f.t.Error("attachment upload without the nosniff header")
@@ -696,6 +713,40 @@ func TestCommentPassesVisibilityAndInternal(t *testing.T) {
 	}
 }
 
+// GDK-528: the created comment carries the restriction back so the web can
+// badge it before the detail re-read. Absent for a plain comment — the
+// client treats absent as unrestricted, matching the detail response.
+func TestCommentResponseEchoesRestriction(t *testing.T) {
+	_, h, _ := writable(t)
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/comment/",
+		`{"text":"restricted","visibility":{"type":"role","value":"Administrators"},"internal":true}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	row := decode[struct {
+		Comment map[string]any `json:"comment"`
+	}](t, rec).Comment
+	if row["visibility_type"] != "role" || row["visibility_value"] != "Administrators" {
+		t.Errorf("echo missing visibility: %v", row)
+	}
+	if v, ok := row["jsd_public"].(bool); !ok || v {
+		t.Errorf("internal comment should echo jsd_public=false, got %v", row["jsd_public"])
+	}
+
+	rec = send(t, h, http.MethodPost, apiBase+"NMB-1/comment/", `{"text":"plain"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("plain → %d", rec.Code)
+	}
+	row = decode[struct {
+		Comment map[string]any `json:"comment"`
+	}](t, rec).Comment
+	for _, key := range []string{"visibility_type", "visibility_value", "jsd_public"} {
+		if _, present := row[key]; present {
+			t.Errorf("plain comment must not carry %s: %v", key, row)
+		}
+	}
+}
+
 func TestAssigneeSetAndClear(t *testing.T) {
 	f, h, _ := writable(t)
 	if rec := send(t, h, http.MethodPut, apiBase+"NMB-1/assignee/", `{"account_id":"acc-cl"}`); rec.Code != http.StatusOK {
@@ -1076,6 +1127,83 @@ func TestCreateIssue(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"issue"`) {
 		t.Errorf("no issue in response: %s", rec.Body.String())
+	}
+}
+
+// GDK-533: the web dialog fills required custom fields the same way the
+// CLI's create --field does. The body carries custom_fields keyed by field
+// id with the editor's raw value (an option id, a string, a date); the
+// server resolves the kind from the same createmeta list and wraps through
+// the same fields.FieldValue encoder, so both clients speak one payload
+// shape to the origin.
+func TestCreateIssueCustomFieldsWrappedByKind(t *testing.T) {
+	f, h, _ := writable(t)
+	f.createFieldsJSON = `{"maxResults":50,"startAt":0,"total":3,"fields":[
+		{"fieldId":"customfield_10092","name":"Solution","required":false,"hasDefaultValue":false,
+		 "schema":{"type":"option"},"allowedValues":[{"id":"10160","value":"Fixed"}]},
+		{"fieldId":"customfield_10030","name":"Customer","required":false,"hasDefaultValue":false,"schema":{"type":"string"}},
+		{"fieldId":"customfield_10040","name":"Renewal","required":false,"hasDefaultValue":false,"schema":{"type":"date"}}
+	]}`
+
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","issue_type":"10004","summary":"x","custom_fields":{
+			"customfield_10092":"10160","customfield_10030":"Acme","customfield_10040":"2026-09-11"}}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create → %d: %s", rec.Code, rec.Body.String())
+	}
+	sent := string(f.bodies["POST /issue"])
+	for _, want := range []string{
+		`"customfield_10092":{"id":"10160"}`,
+		`"customfield_10030":"Acme"`,
+		`"customfield_10040":"2026-09-11"`,
+	} {
+		if !strings.Contains(sent, want) {
+			t.Errorf("create body missing %s: %s", want, sent)
+		}
+	}
+}
+
+// Empty values are omitted, never "set to empty" — the same rule the fixed
+// optional fields follow two screens up in handleCreate.
+func TestCreateIssueCustomFieldsEmptyIsOmitted(t *testing.T) {
+	f, h, _ := writable(t)
+	f.createFieldsJSON = `{"total":1,"fields":[
+		{"fieldId":"customfield_10030","name":"Customer","required":false,"hasDefaultValue":false,"schema":{"type":"string"}}
+	]}`
+
+	rec := send(t, h, http.MethodPost, apiBase+"create/",
+		`{"project_key":"NMB","issue_type":"10004","summary":"x","custom_fields":{"customfield_10030":""}}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create → %d: %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(string(f.bodies["POST /issue"]), "customfield_10030") {
+		t.Fatalf("empty custom field reached the origin: %s", f.bodies["POST /issue"])
+	}
+}
+
+// A field the createmeta list does not carry (or one this endpoint owns a
+// fixed parameter for) is refused before the origin hears anything — the
+// dialog only offers ids it fetched, so anything else is a bug or a probe.
+func TestCreateIssueCustomFieldsRefusesUnknownAndFixed(t *testing.T) {
+	f, h, _ := writable(t)
+	for name, id := range map[string]string{
+		"unknown id": "customfield_99999",
+		"fixed id":   "summary",
+	} {
+		rec := send(t, h, http.MethodPost, apiBase+"create/",
+			fmt.Sprintf(`{"project_key":"NMB","issue_type":"10004","summary":"x","custom_fields":{%q:"v"}}`, id))
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("%s → %d %s, want 400", name, rec.Code, rec.Body.String())
+			continue
+		}
+		err := decode[map[string]string](t, rec)["error"]
+		if !strings.Contains(err, id) {
+			t.Errorf("%s error %q must name the refused field", name, err)
+		}
+		if f.called("POST /issue") {
+			t.Errorf("%s reached the origin", name)
+			f.calls = nil
+		}
 	}
 }
 

@@ -80,6 +80,75 @@ func TestCreateFieldsReturnsRequiredSet(t *testing.T) {
 	}
 }
 
+// GDK-533: the create-fields answer carries what a dialog needs to fill a
+// required field — the editor kind (the same editKind the editmeta surface
+// and the CLI's create --field resolve through) and the closed set's
+// options in the {id,value} shape editmeta already serves, so the client
+// renders one idiom for both. An older server's row (no kind) still
+// renders: the client treats a missing kind as "cannot fill here".
+func TestCreateFieldsCarriesKindAndOptions(t *testing.T) {
+	f, h, _ := writable(t)
+	f.createFieldsJSON = `{"maxResults":50,"startAt":0,"total":3,"fields":[
+		{"fieldId":"customfield_10092","name":"Solution","required":true,"hasDefaultValue":false,
+		 "schema":{"type":"option"},
+		 "allowedValues":[{"id":"10160","value":"Fixed"},{"id":"10161","name":"Won't Fix"}]},
+		{"fieldId":"customfield_10030","name":"Customer","required":true,"hasDefaultValue":false,"schema":{"type":"string"}},
+		{"fieldId":"duedate","name":"Due date","required":false,"hasDefaultValue":false,"schema":{"type":"date"}}
+	]}`
+
+	rec := get(t, h, apiBase+"create-meta/fields/?project=NMB&issue_type=10004", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Fields []struct {
+			FieldID string `json:"field_id"`
+			Kind    string `json:"kind"`
+			Options []struct {
+				ID    string `json:"id"`
+				Value string `json:"value"`
+			} `json:"options"`
+		} `json:"fields"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	byID := map[string]struct {
+		Kind    string
+		Options []struct {
+			ID    string `json:"id"`
+			Value string `json:"value"`
+		}
+	}{}
+	for _, f := range body.Fields {
+		byID[f.FieldID] = struct {
+			Kind    string
+			Options []struct {
+				ID    string `json:"id"`
+				Value string `json:"value"`
+			}
+		}{f.Kind, f.Options}
+	}
+	sol := byID["customfield_10092"]
+	if sol.Kind != "option" {
+		t.Errorf("customfield_10092 kind %q, want option (editKind's word for schema type option)", sol.Kind)
+	}
+	if len(sol.Options) != 2 || sol.Options[0].ID != "10160" || sol.Options[0].Value != "Fixed" {
+		t.Errorf("customfield_10092 options %+v, want the origin's allowedValues as {id,value}", sol.Options)
+	}
+	// A value-less allowedValue falls back to the name — same collapse
+	// handleEditMeta applies (AllowedValues.value, then name).
+	if len(sol.Options) == 2 && sol.Options[1].Value != "Won't Fix" {
+		t.Errorf("value-less allowedValue should label with name, got %+v", sol.Options[1])
+	}
+	if cust := byID["customfield_10030"]; cust.Kind != "text" {
+		t.Errorf("customfield_10030 kind %q, want text", cust.Kind)
+	}
+	if due := byID["duedate"]; due.Kind != "date" || len(due.Options) != 0 {
+		t.Errorf("duedate %+v, want kind date and no options", due)
+	}
+}
+
 func TestCreateFieldsMissingQuery(t *testing.T) {
 	_, h, _ := writable(t)
 	for _, path := range []string{

@@ -37,9 +37,16 @@ export const write = {
     ja: 'プロジェクト、タイプ、タイトルは必須です。',
   },
   'write.createRequiresMore': {
-    en: 'Also required here: {names}. This dialog cannot set them, so Jira may reject the issue.',
-    ko: '이 프로젝트·유형은 {names}도 요구합니다. 이 다이얼로그로는 설정할 수 없어 Jira가 거절할 수 있습니다.',
-    ja: 'ここでも必須です: {names}。このダイアログでは設定できないため、Jira が課題を拒否することがあります。',
+    // GDK-533: no longer a warning over a doomed submit — the fields named
+    // here have no editor in this dialog, so Create stays disabled.
+    en: 'Jira requires {names} for this type, and this dialog has no editor for them — Create stays disabled.',
+    ko: 'Jira가 이 유형에 {names}을(를) 요구하는데 이 창에는 입력란이 없습니다. 만들기는 비활성 상태입니다.',
+    ja: 'このタイプには Jira が {names} を要求しますが、このダイアログに入力欄がありません。作成は無効のままです。',
+  },
+  'write.pickValue': {
+    en: 'Pick a value',
+    ko: '값 선택',
+    ja: '値を選択',
   },
   'write.projectRequired': {
     en: 'Pick a project.',
@@ -343,6 +350,48 @@ export const write = {
     en: 'Comment',
     ko: '코멘트',
     ja: 'コメント',
+  },
+  // GDK-528: comment restriction (Jira family only — the composer draws
+  // nothing on built-in/Linear).
+  'write.commentVisibilityLabel': {
+    en: 'Visible to',
+    ko: '공개 범위',
+    ja: '公開範囲',
+  },
+  'write.commentVisibilityEveryone': {
+    en: 'Everyone',
+    ko: '전체',
+    ja: '全員',
+  },
+  'write.commentVisibilityRole': {
+    en: 'A role…',
+    ko: '역할…',
+    ja: 'ロール…',
+  },
+  'write.commentVisibilityGroup': {
+    en: 'A group…',
+    ko: '그룹…',
+    ja: 'グループ…',
+  },
+  'write.commentVisibilityPlaceholder': {
+    en: 'Role or group name, e.g. Administrators',
+    ko: '역할 또는 그룹 이름, 예: Administrators',
+    ja: 'ロールまたはグループ名（例: Administrators）',
+  },
+  'write.commentVisibilityHint': {
+    en: 'This site’s role and group names are not listed here — type the name exactly as Jira has it, or set visibility back to Everyone.',
+    ko: '이 사이트의 역할·그룹 이름은 여기에 나오지 않습니다. Jira에 있는 그대로 입력하거나, 공개 범위를 전체로 되돌리세요.',
+    ja: 'このサイトのロール名・グループ名はここに出ません。Jira にある通りに入力するか、公開範囲を全員に戻してください。',
+  },
+  'write.commentInternal': {
+    en: 'Internal (service desk)',
+    ko: '내부용(서비스 데스크)',
+    ja: '内部用（サービスデスク）',
+  },
+  'write.commentInternalTitle': {
+    en: 'Agents only — service desk customers cannot see this comment.',
+    ko: '담당자 전용입니다. 서비스 데스크 고객에게는 보이지 않습니다.',
+    ja: '担当者のみ。サービスデスクの顧客には表示されません。',
   },
   'write.removeAttachment': {
     en: 'Remove attachment',

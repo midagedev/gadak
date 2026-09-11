@@ -116,7 +116,42 @@
   function moveToDone(): void {
     write.requestTransitionMenu(issueKey)
   }
+
+  /* ── Restriction badge (GDK-511 mirror columns → GDK-528) ──
+     The origin states the restriction; the badge states it back. Internal
+     (jsd_public false) and role/group restriction are mutually exclusive in
+     Jira, so the internal check reads first; a comment with neither paints
+     nothing — most comments are public and must not grow a chip. */
+  function restrictionTitle(c: DetailComment): string | undefined {
+    if (c.jsd_public === false) return t('detail.commentInternalTitle')
+    if (c.visibility_type) {
+      return t('detail.commentRestrictedTitle', {
+        type: c.visibility_type,
+        value: c.visibility_value ?? '',
+      })
+    }
+    return undefined
+  }
 </script>
+
+{#snippet restrictionBadge(c: DetailComment)}
+  <!-- Same quiet chip on a header row and on a grouped continuation: the
+       restriction belongs to the comment, not to the row shape. -->
+  {#if c.jsd_public === false}
+    <span
+      class="rounded bg-bg-elevated px-1.5 py-0.5 text-micro text-text-secondary"
+      data-testid="comment-internal-badge"
+      title={restrictionTitle(c)}>{t('detail.commentInternalBadge')}</span
+    >
+  {:else if c.visibility_type}
+    <span
+      class="rounded bg-bg-elevated px-1.5 py-0.5 text-micro text-text-secondary"
+      data-testid="comment-restricted-badge"
+      title={restrictionTitle(c)}
+      >{t('detail.commentRestrictedBadge', { value: c.visibility_value ?? '' })}</span
+    >
+  {/if}
+{/snippet}
 
 {#if all.length > 0}
   <ol>
@@ -146,6 +181,7 @@
               {c.author ?? c.author_email ?? t('detail.unknownAuthor')}
             </span>
             <BotBadge accountId={c.author_account_id} accountType={c.author_account_type} />
+            {@render restrictionBadge(c)}
             <span class="text-micro text-text-muted" title={absoluteTime(c.created_at)}>
               {relativeTime(c.created_at)}
             </span>
@@ -196,6 +232,7 @@
                  is a grouped continuation (M2). -->
             <div class="mb-1 flex items-center gap-2 text-micro text-text-muted">
               <span>{relativeTime(c.created_at)}</span>
+              {@render restrictionBadge(c)}
               {#if showMoveToDone && c.comment_id === newest?.comment_id}
                 <button
                   type="button"

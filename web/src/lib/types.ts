@@ -241,6 +241,14 @@ export interface DetailComment {
   body: string // plain text
   raw_body: AdfNode | null // Raw ADF
   created_at: string | null
+  /** Restriction the origin states (GDK-511 mirror columns → GDK-528 badge).
+   *  Absent/empty = unrestricted; a role or group name otherwise. Older
+   *  servers omit both keys. */
+  visibility_type?: string
+  visibility_value?: string
+  /** JSM visibility: false = internal (customers cannot see it). Absent = the
+   *  origin states nothing (non-JSM comments never carry the key). */
+  jsd_public?: boolean
 }
 
 /** One status/assignee/priority change (chronological). */
@@ -1076,6 +1084,12 @@ export interface CreateFieldMeta {
   required: boolean
   has_default: boolean
   type: string
+  /** Editor kind (GDK-533): the same editKind word editmeta and the CLI's
+   *  create --field resolve through. Absent on an older server or an
+   *  unmapped schema — the client treats it as "cannot fill here". */
+  kind?: string
+  /** Closed choice set for option-like kinds ({id,value}, editmeta shape). */
+  options?: EditMetaOption[]
 }
 
 export interface CreateFieldsResponse {
@@ -1088,6 +1102,11 @@ interface CreatedComment {
   author: string | null
   body: string
   created_at: string | null
+  /** Restriction echo (GDK-528) — same keys the detail response carries;
+   *  absent when the origin sent none. */
+  visibility_type?: string
+  visibility_value?: string
+  jsd_public?: boolean
 }
 
 /** Common write response — latest IssueLite. */
@@ -1106,6 +1125,17 @@ export interface CommentWriteResponse {
 export interface CommentMention {
   account_id: string
   display_name: string
+}
+
+/** Restriction chosen in the composer for a comment about to be posted
+ *  (GDK-528). Omitted entirely = public comment — the request body then stays
+ *  byte-identical to a pre-GDK-528 one. The server validates the same way the
+ *  CLI flags do (role|group + non-empty value). */
+export interface CommentPostOptions {
+  /** Restrict to a project role or group (Jira family). */
+  visibility?: { type: 'role' | 'group'; value: string }
+  /** JSM internal comment (agents only; customers cannot see it). */
+  internal?: boolean
 }
 
 /** One uploaded attachment (POST <key>/attachments/ response). Used for comment inline embeds. */
@@ -1158,6 +1188,11 @@ export interface CreateIssuePayload {
   labels?: string[]
   /** Calendar date (YYYY-MM-DD). Omit when unset — do not send "". */
   duedate?: string
+  /** Raw editor values for required custom fields, keyed by field id
+   *  (GDK-533). The server resolves the kind from the same createmeta list
+   *  and wraps through the same encoder the CLI uses — the client never
+   *  shapes the value. Omit when nothing is filled. */
+  custom_fields?: Record<string, string>
 }
 
 /** Cache meta stored in the IndexedDB meta store. */

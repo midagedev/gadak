@@ -310,7 +310,14 @@ grammars became one: the `gadak://` pointer had a parser in the CLI and
 another in the server ([GDK-1316]), the Cloud category fold had a hand-written
 copy beside it ([GDK-1315]), and the page-id case policy differed between
 the store and sync ([GDK-1104]). Each has a single owner now, held there by a
-gate that names any second copy.
+gate that names any second copy. The create dialog fills what the
+origin requires: create metadata now carries each field's kind and its
+allowed values, the required fields this dialog can edit get editors, and the
+ones it cannot are named in a sentence that keeps Create disabled instead of
+sending a create Jira will reject ([GDK-533]). A comment can be restricted
+where the origin has restrictions — a role, a group, or internal on a service
+desk. The composer refuses to post a half-chosen one, and the restriction the
+origin states comes back as a badge on the comment ([GDK-528]).
 
 The CLI itself says when its skill file is behind: a read verb prints one
 stderr line when the installed copy differs from this build's, so an agent
@@ -2196,9 +2203,11 @@ priority sorting keyed on `priority_rank`.
 [GDK-521]: https://gadak.dev/backlog/#/?ks=GDK-521
 [GDK-524]: https://gadak.dev/backlog/#/?ks=GDK-524
 [GDK-527]: https://gadak.dev/backlog/#/?ks=GDK-527
+[GDK-528]: https://gadak.dev/backlog/#/?ks=GDK-528
 [GDK-530]: https://gadak.dev/backlog/#/?ks=GDK-530
 [GDK-531]: https://gadak.dev/backlog/#/?ks=GDK-531
 [GDK-532]: https://gadak.dev/backlog/#/?ks=GDK-532
+[GDK-533]: https://gadak.dev/backlog/#/?ks=GDK-533
 [GDK-536]: https://gadak.dev/backlog/#/?ks=GDK-536
 [GDK-537]: https://gadak.dev/backlog/#/?ks=GDK-537
 [GDK-538]: https://gadak.dev/backlog/#/?ks=GDK-538

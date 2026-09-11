@@ -152,11 +152,15 @@ describe('NewIssueDialog create-meta gate (GDK-302)', () => {
 })
 
 /*
- * GDK-254: required create-fields are advisory. The dialog still submits
- * when the extra-required warning is showing, and still submits when the
- * endpoint is missing — Playwright holds the live path (e2e/create-fields.spec.ts).
+ * GDK-254: required create-fields are advisory. GDK-533 (2026-09-11)
+ * overturned one clause of that contract: a required field the dialog
+ * cannot fill must block the submit instead of sending a create the
+ * origin will reject. The old test here asserted `disabled={submitting}`
+ * exactly — that was the warn-only contract, red-first against the new
+ * behavior by design. Degradation survives: a missing create-fields
+ * endpoint (404/409/older server, list empty) never blocks.
  */
-describe('NewIssueDialog create fields (GDK-254)', () => {
+describe('NewIssueDialog create fields (GDK-254/GDK-533)', () => {
   test('loads create fields by project key and issue type id', () => {
     expect(SRC).toMatch(/api\.getCreateFields\s*\(/)
     expect(SRC).toContain('issueTypeId')
@@ -164,14 +168,22 @@ describe('NewIssueDialog create fields (GDK-254)', () => {
   })
 
   test('classifies extra required fields through the shared helper', () => {
-    expect(SRC).toContain('extraRequiredCreateFields')
+    expect(SRC).toContain('fillableCreateFields')
+    expect(SRC).toContain('unfillableCreateFields')
     expect(SRC).toContain('isCreateFieldRequired')
     expect(SRC).toContain('CREATE_DIALOG_ALWAYS_SENT')
   })
 
-  test('does not disable submit when extra required fields exist', () => {
-    expect(SRC).not.toMatch(/disabled=\{submitting\s*\|\|/)
-    expect(SRC).toMatch(/disabled=\{submitting\}/)
+  test('submit is disabled while a required field is unfilled or unfillable', () => {
+    expect(SRC).toMatch(/disabled=\{submitting \|\| createBlocked\}/)
+  })
+
+  test('blocking requires the field list to have loaded — degradation stays', () => {
+    expect(SRC).toMatch(/currentCreateFields\.length > 0 &&/)
+  })
+
+  test('sends custom field values under custom_fields keyed by field id', () => {
+    expect(SRC).toMatch(/custom_fields:/)
   })
 
   test('reuses the existing required-star token on known fields', () => {

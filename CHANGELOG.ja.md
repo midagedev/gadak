@@ -245,7 +245,13 @@ Server はボードの位置を Cloud とは違う形で答えるため、キー
 ポインタは CLI とサーバーに別々のパーサーがあり ([GDK-1316])、Cloud のカテゴリ畳み込みは
 手書きの写しを隣に置いていて ([GDK-1315])、ページ id の大文字小文字の扱いはストアと
 同期で違っていました ([GDK-1104])。いまはそれぞれ持ち主が一つで、二つ目の写しが
-できればゲートがその場所を名指しします。
+できればゲートがその場所を名指しします。 新規課題のダイアログが、origin の要求する
+項目を埋められるようになりました。作成メタデータがフィールドごとの種類と選択肢を
+運び、このダイアログで編集できる必須フィールドには入力欄が出ます。編集できない
+ものは文章で名指しし、作成は無効のまま — Jira が拒否する作成を送らないためです
+([GDK-533])。コメントには、origin に制限がある場所で制限をかけられます — ロール、
+グループ、サービスデスクの内部用。半端に選んだ制限は投稿されず、origin が述べた
+制限はバッジとしてコメントに戻ってきます ([GDK-528])。
 
 CLI 自身がスキルファイルの古さを言います。インストール済みの写しがこのビルドのものと
 違えば、読み取り動詞が stderr に一行出すので、エージェントは doctor を走らせると
@@ -2059,9 +2065,11 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-521]: https://gadak.dev/backlog/#/?ks=GDK-521
 [GDK-524]: https://gadak.dev/backlog/#/?ks=GDK-524
 [GDK-527]: https://gadak.dev/backlog/#/?ks=GDK-527
+[GDK-528]: https://gadak.dev/backlog/#/?ks=GDK-528
 [GDK-530]: https://gadak.dev/backlog/#/?ks=GDK-530
 [GDK-531]: https://gadak.dev/backlog/#/?ks=GDK-531
 [GDK-532]: https://gadak.dev/backlog/#/?ks=GDK-532
+[GDK-533]: https://gadak.dev/backlog/#/?ks=GDK-533
 [GDK-536]: https://gadak.dev/backlog/#/?ks=GDK-536
 [GDK-537]: https://gadak.dev/backlog/#/?ks=GDK-537
 [GDK-538]: https://gadak.dev/backlog/#/?ks=GDK-538

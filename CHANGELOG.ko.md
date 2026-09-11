@@ -222,7 +222,13 @@ serve 플래그를 유닛에 그대로 싣고, 설치 시점에 serve 파서로 
 CLI 와 서버에 파서가 따로 있었고 ([GDK-1316]), Cloud 카테고리 접기는 손으로 쓴
 사본을 옆에 두고 있었으며 ([GDK-1315]), 페이지 id 의 대소문자 정책은 스토어와
 동기화가 달랐습니다 ([GDK-1104]). 이제 각각 소유자가 하나이고, 두 번째 사본이
-생기면 게이트가 그 자리를 이름으로 부릅니다.
+생기면 게이트가 그 자리를 이름으로 부릅니다. 새 이슈 창이 origin 이 요구하는 것을 채웁니다. 생성
+메타데이터가 필드마다 종류와 고를 수 있는 값을 함께 실어 오고, 이 창이 편집할 수
+있는 필수 필드에는 입력란이 생깁니다. 편집할 수 없는 필드는 문장으로 이름을 부르고
+만들기를 비활성으로 두어, Jira 가 거절할 생성을 보내지 않습니다 ([GDK-533]).
+코멘트에는 origin 에 제한이 있는 곳에서 제한을 걸 수 있습니다 — 역할, 그룹,
+서비스 데스크의 내부용. 반쯤 고른 제한은 아예 올라가지 않고, origin 이 말한 제한은
+코멘트에 배지로 돌아옵니다 ([GDK-528]).
 
 CLI 가 스킬 파일이 낡았다고 스스로 말합니다. 설치된 사본이 이 빌드의 것과
 다르면 읽기 동사가 stderr 에 한 줄을 찍으므로, 에이전트가 doctor 를 돌리기로
@@ -1928,9 +1934,11 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-521]: https://gadak.dev/backlog/#/?ks=GDK-521
 [GDK-524]: https://gadak.dev/backlog/#/?ks=GDK-524
 [GDK-527]: https://gadak.dev/backlog/#/?ks=GDK-527
+[GDK-528]: https://gadak.dev/backlog/#/?ks=GDK-528
 [GDK-530]: https://gadak.dev/backlog/#/?ks=GDK-530
 [GDK-531]: https://gadak.dev/backlog/#/?ks=GDK-531
 [GDK-532]: https://gadak.dev/backlog/#/?ks=GDK-532
+[GDK-533]: https://gadak.dev/backlog/#/?ks=GDK-533
 [GDK-536]: https://gadak.dev/backlog/#/?ks=GDK-536
 [GDK-537]: https://gadak.dev/backlog/#/?ks=GDK-537
 [GDK-538]: https://gadak.dev/backlog/#/?ks=GDK-538

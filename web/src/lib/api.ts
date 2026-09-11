@@ -12,6 +12,7 @@ import type {
   AttachmentUploadResponse,
   BootstrapResponse,
   CommentMention,
+  CommentPostOptions,
   CommentsByAuthorResponse,
   CommentWriteResponse,
   CreateIssuePayload,
@@ -925,16 +926,26 @@ export function createIssueLink(
 
 /* ── Comments ── */
 
+/**
+ * POST <key>/comment/. `opts` (GDK-528) carries the restriction the composer
+ * chose; every field is omitted when unset, so an untouched composer sends
+ * the exact body it sent before the feature — the same passthrough the CLI
+ * flags have (visibility role|group + value, internal).
+ */
 export function postComment(
   issueKey: string,
   text: string,
   mentions: CommentMention[] = [],
   attachmentIds: string[] = [],
+  opts?: CommentPostOptions,
 ): Promise<CommentWriteResponse> {
+  const body: Record<string, unknown> = { text, mentions, attachment_ids: attachmentIds }
+  if (opts?.visibility) body.visibility = opts.visibility
+  if (opts?.internal) body.internal = true
   return jsonW<CommentWriteResponse>(`${encodeURIComponent(issueKey)}/comment/`, {
     method: 'POST',
     headers: JSON_HEADERS,
-    body: JSON.stringify({ text, mentions, attachment_ids: attachmentIds }),
+    body: JSON.stringify(body),
   })
 }
 
