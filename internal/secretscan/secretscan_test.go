@@ -2,6 +2,7 @@ package secretscan
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -132,5 +133,84 @@ func assertScriptVarMatchesPattern(t *testing.T, scriptVar, patternName string) 
 	}
 	if script != goPat {
 		t.Errorf("scan-internal.sh %s=%q\nsecretscan regex=%q", scriptVar, script, goPat)
+	}
+}
+
+func TestSlackPatternAgreesWithRepoScanner(t *testing.T) {
+	assertScriptVarMatchesPattern(t, "PAT_SLACK", "slack_token")
+}
+
+// treeScanned records, for every shape in the package table, whether
+// scripts/scan-internal.sh greps the repository for it, and a synthetic vector
+// to prove it either way. The map is the single answer to "which shapes does
+// the repo scanner cover" — adding a pattern to the package without deciding
+// its tree coverage fails TestRepoScannerTreeCoverageIsExhaustive below.
+//
+// private_key_pem is false on purpose (GDK-1110): the tree carries legitimate
+// PEM test vectors, so covering it needs per-file exemption machinery no other
+// shape needs. Flipping it to true is a deliberate change, and this table plus
+// the header of scan-internal.sh is where that decision lives.
+//
+// Vectors are synthetic filler behind a documented prefix. Never a live token.
+var treeScanned = map[string]struct {
+	vector  string
+	scanned bool
+}{
+	"atlassian_api_token": {"ATATT" + strings.Repeat("A", 24), true},
+	"linear_api_key":      {"lin_api_" + strings.Repeat("d", 32), true},
+	"slack_token":         {"xoxb-" + strings.Repeat("1", 14), true},
+	"github_token":        {"ghp_" + strings.Repeat("a", 24), true},
+	"http_basic_auth":     {"Authorization: Basic " + strings.Repeat("Q", 12), true},
+	"http_bearer_token":   {"Authorization: Bearer " + strings.Repeat("t", 24), true},
+	"private_key_pem":     {"-----BEGIN PRIVATE KEY-----", false},
+}
+
+func TestRepoScannerTreeCoverageIsExhaustive(t *testing.T) {
+	for _, p := range patterns {
+		if _, ok := treeScanned[p.Name]; !ok {
+			t.Errorf("pattern %q has no tree-coverage decision in treeScanned", p.Name)
+		}
+	}
+	for name := range treeScanned {
+		found := false
+		for _, p := range patterns {
+			if p.Name == name {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("treeScanned lists %q, which is not a package pattern", name)
+		}
+	}
+}
+
+// TestRepoScannerMatchesTreeCoverage runs the actual script over a directory
+// holding one synthetic vector, once per shape. Behaviour and not bytes,
+// because three of the shapes cannot be spelled identically in POSIX ERE
+// ((?i), (?:...), \b, \s) — a byte pin for those would force the script to
+// carry a regex grep does not understand.
+func TestRepoScannerMatchesTreeCoverage(t *testing.T) {
+	script, err := filepath.Abs(filepath.Join("..", "..", "scripts", "scan-internal.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(script); err != nil {
+		t.Fatal(err)
+	}
+	for name, tc := range treeScanned {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "vector.txt"), []byte(tc.vector+"\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			out, err := exec.Command("bash", script, "--dir", dir).CombinedOutput()
+			failed := err != nil
+			if failed != tc.scanned {
+				t.Fatalf("scan-internal.sh over a %s vector: failed=%v, want %v\n%s", name, failed, tc.scanned, out)
+			}
+			if tc.scanned && !strings.Contains(string(out), "["+name+"]") {
+				t.Errorf("hit was not labelled with the shape that matched (%q):\n%s", name, out)
+			}
+		})
 	}
 }

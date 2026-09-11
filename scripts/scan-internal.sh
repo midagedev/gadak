@@ -2,8 +2,10 @@
 # Fail if the repo (or the committed demo snapshot) contains secrets or
 # installation-specific strings that must not ship in a public release.
 #
-# Patterns (T7.4):
+# Patterns:
 #   - Atlassian user/org API token shapes (prefix + long payload)
+#   - Linear personal API keys
+#   - Slack tokens, GitHub tokens, and HTTP Basic / Bearer Authorization headers
 #   - Concrete *.atlassian.net hosts outside the documentation / test allowlist
 #   - Tailnet names and CGNAT addresses (operator machines, not product)
 #   - Real home directories: /Users/<name>/ or /home/<name>/ outside the
@@ -11,6 +13,27 @@
 #   - An optional deployment-specific word list (see below)
 #
 # Real-name patterns are intentionally skipped (too many false positives).
+#
+# The credential shapes above are the table in internal/secretscan (Patterns()),
+# which is the single owner: that package is what every outbound artifact is
+# checked against, and this script is the same table pointed at the repository.
+# The original scope (T7.4) was narrower — only the Atlassian and Linear shapes
+# were grepped over the tree, so a real ghp_ token committed into a fixture left
+# this gate green. GDK-1110 closed that: slack_token, github_token,
+# http_basic_auth and http_bearer_token now run over the tree too.
+#
+# private_key_pem is the one shape from that table this script deliberately does
+# NOT scan for. It is not an oversight and not a lower-value secret: the repo
+# carries two legitimate test-vector files whose whole purpose is to contain a
+# PEM header, so covering it here requires per-file exemption machinery that no
+# other pattern needs. Adding it is a separate decision, not a one-line change.
+# internal/secretscan/secretscan_test.go pins this split so it cannot drift.
+#
+# Three of the four added shapes cannot be byte-identical to their Go regexes:
+# POSIX ERE has no (?i), no (?:...) and no portable \b or \s. Those are spelled
+# here in ERE and the agreement is asserted behaviourally instead — the Go test
+# runs this script over fixtures carrying each shape. Only patterns whose Go
+# spelling is already valid ERE (Atlassian, Linear, Slack) are byte-pinned.
 #
 # The word list is deliberately NOT in this file. Naming the strings you are
 # scrubbing publishes them: anyone reading a public scanner learns the very
@@ -44,6 +67,17 @@ PAT_TOKEN='ATATT[A-Za-z0-9+/=_-]{20,}|ATCTT[A-Za-z0-9+/=_-]{20,}'
 # PAT_TOKEN, because internal/secretscan asserts PAT_TOKEN equals its
 # atlassian_api_token regex exactly.
 PAT_LINEAR='lin_api_[A-Za-z0-9]{20,}'
+# Slack tokens. Byte-identical to internal/secretscan's slack_token regex
+# (valid ERE as written), and pinned to it by the agreement test.
+PAT_SLACK='xox[baprs]-[A-Za-z0-9-]{10,}'
+# GitHub tokens. The Go regex uses \b and (?:...), neither of which is portable
+# POSIX ERE, so the word boundary is spelled as an explicit leading class.
+# Behaviour, not bytes, is what the Go test asserts for this one.
+PAT_GITHUB='(^|[^A-Za-z0-9_])(ghp_|gho_|github_pat_)[A-Za-z0-9_]{20,}'
+# HTTP Authorization headers. The Go regexes are (?i) and use \s; these are
+# matched with grep -i and [[:space:]] instead.
+PAT_BASIC='Authorization:[[:space:]]*Basic[[:space:]]+[A-Za-z0-9+/=_-]{8,}'
+PAT_BEARER='Authorization:[[:space:]]*Bearer[[:space:]]+[A-Za-z0-9._-]{20,}'
 PAT_HOST='atlassian\.net'
 # Operator machines, not product content. A tailnet MagicDNS name or a
 # 100.64/10 CGNAT address identifies a device on someone's private
@@ -231,22 +265,47 @@ fi
 # matches" on stdout (a hit) while GNU grep >= 3.5 prints it on stderr
 # (discarded) — the same bytes passed CI and failed the lead's machine
 # (GDK-1595: four bytes of an h264 stream matched a wordlist entry).
+# Prefix each hit with the name of the shape that matched. The failure block
+# used to be a bare list of file:line, so knowing *why* a line was reported
+# meant re-running the greps one at a time by hand.
+label_hits() { sed "s|^|[$1] |"; }
+
 if [[ -s "$text_list" ]]; then
   # shellcheck disable=SC2046
-  grep -nIHE "$PAT_TOKEN|$PAT_LINEAR|$PAT_TAILNET_CGNAT" -- $(cat "$text_list") 2>/dev/null >>"$hits_file" || true
+  grep -nIHE "$PAT_TOKEN" -- $(cat "$text_list") 2>/dev/null \
+      | label_hits atlassian_api_token >>"$hits_file" || true
+  # shellcheck disable=SC2046
+  grep -nIHE "$PAT_LINEAR" -- $(cat "$text_list") 2>/dev/null \
+      | label_hits linear_api_key >>"$hits_file" || true
+  # shellcheck disable=SC2046
+  grep -nIHE "$PAT_SLACK" -- $(cat "$text_list") 2>/dev/null \
+      | label_hits slack_token >>"$hits_file" || true
+  # shellcheck disable=SC2046
+  grep -nIHE "$PAT_GITHUB" -- $(cat "$text_list") 2>/dev/null \
+      | label_hits github_token >>"$hits_file" || true
+  # shellcheck disable=SC2046
+  grep -niIHE "$PAT_BASIC" -- $(cat "$text_list") 2>/dev/null \
+      | label_hits http_basic_auth >>"$hits_file" || true
+  # shellcheck disable=SC2046
+  grep -niIHE "$PAT_BEARER" -- $(cat "$text_list") 2>/dev/null \
+      | label_hits http_bearer_token >>"$hits_file" || true
+  # shellcheck disable=SC2046
+  grep -nIHE "$PAT_TAILNET_CGNAT" -- $(cat "$text_list") 2>/dev/null \
+      | label_hits tailnet_cgnat >>"$hits_file" || true
   # shellcheck disable=SC2046
   grep -nIHE "$PAT_TAILNET_HOST" -- $(cat "$text_list") 2>/dev/null \
-      | filter_real_tailnets >>"$hits_file" || true
+      | filter_real_tailnets | label_hits tailnet_host >>"$hits_file" || true
   if [[ -n "$PAT_COMPANY" ]]; then
     # shellcheck disable=SC2046
-    grep -niIHE "$PAT_COMPANY" -- $(cat "$text_list") 2>/dev/null >>"$hits_file" || true
+    grep -niIHE "$PAT_COMPANY" -- $(cat "$text_list") 2>/dev/null \
+        | label_hits word_list >>"$hits_file" || true
   fi
   # shellcheck disable=SC2046
   grep -niIHE "$PAT_HOST" -- $(cat "$text_list") 2>/dev/null \
-      | filter_disallowed_hosts >>"$hits_file" || true
+      | filter_disallowed_hosts | label_hits tenant_host >>"$hits_file" || true
   # shellcheck disable=SC2046
   grep -nIHE "$PAT_HOMEPATH" -- $(cat "$text_list") 2>/dev/null \
-      | filter_real_home_paths >>"$hits_file" || true
+      | filter_real_home_paths | label_hits home_path >>"$hits_file" || true
 fi
 
 # Committed fixtures are binaries, so the text scan above skips them (the case
@@ -260,7 +319,9 @@ if [[ -z "$SCAN_DIR" ]]; then
     echo "==> scanning strings in $db"
     tmp_strings="$(mktemp)"
     strings "$db" >"$tmp_strings"
-    grep -nE "$PAT_TOKEN|$PAT_LINEAR" "$tmp_strings" 2>/dev/null \
+    grep -nE "$PAT_TOKEN|$PAT_LINEAR|$PAT_SLACK|$PAT_GITHUB" "$tmp_strings" 2>/dev/null \
+        | sed "s|^|$db:strings:|" >>"$hits_file" || true
+    grep -niE "$PAT_BASIC|$PAT_BEARER" "$tmp_strings" 2>/dev/null \
         | sed "s|^|$db:strings:|" >>"$hits_file" || true
     if [[ -n "$PAT_COMPANY" ]]; then
       grep -niE "$PAT_COMPANY" "$tmp_strings" 2>/dev/null \
@@ -286,8 +347,8 @@ if [[ -s "$hits_file" ]]; then
 fi
 
 if [[ -n "$PAT_COMPANY" ]]; then
-  echo "OK: no token-shaped secrets, listed words, non-allowlisted tenant hosts, or real home paths."
+  echo "OK: no credential-shaped strings, listed words, non-allowlisted tenant hosts, or real home paths."
 else
-  echo "OK: no token-shaped secrets, non-allowlisted tenant hosts, or real home paths (word check skipped)."
+  echo "OK: no credential-shaped strings, non-allowlisted tenant hosts, or real home paths (word check skipped)."
 fi
 exit 0
