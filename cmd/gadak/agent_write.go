@@ -1018,19 +1018,31 @@ func parseTransitionFieldFlags(raw []string) (map[string]any, error) {
 	}
 	out := make(map[string]any, len(raw))
 	for _, item := range raw {
-		key, val, ok := strings.Cut(item, "=")
-		key = strings.TrimSpace(key)
-		if !ok || key == "" {
-			return nil, fmt.Errorf("--field expects key=JSON, got %q", item)
+		key, v, err := parseFieldFlagItem(item)
+		if err != nil {
+			return nil, err
 		}
-		var parsed any
-		if err := json.Unmarshal([]byte(val), &parsed); err != nil {
-			out[key] = val
-		} else {
-			out[key] = parsed
-		}
+		out[key] = v
 	}
 	return out, nil
+}
+
+// parseFieldFlagItem splits one --field item into its key and value: the
+// value is JSON when it parses as JSON, otherwise the literal string.
+// Single owner of that rule (GDK-18) — transition/close keep the map shape
+// where a repeat is last-wins over screen fields, while the alias path
+// (parseAliasFieldRaws) collects repeats, and neither re-spells the split.
+func parseFieldFlagItem(item string) (string, any, error) {
+	key, val, ok := strings.Cut(item, "=")
+	key = strings.TrimSpace(key)
+	if !ok || key == "" {
+		return "", nil, fmt.Errorf("--field expects key=JSON, got %q", item)
+	}
+	var parsed any
+	if err := json.Unmarshal([]byte(val), &parsed); err != nil {
+		return key, val, nil
+	}
+	return key, parsed, nil
 }
 
 const assignUsage = "usage: gadak assign <KEY> <email|name|accountId|-> [--json] [--dry-run] | --batch -"

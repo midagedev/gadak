@@ -105,6 +105,12 @@ func ValueFromIDs(kind string, ids []string) any {
 	return map[string]string{"id": ids[0]}
 }
 
+// IsMultiKind reports whether the kind holds a list of selections. Exported
+// so the CLI can reconcile --field arity (one value, or a repeated flag)
+// with the field before ValueFromIDs shapes it, instead of asking again
+// with its own list of kind names (GDK-18).
+func IsMultiKind(kind string) bool { return isMultiKind(kind) }
+
 func isMultiKind(kind string) bool {
 	return kind == "version_array" || kind == "multi_option" || kind == "option-array" || kind == "component_array"
 }

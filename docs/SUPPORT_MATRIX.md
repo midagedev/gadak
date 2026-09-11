@@ -266,6 +266,13 @@ Markers:
     `text`, `number`, `date`, `option`, `user`, `multi_option` /
     `version_array`, gated by the issue's editmeta and the configured field
     allowlist. Cascading selects and textarea custom fields have no editor.
+    `create --field alias=value` / `edit --field alias=value` take an
+    option by id or by display label (case- and whitespace-insensitive);
+    an unknown label is refused with the valid set and an ambiguous one
+    with the matching `label (id)` candidates, never resolved to the first
+    hit (`cmd/gadak/edit.go:1122`). A multi-valued field takes the flag
+    repeated; repeating a single-valued one is refused
+    (`cmd/gadak/edit.go:1055`).
 
 [^36]: No custom-field mapping exists (`internal/linear/MAPPING.md`).
 

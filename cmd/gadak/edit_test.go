@@ -2240,3 +2240,172 @@ func TestEditCommaLabelWarns(t *testing.T) {
 		t.Errorf("edit must add the single label (no split):\n%s", body)
 	}
 }
+
+// --field alias=value, multi-value and refusal shapes (GDK-18):
+// 32. repeating --field for one alias collects the values (multi_option)
+//     TestEditRepeatedFieldFlagCollectsMultiOption
+// 33. repeating --field for a single-valued kind is refused, not last-wins
+//     TestEditRepeatedFieldFlagOnSingleKindRefuses
+// 34. an option name matching two allowedValues is refused with labelled ids
+//     TestEditAmbiguousOptionNamesCandidatesWithLabels
+// 35. an option name matching nothing is refused with the valid set
+//     TestEditUnknownOptionListsAllowedValues
+
+func seedPlatformsAlias(t *testing.T, f *fakeJira) {
+	t.Helper()
+	f.editMeta = `{
+		"customfield_10030": {"required":false,"schema":{"type":"array","items":"option"},"operations":["set"],
+			"allowedValues":[{"id":"20","value":"iOS"},{"id":"21","value":"Android"},{"id":"22","value":"Web"}]}
+	}`
+	cfg := mirror(t, f.URL)
+	cfg.Fields = []config.FieldSpec{
+		{Alias: "platforms", Label: "Platforms", IDs: []string{"customfield_10030"}, Role: "facet", Kind: "multi_option"},
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEditRepeatedFieldFlagCollectsMultiOption(t *testing.T) {
+	f := newFakeJira(t)
+	seedPlatformsAlias(t, f)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--field", "platforms=iOS", "--field", "platforms=Android"})
+	})
+	if err != nil {
+		t.Fatalf("edit --field platforms=iOS --field platforms=Android: %v", err)
+	}
+	body := f.bodies["PUT /issue/NMB-1"]
+	got := putPayload(t, body).Fields["customfield_10030"]
+	wantVal, err := fields.FieldValue("multi_option", json.RawMessage(`["20","21"]`))
+	if err != nil {
+		t.Fatalf("FieldValue: %v", err)
+	}
+	want, err := json.Marshal(wantVal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("customfield_10030 = %s, want both ids %s (body %s)", got, want, body)
+	}
+}
+
+func TestEditRepeatedFieldFlagOnSingleKindRefuses(t *testing.T) {
+	f := newFakeJira(t)
+	seedSeverityAlias(t, f)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--field", "severity=High", "--field", "severity=High"})
+	})
+	if err == nil {
+		t.Fatal("a repeated --field on a single-valued kind must be refused, not silently last-wins")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "severity") {
+		t.Errorf("error must name the alias: %q", msg)
+	}
+	if !strings.Contains(msg, "single value") {
+		t.Errorf("error must say the field takes a single value: %q", msg)
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("repeated single-valued --field reached PUT: %v", f.calls)
+	}
+}
+
+func TestEditAmbiguousOptionNamesCandidatesWithLabels(t *testing.T) {
+	f := newFakeJira(t)
+	f.editMeta = `{
+		"customfield_10001": {"required":true,"schema":{"type":"option"},"operations":["set"],
+			"allowedValues":[{"id":"1","value":"High"},{"id":"2","value":"high"}]}
+	}`
+	cfg := mirror(t, f.URL)
+	cfg.Fields = []config.FieldSpec{
+		{Alias: "severity", Label: "Severity", IDs: []string{"customfield_10001"}, Role: "facet", Kind: "option"},
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--field", "severity=High"})
+	})
+	if err == nil {
+		t.Fatal("an ambiguous option name must be refused, never resolved to the first match")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "ambiguous") {
+		t.Errorf("error must say ambiguous: %q", msg)
+	}
+	// The candidate list must be usable without reading code: each id
+	// carried with the label it belongs to, so the user can pass the id.
+	if !strings.Contains(msg, `High (1)`) || !strings.Contains(msg, `high (2)`) {
+		t.Errorf("error must pair each candidate id with its label: %q", msg)
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("ambiguous option reached PUT: %v", f.calls)
+	}
+}
+
+func TestEditUnknownOptionListsAllowedValues(t *testing.T) {
+	f := newFakeJira(t)
+	seedPlatformsAlias(t, f)
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--field", "platforms=Windows"})
+	})
+	if err == nil {
+		t.Fatal("an option outside allowedValues must be refused")
+	}
+	msg := err.Error()
+	for _, want := range []string{"Windows", "iOS", "Android", "Web"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error must name %q (token and the valid set): %q", want, msg)
+		}
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("unknown option reached PUT: %v", f.calls)
+	}
+}
+
+func TestEditFieldOptionMatchesIDAndLoosePadding(t *testing.T) {
+	f := newFakeJira(t)
+	seedSeverityAlias(t, f)
+
+	for _, tok := range []string{"1", " high ", "HIGH"} {
+		f.calls = nil
+		f.bodies = map[string]string{}
+		_, err := capture(t, func() error {
+			return cmdEdit([]string{"NMB-1", "--field", "severity=" + tok})
+		})
+		if err != nil {
+			t.Fatalf("edit --field severity=%q: %v", tok, err)
+		}
+		got := putPayload(t, f.bodies["PUT /issue/NMB-1"]).Fields["customfield_10001"]
+		if !strings.Contains(string(got), `"id":"1"`) {
+			t.Errorf("severity=%q sent %s, want id 1", tok, got)
+		}
+	}
+}
+
+func TestEditRepeatedUserFieldRefuses(t *testing.T) {
+	f := newFakeJira(t)
+	seedUserAlias(t, f)
+	f.searchUsers = func(string) string {
+		t.Fatal("a refused arity must not reach the user search")
+		return "[]"
+	}
+
+	_, err := capture(t, func() error {
+		return cmdEdit([]string{"NMB-1", "--field", "reviewer=Dana Whitfield", "--field", "reviewer=Someone Else"})
+	})
+	if err == nil {
+		t.Fatal("a repeated --field on a user field must be refused")
+	}
+	if !strings.Contains(err.Error(), "single value") {
+		t.Errorf("error must say the field takes a single value: %q", err)
+	}
+	if f.called("PUT /issue/NMB-1") {
+		t.Fatalf("repeated user --field reached PUT: %v", f.calls)
+	}
+}

@@ -717,6 +717,7 @@ var helps = map[string]cmdHelp{
 			"gadak edit NMB-140 --due 2026-09-01",
 			"gadak edit NMB-140 --due none",
 			"gadak edit NMB-140 --field severity=High",
+			"gadak edit NMB-140 --field platforms=iOS --field platforms=Android",
 			`printf '%s\n' '{"key":"NMB-140","labels":["+regression"]}' | gadak edit --batch -`,
 		},
 		seeAlso: []string{"gadak create", "gadak attach", "gadak comment", "gadak issue"},

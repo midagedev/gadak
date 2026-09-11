@@ -2380,6 +2380,62 @@ func TestCreateBatchFieldsKeySamePOSTShape(t *testing.T) {
 	}
 }
 
+const platformsCreateFieldsJSON = `{"maxResults":50,"startAt":0,"total":1,"fields":[` +
+	`{"fieldId":"customfield_10030","name":"Platforms","required":false,"hasDefaultValue":false,` +
+	`"schema":{"type":"array","items":"option"},` +
+	`"allowedValues":[{"id":"20","value":"iOS"},{"id":"21","value":"Android"}]}]}`
+
+// The arity rules live in one owner shared with edit (wrapAliasValue →
+// shapeForArity), so create is pinned on the same two shapes: a repeated
+// flag collects for a multi-valued field, and repeating a single-valued
+// one is refused rather than last-wins (GDK-18).
+func TestCreateRepeatedFieldFlagCollectsMultiOption(t *testing.T) {
+	f := newFakeJira(t)
+	serveCreateFields(t, f, platformsCreateFieldsJSON)
+	cfg := mirror(t, f.URL)
+	cfg.Fields = []config.FieldSpec{
+		{Alias: "platforms", Label: "Platforms", IDs: []string{"customfield_10030"}, Role: "facet", Kind: "multi_option"},
+	}
+	if err := cfg.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{
+			"Needs platforms", "--project", "NMB", "--type", "Task",
+			"--field", "platforms=iOS", "--field", "platforms=Android",
+		})
+	})
+	if err != nil {
+		t.Fatalf("create --field platforms twice: %v", err)
+	}
+	got := postIssueCustom(t, f, "customfield_10030")
+	if string(got) != `[{"id":"20"},{"id":"21"}]` {
+		t.Fatalf("customfield_10030 = %s, want both ids (body %s)", got, f.bodies["POST /issue"])
+	}
+}
+
+func TestCreateRepeatedFieldFlagOnSingleKindRefuses(t *testing.T) {
+	f := newFakeJira(t)
+	seedCreateSeverityAlias(t, f)
+
+	_, err := capture(t, func() error {
+		return cmdCreate([]string{
+			"Needs severity", "--project", "NMB", "--type", "Task",
+			"--field", "severity=High", "--field", "severity=Low",
+		})
+	})
+	if err == nil {
+		t.Fatal("a repeated --field on a single-valued kind must be refused")
+	}
+	if !strings.Contains(err.Error(), "single value") {
+		t.Errorf("error must say the field takes a single value: %q", err)
+	}
+	if f.called("POST /issue") {
+		t.Fatalf("repeated single-valued --field reached POST: %v", f.calls)
+	}
+}
+
 func TestCreateHelpListsFieldFlag(t *testing.T) {
 	out, err := capture(t, func() error {
 		return cmdCreate([]string{"--help"})

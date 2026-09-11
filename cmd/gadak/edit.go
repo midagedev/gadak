@@ -29,7 +29,7 @@ const editUsage = "usage: gadak edit <KEY> [--summary S] [-m <text|->|--adf-file
 
 // fieldFlagUsage is the FlagSet description for create/edit --field.
 // Parse rule matches parseTransitionFieldFlags: JSON if valid, otherwise a string.
-const fieldFlagUsage = "configured field alias=value (repeatable); JSON is parsed, otherwise a string"
+const fieldFlagUsage = "configured field alias=value; JSON is parsed, otherwise a string. Repeat the flag to add values to a multi-valued field; an option is matched by id or display label"
 
 func cmdEdit(args []string) error {
 	fs := newFlagSet("edit")
@@ -907,23 +907,50 @@ func componentHintNames(ctx context.Context, c origin.Writer, key string) []stri
 }
 
 // parseAliasFieldRaws turns --field alias=value into JSON payloads.
-// The split/parse rule is parseTransitionFieldFlags: JSON if valid, otherwise
-// a string. Re-marshal so fields.FieldValue can consume json.RawMessage.
+// The split/parse rule is parseFieldFlagItem's, shared with transition:
+// JSON if valid, otherwise a string. Re-marshal so fields.FieldValue can
+// consume json.RawMessage.
+//
+// Repeating the flag for one alias collects the values into a JSON array
+// (GDK-18) — the multi-value idiom --label/--component/--attach already
+// use, rather than a separator invented for this flag alone (a comma is an
+// ordinary character inside an option name, which is why warnCommaLabel is
+// a warning and not a split). The last value silently winning was the
+// alternative, and this repo refuses silent drops. Collecting here and not
+// at the kind means the refusal for a single-valued kind is one message in
+// wrapAliasValue, spoken with the kind in hand.
 func parseAliasFieldRaws(raw []string) (map[string]json.RawMessage, error) {
-	parsed, err := parseTransitionFieldFlags(raw)
-	if err != nil {
-		return nil, err
-	}
-	if len(parsed) == 0 {
+	if len(raw) == 0 {
 		return nil, nil
 	}
-	out := make(map[string]json.RawMessage, len(parsed))
-	for k, v := range parsed {
-		b, err := json.Marshal(v)
+	order := make([]string, 0, len(raw))
+	vals := make(map[string][]any, len(raw))
+	for _, item := range raw {
+		key, v, err := parseFieldFlagItem(item)
 		if err != nil {
 			return nil, err
 		}
-		out[k] = b
+		if _, seen := vals[key]; !seen {
+			order = append(order, key)
+		}
+		vals[key] = append(vals[key], v)
+	}
+	out := make(map[string]json.RawMessage, len(order))
+	for _, key := range order {
+		vs := vals[key]
+		var (
+			b   []byte
+			err error
+		)
+		if len(vs) == 1 {
+			b, err = json.Marshal(vs[0])
+		} else {
+			b, err = json.Marshal(vs)
+		}
+		if err != nil {
+			return nil, err
+		}
+		out[key] = b
 	}
 	return out, nil
 }
@@ -987,6 +1014,17 @@ func resolveCreateAliasFields(ctx context.Context, c origin.Writer, src string, 
 }
 
 func wrapAliasValue(ctx context.Context, c origin.Writer, src, kind string, raw json.RawMessage, meta jira.FieldMeta) (any, error) {
+	// Arity first, so a repeated flag on a single-valued field is refused
+	// by name on every kind — including user, whose branch below returns
+	// before the option mapping and would otherwise reach the origin
+	// encoder with a list and fail there as a type error.
+	if kind != "" {
+		shaped, err := shapeForArity(kind, raw)
+		if err != nil {
+			return nil, err
+		}
+		raw = shaped
+	}
 	if kind == "user" {
 		if len(raw) == 0 || string(raw) == "null" {
 			return fields.FieldValue(kind, raw)
@@ -1013,6 +1051,33 @@ func wrapAliasValue(ctx context.Context, c origin.Writer, src, kind string, raw 
 		return nil, err
 	}
 	return fields.FieldValue(kind, mapped)
+}
+
+// shapeForArity reconciles what --field was given with what the kind holds
+// (GDK-18). A multi-valued kind takes one value as a one-element list, so
+// `--field platforms=iOS` works and repeating the flag adds to it. A
+// single-valued kind given more than one value is refused naming the alias
+// and the arity — the caller repeated a flag the field cannot hold, and
+// picking one of the values for them is the silent drop this repo refuses.
+func shapeForArity(kind string, raw json.RawMessage) (json.RawMessage, error) {
+	var list []json.RawMessage
+	isList := json.Unmarshal(raw, &list) == nil
+	if fields.IsMultiKind(kind) {
+		if isList {
+			return raw, nil
+		}
+		if len(raw) == 0 || string(raw) == "null" {
+			return raw, nil
+		}
+		return json.Marshal([]json.RawMessage{raw})
+	}
+	if isList && len(list) > 1 {
+		return nil, fmt.Errorf("takes a single value but was given %d — repeat --field only for multi-valued fields", len(list))
+	}
+	if isList && len(list) == 1 {
+		return list[0], nil
+	}
+	return raw, nil
 }
 
 func mapAllowedRaw(raw json.RawMessage, meta jira.FieldMeta) (json.RawMessage, error) {
@@ -1054,42 +1119,56 @@ func scalarToken(raw json.RawMessage) (string, bool) {
 	return "", false
 }
 
+// matchAllowedID resolves one token against the field's allowedValues. The
+// id is tried first and exactly; the display label is matched case- and
+// whitespace-insensitively, because an option's label is localized by
+// nature and is the only handle a user has for it (the same trap as
+// keying a status on 'In Progress'). Two labels matching is refused with
+// the candidates — never the first hit — and each candidate carries its id
+// so the refusal names the way out.
 func matchAllowedID(token string, meta jira.FieldMeta) (string, error) {
 	token = strings.TrimSpace(token)
-	var nameHits []string
+	var (
+		hitIDs     []string
+		candidates []string
+	)
 	for _, v := range meta.AllowedValues {
 		if v.ID == token {
 			return v.ID, nil
 		}
-		label := v.Value
-		if label == "" {
-			label = v.Name
-		}
-		if strings.EqualFold(label, token) {
-			nameHits = append(nameHits, v.ID)
+		label := allowedLabel(v.ID, v.Value, v.Name)
+		if strings.EqualFold(strings.TrimSpace(label), token) {
+			hitIDs = append(hitIDs, v.ID)
+			candidates = append(candidates, fmt.Sprintf("%s (%s)", label, v.ID))
 		}
 	}
-	switch len(nameHits) {
+	switch len(hitIDs) {
 	case 1:
-		return nameHits[0], nil
+		return hitIDs[0], nil
 	case 0:
 		return "", fmt.Errorf("no value matching %q — available: %s", token, formatAllowedValues(meta))
 	default:
-		return "", fmt.Errorf("field value %q is ambiguous — matches: %s", token, strings.Join(nameHits, ", "))
+		return "", fmt.Errorf("field value %q is ambiguous — matches: %s; pass the id", token, strings.Join(candidates, ", "))
 	}
+}
+
+// allowedLabel is the display text of one allowedValues entry: value, else
+// name, else the id. Single owner for matchAllowedID and the "available:"
+// list, so the label a refusal prints is the one it would have matched.
+func allowedLabel(id, value, name string) string {
+	if value != "" {
+		return value
+	}
+	if name != "" {
+		return name
+	}
+	return id
 }
 
 func formatAllowedValues(meta jira.FieldMeta) string {
 	parts := make([]string, 0, len(meta.AllowedValues))
 	for _, v := range meta.AllowedValues {
-		label := v.Value
-		if label == "" {
-			label = v.Name
-		}
-		if label == "" {
-			label = v.ID
-		}
-		parts = append(parts, label)
+		parts = append(parts, allowedLabel(v.ID, v.Value, v.Name))
 	}
 	return strings.Join(parts, ", ")
 }
