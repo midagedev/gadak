@@ -127,7 +127,8 @@ mark, read from the `carryover_count` the mirror had been deriving for no
 one ([GDK-1711]).
 
 **Elsewhere: a retro screen, comments you can take back, attachments the
-size of real ones, and one fewer outbound call.** `gadak retro`'s document was served for a surface that never came; the
+size of real ones, one fewer outbound call, and two answers the tool used
+to let you assume.** `gadak retro`'s document was served for a surface that never came; the
 palette's *Weekly retro* opens a calm table, one column per week, one row per metric with its
 definition underneath; a cell that holds issues is a door onto that list;
 four, eight or twelve weeks ([GDK-1660]). The table now reads as a report:
@@ -1105,7 +1106,23 @@ meant to catch that had only been checking a command was mentioned
 ([GDK-769]). Two more lines stopped claiming an Atlassian account a paired
 workspace does not have — the serve's listen line and sync's scope label now
 say the paired serve holds the projects, the last of the same misreading
-([GDK-1793]).
+([GDK-1793]). Two answers used to rest on an assumption, and both now come
+from the tool itself. `gadak doctor` prints a `binary` line beside the
+version: the executable's real path with the symlink resolved —
+`/opt/homebrew/bin/gadak` is a link into `/Applications/Gadak.app`, so
+unresolved it names the link and not the build — and the kind of signature on
+it, `developer-id` for the released app and `adhoc` for whatever the local
+toolchain signed. That pair is what separates "the release is broken" from
+"you are not running the release": measured, brew reported a cask installed in
+August while the app under it had been overwritten by a local build, and the
+Gatekeeper refusal that followed was filed against the published dmg, which is
+notarized and fine ([GDK-1798], [GDK-1794]). And a mirror that is behind now
+says so where an agent reads. The staleness verdict — a first sync still
+running, a sync that failed, an hour past the last one — moved out of the CLI
+into one owner both callers share, so the MCP read tools append it to their
+result instead of writing it to a stderr no MCP host can see; the existing
+payload is untouched byte for byte, and a fresh mirror adds nothing
+([GDK-599]).
 
 ## v0.21.0 — 2026-09-08
 
@@ -2886,6 +2903,8 @@ priority sorting keyed on `priority_rank`.
 [GDK-1791]: https://gadak.dev/backlog/#/?ks=GDK-1791
 [GDK-1792]: https://gadak.dev/backlog/#/?ks=GDK-1792
 [GDK-1793]: https://gadak.dev/backlog/#/?ks=GDK-1793
+[GDK-1794]: https://gadak.dev/backlog/#/?ks=GDK-1794
 [GDK-1795]: https://gadak.dev/backlog/#/?ks=GDK-1795
 [GDK-1796]: https://gadak.dev/backlog/#/?ks=GDK-1796
 [GDK-1797]: https://gadak.dev/backlog/#/?ks=GDK-1797
+[GDK-1798]: https://gadak.dev/backlog/#/?ks=GDK-1798
