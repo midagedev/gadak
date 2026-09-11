@@ -22,6 +22,7 @@ import { parse } from 'svelte/compiler'
 import { describe, expect, test } from 'vitest'
 import { en } from '../../lib/i18n/en'
 import { ko } from '../../lib/i18n/ko'
+import { effectiveCategory } from '../../lib/view-config'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SRC_PATH = join(HERE, 'EpicProgress.svelte')
@@ -204,5 +205,90 @@ describe('EpicProgress child selection (GDK-121)', () => {
     expect(source).toContain('data-testid="epic-child-row"')
     expect(source).toContain('data-testid="epic-children-toggle"')
     expect(source).toMatch(/const PREVIEW = 20/)
+  })
+})
+
+type Child = Lite & { status_category: string; status: string }
+
+function evalDisplay(
+  allIssues: Child[],
+  issueKey: string,
+  hideCompletedFor: string | null,
+  expandedFor: string | null = null,
+): {
+  children: Child[]
+  filteredChildren: Child[]
+  shown: Child[]
+  hidden: number
+  doneCount: number
+  percent: number
+  showCompleted: boolean
+} {
+  const body = derivedBindings().map((d) => `const ${d.name} = ${d.expr};`).join('\n')
+  const fn = new Function(
+    'issues', 'issueKey', 'hideCompletedFor', 'expandedFor', 'categoryOf', 'PREVIEW',
+    `${body}\nreturn { children, filteredChildren, shown, hidden, doneCount, percent, showCompleted };`,
+  )
+  return fn({ allIssues }, issueKey, hideCompletedFor, expandedFor, effectiveCategory, 20)
+}
+
+function child(index: number, done: boolean): Child {
+  return {
+    issue_key: `CHILD-${index}`,
+    parent_key: STORY,
+    epic_key: EPIC,
+    status_category: done ? 'done' : 'indeterminate',
+    // Deliberately contradict the category: display names never decide completion.
+    status: done ? '진행 중' : 'Done',
+  }
+}
+
+describe('child completion filtering', () => {
+  test.each([STORY, EPIC])('filters and restores %s children without changing progress', (key) => {
+    const children = [child(1, true), child(2, false), child(3, false)]
+    const initial = evalDisplay(children, key, null)
+    const filtered = evalDisplay(children, key, key)
+    const restored = evalDisplay(children, key, null)
+    expect(initial.shown).toEqual(children)
+    expect(filtered.shown).toEqual(children.slice(1))
+    expect(restored.shown).toEqual(initial.shown)
+    for (const state of [initial, filtered, restored]) {
+      expect(state.children).toHaveLength(3)
+      expect(state.doneCount).toBe(1)
+      expect(state.percent).toBe(33)
+    }
+  })
+
+  test('another parent starts with completed children visible', () => {
+    const children = [child(1, true)]
+    expect(evalDisplay(children, STORY, STORY).showCompleted).toBe(false)
+    const next = evalDisplay(children, EPIC, STORY)
+    expect(next.showCompleted).toBe(true)
+    expect(next.shown).toEqual(children)
+  })
+
+  test('all-hidden retains its complete set while genuinely childless stays empty', () => {
+    const children = [child(1, true), child(2, true)]
+    const filtered = evalDisplay(children, STORY, STORY)
+    expect(filtered.children).toHaveLength(2)
+    expect(filtered.shown).toEqual([])
+    expect(filtered.percent).toBe(100)
+    expect(filtered.hidden).toBe(0)
+    expect(evalDisplay(children, 'CHILD-1', null).children).toEqual([])
+    expect(source).toContain('{#if filteredChildren.length === 0}')
+    expect(source).toContain("t('detail.noIncompleteChildren')")
+  })
+
+  test.each([19, 20, 21])('previews after filtering with %i incomplete children', (count) => {
+    const done = Array.from({ length: 20 }, (_, i) => child(i, true))
+    const open = Array.from({ length: count }, (_, i) => child(i + 20, false))
+    const children = [...done, ...open]
+    const collapsed = evalDisplay(children, STORY, STORY)
+    expect(collapsed.shown).toEqual(open.slice(0, 20))
+    expect(collapsed.hidden).toBe(Math.max(0, count - 20))
+    const expanded = evalDisplay(children, STORY, STORY, STORY)
+    expect(expanded.shown).toEqual(open)
+    expect(expanded.hidden).toBe(0)
+    expect(source).toContain('{#if filteredChildren.length > PREVIEW}')
   })
 })

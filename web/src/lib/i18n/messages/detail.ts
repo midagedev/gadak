@@ -200,6 +200,16 @@ export const detail = {
     ko: '접기',
     ja: '少なく表示',
   },
+  'detail.showCompletedChildren': {
+    en: 'Show completed',
+    ko: '완료 항목 표시',
+    ja: '完了した課題を表示',
+  },
+  'detail.noIncompleteChildren': {
+    en: 'No incomplete child issues.',
+    ko: '미완료 하위 이슈가 없습니다.',
+    ja: '未完了の子課題はありません。',
+  },
   'detail.deploy': {
     en: 'Deploy status',
     ko: '배포 상태',

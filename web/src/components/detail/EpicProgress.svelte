@@ -43,10 +43,18 @@
   let expandedFor = $state<string | null>(null)
   const expanded = $derived(expandedFor === issueKey)
 
-  const shown = $derived<IssueLite[]>(
-    children.length > PREVIEW && !expanded ? children.slice(0, PREVIEW) : children,
+  let hideCompletedFor = $state<string | null>(null)
+  const showCompleted = $derived(hideCompletedFor !== issueKey)
+  const filteredChildren = $derived(
+    showCompleted ? children : children.filter((child) => categoryOf(child) !== 'done'),
   )
-  const hidden = $derived(children.length - shown.length)
+
+  const shown = $derived<IssueLite[]>(
+    filteredChildren.length > PREVIEW && !expanded
+      ? filteredChildren.slice(0, PREVIEW)
+      : filteredChildren,
+  )
+  const hidden = $derived(filteredChildren.length - shown.length)
 </script>
 
 {#if children.length > 0}
@@ -66,6 +74,23 @@
            to carry a bg-elevated track that vanished on its own ground. -->
       <MeterBar percent={percent} fill={categoryMetaOf('done').color} height="h-1" />
     </div>
+
+    <label class="mb-2 flex w-fit cursor-pointer items-center gap-2 text-micro text-text-secondary">
+      <input
+        type="checkbox"
+        data-testid="epic-show-completed"
+        class="accent-[var(--color-accent)]"
+        checked={showCompleted}
+        onchange={(event) => (hideCompletedFor = event.currentTarget.checked ? null : issueKey)}
+      />
+      {t('detail.showCompletedChildren')}
+    </label>
+
+    {#if filteredChildren.length === 0}
+      <p class="px-2 py-1.5 text-body text-text-muted">
+        {t('detail.noIncompleteChildren')}
+      </p>
+    {/if}
 
     <ul class="flex flex-col gap-1">
       {#each shown as child (child.issue_key)}
@@ -91,7 +116,7 @@
       {/each}
     </ul>
 
-    {#if hidden > 0 || expanded}
+    {#if filteredChildren.length > PREVIEW}
       <button
         type="button"
         data-testid="epic-children-toggle"
