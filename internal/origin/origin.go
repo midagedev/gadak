@@ -409,15 +409,18 @@ var ErrExportRefused = errors.New("origin: export refused")
 // caller). Read-only, and through the live session, so a running serve
 // exports without a second opener of the persist file.
 //
-// Transport, not HasBuiltInOrigin, is the gate: a paired workspace is also
+// Transport, not the stored kind, is the gate: a paired workspace is also
 // OriginGadak, but its origin is another machine's serve — constructing the
 // embedded origin here would mint a fresh empty persist on the wrong machine,
-// the quietly-wrong-origin class the pairing contract exists to prevent.
+// the quietly-wrong-origin class the pairing contract exists to prevent. The
+// first refusal asks origin type, not the stored kind (GDK-1793's audit), so
+// a paired workspace falls through to the paired sentence below instead of
+// being told its own origin's format is foreign to it.
 func EmbeddedSnapshot(cfg *config.Config) ([]byte, error) {
 	if cfg == nil {
 		return nil, errors.New("origin: nil config")
 	}
-	if !cfg.HasBuiltInOrigin() {
+	if cfg.OriginType() != config.OriginGadak {
 		return nil, fmt.Errorf("%w: the built-in workspace's YAML is this origin's own format; this workspace's origin is %s", ErrExportRefused, cfg.OriginType())
 	}
 	if cfg.Transport() != config.TransportLocal {

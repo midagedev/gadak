@@ -236,7 +236,10 @@ func MetaFor(meta []origin.CreateMetaProject, project string, cfg *config.Config
 		}
 	}
 	suffix := availableProjectsSuffix(meta)
-	if cfg != nil && cfg.HasBuiltInOrigin() {
+	// The which-tracker question (GDK-1793's audit): a paired workspace's
+	// meta also comes from the tracker, so a miss there is a workspace miss,
+	// not a permission one.
+	if cfg != nil && cfg.OriginType() == config.OriginGadak {
 		return origin.CreateMetaProject{}, nil, fmt.Errorf("project %s does not exist in this workspace%s", project, suffix)
 	}
 	return origin.CreateMetaProject{}, nil, fmt.Errorf("this credential cannot create issues in %s%s", project, suffix)

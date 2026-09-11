@@ -50,6 +50,17 @@ func TestEmbeddedSnapshotRefusalsAndYAML(t *testing.T) {
 	if _, statErr := os.Stat(filepath.Join(home, "origin", "issuetap.db")); !os.IsNotExist(statErr) {
 		t.Fatalf("paired refusal must not construct the embedded origin; stat=%v", statErr)
 	}
+	// The real paired-client shape (GDK-1793): Kind empty — pairing demands
+	// a fresh workspace, so the client never stores one. The refusal must
+	// still be the paired sentence; the first gate used to ask the stored
+	// kind, and this shape fell to "this origin's own format … your origin
+	// is gadak" — refusing the workspace by naming its own tracker.
+	cfg.Kind = ""
+	_, err = EmbeddedSnapshot(cfg)
+	if !errors.Is(err, ErrExportRefused) || !strings.Contains(err.Error(), "paired") {
+		t.Fatalf("empty-kind paired cfg: %v, want ErrExportRefused naming the pairing", err)
+	}
+	cfg.Kind = config.KindStandalone
 	if err := os.Remove(filepath.Join(cfg.Directory(), "remote-origin.json")); err != nil {
 		t.Fatal(err)
 	}

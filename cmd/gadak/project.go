@@ -10,11 +10,11 @@ import (
 	"github.com/midagedev/gadak/internal/origin"
 )
 
-// cmdProject is the project partition surface (GDK-391). Creation is
-// built-in-only: the embedded origin grows a project through its own
-// Jira API (writes pass through the origin, never the mirror). On a
-// connected workspace projects are Jira admin territory — gadak refuses
-// and points there instead of half-owning the verb.
+// cmdProject is the project partition surface (GDK-391). Creation is for
+// gadak's own tracker — held here or paired with a serve, the origin grows
+// a project through its own Jira API (writes pass through the origin,
+// never the mirror). Every other origin owns its projects itself; gadak
+// refuses and points there instead of half-owning the verb.
 func cmdProject(args []string) error {
 	if len(args) == 0 || wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("project", nil))
@@ -54,8 +54,12 @@ func cmdProjectCreate(args []string) error {
 	if !cfg.HasOrigin() {
 		return config.NotConfiguredWith("project create writes to the origin, not to the mirror")
 	}
-	if !cfg.HasBuiltInOrigin() {
-		return fmt.Errorf("project create is for the built-in tracker — on a Jira workspace, create the project in Jira and run `gadak sync`")
+	// The which-tracker question, so a paired workspace passes too: its
+	// origin is the same tracker one machine away and the POST below rides
+	// origin.Client's serve passthrough (GDK-1793 — this guard used to ask
+	// HasBuiltInOrigin and refused a paired workspace while blaming Jira).
+	if cfg.OriginType() != config.OriginGadak {
+		return fmt.Errorf("project create is for the built-in tracker — this workspace's origin is %s; create the project there and run `gadak sync`", cfg.OriginType())
 	}
 	client, err := origin.Client(cfg)
 	if err != nil {

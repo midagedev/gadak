@@ -10,6 +10,7 @@ import (
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/jira"
+	"github.com/midagedev/gadak/internal/pairing"
 )
 
 func priList() []jira.NamedID {
@@ -147,6 +148,41 @@ func TestMetaForConnectedKeepsCredentialMessage(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "this credential cannot create issues in IDEA") {
 		t.Fatalf("connected wording changed: %v", err)
+	}
+}
+
+// TestMetaForPairedDoesNotAssumeCredential is GDK-1793's audit applied here:
+// a paired workspace's meta also comes from the tracker, so a miss is a
+// workspace miss there too — not the connected credential sentence.
+func TestMetaForPairedDoesNotAssumeCredential(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("GADAK_HOME", home)
+	t.Cleanup(func() { config.SetProfile("") })
+	config.SetProfile("")
+
+	c, err := config.LoadFor("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pairing.SaveRemote(c.Directory(), pairing.Remote{
+		Endpoint: "https://home.example.com:8443",
+		Token:    "device-token",
+		Label:    "laptop",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := c.OriginType(); got != config.OriginGadak {
+		t.Fatalf("fixture origin type = %s, want gadak", got)
+	}
+	_, _, err = MetaFor(nil, "IDEA", c)
+	if err == nil {
+		t.Fatal("missing project must error")
+	}
+	if strings.Contains(err.Error(), "credential") {
+		t.Fatalf("paired must not assume a credential: %v", err)
+	}
+	if !strings.Contains(err.Error(), "does not exist in this workspace") {
+		t.Fatalf("want project-does-not-exist wording, got: %v", err)
 	}
 }
 

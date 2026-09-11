@@ -38,7 +38,10 @@ func importFilters(ctx context.Context, c *jira.Client, cfg *config.Config, db *
 		opts.logf("filters: store failed (%v)", err)
 		return
 	}
-	if cfg == nil || !cfg.HasBuiltInOrigin() {
+	// The which-tracker question (GDK-1793's audit): a paired workspace's
+	// filters come from the serve's issuetap, so the "from Jira" attribution
+	// stays off it exactly as for a locally held one.
+	if cfg == nil || cfg.OriginType() != config.OriginGadak {
 		opts.logf("filters: %d from Jira", len(out))
 	}
 }

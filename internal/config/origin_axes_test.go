@@ -78,6 +78,12 @@ func TestPairedWorkspaceIsGadakOverRemote(t *testing.T) {
 	if got := c.Transport(); got != TransportRemote {
 		t.Errorf("paired: Transport() = %q, want %q", got, TransportRemote)
 	}
+	// Both names of the in-process question must answer false here — the
+	// trap GDK-1793 closed is a caller reading this false as "not the
+	// built-in tracker's workspace" and refusing the verb.
+	if c.HasInProcessTracker() || c.HasBuiltInOrigin() {
+		t.Errorf("paired: HasInProcessTracker/HasBuiltInOrigin must both be false")
+	}
 	// Same origin type as an in-process issuetap — the transport is the
 	// only thing that differs, which is exactly the point of the split.
 	local := Config{Kind: KindStandalone}
@@ -90,18 +96,20 @@ func TestPairedWorkspaceIsGadakOverRemote(t *testing.T) {
 }
 
 // HasBuiltInOrigin gates writes all over the tree; it must accept the new
-// stored value or a migrated config silently loses its origin.
+// stored value or a migrated config silently loses its origin. The alias
+// (GDK-1793) must answer exactly what HasInProcessTracker answers, or the
+// two names would drift into meaning two things again.
 func TestIsBuiltInAcceptsBothStoredValues(t *testing.T) {
 	for _, kind := range []string{KindStandalone, OriginGadak} {
 		c := Config{Kind: kind}
-		if !c.HasBuiltInOrigin() {
-			t.Errorf("Kind %q: HasBuiltInOrigin() = false", kind)
+		if !c.HasBuiltInOrigin() || !c.HasInProcessTracker() {
+			t.Errorf("Kind %q: HasBuiltInOrigin()/HasInProcessTracker() = false", kind)
 		}
 	}
 	for _, kind := range []string{"", KindConnected, OriginJira, OriginLinear} {
 		c := Config{Kind: kind}
-		if c.HasBuiltInOrigin() {
-			t.Errorf("Kind %q: HasBuiltInOrigin() = true", kind)
+		if c.HasBuiltInOrigin() || c.HasInProcessTracker() {
+			t.Errorf("Kind %q: HasBuiltInOrigin()/HasInProcessTracker() = true", kind)
 		}
 	}
 }

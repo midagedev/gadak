@@ -1016,14 +1016,35 @@ func (c *Config) ProfileName() string {
 	return c.profile
 }
 
-// HasBuiltInOrigin reports a workspace whose stored kind says its origin is
-// gadak's own tracker (issuetap), not a Jira site. It tests origin type
-// only — never transport. A paired workspace's origin is also that tracker,
-// but it leaves Kind empty, so this returns false for it; when the question
-// is "which tracker", ask OriginType(), and for "in-process" ask
-// Transport() == TransportLocal.
-func (c *Config) HasBuiltInOrigin() bool {
+// HasInProcessTracker reports a workspace whose stored kind says its origin
+// is gadak's own tracker (issuetap), held on this machine. That is one
+// question, and callers keep arriving here with the other two:
+//
+//   - "which tracker is the origin?" is OriginType() == OriginGadak. A
+//     paired workspace answers true there and false here — its origin is
+//     the same tracker, one machine away. Gating a verb on this method
+//     refuses paired workspaces that should proceed (GDK-1793: project
+//     create refused a paired workspace and blamed Jira).
+//   - "how is the origin reached?" is Transport(). Note it is not simply
+//     this method's inverse: a home machine that minted a pairing gate
+//     keeps its `_home` routing token in remote-origin.json, which isPaired
+//     reads, so Transport() can answer remote while the tracker — and this
+//     method — stay true to this machine.
+//
+// Mount, seed, persist, and advertise decisions ask exactly this; the
+// which-tracker decisions must not.
+func (c *Config) HasInProcessTracker() bool {
 	return c != nil && (c.Kind == KindStandalone || c.Kind == OriginGadak)
+}
+
+// HasBuiltInOrigin is the pre-split name for HasInProcessTracker. Prefer
+// the new name: "built-in" reads like an origin-type question, which this
+// is not — OriginType() == OriginGadak is the which-tracker question and
+// answers true for a paired workspace, where this answers false. The old
+// name is kept for the existing call sites (44 non-test at the GDK-1793
+// audit, almost all genuine in-process questions); do not add new ones.
+func (c *Config) HasBuiltInOrigin() bool {
+	return c.HasInProcessTracker()
 }
 
 // isPaired reports a workspace bound to another machine's serve. The
