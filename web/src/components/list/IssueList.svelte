@@ -29,7 +29,7 @@
   import IssueRow, { HEADER_ROW_ISSUE } from './IssueRow.svelte'
   import GroupHeader from './GroupHeader.svelte'
   import { defaultColumns } from '../../lib/view-config'
-  import { TRAIL_BREAK_PRIORITY, trailBreakCss, syncTrailBreakStyle } from './row-column-thresholds'
+  import { TRAIL_BREAK_PRIORITY, rowFoldCss, syncTrailBreakStyle } from './row-column-thresholds'
 
   const OVERSCAN = 8
 
@@ -211,11 +211,17 @@
   // into one <style> in <head>; the browser's container query does the
   // firing. This list is the only renderer of rows that wear the
   // trail-break classes, so the element rides its lifetime: gone on unmount.
+  //
+  // GDK-1791: the same <style> now also carries the always-on fold rungs
+  // (trail-fold-*). They were three static numbers in app.css and could not
+  // see the enabled option set, so at a 1000px window the strip took its
+  // fixed widths first and left the title 222px of the row's 728. Same
+  // module, same arithmetic, one more ladder — rowFoldCss emits both.
   $effect(() => {
     const cols = filters.columnSet
     const epicPaints = filters.display.group_by !== 'epic'
     syncTrailBreakStyle(
-      trailBreakCss(
+      rowFoldCss(
         TRAIL_BREAK_PRIORITY.filter((col) => (col === 'epic' ? epicPaints : cols.has(col))),
       ),
     )

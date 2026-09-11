@@ -14,7 +14,15 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
-import { trailBreakCss, trailBreakLadder, TRAIL_BREAK_PRIORITY } from './row-column-thresholds'
+import {
+  alwaysOnFoldCss,
+  alwaysOnFoldLadder,
+  rowFoldCss,
+  trailBreakCss,
+  trailBreakLadder,
+  TITLE_COMFORT_PX,
+  TRAIL_BREAK_PRIORITY,
+} from './row-column-thresholds'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 
@@ -124,5 +132,95 @@ describe('trailBreakCss', () => {
     for (const { cssClass } of trailBreakLadder(TRAIL_BREAK_PRIORITY)) {
       expect(worn, `${cssClass} must be worn by a slot in IssueRow.svelte`).toContain(cssClass)
     }
+  })
+})
+
+/*
+ * GDK-1791 contract: the always-on strip yields before the title does.
+ *
+ * The numbers below are the model's, and the model is checked against the
+ * browser by e2e/list-title-floor.spec.ts — this block pins the arithmetic
+ * so a rung cannot move silently, and the ordering property that makes the
+ * fold a fold rather than a squeeze.
+ *
+ * FAIL-first for the whole change is in e2e/list-title-floor.spec.ts: with
+ * the static 620/480/400 rungs this file replaced, the 1000px window
+ * measured a 222px title (floor 292.5px, six of six rows truncated).
+ */
+describe('alwaysOnFoldLadder (GDK-1791)', () => {
+  /** The demo fixture's default option set: epic, and nothing else. */
+  const DEFAULT_SET = ['epic']
+
+  const hiddenAt = (set: readonly string[], w: number): string[] =>
+    alwaysOnFoldLadder(set)
+      .filter((f) => f.bands.some((b) => w >= b.lo && w <= b.hi))
+      .map((f) => f.cssClass)
+
+  test('the three widths this issue was reported at', () => {
+    // Row widths measured in the browser, demo fixture, same round:
+    // a 1440px window is a 1168px row, 1000 → 728, 800 → 592.
+    expect(hiddenAt(DEFAULT_SET, 1168), 'a 1440px window keeps the whole strip').toEqual([])
+    expect(hiddenAt(DEFAULT_SET, 728), 'a 1000px window drops assignee+updated only').toEqual([
+      'trail-fold-1',
+    ])
+    expect(hiddenAt(DEFAULT_SET, 592), 'an 800px window keeps stale and the title').toEqual([
+      'trail-fold-1',
+      'trail-fold-2',
+      'trail-fold-3',
+    ])
+  })
+
+  test('a hidden level implies every level folded before it', () => {
+    const order = ['trail-fold-1', 'trail-fold-2', 'trail-fold-3']
+    for (const set of [[], DEFAULT_SET, ['epic', 'status', 'due'], TRAIL_BREAK_PRIORITY]) {
+      for (let w = 300; w <= 1400; w += 1) {
+        const hidden = hiddenAt(set, w)
+        expect(hidden, `[${set.join(',')}] at ${w}px hides out of order`).toEqual(
+          order.slice(0, hidden.length),
+        )
+      }
+    }
+  })
+
+  test('the bands see the enabled set — epic opens a hole labels falls into', () => {
+    // epic paints from 750 and costs 64px + a gap, so with it enabled the
+    // floor is unmet in 750-792 even with assignee+updated gone. `labels`
+    // folds there and comes back above it; with no option column on, that
+    // band does not exist at all.
+    const labels = (set: readonly string[]) =>
+      alwaysOnFoldLadder(set).find((f) => f.cssClass === 'trail-fold-2')!.bands
+    expect(labels([])).toEqual([{ lo: 0, hi: 718 }])
+    expect(labels(DEFAULT_SET)).toEqual([
+      { lo: 0, hi: 718 },
+      { lo: 750, hi: 792 },
+    ])
+  })
+
+  test('a narrow row folds the whole strip whether or not that reaches the floor', () => {
+    // The rule is "closer to the floor is better", not "only when it wins".
+    // A draft that folded only when the fold reached 293px stopped folding
+    // under 549px — the narrowest rows the app makes — and left the title on
+    // its 13ch hard floor with the whole strip beside it.
+    expect(hiddenAt(TRAIL_BREAK_PRIORITY, 400)).toEqual([
+      'trail-fold-1',
+      'trail-fold-2',
+      'trail-fold-3',
+    ])
+    expect(hiddenAt([], 400)).toEqual(['trail-fold-1', 'trail-fold-2', 'trail-fold-3'])
+  })
+
+  test('css hides inside the band, in @layer utilities', () => {
+    const css = alwaysOnFoldCss(DEFAULT_SET)
+    expect(css).toContain('@layer utilities {')
+    expect(css).toContain('@container issuerow (max-width: 718px)')
+    expect(css).toContain('@container issuerow (min-width: 750px) and (max-width: 792px)')
+    expect(css).toContain('.trail-fold-2')
+    expect(css).toContain(String(TITLE_COMFORT_PX))
+  })
+
+  test('rowFoldCss carries both ladders', () => {
+    const css = rowFoldCss(DEFAULT_SET)
+    expect(css).toContain(trailBreakCss(DEFAULT_SET))
+    expect(css).toContain(alwaysOnFoldCss(DEFAULT_SET))
   })
 })

@@ -346,7 +346,14 @@ without a shell can put the week beside you instead of only the backlog
 no-argument call no longer ships the whole colour catalog, `gadak_ui_set`
 returns `previous` so a merge can be undone by passing it back, and
 `ui.tokensByTheme` and `ui.dataColors` are writable rather than merely named
-in a description.
+in a description. And the list row stopped making the
+title pay for everything: the furniture on the right — stale age, labels, the
+avatar, the updated time — took its fixed widths first, so a window 30%
+narrower cost the title 60% of its width and every row at 1000px clipped
+mid-verb. The strip is now priced against a width at which a title is still a
+title, and folds away in order, whole, until that width is there: 222px to
+302px at 1000, 166px to 336px at 800, and 1440 unchanged to the pixel
+([GDK-1791]).
 
 The CLI itself says when its skill file is behind: a read verb prints one
 stderr line when the installed copy differs from this build's, so an agent
@@ -2780,3 +2787,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1787]: https://gadak.dev/backlog/#/?ks=GDK-1787
 [GDK-1788]: https://gadak.dev/backlog/#/?ks=GDK-1788
 [GDK-1789]: https://gadak.dev/backlog/#/?ks=GDK-1789
+[GDK-1791]: https://gadak.dev/backlog/#/?ks=GDK-1791

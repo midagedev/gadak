@@ -1381,42 +1381,34 @@
     }
   }
 
-  @container issuerow (max-width: 620px) {
-    .trail-fold-1 {
-      display: none;
-    }
-  }
-
   /*
-    GDK-1155: the same fold, one rung higher, when the detail panel is open.
+    GDK-1791: the trail-fold-* rungs are GENERATED now, not static.
 
-    The 678px two-pane row and the 628px list-only row are both above 620,
-    and a rule that reads only the row's width cannot tell them apart — that
-    is why the issue stood open. It is not missing information, though: the
-    app knows which one it is (`.detail-open` on .issue-layout, App.svelte),
-    and the row was throwing that bit away.
+    620 / 480 / 400 stood here (and a fourth, `.detail-open` at 690, from
+    GDK-1155). They were row widths at which the strip could no longer
+    physically fit — furniture first, title last — so at a 1000px window the
+    row was 728px, the strip took its fixed 294 and the title got 222 with
+    every one of the first six rows truncated, while nothing on the row was
+    even close to overflowing. The rungs are priced against the title's
+    comfort floor instead, and they have to see the enabled option set to do
+    it (epic paints from 750 and costs 74px), which a static table cannot.
 
-    Reading it is not a return to viewport keying, which GDK-1046 removed for
-    a good reason — the viewport cannot see the panel. This IS the panel, and
-    it is the reason the row is narrow.
+    Single owner: web/src/components/list/row-column-thresholds.ts
+    (alwaysOnFoldLadder / alwaysOnFoldCss); IssueList.svelte injects them
+    into the same <style id="trail-break-rungs"> as the option-break rungs.
+    Same @layer utilities, same max-width direction, same GDK-766 reason.
 
-    What makes it right rather than merely roomier: with the panel open,
-    `assignee` and `updated` are on screen already, in the panel, for the row
-    being read. The list's remaining job there is identification, and that is
-    the title. Measured 2026-08-30, viewport 1440 with the panel open: row
-    678, title 172 → 272 (assignee 20 + updated 40 + two 10px gaps, and the
-    trailing container stops shrinking the title to feed them).
+    The `.detail-open` rung is gone with them rather than kept: it existed to
+    fold this level at 690 for the two-pane row, and every generated rung for
+    this level is ≥ 800 for any enabled set, so it can only fire later than
+    the ladder already does. Its measurement survives as a gate
+    (row-narrow.spec.ts, title > 250 on the 678px row).
 
-    690, not 678: the rung has to clear the row width it is aimed at. The
-    620 rung below is untouched, so the 628px list-only row GDK-1046 pinned
-    it for keeps `updated` — list-row-columns.spec.ts asserts that at
-    viewport 900, and row-narrow.spec.ts asserts the 272 here.
+    trail-fold-2 no longer needs its own static rule either: the ladder emits
+    one. .lead-fold-1 below is NOT part of this — the leading strip is a
+    separate fold with its own GDK-1089 derivation and stays static.
   */
-  @container issuerow (max-width: 690px) {
-    .detail-open .trail-fold-1 {
-      display: none;
-    }
-  }
+
 
   /*
     GDK-1089: the title's floor, and the leading strip's fold.
@@ -1482,17 +1474,6 @@
     }
   }
 
-  @container issuerow (max-width: 480px) {
-    .trail-fold-2 {
-      display: none;
-    }
-  }
-
-  @container issuerow (max-width: 400px) {
-    .trail-fold-3 {
-      display: none;
-    }
-  }
 
   /*
     GDK-1077: the option-column break rungs are GENERATED, not static. A

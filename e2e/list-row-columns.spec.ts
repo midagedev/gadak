@@ -123,12 +123,33 @@ test.describe('list row trailing columns', () => {
     expect(visibleEpic.chips, 'epic chip must not paint below lg').toBe(0)
     expect(visibleEpic.slots, 'epic slot must be display:none below lg').toBe(0)
 
+    /*
+     * GDK-1791: `updated remains at 900px` stood here, with the same x-spread
+     * check the 1440 beat makes. It cannot stand: a 900px window is a 628px
+     * row, and the always-on fold rungs are priced against the title's comfort
+     * floor now (row-column-thresholds.ts) rather than against overflow — at
+     * 628 the whole strip but `stale` is folded and the title goes 138 → 336.
+     * The column that was asserted here is gone by design.
+     *
+     * What the beat is FOR survives: a narrow row drops columns whole instead
+     * of squeezing them, and the fields that do paint still share an x. So the
+     * assertion moves to `stale`, the one slot that never folds — same
+     * property, on a slot that is still there. FAIL-first for the change as a
+     * whole is e2e/list-title-floor.spec.ts (222px title, 292.5px floor).
+     */
     const updated = await fieldXs(page, 'updated')
-    expect(updated.length, 'updated remains at 900px').toBeGreaterThan(4)
-    const updatedSpread = spreadPx(updated)
+    expect(updated.length, 'updated folds whole at a 628px row, it does not squeeze').toBe(0)
+
+    const stale = await page.evaluate(() =>
+      [...document.querySelectorAll('[data-col="stale"]')]
+        .filter((el) => el.getClientRects().length > 0)
+        .map((el) => Math.round(el.getBoundingClientRect().x)),
+    )
+    expect(stale.length, 'stale never folds — it must still paint at 900px').toBeGreaterThan(4)
+    const staleSpread = spreadPx(stale)
     expect(
-      updatedSpread,
-      `updated x spread at 900px ${updatedSpread.toFixed(2)}px (n=${updated.length})`,
+      staleSpread,
+      `stale x spread at 900px ${staleSpread.toFixed(2)}px (n=${stale.length})`,
     ).toBeLessThanOrEqual(SPREAD_MAX_PX)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])

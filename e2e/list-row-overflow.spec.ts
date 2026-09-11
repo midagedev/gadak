@@ -349,12 +349,51 @@ for (const width of [1280, 1440]) {
       expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
     })
 
-    test('every +N counter fits inside the labels slot', async ({ page }) => {
+    /*
+     * GDK-1791: this beat used to run expectCountersInsideSlot here, and
+     * cannot any more — there is no labels slot on these rows to measure.
+     * The always-on fold rungs are priced against the title's comfort floor
+     * now (row-column-thresholds.ts), and the panel-open rows these two
+     * viewports make (≈570 and 678) are under the width at which `labels`
+     * can paint beside a 293px title. Asserting the fold IS the measurement
+     * the width axis wants here; the counter geometry moved to the
+     * panel-closed rows below, which still hold the 64px slot step the
+     * GDK-1050 counter contract was written for.
+     */
+    test('labels fold rather than starve the title', async ({ page }) => {
       const errors = attachConsoleErrors(page)
       await enableQaColumn(page)
       await gotoPanelOpen(page)
+      await expect(
+        page.getByTestId('issue-list-scroller').locator('[data-issue-key]').first(),
+      ).toBeVisible({ timeout: 30_000 })
 
-      await expectCountersInsideSlot(page, width, 'detail panel open')
+      const cols = await visibleColCounts(page)
+      expect(cols.stale, 'stale never folds').toBeGreaterThan(0)
+      expect(cols.labels, `labels must be folded on the panel-open row at ${width}`).toBeUndefined()
+
+      expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+    })
+  })
+}
+
+/*
+ * GDK-1791: the 64px labels step, on rows that still have one. 1000 → a
+ * 728px row and 1120 → 848: both above the width where `labels` folds and
+ * both in the ≤1100 band, where the slot is 64px and its counter reserve is
+ * tightest — the step expectCountersInsideSlot was aimed at when it ran on
+ * the panel-open rows above.
+ */
+for (const width of [1000, 1120]) {
+  test.describe(`labels counter step, panel closed @${width}`, () => {
+    test.use({ viewport: { width, height: 900 } })
+
+    test('every +N counter fits inside the labels slot', async ({ page }) => {
+      const errors = attachConsoleErrors(page)
+      await enableQaColumn(page)
+      await gotoPanelClosed(page)
+
+      await expectCountersInsideSlot(page, width, 'panel closed')
 
       expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
     })
@@ -404,7 +443,14 @@ for (const width of [1280, 1440]) {
       // (severity, 770) is above both rows (570/678).
       const cols = await visibleColCounts(page)
       expect(cols.stale, 'stale is fold-managed and must paint').toBeGreaterThan(0)
-      expect(cols.labels, 'labels are fold-managed and must paint').toBeGreaterThan(0)
+      // GDK-1791: `labels` used to be asserted here as the other fold-managed
+      // default that paints. It does not, on these rows, and that is the
+      // change: the fold rungs are priced against the title's comfort floor
+      // (293px) instead of against overflow, and a 570/678px row carrying the
+      // full catalog cannot hold the labels slot and a readable title. `stale`
+      // is the one that never folds, so the liveness argument — the row
+      // narrowed by hiding columns, not by rendering nothing — rests on it.
+      expect(cols.labels, 'labels fold before the title does').toBeUndefined()
       expect(cols.severity, `severity (rung 770) must be hidden on a ${probe.rowW}px row`).toBeUndefined()
       expect(cols.components, 'components (rung 1960) must be hidden').toBeUndefined()
 
@@ -435,7 +481,14 @@ test.describe('full catalog, detail panel closed @1440', () => {
     expect(cols.status, 'status (1060) must paint on a 1168px row').toBeGreaterThan(0)
     expect(cols.comment_count, 'comment_count (1130) must paint on a 1168px row').toBeGreaterThan(0)
     expect(cols.epic, 'epic (750, GDK-1046) must paint on a 1168px row').toBeGreaterThan(0)
-    expect(cols.updated, 'updated is fold-managed and must paint').toBeGreaterThan(0)
+    // GDK-1791: `updated` paints on a 1168px row with the DEFAULT columns and
+    // no longer with the full catalog. Eight option columns' rungs are under
+    // 1168 (epic 750 … comment_count 1130), they take 540px of the row plus
+    // gaps, and the title lands under its 293px comfort floor — so the
+    // always-on strip folds, in its designed order, until it cannot help.
+    // The user switched those eight on; nobody switched `updated` on.
+    expect(cols.updated, 'updated folds on a full-catalog 1168px row').toBeUndefined()
+    expect(cols.stale, 'stale never folds').toBeGreaterThan(0)
     expect(cols.created, 'created (rung 1180) must be hidden on a 1168px row').toBeUndefined()
     expect(cols.fix_versions, 'fix_versions (rung 1840) must be hidden').toBeUndefined()
     expect(cols.components, 'components (rung 1960) must be hidden').toBeUndefined()

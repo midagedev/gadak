@@ -238,3 +238,241 @@ export function syncTrailBreakStyle(css: string): void {
   }
   el.textContent = css
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+ * GDK-1791: the always-on strip yields to the title's comfort floor.
+ *
+ * Everything above this line prices the OPTIONAL columns against the title's
+ * hard floor (13ch, LEAD_AND_TITLE) — a column the user switched on may
+ * squeeze the title down to the point where it stops being a title. That is
+ * a choice the user made. The always-on strip is not: reopen, stale, deploy,
+ * labels, assignee and updated are the row's furniture, and they were taking
+ * their fixed widths first and leaving the title the remainder.
+ *
+ * Measured on this tree before the change (demo fixture, en, Chromium,
+ * scratch harness title-width.mjs — top six rows, `.row-title`
+ * getBoundingClientRect().width and scrollWidth > clientWidth):
+ *
+ *   viewport   row    title   truncated   trailing strip
+ *   1440      1168      564       0/6     reopen stale deploy epic labels assignee updated
+ *   1000       728      222       6/6     reopen stale deploy labels assignee updated
+ *    800       592      166       6/6     reopen stale deploy labels
+ *
+ * The window narrows 30% and the title loses 60%: the strip's widths are
+ * fixed, so every pixel the row loses comes off the one flexible element.
+ *
+ * The rule this module already had — "a hide drops the whole slot, never a
+ * squeeze" — is the fix; it only needed a wider scope. Below the rungs
+ * generated here the always-on slots drop, in the fold order the row already
+ * uses (assignee+updated, then labels, then reopen+deploy; `stale` never
+ * folds — "is this stuck" is the one fact the narrow row keeps), until the
+ * title can hold TITLE_COMFORT_PX.
+ *
+ * Why a second floor rather than raising the 13ch one: the 13ch floor is a
+ * CSS min-width, and two floors cannot share one row (GDK-1089 measured a
+ * proportional floor pushing the label chips 52px past the scroller, because
+ * chipfold-labels has a min-width of its own). This floor is not a min-width
+ * at all — it never binds on the element. It is the number the fold rungs
+ * are priced against, so the strip is gone before the title gets near it.
+ *
+ * Measured constants, same round, same harness. ROW_OVERHEAD is
+ * row − title − trailing-strip, identical at all three widths above
+ * (1168−564−392 = 728−222−294 = 592−166−214 = 212): the leading strip to the
+ * title's left edge (186), the gap before the trailing strip (10) and the
+ * row's own horizontal padding (16).
+ */
+
+/** row width − title width − trailing-strip width. Measured 2026-09-11. */
+const ROW_OVERHEAD = 212
+
+/**
+ * The width at which a title is a title. 36ch in the shipped 11px face
+ * (1ch = 8.125px measured) = 293px.
+ *
+ * Derived against the demo fixture in the title's own font, same round
+ * (scratch harness floor-derive.mjs, n=45 summaries): the shortest prefix
+ * that is unique among the list's summaries is 15.8ch at the 95th
+ * percentile, and the 25th-percentile summary renders whole in 325px. So
+ * 36ch clears identification with better than 2x margin and renders a
+ * quarter of the rows complete, where the 13ch hard floor (106px) is the
+ * "about twelve characters and an ellipsis" GDK-1089 measured.
+ *
+ * px, not ch, because this is rung arithmetic: the whole module is a
+ * constant-math model of the row and reads no layout. A narrower ch (CI's
+ * Linux face) makes the real title wider than this model assumes, which is
+ * the safe direction.
+ */
+export const TITLE_COMFORT_PX = 293
+
+/** Always-on slots that never fold: the row's last fact. */
+const STALE_WIDTH_BY_BAND = { narrow: 44, wide: 56 } as const
+/** Labels slot, by the same bands app.css steps it on (≤1100 / ≤1299 / ≥1300). */
+const LABELS_WIDTH_BY_BAND = { narrow: 64, mid: 76, wide: 140 } as const
+
+/** One always-on fold level and the row widths at which it is hidden.
+ *  `bands` are inclusive [lo, hi] row widths; `lo === 0` means "and narrower". */
+export interface AlwaysOnFold {
+  /** The class the slots wear in IssueRow.svelte. */
+  cssClass: string
+  /** What the level holds, for the generated comment. */
+  slots: readonly string[]
+  bands: readonly { lo: number; hi: number }[]
+}
+
+/** Fold order — the level that goes FIRST is first. Same order the row's
+ *  information order names (what to keep last): stale → reopen → deploy →
+ *  labels → assignee → updated. */
+const ALWAYS_ON_LEVELS: readonly { cssClass: string; slots: readonly string[]; width: number; count: number }[] = [
+  // assignee (w-5, 20) + updated (w-10, 40). The carryover glyph rides this
+  // class too and is not modeled: it is on some rows only and folds with this
+  // level, so leaving it out keeps the model conservative.
+  { cssClass: 'trail-fold-1', slots: ['assignee', 'updated'], width: 60, count: 2 },
+  // labels — band-dependent width, resolved in alwaysOnStrip.
+  { cssClass: 'trail-fold-2', slots: ['labels'], width: 0, count: 1 },
+  // reopen (w-9, 36) + deploy (w-10, 40).
+  { cssClass: 'trail-fold-3', slots: ['reopen', 'deploy'], width: 76, count: 2 },
+]
+
+function bandOf(rowWidth: number): 'narrow' | 'mid' | 'wide' {
+  if (rowWidth >= 1300) return 'wide'
+  if (rowWidth >= 1101) return 'mid'
+  return 'narrow'
+}
+
+/** Width + slot count of the always-on strip at `rowWidth` with the first
+ *  `hiddenLevels` levels folded away. `stale` is always in it. */
+function alwaysOnStrip(rowWidth: number, hiddenLevels: number): { w: number; n: number } {
+  const band = bandOf(rowWidth)
+  let w = band === 'narrow' ? STALE_WIDTH_BY_BAND.narrow : STALE_WIDTH_BY_BAND.wide
+  let n = 1
+  for (let i = hiddenLevels; i < ALWAYS_ON_LEVELS.length; i++) {
+    const level = ALWAYS_ON_LEVELS[i]
+    n += level.count
+    w +=
+      level.cssClass === 'trail-fold-2'
+        ? band === 'narrow'
+          ? LABELS_WIDTH_BY_BAND.narrow
+          : band === 'mid'
+            ? LABELS_WIDTH_BY_BAND.mid
+            : LABELS_WIDTH_BY_BAND.wide
+        : level.width
+  }
+  return { w, n }
+}
+
+/** Title width the model predicts at `rowWidth` with `hiddenLevels` folded,
+ *  given the option columns whose rung lets them paint at that width. */
+function modeledTitle(
+  rowWidth: number,
+  hiddenLevels: number,
+  optionLadder: readonly TrailBreakRung[],
+): number {
+  const strip = alwaysOnStrip(rowWidth, hiddenLevels)
+  let w = strip.w
+  let n = strip.n
+  for (const rung of optionLadder) {
+    if (rung.rung <= rowWidth) {
+      w += SLOT_WIDTH[rung.col]
+      n += 1
+    }
+  }
+  return rowWidth - ROW_OVERHEAD - w - GAP * Math.max(0, n - 1)
+}
+
+/** Row widths the model is evaluated at. 260 is under the narrowest row the
+ *  app makes (the 358px three-pane row GDK-1089 measured, the 410px docked
+ *  one that replaced it); 1400 is above the 1360 layout cap. */
+const SCAN_LO = 260
+const SCAN_HI = 1400
+
+/**
+ * Which always-on levels are hidden at which row widths, for an enabled
+ * option set.
+ *
+ * One rule, at every width: a level is hidden where the title, with the
+ * levels before it already folded, would be under TITLE_COMFORT_PX.
+ *
+ * Deliberately not conditioned on the fold being ENOUGH. With the full
+ * option catalog on a dense row there are widths where no amount of folding
+ * buys a 293px title, and an earlier draft kept the strip there on the
+ * grounds that folding furniture that cannot win is just a smaller row. It
+ * is the wrong rule: it also stopped folding on the narrowest rows the app
+ * makes (under 549px nothing could reach the floor, so nothing folded and
+ * the title sat on its 13ch hard floor with the whole strip beside it) —
+ * strictly worse than the static rungs this replaced. Closer to the floor
+ * is better than further from it, at every width.
+ *
+ * The result is BANDS, not one max-width rung, and that is the difference
+ * that made this worth generating. An option column joining the row at its
+ * own rung can take the title back under the floor for a stretch — epic
+ * paints from 750 and costs 74px, so with the default set the floor is unmet
+ * in 750–792 even with `labels` folded. A single rung has to choose between
+ * leaving that hole open (the floor is not a floor) and folding `labels` at
+ * every width below 793 (it would be gone at a 1000px window, where the row
+ * is 728 and the floor is met with room to spare). Bands say the true thing
+ * at every width: `labels` is hidden below 719 AND in 750–792, and paints in
+ * between and above.
+ *
+ * Nesting is automatic: if level k is hidden at a width then so is every
+ * level before it (the title only gets narrower with fewer levels folded),
+ * so the bands cannot describe a row that drops `labels` while keeping
+ * `updated`.
+ */
+export function alwaysOnFoldLadder(enabled: readonly string[]): AlwaysOnFold[] {
+  const optionLadder = trailBreakLadder(enabled)
+  return ALWAYS_ON_LEVELS.map((level, k) => {
+    const bands: { lo: number; hi: number }[] = []
+    let open: { lo: number; hi: number } | null = null
+    for (let w = SCAN_LO; w <= SCAN_HI; w++) {
+      const hide = modeledTitle(w, k, optionLadder) < TITLE_COMFORT_PX
+      if (hide) {
+        if (open) open.hi = w
+        else open = { lo: w === SCAN_LO ? 0 : w, hi: w }
+      } else if (open) {
+        bands.push(open)
+        open = null
+      }
+    }
+    if (open) bands.push(open)
+    return { cssClass: level.cssClass, slots: level.slots, bands }
+  })
+}
+
+/**
+ * The <style> text for the always-on ladder — one @container issuerow rule
+ * per band, in the same @layer utilities and for the same GDK-766 reason as
+ * the option rungs (the display:none must outrank the slots' `flex`
+ * utility). A band that starts at 0 is written max-width only, so a browser
+ * without container-query support lands on the strip-visible step.
+ */
+export function alwaysOnFoldCss(enabled: readonly string[]): string {
+  const folds = alwaysOnFoldLadder(enabled)
+  const rules: string[] = []
+  for (const fold of folds) {
+    for (const band of fold.bands) {
+      const query =
+        band.lo === 0
+          ? `(max-width: ${band.hi}px)`
+          : `(min-width: ${band.lo}px) and (max-width: ${band.hi}px)`
+      rules.push(
+        `  /* ${fold.slots.join(' + ')} */\n  @container issuerow ${query} {\n    .${fold.cssClass} {\n      display: none;\n    }\n  }`,
+      )
+    }
+  }
+  if (rules.length === 0) return ''
+  return [
+    `@layer utilities {`,
+    `  /* always-on fold bands, priced against the title's ${TITLE_COMFORT_PX}px comfort`,
+    `     floor (GDK-1791) — generated, single owner:`,
+    `     web/src/components/list/row-column-thresholds.ts */`,
+    ...rules,
+    `}`,
+    ``,
+  ].join('\n')
+}
+
+/** Both ladders, in one <style>: the option breaks and the always-on folds.
+ *  IssueList.svelte injects this. */
+export function rowFoldCss(enabled: readonly string[]): string {
+  return trailBreakCss(enabled) + alwaysOnFoldCss(enabled)
+}
