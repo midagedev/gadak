@@ -140,16 +140,22 @@ func TestSlackPatternAgreesWithRepoScanner(t *testing.T) {
 	assertScriptVarMatchesPattern(t, "PAT_SLACK", "slack_token")
 }
 
+func TestPEMPatternAgreesWithRepoScanner(t *testing.T) {
+	assertScriptVarMatchesPattern(t, "PAT_PEM", "private_key_pem")
+}
+
 // treeScanned records, for every shape in the package table, whether
 // scripts/scan-internal.sh greps the repository for it, and a synthetic vector
 // to prove it either way. The map is the single answer to "which shapes does
 // the repo scanner cover" — adding a pattern to the package without deciding
 // its tree coverage fails TestRepoScannerTreeCoverageIsExhaustive below.
 //
-// private_key_pem is false on purpose (GDK-1110): the tree carries legitimate
-// PEM test vectors, so covering it needs per-file exemption machinery no other
-// shape needs. Flipping it to true is a deliberate change, and this table plus
-// the header of scan-internal.sh is where that decision lives.
+// private_key_pem turned true in GDK-1797: every shape in the table is now
+// scanned over the tree. Its legitimate hits — the drift-gate corpora that
+// exist to contain a PEM header — are exempted per file in pem-exemptions.txt
+// (this package's directory), the single home of that list: the script drops
+// exempted hits and fails stale entries from it, and the tests below enforce
+// the same discipline from the Go side, where the canonical shape lives.
 //
 // Vectors are synthetic filler behind a documented prefix. Never a live token.
 var treeScanned = map[string]struct {
@@ -162,7 +168,7 @@ var treeScanned = map[string]struct {
 	"github_token":        {"ghp_" + strings.Repeat("a", 24), true},
 	"http_basic_auth":     {"Authorization: Basic " + strings.Repeat("Q", 12), true},
 	"http_bearer_token":   {"Authorization: Bearer " + strings.Repeat("t", 24), true},
-	"private_key_pem":     {"-----BEGIN PRIVATE KEY-----", false},
+	"private_key_pem":     {"-----BEGIN PRIVATE KEY-----", true},
 }
 
 func TestRepoScannerTreeCoverageIsExhaustive(t *testing.T) {
@@ -212,5 +218,98 @@ func TestRepoScannerMatchesTreeCoverage(t *testing.T) {
 				t.Errorf("hit was not labelled with the shape that matched (%q):\n%s", name, out)
 			}
 		})
+	}
+}
+
+// pemExemptionsFile is the single home of the per-file exemption list for the
+// private_key_pem tree scan. scripts/scan-internal.sh reads it to drop
+// exempted hits and to fail stale entries; the tests below read the same
+// file to enforce the discipline. Neither side keeps a copy — a second list
+// is exactly the drift this package exists to prevent.
+const pemExemptionsFile = "pem-exemptions.txt"
+
+// readPEMExemptions parses pem-exemptions.txt into path → reason, rejecting
+// entries that carry no reason. The rule is the NO_PALETTE_ROW precedent
+// (web/src/lib/palette-coverage.test.ts): the exemption map's type is
+// "exempted thing → why", which is what makes an undocumented exemption
+// impossible to add. Here the parser is that type.
+func readPEMExemptions(t *testing.T) map[string]string {
+	t.Helper()
+	body, err := os.ReadFile(pemExemptionsFile)
+	if err != nil {
+		t.Fatalf("%s unreadable: %v", pemExemptionsFile, err)
+	}
+	out := map[string]string{}
+	for _, line := range strings.Split(string(body), "\n") {
+		line = strings.TrimRight(line, "\r")
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		path, reason, ok := strings.Cut(line, "|")
+		if !ok {
+			t.Errorf("%s: entry %q has no '|' — an exemption is 'path|reason'", pemExemptionsFile, line)
+			continue
+		}
+		if strings.TrimSpace(reason) == "" {
+			t.Errorf("%s: exemption for %q must say why — an undocumented exemption is how the list grows to everything", pemExemptionsFile, path)
+			continue
+		}
+		if _, dup := out[path]; dup {
+			t.Errorf("%s: duplicate entry for %q", pemExemptionsFile, path)
+		}
+		out[path] = reason
+	}
+	if len(out) == 0 {
+		t.Errorf("%s holds no entries — either the paths went missing, or the last vector is gone and the exemption machinery should be retired with it", pemExemptionsFile)
+	}
+	return out
+}
+
+// TestPEMExemptionsCarryReasons is the reason half of the discipline; the
+// parser above reports every violation it finds.
+func TestPEMExemptionsCarryReasons(t *testing.T) {
+	readPEMExemptions(t)
+}
+
+// TestPEMExemptionsAreNotStale is the deletion half: an entry whose file no
+// longer matches the shape is a decision about a tree that is gone, and the
+// entry must be removed. Staleness is judged with this package's own regexp
+// — the canonical shape — so the ERE spelling in the script cannot hide it.
+// The scanner enforces the same at scan time; this pins it where the shape
+// is owned.
+func TestPEMExemptionsAreNotStale(t *testing.T) {
+	exempt := readPEMExemptions(t)
+	var pemRe *regexp.Regexp
+	for _, p := range patterns {
+		if p.Name == "private_key_pem" {
+			pemRe = p.Re
+		}
+	}
+	if pemRe == nil {
+		t.Fatal("private_key_pem missing from the package table")
+	}
+	for path := range exempt {
+		body, err := os.ReadFile(filepath.Join("..", "..", path))
+		if err != nil {
+			t.Errorf("%s: %q is not readable — delete the entry or fix the path: %v", pemExemptionsFile, path, err)
+			continue
+		}
+		if !pemRe.MatchString(string(body)) {
+			t.Errorf("%s: stale exemption — %q no longer carries a private-key header; delete the entry", pemExemptionsFile, path)
+		}
+	}
+}
+
+// TestPEMExemptionListIsTheScannersList pins the two readers to one home: if
+// the script stops pointing at this file (a rename, or an inline copy grown
+// beside it), the exemption list and the scanner stop being the same
+// decision.
+func TestPEMExemptionListIsTheScannersList(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join("..", "..", "scripts", "scan-internal.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "internal/secretscan/"+pemExemptionsFile) {
+		t.Errorf("scripts/scan-internal.sh no longer reads internal/secretscan/%s — the exemption list must have exactly one home, referenced by path", pemExemptionsFile)
 	}
 }

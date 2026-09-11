@@ -1,0 +1,30 @@
+# Per-file exemptions for the private_key_pem shape in scripts/scan-internal.sh.
+#
+# The tree legitimately carries files whose job is to contain a PEM
+# private-key header: the drift-gate corpora that prove the shape is
+# recognized and erased. Every other file carrying the shape is a hit.
+# This list names the exception cases, one entry per line:
+#
+#   <repo-relative path>|<why this file may carry the shape>
+#
+# Discipline (the NO_PALETTE_ROW rule, web/src/lib/palette-coverage.test.ts):
+# an exemption without a reason is undocumented and cannot be added — the
+# parser in internal/secretscan rejects the line, and so does the script.
+# An exemption whose file no longer matches the shape is stale and must be
+# deleted — the scanner goes red on it, and so does the Go test.
+#
+# Entries are exact repo-relative paths, never prefixes: a prefix would
+# exempt files that do not exist yet. A new vector file gets its own line,
+# with its own reason.
+#
+# One home, two readers: scripts/scan-internal.sh drops exempted hits and
+# runs the staleness check from this file, and internal/secretscan enforces
+# the same discipline from the Go side, where the canonical shape lives.
+# Do not inline a copy of this list into either reader.
+#
+# --dir artifact scans exempt nothing: a built artifact has no test vectors.
+# Comments and reasons here must not spell a literal private-key header —
+# this file is itself inside the scanner's path.
+
+internal/applog/scrub_test.go|applog scrub corpus (TestScrubCoversSecretscanPatterns): the private_key_pem row is the proof that the log scrubber erases the shape; the fixture is the header line alone, never key material
+internal/secretscan/secretscan_test.go|Match's own case table: five private-key header variants as positives and a public-key header as the negative, each row pinning recognition or deliberate non-recognition

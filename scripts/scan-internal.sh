@@ -22,18 +22,23 @@
 # this gate green. GDK-1110 closed that: slack_token, github_token,
 # http_basic_auth and http_bearer_token now run over the tree too.
 #
-# private_key_pem is the one shape from that table this script deliberately does
-# NOT scan for. It is not an oversight and not a lower-value secret: the repo
-# carries two legitimate test-vector files whose whole purpose is to contain a
-# PEM header, so covering it here requires per-file exemption machinery that no
-# other pattern needs. Adding it is a separate decision, not a one-line change.
-# internal/secretscan/secretscan_test.go pins this split so it cannot drift.
+# private_key_pem is scanned too, since GDK-1797 — every shape in that table
+# now runs over the tree. It is the one shape whose coverage needed per-file
+# exemption machinery: the repo carries legitimate test-vector files whose
+# whole purpose is to contain a PEM header. Those live in
+# internal/secretscan/pem-exemptions.txt, where every entry is an exact
+# repo-relative path plus the reason that file may carry the shape, and where
+# a stale entry (the file no longer matches) is a failure that tells the
+# author to delete it. That file is the single home of the list — this script
+# and the coverage test in internal/secretscan both read it, neither carries
+# a copy — and internal/secretscan/secretscan_test.go pins the coverage
+# decision so it cannot drift.
 #
 # Three of the four added shapes cannot be byte-identical to their Go regexes:
 # POSIX ERE has no (?i), no (?:...) and no portable \b or \s. Those are spelled
 # here in ERE and the agreement is asserted behaviourally instead — the Go test
 # runs this script over fixtures carrying each shape. Only patterns whose Go
-# spelling is already valid ERE (Atlassian, Linear, Slack) are byte-pinned.
+# spelling is already valid ERE (Atlassian, Linear, Slack, PEM) are byte-pinned.
 #
 # The word list is deliberately NOT in this file. Naming the strings you are
 # scrubbing publishes them: anyone reading a public scanner learns the very
@@ -58,7 +63,8 @@ cd "$ROOT"
 
 hits_file="$(mktemp)"
 text_list="$(mktemp)"
-trap 'rm -f "$hits_file" "$text_list"' EXIT
+pem_out="$(mktemp)"
+trap 'rm -f "$hits_file" "$text_list" "$pem_out"' EXIT
 
 # User API tokens / org API keys from Atlassian.
 # The Go owner of these credential shapes is internal/secretscan (Patterns()).
@@ -99,6 +105,46 @@ PAT_TAILNET="$PAT_TAILNET_HOST|$PAT_TAILNET_CGNAT"
 # spec passed every local gate and failed CI with ENOENT (GDK-254). Documented
 # placeholders are the exception — see is_placeholder_home.
 PAT_HOMEPATH='(/Users/|/home/)[A-Za-z0-9._-]+/'
+# PEM private-key headers. Byte-identical to internal/secretscan's
+# private_key_pem regex (valid ERE as written) and pinned to it by the
+# agreement test. Unlike every other pattern it has legitimate hits in the
+# tree — test vectors — so it runs through the per-file exemption list
+# parsed below instead of grepping bare.
+PAT_PEM='-----BEGIN [A-Z ]*PRIVATE KEY-----'
+
+# The exemption list for the PEM shape: which files may carry a private-key
+# header, and why. One entry per line, '<path>|<reason>', '#' comments
+# ignored; the path is an exact repo-relative file, never a prefix (a prefix
+# would exempt files that do not exist yet). The single home of the list is
+# internal/secretscan/pem-exemptions.txt: this script reads it here, the
+# coverage test in internal/secretscan reads the same file, and neither side
+# keeps a copy. Every entry must carry a non-blank reason — an undocumented
+# exemption is how the list grows to everything — and an entry whose file no
+# longer matches the shape is stale: the scan fails and says to delete the
+# entry (the NO_PALETTE_ROW precedent, web/src/lib/palette-coverage.test.ts).
+# The file must exist: scanning this shape without its exemption list would
+# silently mean "exempt nothing" or "exempt everything", and neither reading
+# is a gate anybody asked for.
+PEM_EXEMPTIONS='internal/secretscan/pem-exemptions.txt'
+pem_exempt_paths=''
+if [[ -f "$PEM_EXEMPTIONS" ]]; then
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in ''|'#'*) continue ;; esac
+    path="${line%%|*}"
+    reason="${line#*|}"
+    # The '*' test comes first: with no '|' in the line both expansions above
+    # return the whole line, so a separator-less entry would otherwise pass
+    # as its own reason and only fail later, mislabeled "stale".
+    if [[ "$line" != *"|"* || -z "$path" || -z "${reason//[[:space:]]/}" ]]; then
+      echo "scan-internal: malformed PEM exemption, want 'path|reason': $line" >&2
+      exit 1
+    fi
+    pem_exempt_paths+="$path"$'\n'
+  done <"$PEM_EXEMPTIONS"
+else
+  echo "scan-internal: $PEM_EXEMPTIONS missing — the PEM shape cannot be scanned without its exemption list" >&2
+  exit 1
+fi
 
 # Deployment-specific words, resolved from outside this file (see header).
 PAT_COMPANY=""
@@ -187,6 +233,22 @@ filter_real_home_paths() {
       fi
     done <<<"$users"
   done
+}
+
+# Drop PEM hits whose file is exempted in internal/secretscan/pem-exemptions.txt.
+# The exemption key is the exact repo-relative path — the text before grep's
+# first colon — so an exemption is a decision about one file, and a --dir
+# artifact path (absolute, foreign-rooted) never lands in the set: a built
+# artifact carrying a key header is always a hit.
+filter_pem_exempt() {
+  # The list travels through the environment, not -v: an awk -v value cannot
+  # carry a literal newline, and a multi-entry list is newline-separated.
+  PEM_EXEMPT_PATHS="$pem_exempt_paths" awk -F: '
+    BEGIN {
+      n = split(ENVIRON["PEM_EXEMPT_PATHS"], A, "\n")
+      for (i = 1; i <= n; i++) if (A[i] != "") X[A[i]] = 1
+    }
+    !($1 in X)'
 }
 
 # Print lines that mention a concrete disallowed <sub>.atlassian.net host.
@@ -306,6 +368,15 @@ if [[ -s "$text_list" ]]; then
   # shellcheck disable=SC2046
   grep -nIHE "$PAT_HOMEPATH" -- $(cat "$text_list") 2>/dev/null \
       | filter_real_home_paths | label_hits home_path >>"$hits_file" || true
+  # PEM keeps its raw grep output in $pem_out because the staleness check
+  # below needs the hits before exemption filtering. -e because this
+  # pattern is the one in the table that starts with a dash: as a bare
+  # operand before `--` grep reads it as an option cluster, dies on rc=2,
+  # and the 2>/dev/null here would bury that (the probe run that caught it
+  # surfaced as all-stale instead — the safe direction, but a silent grep).
+  # shellcheck disable=SC2046
+  grep -nIHE -e "$PAT_PEM" -- $(cat "$text_list") 2>/dev/null >"$pem_out" || true
+  filter_pem_exempt <"$pem_out" | label_hits private_key_pem >>"$hits_file" || true
 fi
 
 # Committed fixtures are binaries, so the text scan above skips them (the case
@@ -319,7 +390,10 @@ if [[ -z "$SCAN_DIR" ]]; then
     echo "==> scanning strings in $db"
     tmp_strings="$(mktemp)"
     strings "$db" >"$tmp_strings"
-    grep -nE "$PAT_TOKEN|$PAT_LINEAR|$PAT_SLACK|$PAT_GITHUB" "$tmp_strings" 2>/dev/null \
+    # The PEM shape runs here too (GDK-1797): a mirrored issue body can carry
+    # a pasted key header, and a fixture is real data, not a test vector —
+    # the exemption list never applies to this sweep.
+    grep -nE "$PAT_TOKEN|$PAT_LINEAR|$PAT_SLACK|$PAT_GITHUB|$PAT_PEM" "$tmp_strings" 2>/dev/null \
         | sed "s|^|$db:strings:|" >>"$hits_file" || true
     grep -niE "$PAT_BASIC|$PAT_BEARER" "$tmp_strings" 2>/dev/null \
         | sed "s|^|$db:strings:|" >>"$hits_file" || true
@@ -334,6 +408,30 @@ if [[ -z "$SCAN_DIR" ]]; then
   done
 fi
 
+# A stale exemption is a failure, not a no-op: an entry whose file no longer
+# matches the shape is a decision about a tree that is gone, and a list that
+# keeps it quietly only grows. Judged against the same grep output the filter
+# saw, in tree mode only — --dir exempts nothing, so it has nothing to be
+# stale about.
+if [[ -z "$SCAN_DIR" ]]; then
+  stale_pem="$(mktemp)"
+  while IFS= read -r p; do
+    [[ -z "$p" ]] && continue
+    if ! awk -F: -v p="$p" 'index($0, p ":") == 1 { ok = 1 } END { exit !ok }' "$pem_out"; then
+      printf '%s\n' "$p" >>"$stale_pem"
+    fi
+  done <<<"$pem_exempt_paths"
+  if [[ -s "$stale_pem" ]]; then
+    echo ""
+    echo "FAILED: stale PEM exemption(s) in $PEM_EXEMPTIONS — the file no longer"
+    echo "carries a private-key header, so the entry must be deleted:"
+    sort -u "$stale_pem"
+    rm -f "$stale_pem"
+    exit 1
+  fi
+  rm -f "$stale_pem"
+fi
+
 if [[ -s "$hits_file" ]]; then
   echo ""
   echo "FAILED: secret / internal-string scan found hits:"
@@ -343,6 +441,8 @@ if [[ -s "$hits_file" ]]; then
   echo "matching allowlist in scripts/scan-internal.sh: is_allowed_host for a"
   echo "tenant hostname, is_placeholder_home for a stand-in home directory"
   echo "(a real /Users/<name>/ path is also a file path no one else has)."
+  echo "A PEM private-key header is legal only in a test-vector file — add or"
+  echo "review its entry in $PEM_EXEMPTIONS, with a reason."
   exit 1
 fi
 
