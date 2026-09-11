@@ -169,7 +169,7 @@ type Tool struct {
 }
 
 func toolDefinitions() []Tool {
-	return []Tool{
+	out := []Tool{
 		{
 			Name:        toolQuery,
 			Description: toolQueryDescription,
@@ -278,6 +278,10 @@ func toolDefinitions() []Tool {
 			},
 		},
 	}
+	// The ui.tokens surface (GDK-769) is built next door, from the settings
+	// catalog: its axis enum and its prose are generated, so a description
+	// here cannot teach a value the server does not accept.
+	return append(out, uiToolDefinitions()...)
 }
 
 // callTool dispatches a tools/call. Failures that the agent can fix (bad SQL,
@@ -286,8 +290,10 @@ func toolDefinitions() []Tool {
 // ERROR: token so models cannot mistake a failure for an empty result.
 func (s *Server) callTool(name string, args map[string]any) (content []contentItem, isError bool) {
 	// gadak_show keys/issue/jql do not read the mirror (same as views open --keys / KEY / --jql).
-	// Name lookup opens it inside toolShow. Other tools still require the file.
-	if name != toolShow {
+	// Name lookup opens it inside toolShow. The ui.tokens pair reads and writes
+	// config.json and never opens the mirror at all. Other tools still require
+	// the file.
+	if name != toolShow && name != toolUITokens && name != toolUISet {
 		if err := s.ensureDB(); err != nil {
 			return textResult(withErrorPrefix(err.Error())), true
 		}
@@ -307,6 +313,10 @@ func (s *Server) callTool(name string, args map[string]any) (content []contentIt
 		out, err = s.toolStatus(args)
 	case toolShow:
 		out, err = s.toolShow(args)
+	case toolUITokens:
+		out, err = s.toolUITokens(args)
+	case toolUISet:
+		out, err = s.toolUISet(args)
 	default:
 		// Unknown tool is a protocol-level invalid params (caller should list first).
 		return textResult(withErrorPrefix(fmt.Sprintf("unknown tool %q — use tools/list", name))), true

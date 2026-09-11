@@ -3,8 +3,10 @@
 `gadak mcp` speaks the [Model Context Protocol](https://modelcontextprotocol.io/)
 over **stdio JSON-RPC 2.0**. It is a thin wrapper around the same local SQLite
 mirror that `gadak sql`, `gadak issue`, and `gadak search` already expose. Tools
-do not write to the mirror or to Jira. `gadak_show` writes only a local
-ui-focus file so the running app can present a view (SQL answers; show presents).
+do not write to the mirror or to Jira. Two of them write locally and nowhere
+else: `gadak_show` writes a ui-focus file so the running app can present a view
+(SQL answers; show presents), and `gadak_ui_set` writes this workspace's
+`config.json` so a shell-less host can adjust the user's design tokens.
 
 The agent contract is `specs/000-product/contracts/agent.md`. This page is the
 setup and troubleshooting guide.
@@ -18,6 +20,7 @@ If the agent has a shell, **prefer the CLI and SQL**:
 | `gadak sql` / `sqlite3 ~/.gadak/gadak.db` | Relational, aggregated, or historical questions |
 | `gadak issue` / `gadak search` | One key, or free-text recall |
 | `gadak comment` / `transition` / `assign` | Writes (MCP does not write to Jira or the mirror) |
+| `gadak config get/set ui.tokens…` | Design tokens (MCP mirrors this pair as `gadak_ui_tokens` / `gadak_ui_set`) |
 | **`gadak mcp`** | The client has **no shell** (Claude Desktop, some IDE hosts) |
 
 MCP is deliberately not the primary interface. Every tool schema is context the
@@ -207,9 +210,11 @@ Raycast's AI/MCP features may require a paid plan.
 
 ## Tools
 
-Exactly five tools. There is no plan to add one tool per question — `gadak_query`
-plus the schema in `specs/000-product/data-model.md` subsumes pre-baked queries.
-`gadak_show` is presentation, not another way to answer.
+Seven tools: five reads, one presentation act, one local write. There is no plan
+to add one tool per question — `gadak_query` plus the schema in
+`specs/000-product/data-model.md` subsumes pre-baked queries. `gadak_show` is
+presentation, not another way to answer, and the `ui` pair is the settings
+surface a host without a shell otherwise cannot reach.
 
 | Tool | Arguments | Returns |
 | --- | --- | --- |
@@ -218,6 +223,8 @@ plus the schema in `specs/000-product/data-model.md` subsumes pre-baked queries.
 | `gadak_issue` | `{key: string}` \| `{keys: string[]}` (exactly one) | Full detail (`description_text`, comments, history, links, `dev_links`, wiki cross-refs) plus list fields. One key is a single document; several keys wrap as `{issues, missing?}` |
 | `gadak_status` | `{}` | Watermark, version, last_error, row counts, kind, frozen |
 | `gadak_show` | `{jql}` \| `{keys: string[]}` \| `{issue}` \| `{name}` (exactly one) | `{hash, applied, unsupported, file}` — writes the process workspace's ui-focus file; the running window picks it up (500 ms visible / 2 min TTL); does not open a window or return issue rows |
+| `gadak_ui_tokens` | `{axis?}` | `{axes, tokens, rules, catalog, warnings, config_file, config_version}` — the stored `ui.tokens` overrides plus the read-only color and dimension catalogs (tier, clamps, relations), from the same owners `gadak config get ui.tokens.catalog` / `ui.tokens.dim-catalog` read |
+| `gadak_ui_set` | `{axis, values: {token: string \| null}}` | `{axis, path, saved, tokens, warnings, …}` — the same key-wise merge as `gadak config set ui.tokens.<axis>`: unparseable values and the derived `layout.docked-min` are **refused** by name; locked tiers, contrast floors, ranges and relations **warn and save**, with the measurements in `warnings`. Writes `config.json` only |
 
 ### Filtering rule (same as the CLI)
 

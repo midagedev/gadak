@@ -209,9 +209,12 @@ func (s *Server) handleToolsCall(msg rpcRequest) *rpcResponse {
 		return errResponse(msg.ID, codeInvalidParams, "tools/call requires params.name")
 	}
 	// Unknown tool names are protocol errors so clients can surface them cleanly.
-	switch params.Name {
-	case toolQuery, toolSearch, toolIssue, toolStatus, toolShow:
-	default:
+	// The allowlist is tools/list itself, not a second hand-kept copy of it: a
+	// tool advertised in the list and refused here is a surface that lies, and
+	// only a shell-less agent would ever hit it (GDK-769 — the ui.tokens pair
+	// landed in the list and was rejected here until a live round trip caught
+	// it; TestEveryListedToolIsCallable is the standing assertion).
+	if !listedTool(params.Name) {
 		return errResponse(msg.ID, codeInvalidParams, "unknown tool: "+params.Name)
 	}
 	if params.Arguments == nil {
@@ -302,4 +305,15 @@ func errResponse(id json.RawMessage, code int, message string) *rpcResponse {
 // stdout while serving MCP — that corrupts the JSON-RPC stream.
 func Logf(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "gadak mcp: "+format+"\n", args...)
+}
+
+// listedTool reports that tools/list advertises this name. One owner for
+// "what tools exist" — see handleToolsCall.
+func listedTool(name string) bool {
+	for _, t := range toolDefinitions() {
+		if t.Name == name {
+			return true
+		}
+	}
+	return false
 }

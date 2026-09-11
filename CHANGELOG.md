@@ -317,7 +317,15 @@ ones it cannot are named in a sentence that keeps Create disabled instead of
 sending a create Jira will reject ([GDK-533]). A comment can be restricted
 where the origin has restrictions — a role, a group, or internal on a service
 desk. The composer refuses to post a half-chosen one, and the restriction the
-origin states comes back as a badge on the comment ([GDK-528]).
+origin states comes back as a badge on the comment ([GDK-528]). An agent with no shell can read and set
+the design tokens: `gadak_ui_tokens` answers what is set and what may be set,
+`gadak_ui_set` merges one axis, and both go through the same settings owner
+`gadak config` and the web's PUT already use — so a refusal refuses and a
+clamp still warns and saves, identically ([GDK-769]). The tools' axis list and
+their prose are generated from that catalog rather than typed, because a tool
+description is a surface with no gate; and the dispatcher's allowlist is now
+`tools/list` itself, after a live round trip found two tools that the list
+advertised and the call path refused.
 
 The CLI itself says when its skill file is behind: a read verb prints one
 stderr line when the installed copy differs from this build's, so an agent
@@ -2280,6 +2288,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-758]: https://gadak.dev/backlog/#/?ks=GDK-758
 [GDK-766]: https://gadak.dev/backlog/#/?ks=GDK-766
 [GDK-768]: https://gadak.dev/backlog/#/?ks=GDK-768
+[GDK-769]: https://gadak.dev/backlog/#/?ks=GDK-769
 [GDK-770]: https://gadak.dev/backlog/#/?ks=GDK-770
 [GDK-771]: https://gadak.dev/backlog/#/?ks=GDK-771
 [GDK-781]: https://gadak.dev/backlog/#/?ks=GDK-781

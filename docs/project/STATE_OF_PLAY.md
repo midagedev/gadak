@@ -202,7 +202,7 @@ snapshot, not assumed.
   catalogs live in `web/src/lib/i18n/`.
 - `tools/seed-demo` — Go port of the demo-site seeder (the Python original is
   gone).
-- `internal/mcp` — stdio JSON-RPC server, five tools (four reads plus `gadak_show` for presentation), no writes to the mirror or to Jira, no SDK.
+- `internal/mcp` — stdio JSON-RPC server, seven tools (four reads, `gadak_show` for presentation, and the `gadak_ui_tokens` / `gadak_ui_set` design-token pair that writes `config.json` only), no writes to the mirror or to Jira, no SDK.
 - `internal/attachcache` — attachment bytes on disk, content-addressed, single
   flight, LRU budget. Why it exists: proxying every image view contradicted the
   premise, and a cached image renders with no credential, which is what lets the

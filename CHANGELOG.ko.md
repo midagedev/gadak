@@ -228,7 +228,14 @@ CLI 와 서버에 파서가 따로 있었고 ([GDK-1316]), Cloud 카테고리 �
 만들기를 비활성으로 두어, Jira 가 거절할 생성을 보내지 않습니다 ([GDK-533]).
 코멘트에는 origin 에 제한이 있는 곳에서 제한을 걸 수 있습니다 — 역할, 그룹,
 서비스 데스크의 내부용. 반쯤 고른 제한은 아예 올라가지 않고, origin 이 말한 제한은
-코멘트에 배지로 돌아옵니다 ([GDK-528]).
+코멘트에 배지로 돌아옵니다 ([GDK-528]). 셸이 없는 에이전트도 디자인 토큰을 읽고 바꿉니다.
+`gadak_ui_tokens` 가 지금 무엇이 설정돼 있고 무엇을 설정할 수 있는지 답하고,
+`gadak_ui_set` 이 축 하나를 키 단위로 병합합니다. 둘 다 `gadak config` 와 웹의 PUT 이
+쓰는 설정 소유자를 그대로 지나가므로, 거절할 것은 거절하고 클램프는 경고한 뒤
+저장하는 비대칭이 그대로 유지됩니다 ([GDK-769]). 툴 서술의 축 목록은 손으로 적지 않고
+카탈로그에서 생성합니다 — 툴 서술은 게이트가 없는 표면이라서입니다. 그리고 호출
+경로의 허용 목록은 이제 `tools/list` 자신입니다. 목록에는 있는데 호출은 거절하던 툴
+둘을 실제 왕복이 잡았습니다.
 
 CLI 가 스킬 파일이 낡았다고 스스로 말합니다. 설치된 사본이 이 빌드의 것과
 다르면 읽기 동사가 stderr 에 한 줄을 찍으므로, 에이전트가 doctor 를 돌리기로
@@ -2011,6 +2018,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-758]: https://gadak.dev/backlog/#/?ks=GDK-758
 [GDK-766]: https://gadak.dev/backlog/#/?ks=GDK-766
 [GDK-768]: https://gadak.dev/backlog/#/?ks=GDK-768
+[GDK-769]: https://gadak.dev/backlog/#/?ks=GDK-769
 [GDK-770]: https://gadak.dev/backlog/#/?ks=GDK-770
 [GDK-771]: https://gadak.dev/backlog/#/?ks=GDK-771
 [GDK-781]: https://gadak.dev/backlog/#/?ks=GDK-781

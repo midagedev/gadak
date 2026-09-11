@@ -514,8 +514,10 @@ Markers:
     (`issuetap/internal/store/store.go`, `fixtureBody`; GDK-1382).
 
 [^96]: All three surfaces run against the mirror; the MCP tools expose no
-    write verb on any origin (`internal/mcp/tools.go:24`), and `gadak_status`
-    reports which origin the workspace has.
+    write verb on any origin (`internal/mcp/tools.go:24`) — `gadak_ui_set`
+    writes local design tokens to `config.json` and never reaches an origin
+    (`internal/mcp/tools_uitokens.go:36`) — and `gadak_status` reports which
+    origin the workspace has.
 
 [^97]: The board is the same filtered list laid out as columns, saved per view
     (`web/src/lib/view-config.ts:141`); a status-axis drag is a real

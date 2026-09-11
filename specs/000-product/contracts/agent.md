@@ -102,7 +102,9 @@ Implemented as a thin stdlib server (`internal/mcp`) over the same schema. No
 MCP SDK dependency. Protocol version `2025-03-26` (a client that asks for another
 version is answered with this one, not rejected). MCP does not write to the
 mirror or to Jira. `gadak_show` is a local presentation act (the same ui-focus
-file as `gadak views open`); SQL answers; show presents.
+file as `gadak views open`); SQL answers; show presents. `gadak_ui_set` is the
+other local-only write: this workspace's `config.json`, through the same
+settings catalog `gadak config set` uses.
 
 | Tool | Shape |
 | --- | --- |
@@ -111,6 +113,8 @@ file as `gadak views open`); SQL answers; show presents.
 | `gadak_issue` | `{key}` → full detail including comments and history (plus list fields) |
 | `gadak_status` | `{}` → sync state (watermark, version, last_error, counts) |
 | `gadak_show` | `{jql}` \| `{keys}` \| `{issue}` \| `{name}` (exactly one) → `{hash, applied, unsupported, file}`. Writes the process workspace's ui-focus file; does not open a window; does not return issue rows |
+| `gadak_ui_tokens` | `{axis?}` → `{axes, tokens, rules, catalog, warnings, config_file, config_version}`. The stored `ui.tokens` plus the read-only color / dimension catalogs, read through `config.SettingByPath` — the owner the CLI and PUT `/api/settings` share |
+| `gadak_ui_set` | `{axis, values}` → `{axis, path, saved, tokens, warnings}`. Key-wise merge into one axis (`null` deletes, `{}` is a no-op); unparseable values refuse by field name, judgments warn and save. Writes `config.json`, never the mirror or the origin |
 
 Tool execution failures (bad SQL, missing key, no mirror) return
 `isError: true` with a readable message so the agent can fix and retry.
@@ -121,6 +125,9 @@ Deliberately not planned: one tool per question, or any write to the mirror or
 to Jira. `gadak_query` plus the documented schema subsumes pre-baked reads, and
 every extra tool is context an agent has to read before it can act. Jira writes
 stay on the CLI and REST. Presentation stays `gadak_show` / `gadak views open`.
+Local settings stay the `ui` pair: they route through the settings catalog, so
+they cannot grow a rule of their own, and they reach no namespace but
+`ui.tokens`.
 
 ## Anti-patterns
 

@@ -120,13 +120,17 @@ func TestProtocolRoundTrip(t *testing.T) {
 			t.Errorf("tool %s has nil inputSchema", tool.Name)
 		}
 	}
-	for _, want := range []string{toolQuery, toolSearch, toolIssue, toolStatus, toolShow} {
+	// 2026-09-11, GDK-769: the count moved 5 → 7 because the ui.tokens pair
+	// landed, not because the assertion was in the way. The list stays pinned
+	// (every extra tool is context the agent reads before acting) — a new tool
+	// must change this line deliberately.
+	for _, want := range []string{toolQuery, toolSearch, toolIssue, toolStatus, toolShow, toolUITokens, toolUISet} {
 		if !names[want] {
 			t.Errorf("tools/list missing %s", want)
 		}
 	}
-	if len(list.Tools) != 5 {
-		t.Errorf("tools/list has %d tools, want 5", len(list.Tools))
+	if len(list.Tools) != 7 {
+		t.Errorf("tools/list has %d tools, want 7", len(list.Tools))
 	}
 	// gadak_query description must carry the localization warning and examples.
 	var qdesc string

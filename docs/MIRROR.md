@@ -468,11 +468,12 @@ gadak mcp                          # stdio JSON-RPC; logs go to stderr only
 gadak --workspace demo mcp
 ```
 
-Five tools: `gadak_query` (read-only SQL), `gadak_search`, `gadak_issue`,
-`gadak_status`, `gadak_show`. Tools do not write to the mirror or to Jira;
-`gadak_show` writes a local ui-focus file so the running app presents the set
-(SQL answers; show presents). The process itself keeps the mirror fresh from
-the origin while it runs (see above; `--no-sync` opts out). Setup examples
+Seven tools: `gadak_query` (read-only SQL), `gadak_search`, `gadak_issue`,
+`gadak_status`, `gadak_show`, and the design-token pair `gadak_ui_tokens` /
+`gadak_ui_set`. Tools do not write to the mirror or to Jira; `gadak_show`
+writes a local ui-focus file so the running app presents the set (SQL answers;
+show presents) and `gadak_ui_set` writes this workspace's `config.json`. The
+process itself keeps the mirror fresh from the origin while it runs (see above; `--no-sync` opts out). Setup examples
 (Claude Desktop config, workspaces, troubleshooting) live in **[docs/MCP.md](MCP.md)**.
 
 The repository development contract is [AGENTS.md](../AGENTS.md#developing-gadak).

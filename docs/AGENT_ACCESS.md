@@ -126,10 +126,12 @@ unless you pass **`--write`**, which also switches to the write retry policy
 URLs (`https://…`, `//host/…`) are rejected so a prompt-injected path cannot
 walk the token off your site.
 
-**Not on MCP.** `gadak api` is CLI-only. MCP stays five tools
-(`gadak_query`, `gadak_search`, `gadak_issue`, `gadak_status`, `gadak_show`)
-with no writes to the mirror or to Jira and no raw proxy. `gadak_show` is
-presentation (local ui-focus), ranked below SQL. A host without a shell is
+**Not on MCP.** `gadak api` is CLI-only. MCP stays seven tools
+(`gadak_query`, `gadak_search`, `gadak_issue`, `gadak_status`, `gadak_show`,
+`gadak_ui_tokens`, `gadak_ui_set`) with no writes to the mirror or to Jira and
+no raw proxy — the `ui` pair reaches this workspace's `config.json` and nothing
+else. `gadak_show` is presentation (local ui-focus), ranked below SQL, and the
+`ui` pair is the design-token surface. A host without a shell is
 not given a full-credential REST tunnel: that would expand the blast radius of
 a compromised or confused agent beyond what the mirror contracts describe. If
 you need the escape hatch, grant the agent a shell and `gadak api`.
@@ -138,9 +140,10 @@ you need the escape hatch, grant the agent a shell and `gadak api`.
 
 MCP is shipped (`gadak mcp`) for hosts without a shell — Claude Desktop and the
 like. Prefer the CLI or SQL when the agent can spawn a process: no tool schemas
-in the context window, and the same five capabilities. The MCP surface stays a
+in the context window, and the same capabilities. The MCP surface stays a
 thin wrapper: `gadak_query`, `gadak_search`, `gadak_issue`, `gadak_status`,
-`gadak_show`. Deliberately not one tool per question — every extra tool is
-context an agent must read before it can act, and `gadak_query` plus the
+`gadak_show`, and the `gadak_ui_tokens` / `gadak_ui_set` settings pair.
+Deliberately not one tool per question — every extra tool is context an agent
+must read before it can act, and `gadak_query` plus the
 documented schema subsumes the reads. `gadak_show` is how a shell-less host
 presents (SQL answers; show presents). Setup: [`MCP.md`](MCP.md).
