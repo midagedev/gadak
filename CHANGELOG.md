@@ -1090,7 +1090,12 @@ is the built-in tracker one machine away, but `project create` asked whether
 that tracker runs *here* and refused while blaming Jira, a site the
 workspace does not use. Three more verbs answered a paired workspace with a
 sentence written for somebody else's origin, and the helper that invited all
-four now carries its real name ([GDK-1793]).
+four now carries its real name ([GDK-1793]). The column seams are
+reachable from the palette: *Resize the sidebar* and *Resize the issue list*
+put the keyboard on the grip with its arrow keys live. The grip had been a
+real button with a real keyboard since GDK-759, about 150 tab stops deep —
+capability nothing measured the reach of, so the palette audit that covers
+column destinations now covers draggable axes the same way ([GDK-1796]).
 
 ## v0.21.0 — 2026-09-08
 
@@ -2872,4 +2877,5 @@ priority sorting keyed on `priority_rank`.
 [GDK-1792]: https://gadak.dev/backlog/#/?ks=GDK-1792
 [GDK-1793]: https://gadak.dev/backlog/#/?ks=GDK-1793
 [GDK-1795]: https://gadak.dev/backlog/#/?ks=GDK-1795
+[GDK-1796]: https://gadak.dev/backlog/#/?ks=GDK-1796
 [GDK-1797]: https://gadak.dev/backlog/#/?ks=GDK-1797
