@@ -375,7 +375,17 @@ it up without a reload — and the document is written once, on release, not
 on every frame ([GDK-759]). The child list under an issue can hide what is
 already done, on a checkbox that starts checked; the count, the done/total
 line and the meter stay on every child, so hiding rows never flatters the
-number (#102, gadak's first outside contribution).
+number (#102, gadak's first outside contribution). An agent working through MCP
+leaves a trail: `gadak_issue` and `gadak_search` now record the visit and the
+search the way the CLI's do, and `gadak_recents` walks it back — a host with
+no shell had zero rows, so after a compaction its `recents` was empty. The
+mirror's detail and search are private to one file in that package now, so a
+tool added later cannot reach them without inheriting the recording
+([GDK-631]). Repeating `--field` for one alias adds a value instead of
+replacing the last one, the silent drop the rest of the CLI refuses; a
+single-valued field given more than one is refused by name, one value for a
+multi-valued field becomes a one-element list, and an ambiguous option prints
+each candidate as `label (id)` rather than a bare id ([GDK-18]).
 
 The CLI itself says when its skill file is behind: a read verb prints one
 stderr line when the installed copy differs from this build's, so an agent
@@ -2058,6 +2068,7 @@ mirror, so `gadak sql` and agents can see them; the hosted demo falls back to
 local storage. TUI parity: feed focus tabs, saved-view sort/dir/group_by, and
 priority sorting keyed on `priority_rank`.
 
+[GDK-18]: https://gadak.dev/backlog/#/?ks=GDK-18
 [GDK-19]: https://gadak.dev/backlog/#/?ks=GDK-19
 [GDK-21]: https://gadak.dev/backlog/#/?ks=GDK-21
 [GDK-23]: https://gadak.dev/backlog/#/?ks=GDK-23
@@ -2294,6 +2305,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-617]: https://gadak.dev/backlog/#/?ks=GDK-617
 [GDK-626]: https://gadak.dev/backlog/#/?ks=GDK-626
 [GDK-630]: https://gadak.dev/backlog/#/?ks=GDK-630
+[GDK-631]: https://gadak.dev/backlog/#/?ks=GDK-631
 [GDK-635]: https://gadak.dev/backlog/#/?ks=GDK-635
 [GDK-643]: https://gadak.dev/backlog/#/?ks=GDK-643
 [GDK-654]: https://gadak.dev/backlog/#/?ks=GDK-654

@@ -300,7 +300,17 @@ ui.tokens.layout.sidebar 300px` が書くのと同じ二つのトークンに書
 離したときの一度だけです ([GDK-759])。課題の下の子課題リストは、終わったものを
 隠せるようになりました。チェックボックスは入った状態で始まり、件数も完了の割合も
 バーも子課題すべてを見たままなので、行を隠しても数字がよく見えることはありません
-(#102、gadak にとって初めての外部からの貢献)。
+(#102、gadak にとって初めての外部からの貢献)。 MCP で働くエージェントも
+足あとを残します。`gadak_issue` と `gadak_search` が CLI と同じやり方で閲覧と
+検索を記録し、`gadak_recents` がそれをたどり直します — シェルのないホストは
+行がゼロで、コンパクションのあと `recents` が空でした。ミラーの詳細と検索は
+そのパッケージ内の一つのファイルのものになったので、あとから加わるツールは
+記録を受け継がずにそこへ届きません ([GDK-631])。同じ別名に `--field` を二度
+渡すと、最後の値が前を上書きするのではなく値が一つ足されます — CLI の他の
+場所が拒む、黙った取りこぼしでした。単一の値しか持てない項目に複数を渡せば
+名前を挙げて拒み、複数を持てる項目に一つを渡せば一要素のリストになり、
+あいまいな選択肢は id を並べる代わりに候補ごとに `表示名 (id)` を出します
+([GDK-18])。
 
 CLI 自身がスキルファイルの古さを言います。インストール済みの写しがこのビルドのものと
 違えば、読み取り動詞が stderr に一行出すので、エージェントは doctor を走らせると
@@ -1911,6 +1921,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 できます。フィードのフォーカスタブ、保存したビューの sort / dir / group_by、
 そして `priority_rank` をキーにした優先度の並べ替えです。
 
+[GDK-18]: https://gadak.dev/backlog/#/?ks=GDK-18
 [GDK-19]: https://gadak.dev/backlog/#/?ks=GDK-19
 [GDK-21]: https://gadak.dev/backlog/#/?ks=GDK-21
 [GDK-23]: https://gadak.dev/backlog/#/?ks=GDK-23
@@ -2147,6 +2158,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-617]: https://gadak.dev/backlog/#/?ks=GDK-617
 [GDK-626]: https://gadak.dev/backlog/#/?ks=GDK-626
 [GDK-630]: https://gadak.dev/backlog/#/?ks=GDK-630
+[GDK-631]: https://gadak.dev/backlog/#/?ks=GDK-631
 [GDK-635]: https://gadak.dev/backlog/#/?ks=GDK-635
 [GDK-643]: https://gadak.dev/backlog/#/?ks=GDK-643
 [GDK-654]: https://gadak.dev/backlog/#/?ks=GDK-654

@@ -275,7 +275,16 @@ detached sync 는 자기 전송을 갖고 있어 첫 훅을 그냥 지나가기 
 프레임마다가 아니라 손을 뗄 때 한 번입니다 ([GDK-759]). 이슈 아래 하위 목록은
 이미 끝난 것을 숨길 수 있습니다. 체크박스는 켜진 채로 시작하고, 개수와 완료
 비율과 막대는 전부 하위 전체 기준으로 남습니다 — 행을 숨긴다고 숫자가 좋아
-보이지는 않습니다 (#102, gadak 의 첫 외부 기여).
+보이지는 않습니다 (#102, gadak 의 첫 외부 기여). MCP 로 일하는 에이전트도 흔적을
+남깁니다. `gadak_issue` 와 `gadak_search` 가 CLI 와 같은 방식으로 방문과 검색을
+기록하고 `gadak_recents` 가 그것을 되짚습니다 — 셸이 없는 호스트는 행이 0 이라
+컴팩션 뒤 `recents` 가 비어 있었습니다. 이제 미러의 상세·검색은 그 패키지 안
+파일 하나의 것이라, 나중에 추가되는 툴이 기록을 물려받지 않고는 거기에 닿을 수
+없습니다 ([GDK-631]). 같은 별칭에 `--field` 를 두 번 주면 마지막 값이 앞의 것을
+덮는 대신 값이 하나 더해집니다 — 나머지 CLI 가 거부하는 조용한 누락이었습니다.
+값을 하나만 받는 필드에 여러 개를 주면 이름을 불러 거절하고, 여러 값을 받는
+필드에 하나를 주면 한 개짜리 목록이 되며, 모호한 옵션은 id 만 늘어놓는 대신
+후보마다 `표시 이름 (id)` 을 찍습니다 ([GDK-18]).
 
 CLI 가 스킬 파일이 낡았다고 스스로 말합니다. 설치된 사본이 이 빌드의 것과
 다르면 읽기 동사가 stderr 에 한 줄을 찍으므로, 에이전트가 doctor 를 돌리기로
@@ -1778,6 +1787,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 우선순위 정렬입니다.
 `priority_rank`로 키하는 우선순위 정렬.
 
+[GDK-18]: https://gadak.dev/backlog/#/?ks=GDK-18
 [GDK-19]: https://gadak.dev/backlog/#/?ks=GDK-19
 [GDK-21]: https://gadak.dev/backlog/#/?ks=GDK-21
 [GDK-23]: https://gadak.dev/backlog/#/?ks=GDK-23
@@ -2014,6 +2024,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-617]: https://gadak.dev/backlog/#/?ks=GDK-617
 [GDK-626]: https://gadak.dev/backlog/#/?ks=GDK-626
 [GDK-630]: https://gadak.dev/backlog/#/?ks=GDK-630
+[GDK-631]: https://gadak.dev/backlog/#/?ks=GDK-631
 [GDK-635]: https://gadak.dev/backlog/#/?ks=GDK-635
 [GDK-643]: https://gadak.dev/backlog/#/?ks=GDK-643
 [GDK-654]: https://gadak.dev/backlog/#/?ks=GDK-654
