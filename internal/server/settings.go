@@ -91,7 +91,17 @@ type webConfigDoc struct {
 	// so gating on identity would have silenced the very workspaces 0.19
 	// targets. Absent (static export, hosted demo) reads as false, which is
 	// the truth there.
+	//
+	// Since GDK-1152 this field is computed as an alias of
+	// Capabilities.IssueWrite (same predicate, new vocabulary) and the two
+	// are pinned together — the alias must not drift.
 	OriginWritable bool `json:"originWritable"`
+	// Capabilities is the origin's statement of its own abilities (GDK-1152)
+	// — one block so no surface guesses from workspaceKind, an empty site
+	// URL, or auth/me's identity. Values are owned by the predicates the
+	// write paths and auth/me already answer from; origin.CapabilitiesOf is
+	// the single owner, and its table test is the documentation.
+	Capabilities origin.Capabilities `json:"capabilities"`
 	// UI is the server-merged color/dimension/font override block
 	// (GDK-786/791, GDK-842, GDK-896 R4): the final per-palette CSS variable
 	// map, data inks, and the palette-agnostic dimension and font overrides,
@@ -146,6 +156,7 @@ func webConfig(cfg *config.Config) webConfigDoc {
 	vars, colorWarns := config.UITokenVars(cfg.UI)
 	dims, dimWarns := config.UIDimensionVars(cfg.UI)
 	warns := append(colorWarns, dimWarns...)
+	caps := origin.CapabilitiesOf(cfg)
 	return webConfigDoc{
 		APIBase:             apiBase,
 		AuthBase:            authBase,
@@ -163,7 +174,8 @@ func webConfig(cfg *config.Config) webConfigDoc {
 		WorkspaceKind:       kind,
 		OriginType:          cfg.OriginType(),
 		Transport:           cfg.Transport(),
-		OriginWritable:      cfg.HasAtlassianCredential(),
+		OriginWritable:      caps.IssueWrite,
+		Capabilities:        caps,
 		UI: &uiDoc{
 			Vars:       vars,
 			Dims:       dims,

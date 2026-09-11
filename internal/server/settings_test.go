@@ -780,6 +780,67 @@ func TestWebConfigOriginWritableMirrorsHasAtlassianCredential(t *testing.T) {
 	}
 }
 
+// GDK-1152: the document carries a `capabilities` block — the origin's own
+// statement of what it can do — decoded here through an anonymous struct on
+// purpose: the pinned contract is the JSON wire shape (what web/src/lib/
+// config.ts parses), not this package's Go structs. Two pins that must hold
+// for every workspace shape:
+//
+//   - originWritable stays an alias of capabilities.issueWrite — the older
+//     field keeps its meaning (GDK-1090: config.HasAtlassianCredential)
+//     while the block becomes the vocabulary;
+//   - the axes answer from the origin, never from identity: the built-in
+//     row writes issues and wiki pages with no identity at all.
+func TestWebConfigCapabilitiesBlock(t *testing.T) {
+	cases := []struct {
+		name       string
+		cfg        *config.Config
+		issueWrite bool
+		wikiWrite  bool
+		identity   bool
+		credReq    bool
+	}{
+		{"built-in writes both, no identity, no token errand", &config.Config{Kind: config.KindStandalone}, true, true, false, false},
+		{
+			"connected cloud with credential wants its site token",
+			&config.Config{Site: "https://x.example", Email: "a@b.example", Token: "t"},
+			true, true, true, true,
+		},
+		{"connected without a credential is the CTA's one true row", &config.Config{Site: "https://x.example"}, false, false, false, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			doc, err := WebConfig(tc.cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got struct {
+				Capabilities struct {
+					IssueWrite         bool   `json:"issueWrite"`
+					WikiWrite          bool   `json:"wikiWrite"`
+					Identity           bool   `json:"identity"`
+					OriginDeepLink     bool   `json:"originDeepLink"`
+					OriginBaseURL      string `json:"originBaseUrl"`
+					CredentialRequired bool   `json:"credentialRequired"`
+				} `json:"capabilities"`
+				OriginWritable bool `json:"originWritable"`
+			}
+			if err := json.Unmarshal(doc, &got); err != nil {
+				t.Fatal(err)
+			}
+			caps := got.Capabilities
+			if caps.IssueWrite != tc.issueWrite || caps.WikiWrite != tc.wikiWrite ||
+				caps.Identity != tc.identity || caps.CredentialRequired != tc.credReq {
+				t.Fatalf("capabilities = %+v", caps)
+			}
+			if got.OriginWritable != caps.IssueWrite {
+				t.Errorf("originWritable = %v but capabilities.issueWrite = %v — the alias must not drift",
+					got.OriginWritable, caps.IssueWrite)
+			}
+		})
+	}
+}
+
 func TestWebConfigUIDimensionVars(t *testing.T) {
 	// GDK-842 chunk 4: the config document's `ui` block carries the merged
 	// dimension overrides as a sibling of `vars` — one palette-agnostic map,

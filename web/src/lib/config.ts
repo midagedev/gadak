@@ -148,8 +148,19 @@ export interface GadakConfig {
    *
    * Not `me.identified`: that reads auth/me's email, which is empty on a
    * built-in and on a paired workspace even though both write fine.
+   *
+   * Since GDK-1152 the document also carries the `capabilities` block this
+   * field is one axis of; `originWritable()` reads it through `can(...)`.
    */
   originWritable: boolean
+  /**
+   * The origin's statement of its own abilities (GDK-1152) — the vocabulary
+   * surfaces ask through `can(...)`. Absent (static export, hosted demo, an
+   * older server) falls back to the legacy originWritable field for
+   * issueWrite and to false elsewhere, which is the truth there. Parsed
+   * defensively per axis — never re-derived, never guessed.
+   */
+  capabilities: OriginCapabilities
   features: GadakFeatures
   /**
    * Server-merged color overrides (GDK-786/791): final per-palette CSS
@@ -176,9 +187,104 @@ export function isBuiltInWorkspace(): boolean {
  * of `config.HasAtlassianCredential` (GDK-1090). Ask this before sending a
  * request whose only other outcome is 409 credential_required; do not
  * reconstruct the predicate from identity or from an empty site URL.
+ *
+ * Since GDK-1152 this is an alias of `can('issueWrite')` — the capability
+ * block's vocabulary under the name the surfaces already on it keep using.
+ * New code prefers `can(...)`.
  */
 export function originWritable(): boolean {
-  return current.originWritable
+  return can('issueWrite')
+}
+
+/**
+ * The origin's capability axes (GDK-1152) — one vocabulary so no surface
+ * re-derives "can this origin do X" from the workspace kind, an empty site
+ * URL, or auth/me's identity. The server states them in config.json's
+ * `capabilities` block (origin.CapabilitiesOf is the single owner); each
+ * axis is the predicate the corresponding server path already answers from.
+ */
+export type OriginCapability = 'issueWrite' | 'wikiWrite' | 'identity' | 'originDeepLink'
+
+/** The wire shape of the `capabilities` block. */
+export interface OriginCapabilities {
+  /**
+   * Jira-family issue writes (the axis originWritable aliases). Linear is
+   * deliberately not counted: a Linear key rides its own per-key gate
+   * (credential.linear), which the write store already asks per issue.
+   */
+  issueWrite: boolean
+  /** Page writes reach the origin (origin.Wiki constructs — issuetap, or a full cloud site credential). */
+  wikiWrite: boolean
+  /** auth/me has an identity to answer with. False on built-in/paired — both still write fine. */
+  identity: boolean
+  /** Issues have an origin page. Linear's is the per-issue URL the mirror stores (issue-origin.ts), never a base. */
+  originDeepLink: boolean
+  /** Site an origin page URL builds from — Jira family only; empty otherwise. */
+  originBaseUrl: string
+  /**
+   * This workspace's write credential is a site token the personal-token
+   * dialog can edit — true only on the Jira family reached as a site.
+   * Built-in writes in-process, paired keeps its credential on the home
+   * machine, Linear's key is config: none of them has a token to rotate
+   * here, so none may be sold the errand.
+   */
+  credentialRequired: boolean
+}
+
+const NO_CAPABILITIES: OriginCapabilities = {
+  issueWrite: false,
+  wikiWrite: false,
+  identity: false,
+  originDeepLink: false,
+  originBaseUrl: '',
+  credentialRequired: false,
+}
+
+/**
+ * Normalize the served block. A missing block falls back to the legacy
+ * originWritable field for issueWrite (an older server's bool said exactly
+ * that) and to false elsewhere — the static export / hosted demo truth.
+ * Garbage values read as false / '' per axis, never guessed.
+ */
+function parseCapabilities(
+  raw: Partial<GadakConfig> | null | undefined,
+  legacyIssueWrite: boolean,
+): OriginCapabilities {
+  const block = raw?.capabilities
+  if (!block || typeof block !== 'object') {
+    return { ...NO_CAPABILITIES, issueWrite: legacyIssueWrite }
+  }
+  const b = block as Partial<OriginCapabilities>
+  return {
+    issueWrite: b.issueWrite === true || (!('issueWrite' in b) && legacyIssueWrite),
+    wikiWrite: b.wikiWrite === true,
+    identity: b.identity === true,
+    originDeepLink: b.originDeepLink === true,
+    originBaseUrl: typeof b.originBaseUrl === 'string' ? b.originBaseUrl : '',
+    credentialRequired: b.credentialRequired === true,
+  }
+}
+
+/**
+ * Ask the origin's capability statement (GDK-1152). The one place a surface
+ * reaches for "can this origin do X" — never the workspace kind, never an
+ * empty jiraBaseUrl, never me.identified (auth/me answers identity, which
+ * is empty on built-in and paired workspaces that write fine — the exact
+ * near-miss GDK-1090 closed for one surface and this vocabulary closes for
+ * the class).
+ */
+export function can(name: OriginCapability): boolean {
+  return current.capabilities[name]
+}
+
+/**
+ * Whether this workspace's write credential is a site token the app's
+ * credential surface can edit (see OriginCapabilities.credentialRequired).
+ * The SyncTab entry point consumes this: showing it anywhere else sells a
+ * token errand to a workspace that has no token to set.
+ */
+export function credentialRequired(): boolean {
+  return current.capabilities.credentialRequired
 }
 
 const DEFAULTS: GadakConfig = {
@@ -201,6 +307,7 @@ const DEFAULTS: GadakConfig = {
   originType: '',
   transport: '',
   originWritable: false,
+  capabilities: { ...NO_CAPABILITIES },
   features: {
     feed: false,
     deploy: false,
@@ -516,6 +623,7 @@ export async function loadConfig(): Promise<GadakConfig> {
         originType: parseOriginType(raw.originType),
         transport: parseTransport(raw.transport),
         originWritable: raw.originWritable === true,
+        capabilities: parseCapabilities(raw, raw.originWritable === true),
       }
     }
   } catch {

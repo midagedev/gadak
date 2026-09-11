@@ -16,8 +16,9 @@
  *
  * Mock strategy follows detail-coaching.spec.ts: bootstrap and delta pass
  * through to the real e2e server, only the detail's comment list is appended
- * to and auth/me is pinned — the Reply button renders on
- * `me.identified && c.author_account_id`.
+ * to and auth/me is pinned — the Reply button renders on the origin's
+ * issueWrite capability and the comment's account id (GDK-1152 moved it off
+ * `me.identified`, which is empty on workspaces that reply fine).
  */
 import { type Page, type Route } from '@playwright/test'
 import { expect, test } from './helpers'

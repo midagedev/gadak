@@ -104,3 +104,94 @@ describe('workspaceKind (server-owned, never inferred)', () => {
     expect(builtIn.isBuiltInWorkspace()).toBe(true)
   })
 })
+
+describe('capabilities (GDK-1152, server-stated)', () => {
+  test('the block answers every axis; originWritable() stays its alias', async () => {
+    const mod = await loadConfigWith({
+      workspaceKind: 'standalone',
+      capabilities: {
+        issueWrite: true,
+        wikiWrite: true,
+        identity: false,
+        originDeepLink: false,
+        originBaseUrl: '',
+        credentialRequired: false,
+      },
+    })
+    expect(mod.can('issueWrite')).toBe(true)
+    expect(mod.can('wikiWrite')).toBe(true)
+    expect(mod.can('identity')).toBe(false)
+    expect(mod.can('originDeepLink')).toBe(false)
+    expect(mod.credentialRequired()).toBe(false)
+    // The built-in row is the point of the vocabulary: writes both, no
+    // identity to gate on, no token errand to sell.
+    expect(mod.originWritable()).toBe(true)
+  })
+
+  test('a connected cloud workspace: token errand yes, identity yes, alias yes', async () => {
+    const mod = await loadConfigWith({
+      capabilities: {
+        issueWrite: true,
+        wikiWrite: true,
+        identity: true,
+        originDeepLink: true,
+        originBaseUrl: 'https://x.example',
+        credentialRequired: true,
+      },
+    })
+    expect(mod.credentialRequired()).toBe(true)
+    expect(mod.can('identity')).toBe(true)
+    expect(mod.config().capabilities.originBaseUrl).toBe('https://x.example')
+    expect(mod.originWritable()).toBe(mod.can('issueWrite'))
+  })
+
+  test('no block (older server / static export): issueWrite falls back to the legacy field, the rest stay false', async () => {
+    const legacy = await loadConfigWith({ originWritable: true })
+    expect(legacy.can('issueWrite')).toBe(true)
+    expect(legacy.originWritable()).toBe(true)
+    // The legacy bool only ever answered issueWrite — the other axes must not
+    // be guessed from it (that inference is exactly what GDK-1152 removes).
+    expect(legacy.can('wikiWrite')).toBe(false)
+    expect(legacy.can('identity')).toBe(false)
+    expect(legacy.credentialRequired()).toBe(false)
+
+    const hosted = await loadConfigWith({ hostedDemo: true })
+    expect(hosted.can('issueWrite')).toBe(false)
+    expect(hosted.credentialRequired()).toBe(false)
+  })
+
+  test('a present block wins over a disagreeing legacy field; a partial block falls back per axis', async () => {
+    const wins = await loadConfigWith({
+      originWritable: true,
+      capabilities: { issueWrite: false, credentialRequired: true },
+    })
+    expect(wins.can('issueWrite')).toBe(false)
+    expect(wins.originWritable()).toBe(false)
+
+    const partial = await loadConfigWith({
+      originWritable: true,
+      capabilities: { credentialRequired: true },
+    })
+    expect(partial.can('issueWrite')).toBe(true)
+    expect(partial.credentialRequired()).toBe(true)
+  })
+
+  test('garbage values read as false / empty, never guessed', async () => {
+    const mod = await loadConfigWith({
+      capabilities: {
+        issueWrite: 'yes',
+        wikiWrite: 1,
+        identity: null,
+        originDeepLink: 'true',
+        originBaseUrl: 42,
+        credentialRequired: 'on',
+      },
+    })
+    expect(mod.can('issueWrite')).toBe(false)
+    expect(mod.can('wikiWrite')).toBe(false)
+    expect(mod.can('identity')).toBe(false)
+    expect(mod.can('originDeepLink')).toBe(false)
+    expect(mod.config().capabilities.originBaseUrl).toBe('')
+    expect(mod.credentialRequired()).toBe(false)
+  })
+})

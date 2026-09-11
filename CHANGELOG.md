@@ -897,6 +897,17 @@ later decision ([GDK-1242]), the second terminal renderer was removed a
 release ago ([GDK-957]), and the terminal panel already has a user-set
 height and no longer competes with the detail pane for width ([GDK-1183]).
 
+The origin now states what it can do. config.json carries a capabilities
+block — issue writes, page writes, identity, an origin page to link to, and
+whether the write credential is a site token the app can edit — computed by
+one owner from the predicates the write paths already used. Five web
+affordances that used to guess from the reader's identity or the workspace
+kind ask that block instead, so an anonymous writer on the built-in or a
+paired tracker keeps the description pencil and the field editor, and a
+paired workspace stops being offered a site-token dialog it has no token
+for. A source gate keeps the guessing vocabulary out of components
+([GDK-1152]).
+
 Under 900 pixels there is one narrow regime. The sidebar's narrow width was
 redeclared in five places under a 760-pixel media query, so an 800-pixel
 window kept a 272-pixel sidebar and squeezed the list into what was left;
@@ -2358,6 +2369,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1147]: https://gadak.dev/backlog/#/?ks=GDK-1147
 [GDK-1149]: https://gadak.dev/backlog/#/?ks=GDK-1149
 [GDK-1150]: https://gadak.dev/backlog/#/?ks=GDK-1150
+[GDK-1152]: https://gadak.dev/backlog/#/?ks=GDK-1152
 [GDK-1158]: https://gadak.dev/backlog/#/?ks=GDK-1158
 [GDK-1172]: https://gadak.dev/backlog/#/?ks=GDK-1172
 [GDK-1174]: https://gadak.dev/backlog/#/?ks=GDK-1174

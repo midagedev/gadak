@@ -39,14 +39,21 @@ async function openDetails(page: Page, count: number): Promise<void> {
   }
 }
 
-/** Serve config.json with originWritable forced to `writable`. */
+/** Serve config.json with originWritable forced to `writable` — and the
+ *  capability axis it aliases (GDK-1152: a present capabilities block wins
+ *  over the legacy field, so a mock that forces only the field no longer
+ *  reaches the surfaces reading can('issueWrite')). */
 async function serveOriginWritable(page: Page, writable: boolean): Promise<void> {
   await page.route('**/config.json', async (route) => {
     const res = await route.fetch()
     const doc = (await res.json()) as Record<string, unknown>
     await route.fulfill({
       response: res,
-      json: { ...doc, originWritable: writable },
+      json: {
+        ...doc,
+        originWritable: writable,
+        capabilities: { ...((doc.capabilities as object | undefined) ?? {}), issueWrite: writable },
+      },
     })
   })
 }

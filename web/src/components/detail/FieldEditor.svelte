@@ -18,6 +18,7 @@
   import { issues } from '../../stores/issues.svelte'
   import { write } from '../../stores/write.svelte'
   import { me } from '../../stores/me.svelte'
+  import { can } from '../../lib/config'
   import { ESC_TIER, isEscapeKey, onEscape, onOutsideClick } from '../../lib/dom-actions'
   import Avatar from '../list/Avatar.svelte'
   import Icon from '../ui/Icon.svelte'
@@ -400,7 +401,9 @@
     void pickParent(next)
   }
 
-  const canEdit = $derived(me.identified)
+  // GDK-1152: a field edit is an issue write — ask the origin, not identity
+  // (empty on built-in/paired/linear even though all three write fine).
+  const canEdit = $derived(can('issueWrite'))
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->

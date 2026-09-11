@@ -16,8 +16,7 @@
   import type { AdfNode, DetailAttachment } from '../../lib/types'
   import { ApiError, previewMarkdown } from '../../lib/api'
   import { write } from '../../stores/write.svelte'
-  import { me } from '../../stores/me.svelte'
-  import { isHostedDemo } from '../../lib/config'
+  import { can, isHostedDemo } from '../../lib/config'
   import { ESC_TIER, isEscapeKey, onEscape } from '../../lib/dom-actions'
   import Icon from '../ui/Icon.svelte'
   import AdfContent from './AdfContent.svelte'
@@ -53,7 +52,11 @@
   let ta: HTMLTextAreaElement | null = $state(null)
 
   const lossFree = $derived(loss.length === 0)
-  const canEdit = $derived(me.identified || isHostedDemo())
+  // GDK-1152: the pencil is an issue-write affordance, so it asks the
+  // origin's capability statement. The identity gate it replaces hid the
+  // editor on built-in/paired/linear — workspaces that write fine with no
+  // auth/me email to show for it.
+  const canEdit = $derived(can('issueWrite') || isHostedDemo())
   // The hosted demo has no server to render a preview.
   const canPreview = $derived(!isHostedDemo())
 

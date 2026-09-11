@@ -14,8 +14,7 @@
   import { t, relativeTime, absTime } from '../../lib/i18n'
   import { pages } from '../../stores/pages.svelte'
   import { write } from '../../stores/write.svelte'
-  import { me } from '../../stores/me.svelte'
-  import { isHostedDemo, originWritable } from '../../lib/config'
+  import { can, isHostedDemo } from '../../lib/config'
   import { openOriginUrl } from '../../lib/desktop-links'
   import { createResource } from '../../lib/resource.svelte'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
@@ -319,13 +318,15 @@
                 void postPageComment()
               }}
             >
-              <!-- GDK-1148: page comments are issue comments' sibling — an
-                   anonymous built-in/paired writer (originWritable) posts
-                   fine through the origin, so no credential placeholder. -->
+              <!-- GDK-1148/GDK-1152: page comments are issue comments'
+                   sibling — the composer asks the origin's wikiWrite axis,
+                   which is exactly the write path postPageComment takes
+                   (origin.Wiki). Identity was the old, wrong proxy: it is
+                   empty on the built-in/paired workspaces that post fine. -->
               <textarea
                 bind:value={draft}
                 rows="2"
-                placeholder={me.identified || isHostedDemo() || originWritable()
+                placeholder={can('wikiWrite') || isHostedDemo()
                   ? t('doc.commentPlaceholder')
                   : t('doc.commentNeedCredentials')}
                 data-testid="doc-comment-composer"

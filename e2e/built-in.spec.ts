@@ -35,9 +35,39 @@ async function serveWorkspaceKind(
   await page.route('**/config.json', async (route) => {
     const res = await route.fetch()
     const doc = (await res.json()) as Record<string, unknown>
+    // GDK-1152: the mock must state the capabilities block the real server
+    // would send for this shape. A present block wins over the legacy
+    // originWritable field, so overriding only the field stopped reaching
+    // the surfaces. standalone = issuetap in-process: writes issues and
+    // pages, anonymous, no origin page, no site token. connected = a Jira
+    // site across the serve API: the token dialog is the way in and out.
+    // extra.capabilities deep-merges on top — the paired test uses that to
+    // subtract the site-token axes a paired serve would never state.
+    const writable = extra.originWritable === true
+    const caps =
+      kind === 'standalone'
+        ? {
+            issueWrite: true,
+            wikiWrite: true,
+            identity: false,
+            originDeepLink: false,
+            originBaseUrl: '',
+            credentialRequired: false,
+          }
+        : {
+            issueWrite: writable,
+            wikiWrite: writable,
+            identity: writable,
+            originDeepLink: true,
+            originBaseUrl:
+              (doc.capabilities as Record<string, unknown> | undefined)?.originBaseUrl ?? '',
+            credentialRequired: true,
+          }
+    const merged = { ...caps, ...((extra.capabilities as object | undefined) ?? {}) }
+    const { capabilities: _override, ...rest } = extra
     await route.fulfill({
       response: res,
-      json: { ...doc, ...extra, workspaceKind: kind },
+      json: { ...doc, ...rest, workspaceKind: kind, capabilities: merged },
     })
   })
 }
@@ -245,6 +275,25 @@ test.describe('built-in workspace indicator', () => {
     ).toHaveCount(0)
   })
 
+  /*
+   * GDK-1152: the description pencil asks the origin's capability block,
+   * not auth/me. A built-in workspace is anonymous AND writable — the exact
+   * row an identity gate gets backwards, and the live defect this round
+   * migrated away (the pencil was absent on standalone, paired, and Linear
+   * alike). FAIL-first: against the pre-vocabulary component the button
+   * below is hidden (me.identified false, hostedDemo false).
+   */
+  test('built-in workspace: an anonymous writer keeps the description pencil', async ({ page }) => {
+    await page.route('**/api/v1/auth/me/**', (route) =>
+      route.fulfill({ status: 200, json: { email: null } }),
+    )
+    await serveWorkspaceKind(page, 'standalone', { originWritable: true })
+    await gotoApp(page)
+
+    const panel = await openIssueDetail(page, 'NMB-110')
+    await expect(panel.getByTestId('description-edit')).toBeVisible()
+  })
+
   test('paired workspace (connected kind, writable origin) loses the footer CTA', async ({
     page,
   }) => {
@@ -254,25 +303,31 @@ test.describe('built-in workspace indicator', () => {
     // Paired shape: the credential lives in remote-origin.json, so the kind is
     // still "connected" while originWritable is true. This is the double error
     // the audit named — advising an already-configured workspace to configure.
-    await serveWorkspaceKind(page, 'connected', { originWritable: true })
+    // The capabilities override states what a paired serve really sends
+    // (GDK-1152): issuetap answers everything one machine away — anonymous,
+    // no origin page, and crucially no site token for the dialog to edit.
+    await serveWorkspaceKind(page, 'connected', {
+      originWritable: true,
+      capabilities: { identity: false, originDeepLink: false, originBaseUrl: '', credentialRequired: false },
+    })
     await gotoApp(page)
 
     await expect(
       page.getByRole('button', { name: en['common.setCredentials'], exact: true }),
     ).toHaveCount(0)
 
-    // The Sync tab's personal-token button is the KNOWN RESIDUAL, and this
-    // assertion records it rather than hiding it. Hiding that button on
-    // every writable origin was tried and reverted: originWritable is also
-    // true of a connected workspace WITH a site token, and taking the entry
-    // point away there removes the only in-app way to rotate one (an e2e
-    // that asserts its position had to be rewritten — that rewrite was the
-    // tell). Closing it for paired needs a capability the client does not
-    // have yet: "this workspace's credential is an editable site token".
-    // GDK-1152 is that work; until it lands, paired sees this button.
+    // The Sync tab's personal-token button was this test's KNOWN RESIDUAL:
+    // hiding it on every writable origin was tried and reverted (that also
+    // took it away from a connected workspace WITH a site token — the only
+    // in-app way to rotate one). What closes it is the axis the origin can
+    // state and a kind guess cannot: credentialRequired, false for paired
+    // because its credential is remote-origin.json on the home machine.
+    // FAIL-first: against the pre-GDK-1152 SyncTab this button was visible.
     await openServerSettings(page)
     const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await expect(dialog.getByRole('button', { name: en['settings.personalToken'] })).toBeVisible()
+    await expect(
+      dialog.getByRole('button', { name: en['settings.personalToken'] }),
+    ).toHaveCount(0)
   })
 
   // Negative control: the one place the CTAs must stay is a connected

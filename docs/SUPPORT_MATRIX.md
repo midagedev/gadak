@@ -93,6 +93,7 @@ Markers:
 | **Surface** · `views open --keys -` | ✅[^98] | ✅[^98] | ✅[^98] | ✅[^98] |
 | **Surface** · watch feed + OS alerts | ✅[^99] | ✅[^134] | ◐[^100] | ✅[^99] |
 | **Surface** · in-process origin (no network to the tracker) | —[^101] | —[^101] | —[^101] | ✅[^102] |
+| **Surface** · config.json `capabilities` — the origin's statement of its own abilities (GDK-1152) | ✅[^152] | ✅[^153] | ✅[^154] | ✅[^155] |
 
 [^1]: Atlassian Cloud REST (`internal/jira/client.go:165`), mirrored by the
     Jira-family sync pass (`internal/sync/run.go:50`, `internal/sync/sync.go:153`).
@@ -840,3 +841,38 @@ this table from the code instead of maintaining it by hand is GDK-1301.
     not paired — a paired client must not mint a fresh origin on the wrong
     machine) is one owner for both halves
     (`cmd/gadak/workspace_cmd.go:105`, `internal/server/origin_rest.go:110`).
+
+[^152]: One owner states the whole block — `origin.CapabilitiesOf`
+    (`internal/origin/capabilities.go`) — and config.json carries it beside
+    the legacy `originWritable`, which stays as an alias of
+    `capabilities.issueWrite` (`internal/server/settings.go:104`). The axes
+    on Cloud: `issueWrite`, `wikiWrite` and `identity` follow the site
+    credential (with no token all three are false — the row the
+    set-credentials CTA lives on), `originDeepLink` + `originBaseUrl` need
+    only the site, and `credentialRequired` is true: the site token is the
+    one credential the in-app dialog can rotate. The origin type × transport
+    expectation table is `internal/origin/capabilities_table_test.go`.
+
+[^153]: Same owner and block; Server states `wikiWrite` false — there is no
+    Confluence Server client ([^126]) — and `credentialRequired` true: the
+    PAT is a site credential (`internal/origin/capabilities.go:88`).
+
+[^154]: Same owner and block; Linear states `issueWrite` **false** on
+    purpose — a Linear key rides the per-key credential gate
+    (`credential.linear`), not the Jira-family predicate the axis aliases —
+    `wikiWrite` false ([^45]), `identity` false (an API key has no email for
+    auth/me to answer with), and `originDeepLink` true with an empty
+    `originBaseUrl`: the link is the per-issue URL the mirror stores ([^48]),
+    never a base the client could build from.
+
+[^155]: Same owner and block; the built-in tracker states `issueWrite` and
+    `wikiWrite` true on both transports (issuetap answers issue and page
+    writes in-process and one machine away), `identity` false — anonymous
+    writers are the norm here and every write still lands — and
+    `credentialRequired` false: no site token exists on this workspace to
+    rotate, so the SyncTab entry point stays hidden
+    (`web/src/components/settings/SyncTab.svelte`). Web surfaces ask this
+    block through `can(...)` (`web/src/lib/config.ts`) instead of guessing
+    from the workspace kind, an empty site URL, or auth/me identity — the
+    class of defect GDK-1152 closed; `web/src/lib/capability-gate.test.ts`
+    is the source gate that keeps it closed.

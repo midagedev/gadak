@@ -1,7 +1,7 @@
 <script lang="ts">
   /* How often the mirror refreshes, and how old is "stale". */
   import { t } from '../../lib/i18n'
-  import { config, isBuiltInWorkspace, surface } from '../../lib/config'
+  import { config, credentialRequired, surface } from '../../lib/config'
   import { copyText } from '../../lib/copy-text'
   import { upgradeCta } from '../../lib/upgrade-cta'
   import Icon from '../ui/Icon.svelte'
@@ -138,20 +138,16 @@
       {t('settings.staleHint')}
     </span>
   </label>
-  <!-- GDK-1148: the dialog behind this button edits a SITE credential —
-       email + API token. A built-in workspace has none to edit (it writes
-       through its in-process origin), so the entry point advertises a
-       concept that does not exist there.
-
-       The predicate is deliberately NOT originWritable: that is true of a
-       connected workspace WITH a credential too, and hiding the button
-       there would take away the way to rotate a token that does exist. A
-       paired workspace is the residual — its credential lives in
-       remote-origin.json, so this button is wrong there as well, and the
-       client cannot yet tell paired from connected. GDK-1152 is where that
-       gap closes; widening this branch by guessing is what put a regression
-       here in the first place. -->
-  {#if !isBuiltInWorkspace()}
+  <!-- GDK-1148/GDK-1152: the dialog behind this button edits a SITE
+       credential — email + API token. The origin states whether this
+       workspace has one (capabilities.credentialRequired): true on the
+       Jira family reached as a site, false on built-in (writes through its
+       in-process origin), paired (its credential lives in
+       remote-origin.json on the home machine), and Linear (key is config,
+       not a site token). The old workspace-kind branch showed the button to
+       paired workspaces too — selling a token errand to a workspace that
+       has no token to set here. -->
+  {#if credentialRequired()}
   <div class="border-t border-border-subtle pt-3">
     <button
       type="button"

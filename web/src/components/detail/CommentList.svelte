@@ -11,8 +11,8 @@
   import { t } from '../../lib/i18n'
   import type { DetailAttachment, DetailComment } from '../../lib/types'
   import { write } from '../../stores/write.svelte'
-  import { me } from '../../stores/me.svelte'
   import { issues } from '../../stores/issues.svelte'
+  import { can } from '../../lib/config'
   import { effectiveCategory } from '../../lib/view-config'
   import { claimStands, hasDoneWord } from '../../lib/done-words'
   import { relativeTime, absoluteTime } from './format'
@@ -105,9 +105,9 @@
     // A claim the last status change already answered is not a mismatch —
     // the comment must be newer than status_changed_at (claimStands).
     if (!claimStands(newest.created_at, issueRow.status_changed_at)) return false
-    // Same identity gate as the reply button beside it — the click opens a
-    // write surface.
-    if (!me.identified) return false
+    // Same write-capability gate as the reply button beside it — the click
+    // opens a write surface, so it asks the origin (GDK-1152), not identity.
+    if (!can('issueWrite')) return false
     return true
   })
   const moveToDoneWhy = $derived(
@@ -160,7 +160,7 @@
                 title={moveToDoneWhy}>{t('detail.moveToDone')}</button
               >
             {/if}
-            {#if me.identified && c.author_account_id && !c.comment_id.startsWith('temp-')}
+            {#if can('issueWrite') && c.author_account_id && !c.comment_id.startsWith('temp-')}
               <button
                 type="button"
                 class="ml-auto rounded px-1.5 py-0.5 text-micro text-text-muted opacity-0 transition hover:bg-bg-hover hover:text-text-primary focus-within:opacity-100 group-hover:opacity-100"
