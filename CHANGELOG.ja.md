@@ -591,6 +591,12 @@ blocked_hours と blocked_since を加え、Jira の Flagged 遷移からスプ�
 前にページ数を数えられ ([GDK-965])、flow p85 は同期バージョンごとに一度だけ
 計算します ([GDK-1429])。
 
+`gadak link KEY <url> --title` が origin を通してリモートリンクを書きます。
+`gadak ref` が作るのと同じ行を URL で書く形で、PR の形の URL は CLI と
+アプリの課題の PR 一覧にも表示されます。課題キーの位置に URL を入れると
+以前はごみのキーとして origin まで届いていましたが、今は拒否します
+([GDK-530])。
+
 キャッシュが課題のブロック時間を知るようになりました。スキーマ v51 が
 blocked_hours と blocked_since を加え、Jira の Flagged 遷移からスプリントと
 同じ方法で導出し、変更履歴のない origin では正直に NULL です ([GDK-1449])。
@@ -2053,6 +2059,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-521]: https://gadak.dev/backlog/#/?ks=GDK-521
 [GDK-524]: https://gadak.dev/backlog/#/?ks=GDK-524
 [GDK-527]: https://gadak.dev/backlog/#/?ks=GDK-527
+[GDK-530]: https://gadak.dev/backlog/#/?ks=GDK-530
 [GDK-531]: https://gadak.dev/backlog/#/?ks=GDK-531
 [GDK-532]: https://gadak.dev/backlog/#/?ks=GDK-532
 [GDK-536]: https://gadak.dev/backlog/#/?ks=GDK-536

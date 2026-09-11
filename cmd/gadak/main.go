@@ -256,6 +256,7 @@ Writing through to the workspace origin — ` + writeThroughOriginPhrase + `:
   sprint     boards and sprints (Jira Software)  list | add <sprint-id> <KEY>... | remove <KEY>...
                    | create <board-id> <name> [--goal ...] | start <sprint-id> [--days N] | close <sprint-id>
   link       create an issue link <A> <B> --type <name|inward|outward|id> [--json]
+                   | a remote link to a URL  <KEY> <url> [--title T] [--json] [--dry-run]
   unlink     remove an issue link      <A> <B> --type <name|inward|outward|id> [--json]
   page       wiki page get/list/create/edit/comment  get <ID> | list [--space K] [--limit N] [--json|--csv|--no-header]
                    | create|edit|comment [<ID>] [--space K] [--title T] [-m <text|->] [--adf-file F] [--json]

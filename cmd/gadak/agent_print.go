@@ -267,7 +267,7 @@ func printIssue(l store.IssueLite, d *store.Detail, dur store.Spans, phrases map
 			fmt.Printf("  %s\t%s\t%s\n", label, k.Key, k.Summary)
 		}
 	}
-	if prs := server.ListLinkedPRs(d.DevLinks, d.Attachments); len(prs) > 0 {
+	if prs := server.ListLinkedPRs(d.DevLinks, d.Attachments, d.Refs); len(prs) > 0 {
 		fmt.Printf("\nLinked PRs (%d)\n", len(prs))
 		for _, p := range prs {
 			line := p.URL
@@ -293,7 +293,7 @@ func linkedPRsJSON(d *store.Detail) json.RawMessage {
 	if d == nil {
 		return json.RawMessage("[]")
 	}
-	raw := server.MergedPRLinks(d.DevLinks, d.Attachments)
+	raw := server.MergedPRLinks(d.DevLinks, d.Attachments, d.Refs)
 	if len(raw) == 0 {
 		return json.RawMessage("[]")
 	}

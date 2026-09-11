@@ -588,6 +588,11 @@ says so. `--rm <id>` takes one back. The same references appear on the
 issue in the app. A Jira Cloud workspace refuses the verb: the pointer
 would be visible to that whole site.
 
+`gadak link <KEY> <url> [--title T]` writes the plain-URL half of the same
+row — a remote link at a commit, PR, or any page, with a title you choose.
+A PR-shaped URL additionally shows in the issue's PR section (`linked_prs`),
+on the CLI and in the app, with no integration attached.
+
 ## Pairing: the origin is another machine's serve
 
 Home (the built-in tracker, with `gadak serve` running) mints one offer per device.
@@ -720,6 +725,7 @@ gadak edit NMB-140 --component +SDK --component -Docs
 gadak edit NMB-140 --fix-version +v2.5 --fix-version -10012
 gadak edit NMB-140 --field severity=High
 gadak link NMB-140 NMB-141 --type blocks          # A blocks B; "is blocked by" means A is blocked by B
+gadak link NMB-140 https://github.com/org/app/pull/7 --title "Fix login"   # remote link (built-in or paired); a PR-shaped URL also appears in the issue's PR section
 gadak unlink NMB-140 NMB-141 --type blocks        # removes that link (live id lookup; the mirror keeps no link ids)
 gadak create Ship the uploader --project NMB --type Task --dry-run   # every write verb takes --dry-run: prints the exact request as one JSON line and sends nothing
 gadak edit NMB-140 --priority High --dry-run      # resolutions still run (ids, not typed names); a would-refuse dry-run refuses

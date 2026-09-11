@@ -9,6 +9,86 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
+// GDK-530: a mirrored remote link — `gadak link KEY <url>` writes those, and
+// the origin's own remote links mirror into the same rows — whose URL is a
+// PR rides linked_prs exactly like a URL attachment does. A non-PR pointer
+// (a plain URL, a gadak:// cross-workspace ref) stays out, and dev_links
+// still wins the URL dedupe because it knows the state.
+func TestDetailDerivesLinkedPRsFromRemoteLinks(t *testing.T) {
+	db, cfg, _ := fixtureAt(t)
+	h := New(db, cfg)
+
+	if _, err := db.UpsertIssues(context.Background(), store.Batch{
+		Records: []store.IssueRecord{{
+			Item: store.Item{
+				ID: "jira:9002", SourceID: "jira", ExternalID: "9002", Key: "MID-8",
+				Title: "cursor jumps in the composer",
+			},
+			Issue: store.Issue{ProjectKey: "MID", Status: "Todo", StatusID: "s1", StatusCategory: "new"},
+		}},
+	}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	if err := db.ReplaceRemoteLinks(context.Background(), "MID-8", store.RemoteLinksUpdate{
+		Links: []store.RemoteLink{
+			{ID: "1", Relationship: "implemented by",
+				URL: "https://github.com/midagedev/gadak/pull/60", Title: "cursor fix"},
+			// A plain URL is a pointer, not a PR.
+			{ID: "2", Relationship: "relates to",
+				URL: "https://example.com/design", Title: "design doc"},
+			// A cross-workspace pointer is not a PR either.
+			{ID: "3", URL: "gadak://team/NMB-9", Title: "NMB-9"},
+		},
+	}); err != nil {
+		t.Fatalf("replace remote links: %v", err)
+	}
+
+	var d struct {
+		LinkedPRs []struct {
+			Number int     `json:"number"`
+			Title  string  `json:"title"`
+			URL    string  `json:"url"`
+			State  string  `json:"state"`
+			Repo   *string `json:"repo"`
+		} `json:"linked_prs"`
+	}
+	if err := json.Unmarshal(get(t, h, apiBase+"MID-8/detail/", nil).Body.Bytes(), &d); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(d.LinkedPRs) != 1 {
+		t.Fatalf("linked_prs = %+v, want exactly the PR-shaped remote link", d.LinkedPRs)
+	}
+	pr := d.LinkedPRs[0]
+	if pr.Number != 60 || pr.URL != "https://github.com/midagedev/gadak/pull/60" ||
+		pr.Title != "cursor fix" || pr.Repo == nil || *pr.Repo != "midagedev/gadak" {
+		t.Fatalf("derived PR wrong: %+v", pr)
+	}
+	if pr.State != "" {
+		t.Fatalf("state = %q — a remote link cannot know the state", pr.State)
+	}
+
+	// A dev_link for the same URL wins the dedupe (it knows the state), the
+	// same rule attachments lose under.
+	if err := db.ReplaceDevLinks(context.Background(), "MID-8", store.DevLinksUpdate{Links: []store.DevLink{
+		{URL: "https://github.com/midagedev/gadak/pull/60", Title: "from panel", Status: "merged", UpdatedAt: "2026-08-21T00:00:00Z"},
+	}}); err != nil {
+		t.Fatalf("replace dev links: %v", err)
+	}
+	var dm struct {
+		LinkedPRs []struct {
+			Number int    `json:"number"`
+			Title  string `json:"title"`
+			State  string `json:"state"`
+		} `json:"linked_prs"`
+	}
+	if err := json.Unmarshal(get(t, h, apiBase+"MID-8/detail/", nil).Body.Bytes(), &dm); err != nil {
+		t.Fatalf("decode merge: %v", err)
+	}
+	if len(dm.LinkedPRs) != 1 || dm.LinkedPRs[0].Title != "from panel" || dm.LinkedPRs[0].State != "merged" {
+		t.Fatalf("dev_link did not win the remote-link dedupe: %+v", dm.LinkedPRs)
+	}
+}
+
 // GDK-495: a mirrored URL attachment pointing at a GitHub pull request surfaces
 // as linked_prs, so a Linear issue whose PR the tracker already knows shows it
 // here too. A plugin enrichment (kind='prs') still wins — it can carry state.

@@ -98,6 +98,18 @@ func parseRefTarget(token string) (url, workspace, targetKey string, err error) 
 }
 
 func refAdd(key, target, relationship string, asJSON bool) error {
+	return addRemoteLink("ref", key, target, "", relationship, asJSON, false)
+}
+
+// addRemoteLink is the one remote-link write path (GDK-530): `gadak ref`
+// points at another workspace's issue or a URL, `gadak link KEY <url>` is
+// the URL-spelled front door, and both mint the same origin row through the
+// same write-through session. verb names the door the person typed (the
+// dry-run plan and JSON carry it). titleOverride is `link --title`; empty
+// keeps the target's own default — the hydrated pointer, or the URL itself.
+// dryRun plans without a session: the request is fully typed, there is
+// nothing to resolve from the origin first.
+func addRemoteLink(verb, key, target, titleOverride, relationship string, asJSON, dryRun bool) error {
 	url, ws, targetKey, err := parseRefTarget(target)
 	if err != nil {
 		return err
@@ -117,6 +129,20 @@ func refAdd(key, target, relationship string, asJSON bool) error {
 			title = targetKey + " — " + lite.Summary
 		}
 	}
+	if titleOverride != "" {
+		title = titleOverride
+	}
+
+	if dryRun {
+		req := map[string]any{"url": url, "title": title, "relationship": relationship}
+		if targetKey != "" {
+			req["global_id"] = url
+		}
+		if err := emitDryRun(verb, req, key); err != nil {
+			return err
+		}
+		return errDryRun
+	}
 
 	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
 		rl, err := origin.AsRemoteLinker(cfg, c)
@@ -133,7 +159,8 @@ func refAdd(key, target, relationship string, asJSON bool) error {
 		}); err != nil {
 			return refOriginTooOld(cfg, err)
 		}
-		recordAgentWrite(ctx, db, key, "ref")
+		// The ledger row names the door the person typed (ref or link).
+		recordAgentWrite(ctx, db, key, verb)
 		if err := refreshRefs(ctx, cfg, db, rl, key); err != nil {
 			return err
 		}

@@ -878,13 +878,15 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak assign", "gadak transition", "gadak issue"},
 	},
 	"link": {
-		summary: "create an issue link (A <type> B); not `gadak issue --link`, which prints a gadak:// URL",
-		usage:   "gadak [--workspace <name>] link <A> <B> --type <name|inward|outward|id> [--json] [--dry-run]",
+		summary: "create an issue link (A <type> B) or a remote link to a URL (KEY <url> --title; built-in or paired workspace, a PR-shaped URL also shows in the issue's PR section); not `gadak issue --link`, which prints a gadak:// URL",
+		usage: "gadak [--workspace <name>] link <A> <B> --type <name|inward|outward|id> [--json] [--dry-run]\n" +
+			"| link <KEY> <url> [--title T] [--json] [--dry-run]",
 		examples: []string{
 			"gadak link NMB-140 NMB-141 --type blocks",
 			"gadak link NMB-140 NMB-141 --type \"is blocked by\"",
+			"gadak link NMB-140 https://github.com/org/app/pull/7 --title \"Fix login\"",
 		},
-		seeAlso: []string{"gadak issue", "gadak edit", "gadak comment"},
+		seeAlso: []string{"gadak issue", "gadak edit", "gadak comment", "gadak ref"},
 	},
 	"unlink": {
 		summary: "remove an issue link — the one `gadak link A B --type t` created (looked up live for its id; the mirror carries none)",

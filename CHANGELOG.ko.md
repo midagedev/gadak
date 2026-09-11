@@ -740,6 +740,11 @@ Lite용 변환은 gadak.dev/demo에 게시되는 사본으로 옮겼고 독자�
 클라이언트가 스페이스를 받아오기 전에 페이지 수를 셀 수 있으며 ([GDK-965]),
 flow p85는 동기화 버전마다 한 번만 계산합니다 ([GDK-1429]).
 
+`gadak link KEY <url> --title`이 origin을 거쳐 remote link를 씁니다. `gadak
+ref`가 만드는 것과 같은 행을 URL로 적는 형태이고, PR 모양의 URL은 CLI와
+앱의 이슈 PR 목록에 함께 보입니다. 이슈 키 자리에 URL을 넣으면 예전에는
+쓰레기 키로 origin까지 갔는데 이제 거절합니다 ([GDK-530]).
+
 캐시가 이슈가 얼마나 오래 막혀 있었는지를 알게 됐습니다. 스키마 v51이
 blocked_hours와 blocked_since를 더하고, Jira의 Flagged 전환에서 스프린트와
 같은 방식으로 파생하며, 변경 기록이 없는 origin에서는 정직하게 NULL입니다
@@ -1923,6 +1928,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-521]: https://gadak.dev/backlog/#/?ks=GDK-521
 [GDK-524]: https://gadak.dev/backlog/#/?ks=GDK-524
 [GDK-527]: https://gadak.dev/backlog/#/?ks=GDK-527
+[GDK-530]: https://gadak.dev/backlog/#/?ks=GDK-530
 [GDK-531]: https://gadak.dev/backlog/#/?ks=GDK-531
 [GDK-532]: https://gadak.dev/backlog/#/?ks=GDK-532
 [GDK-536]: https://gadak.dev/backlog/#/?ks=GDK-536

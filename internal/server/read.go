@@ -520,11 +520,11 @@ func (d detailResponse) MarshalJSON() ([]byte, error) {
 var githubPRURL = regexp.MustCompile(`^https://github\.com/([^/]+/[^/]+)/pull/(\d+)(?:[/?#]|$)`)
 
 // prLinksFromAttachments derives the linked_prs payload from mirrored
-// URL attachments when no plugin enrichment supplies one. The enrichment
-// (kind='prs') stays the winner: it can carry state and author, which a bare
-// URL cannot.
+// URL attachments and PR-shaped remote links when no plugin enrichment
+// supplies one. The enrichment (kind='prs') stays the winner: it can carry
+// state and author, which a bare URL cannot.
 // LinkedPR is one GitHub pull request derived from the mirror (dev_links
-// and/or a PR-shaped URL attachment).
+// and/or a PR-shaped URL attachment or remote link).
 type LinkedPR struct {
 	Number int     `json:"number"`
 	Title  string  `json:"title"`
@@ -539,11 +539,15 @@ type LinkedPR struct {
 	LinkedByID *string `json:"linked_by_id,omitempty"`
 }
 
-// ListLinkedPRs merges the two mirrored PR sources: dev_links (the origin's
-// development panel, GDK-497 — carries a state) and PR-shaped URL attachments
-// (GDK-495 — carry none). Deduped by URL, dev_links winning, because a stated
-// status beats an inferred blank.
-func ListLinkedPRs(devLinks []store.DevLink, attachments []store.DetailAttachment) []LinkedPR {
+// ListLinkedPRs merges the three mirrored PR sources: dev_links (the
+// origin's development panel, GDK-497 — carries a state), PR-shaped URL
+// attachments (GDK-495 — carry none), and PR-shaped remote links (GDK-530 —
+// `gadak link KEY <url>` writes those on the built-in origin, and they carry
+// no state either). Deduped by URL, dev_links winning, because a stated
+// status beats an inferred blank; attachments and remote links tie, so the
+// order between them is cosmetic (one URL cannot be both on the same
+// origin). githubPRURL is the single PR-shape owner all three flow through.
+func ListLinkedPRs(devLinks []store.DevLink, attachments []store.DetailAttachment, refs []store.RemoteLink) []LinkedPR {
 	var prs []LinkedPR
 	seen := map[string]bool{}
 	add := func(url, title, state, linkedBy, linkedByID string) {
@@ -574,13 +578,21 @@ func ListLinkedPRs(devLinks []store.DevLink, attachments []store.DetailAttachmen
 		}
 		add(a.URL, a.Filename, "", "", "")
 	}
+	for _, r := range refs {
+		if seen[r.URL] || githubPRURL.FindStringSubmatch(r.URL) == nil {
+			continue
+		}
+		// A remote link carries a curated title (`link --title`), unlike an
+		// attachment's filename — still no state.
+		add(r.URL, r.Title, "", "", "")
+	}
 	return prs
 }
 
 // MergedPRLinks is ListLinkedPRs encoded as the linked_prs JSON array.
 // Empty input returns nil so omitempty callers can drop the field.
-func MergedPRLinks(devLinks []store.DevLink, attachments []store.DetailAttachment) json.RawMessage {
-	prs := ListLinkedPRs(devLinks, attachments)
+func MergedPRLinks(devLinks []store.DevLink, attachments []store.DetailAttachment, refs []store.RemoteLink) json.RawMessage {
+	prs := ListLinkedPRs(devLinks, attachments, refs)
 	if prs == nil {
 		return nil
 	}
@@ -694,7 +706,7 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	if p := payload(en["prs"]); p != nil {
 		res.LinkedPRs = p
-	} else if prs := MergedPRLinks(d.DevLinks, d.Attachments); prs != nil {
+	} else if prs := MergedPRLinks(d.DevLinks, d.Attachments, d.Refs); prs != nil {
 		res.LinkedPRs = prs
 	}
 	if p := payload(en["opinion"]); p != nil {

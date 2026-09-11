@@ -934,6 +934,12 @@ there ([GDK-1756]). `gadak page get --storage` and `page edit
 Confluence client can count a space's pages before it is mirrored
 ([GDK-965]), and the flow p85 is memoized per sync version ([GDK-1429]).
 
+`gadak link KEY <url> --title` writes a remote link through the origin — the
+same row `gadak ref` mints, spelled as a URL — and a PR-shaped one shows in
+the issue's linked PRs on the CLI and in the app; typing a URL where an
+issue key was expected used to reach the origin as a garbage key and is now
+refused ([GDK-530]).
+
 The mirror learned how long an issue was flagged: schema v51 adds
 blocked_hours and blocked_since, derived from Jira's Flagged transitions
 the same way sprint is, and honestly NULL on an origin without a changelog
@@ -2190,6 +2196,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-521]: https://gadak.dev/backlog/#/?ks=GDK-521
 [GDK-524]: https://gadak.dev/backlog/#/?ks=GDK-524
 [GDK-527]: https://gadak.dev/backlog/#/?ks=GDK-527
+[GDK-530]: https://gadak.dev/backlog/#/?ks=GDK-530
 [GDK-531]: https://gadak.dev/backlog/#/?ks=GDK-531
 [GDK-532]: https://gadak.dev/backlog/#/?ks=GDK-532
 [GDK-536]: https://gadak.dev/backlog/#/?ks=GDK-536

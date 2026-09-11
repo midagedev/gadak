@@ -13,11 +13,13 @@ import (
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
-const linkUsage = "usage: gadak link <A> <B> --type <name|inward|outward|id> [--json] [--dry-run]"
+const linkUsage = "usage: gadak link <A> <B> --type <name|inward|outward|id> [--json] [--dry-run]\n" +
+	"       gadak link <KEY> <url> [--title T] [--json] [--dry-run]"
 
 func cmdLink(args []string) error {
 	fs := newFlagSet("link")
 	typ := fs.String("type", "", "link type name, inward or outward description, or id")
+	title := fs.String("title", "", "remote link title when the target is a URL (default: the URL itself)")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	dryRun := fs.Bool("dry-run", false, "print the link type id and sides this write would send and exit; nothing reaches the origin")
 	if wantsHelp(args) {
@@ -27,6 +29,17 @@ func cmdLink(args []string) error {
 	pos, err := parseAround(fs, args)
 	if err != nil {
 		return err
+	}
+	// The URL form (GDK-530): a second positional carrying a scheme is a
+	// remote link target, never an issue key — CanonicalKey only uppercases,
+	// so without this dispatch a typed URL rides the issue-link path to the
+	// origin as a garbage key. --type is the issue-link vocabulary; the two
+	// grammars do not mix.
+	if len(pos) == 2 && strings.Contains(pos[1], "://") {
+		if strings.TrimSpace(*typ) != "" {
+			return usageError("link", "usage: gadak link: --type names an issue-link type for `link <A> <B>`; a URL target is a remote link — pass --title, not --type")
+		}
+		return foldDryRun(linkRemoteURL(pos[0], pos[1], strings.TrimSpace(*title), *asJSON, *dryRun))
 	}
 	if len(pos) != 2 || strings.TrimSpace(*typ) == "" {
 		return usageError("link", linkUsage)
@@ -98,4 +111,17 @@ func cmdLink(args []string) error {
 		}
 		return emitAfterWrite(ctx, cfg, db, src, a, *asJSON, extra)
 	}))
+}
+
+// linkRemoteURL is `gadak link KEY <url> [--title]` (GDK-530): a remote
+// issue link — the origin-native home for a commit/PR URL — written through
+// the same core `gadak ref` writes with (addRemoteLink). One write path,
+// two front doors; a PR-shaped URL then rides the linked_prs derivation
+// (internal/server ListLinkedPRs) like a Linear URL attachment does.
+func linkRemoteURL(keyRaw, target, title string, asJSON, dryRun bool) error {
+	key := fields.CanonicalKey(keyRaw)
+	if key == "" {
+		return usageError("link", linkUsage)
+	}
+	return addRemoteLink("link", key, target, title, "", asJSON, dryRun)
 }

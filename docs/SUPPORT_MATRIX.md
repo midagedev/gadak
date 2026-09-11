@@ -48,7 +48,7 @@ Markers:
 | **Read** · history → `status_changed_at`, `reopen_count`, `started_at` / `cycle_hours` (time-in-status computed, never stored) | ✅[^14] | ✅[^120] | ◐[^15] | ✅[^16] |
 | **Read** · issue links | ✅[^17] | ✅[^17] | ✅[^106] | ✅[^19] |
 | **Read** · `gadak ready` / `open_blockers` — blocking-link catalog | ✅[^107] | ✅[^107] | ✅[^108] | ✅[^109] |
-| **Read** · remote issue links / cross-workspace refs (`ref`) | —[^20] | —[^20] | —[^20] | ◐[^21] |
+| **Read** · remote issue links / cross-workspace refs (`ref`) — a PR-shaped one also feeds `linked_prs` | —[^20] | —[^20] | —[^20] | ◐[^21] |
 | **Read** · development-panel links (`dev`) | ◐[^22] | ◐[^121] | —[^23] | ✅[^24] |
 | **Read** · labels | ✅[^25] | ✅[^25] | ✅[^26] | ✅[^25] |
 | **Read** · components | ✅[^25] | ✅[^25] | —[^27] | ✅[^28] |
@@ -82,6 +82,7 @@ Markers:
 | **Write** · parent set / clear | ✅[^76] | ✅[^76] | —[^77] | ✅[^78] |
 | **Write** · attachment upload | ✅[^79] | ✅[^119] | ✅[^80] | ✅[^113] |
 | **Write** · link / unlink issues | ✅[^81] | ✅[^132] | —[^18] | ✅[^82] |
+| **Write** · remote link — `link KEY <url> --title` / `ref` | —[^20] | —[^20] | —[^20] | ◐[^21] |
 | **Write** · wiki write — page create / edit / comment | ✅[^83] | —[^126] | —[^45] | ✅[^84] |
 | **Write** · `claim` | ◐[^85] | ◐[^133] | —[^86] | ✅[^87] |
 | **Write** · worklog (`gadak api --write`) | ✅[^88] | ✅[^88] | —[^89] | —[^90] |
@@ -185,14 +186,17 @@ Markers:
 [^19]: Link-type catalog and both-direction elements
     (`issuetap/docs/COMPATIBILITY.md:59`, `:75`).
 
-[^20]: `ref` needs an origin that stores remote links where gadak can read
-    them back; every non-Built-in origin is refused
-    (`internal/origin/writer.go:104`, `:169`).
+[^20]: `ref` and `link KEY <url>` need an origin that stores remote links
+    where gadak can read them back; every non-Built-in origin is refused
+    (`internal/origin/writer.go:117`, `:186`).
 
-[^21]: Works embedded and paired (`cmd/gadak/ref.go:118`,
-    `internal/jira/remotelink.go:51`); the sync pass refreshes the mirror only
-    when the origin is embedded — on a paired workspace the list updates when
-    `ref` writes, not on sync (`internal/origin/writer.go:191`).
+[^21]: Works embedded and paired (`cmd/gadak/link.go:120`,
+    `cmd/gadak/ref.go:172`, `internal/jira/remotelink.go:51`); the sync pass
+    refreshes the mirror only when the origin is embedded — on a paired
+    workspace the rows update when `ref`/`link` writes, not on sync
+    (`internal/origin/writer.go:216`). A remote link whose URL is a GitHub
+    pull request also feeds the issue's `linked_prs`, on the CLI and in the
+    app (`internal/server/read.go:511`).
 
 [^22]: Opt-in: `dev_status` in config gates the fetch and the panel
     (`internal/sync/sync.go:1361`).
