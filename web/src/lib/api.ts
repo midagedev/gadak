@@ -1532,6 +1532,12 @@ interface SettingsSpace {
   /** global | personal. Personal spaces are noise for most mirrors. */
   type: string
   selected: boolean
+  /**
+   * How many pages the space holds — what mirroring it costs (GDK-965).
+   * Absent when the origin could not answer; there is no "unknown" value to
+   * test for, because the only honest rendering of that case is nothing.
+   */
+  pages?: number
 }
 
 /**

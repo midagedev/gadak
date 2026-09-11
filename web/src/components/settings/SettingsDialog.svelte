@@ -269,7 +269,14 @@
     void (async () => {
       try {
         const res = await api.getSettingsSpaces({ signal: scopeListSignal() })
-        spaceOptions = res.spaces.map((s) => ({ value: s.key, label: s.name, hint: s.type }))
+        // `pages` is optional on the wire and stays optional here: an origin
+        // that could not count leaves the row without a count (GDK-965).
+        spaceOptions = res.spaces.map((s) => ({
+          value: s.key,
+          label: s.name,
+          hint: s.type,
+          count: s.pages,
+        }))
         // res.all_global_when_empty is the saved state's version of the same
         // rule; the picker reads the pending switch instead, or the label would
         // contradict the warning above it between a toggle and its save.

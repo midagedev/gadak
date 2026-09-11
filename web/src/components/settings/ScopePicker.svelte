@@ -4,6 +4,12 @@
     label: string
     /** Secondary text on the row (space type, project type…). */
     hint?: string
+    /**
+     * What this option costs to mirror, in pages (GDK-965). Undefined means
+     * the origin could not say — the row then shows nothing, never a 0 and
+     * never the word "unknown".
+     */
+    count?: number
   }
 </script>
 
@@ -25,6 +31,7 @@
   import { isEscapeKey, onOutsideClick } from '../../lib/dom-actions'
   import Icon from '../ui/Icon.svelte'
   import { INPUT } from './controls'
+  import { pageCountLabel } from './space-cost'
 
   let {
     label,
@@ -192,6 +199,7 @@
             <p class="px-2 py-1.5 text-micro text-text-muted">{t('settings.scopeNoMatch')}</p>
           {:else}
             {#each matches as option, i (option.value)}
+              {@const cost = pageCountLabel(option.count)}
               <button
                 type="button"
                 role="option"
@@ -209,6 +217,15 @@
               >
                 <span class="flex-none font-mono text-micro text-accent-text">{option.value}</span>
                 <span class="min-w-0 flex-1 truncate">{option.label}</span>
+                {#if cost}
+                  <!-- The cost of mirroring this one, before it is chosen.
+                       pageCountLabel owns the "nothing vs 0" rule; here the
+                       row only decides where it sits. -->
+                  <span
+                    class="flex-none tabular-nums text-micro text-text-muted"
+                    data-testid="scope-option-count">{cost}</span
+                  >
+                {/if}
                 {#if option.hint}
                   <!-- Raw API vocabulary (service_desk, personal) — shown as it
                        is, but quiet: it disambiguates, it does not label. -->

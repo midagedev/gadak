@@ -216,6 +216,19 @@ export const settings = {
     ko: '↑↓ 이동 · ↵ 추가 · Esc 닫기',
     ja: '↑↓ 移動 · ↵ 追加 · Esc 閉じる',
   },
+  // GDK-965: what a space costs, on the row where it is chosen. Absent
+  // whenever the origin could not answer — the picker says nothing rather
+  // than "0" or "unknown".
+  'settings.scopePageCount': {
+    en: '{n} pages',
+    ko: '{n} 페이지',
+    ja: '{n}ページ',
+  },
+  'settings.scopePageCountOne': {
+    en: '1 page',
+    ko: '1 페이지',
+    ja: '1ページ',
+  },
   'settings.scopeRemove': {
     en: 'Remove {name}',
     ko: '{name} 제거',

@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -355,7 +356,31 @@ type spaceRow struct {
 	Name     string `json:"name"`
 	Type     string `json:"type"`
 	Selected bool   `json:"selected"`
+	// Pages is how many pages the space holds — what mirroring it will cost.
+	// Absent (not 0, not a sentinel) when the origin could not answer; the
+	// picker draws nothing there rather than a number it cannot stand behind.
+	Pages *int `json:"pages,omitempty"`
 }
+
+// The counting fan-out's bounds (GDK-965). Counting is best-effort work
+// hanging off a list request, so it gets a budget rather than a promise.
+const (
+	// spacePageCountRows caps how many rows are counted at all. The list is
+	// already sorted when counting starts, so the budget is spent on the
+	// rows a person actually reads first; a site with hundreds of spaces
+	// does not turn one picker open into hundreds of origin requests.
+	spacePageCountRows = 60
+	// spacePageCountWorkers bounds concurrency. Counts ARE fetched
+	// concurrently — serially, sixty round trips to Confluence Cloud would
+	// make opening the picker take longer than the scan the count exists to
+	// help avoid — but a settings dialog must not become a small load test
+	// against someone's site, so at most this many are ever in flight.
+	spacePageCountWorkers = 6
+	// spacePageCountBudget is the wall-clock ceiling for the whole fan-out.
+	// Whatever has not answered by then is simply absent, which is a shape
+	// the response already has to carry.
+	spacePageCountBudget = 5 * time.Second
+)
 
 // handleSettingsSpaces lists live Confluence spaces for the settings picker.
 // Discovery only needs a credential — Confluence may be off (enabled:false);
@@ -415,11 +440,70 @@ func (s *server) handleSettingsSpaces(w http.ResponseWriter, r *http.Request) {
 		}
 		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
 	})
+	// Counting comes last, on the sorted list, and never changes what is
+	// listed — only what each row knows about itself.
+	counted, asked := countSpacePages(r.Context(), c, out)
+	if asked > 0 && counted < asked {
+		// The standing answer to "why is that space's count blank?". No key
+		// is named: which spaces an install has is installation-specific,
+		// and the shape of the answer (how many of how many) is what
+		// separates "this origin does not report totals" from "one space
+		// timed out".
+		log.Printf("server: space page counts: %d of %d spaces answered (blank rows are unanswered, not empty)", counted, asked)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"spaces":                out,
 		"all_global_when_empty": empty,
 		"enabled":               enabled,
 	})
+}
+
+// countSpacePages fills in each row's Pages, in place, from the origin
+// (GDK-965). This is the one place that answers "what will this space cost";
+// confluence.SpacePageCount is the one place that decides whether an origin's
+// answer can be trusted, and a row whose count is missing simply keeps its
+// zero-valued pointer.
+//
+// Everything here is a bound, because this work hangs off a list request that
+// must stay fast and must not fail: concurrency is capped
+// (spacePageCountWorkers), the number of counted rows is capped
+// (spacePageCountRows), and the whole fan-out shares one deadline
+// (spacePageCountBudget). No error is propagated — an origin that cannot
+// count yields an absent number and the space is still listed.
+// Returned: how many rows got a number, and how many were asked — the pair
+// behind the one log line that explains a blank count without a debugger.
+func countSpacePages(ctx context.Context, c *confluence.Client, rows []spaceRow) (counted, asked int) {
+	n := min(len(rows), spacePageCountRows)
+	if n == 0 {
+		return 0, 0
+	}
+	ctx, cancel := context.WithTimeout(ctx, spacePageCountBudget)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	gate := make(chan struct{}, spacePageCountWorkers)
+	for i := range n {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			select {
+			case gate <- struct{}{}:
+				defer func() { <-gate }()
+			case <-ctx.Done():
+				return
+			}
+			if got, ok := c.SpacePageCount(ctx, rows[i].Key); ok {
+				rows[i].Pages = &got
+			}
+		}(i)
+	}
+	wg.Wait()
+	for i := range n {
+		if rows[i].Pages != nil {
+			counted++
+		}
+	}
+	return counted, n
 }
 
 func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {

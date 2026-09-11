@@ -325,7 +325,10 @@ clamp still warns and saves, identically ([GDK-769]). The tools' axis list and
 their prose are generated from that catalog rather than typed, because a tool
 description is a surface with no gate; and the dispatcher's allowlist is now
 `tools/list` itself, after a live round trip found two tools that the list
-advertised and the call path refused.
+advertised and the call path refused. A Confluence space says what it
+will cost before you mirror it: the picker rows carry the page count, fetched
+concurrently under a bounded budget, and a space the origin cannot count
+draws nothing at all rather than a zero it cannot stand behind ([GDK-965]).
 
 The CLI itself says when its skill file is behind: a read verb prints one
 stderr line when the installed copy differs from this build's, so an agent
