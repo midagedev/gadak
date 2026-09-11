@@ -188,7 +188,18 @@ type Info struct {
 	// default name ("shell 3") is built from it, so the server hardcodes
 	// no language.
 	Name string `json:"name,omitempty"`
-	Seq  int    `json:"seq"`
+	// Title is the window title the shell last set through an OSC 0/2
+	// sequence, empty when it never has (GDK-1389). Claude Code rewrites
+	// it as its task changes and an ordinary prompt puts `user@host: cwd`
+	// there, so it is what a roster row can say about an unnamed shell
+	// without anyone typing a thing. Sanitized at capture (title.go):
+	// control characters stripped, length capped. TitleAt is when it last
+	// arrived — the field that turns "what is this shell doing" into a
+	// question `gadak terminal list` can answer. A title is never a
+	// request for a person: it cannot raise NeedsAttention (GDK-1163).
+	Title   string    `json:"title,omitempty"`
+	TitleAt time.Time `json:"title_at,omitzero"`
+	Seq     int       `json:"seq"`
 }
 
 // Create spawns a shell under a PTY and returns its session.

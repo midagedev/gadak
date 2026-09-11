@@ -299,6 +299,15 @@ export const shell = {
     ko: 'Enter 확정 · Esc 취소 · 비우면 기본 이름',
     ja: 'Enter で確定 · Esc で取消 · 空で既定名',
   },
+  // The shell's own window title as a second line under the name
+  // (GDK-1389). Names the thing on hover: the line is machine-written and
+  // changes on its own, so a person needs to know it is not something they
+  // typed. Server-sanitized before it ever gets here (internal/term/title.go).
+  'terminal.strip.subtitle': {
+    en: 'Window title: {title}',
+    ko: '창 제목: {title}',
+    ja: 'ウィンドウタイトル: {title}',
+  },
   // The tab's × (GDK-1200): ends the session itself, as opposed to
   // terminal.close, which only closes the dock and leaves every shell alive.
   'terminal.strip.kill': {

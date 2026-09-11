@@ -30,6 +30,11 @@ export interface TerminalSessionInfo {
   detached_at?: string
   /** A BEL went through the ring and nobody has attached since. */
   needs_attention?: boolean
+  /** The window title the shell last set with an OSC 0/2 sequence
+   *  (GDK-1389); absent when it never has, and on an older server.
+   *  Sanitized server-side (internal/term/title.go): no control
+   *  characters, length capped. */
+  title?: string
 }
 
 /**
@@ -91,6 +96,31 @@ export function sessionLabel(
   return info.id.length > SHORT_ID_CHARS ? `${info.id.slice(0, SHORT_ID_CHARS)}…` : info.id
 }
 
+/**
+ * What the row says *under* its name (GDK-1389).
+ *
+ * The label is chosen — a person's name, then the issue, then the ordinal —
+ * and it must stay still. The subtitle is the opposite: the window title the
+ * shell is setting for itself, which Claude Code rewrites as its task
+ * changes and an ordinary prompt fills with `user@host: cwd`. So it goes
+ * under the name, never in it: a machine-written line in the name slot would
+ * make the roster rename itself every few seconds and break the join a
+ * person's memory does.
+ *
+ * Null when there is nothing to say — no title, whitespace only, or a title
+ * that merely repeats the label above it. Null and not '' on purpose: the
+ * component tests the value, and an empty string would render a line box
+ * that moves the row.
+ *
+ * The single owner: the row, its tooltip, and the phone's sheet all read
+ * this, so they cannot disagree about what this session is doing.
+ */
+export function sessionSubtitle(info: TerminalSessionInfo): string | null {
+  const title = info.title?.trim()
+  if (!title) return null
+  return title === sessionLabel(info, () => '') ? null : title
+}
+
 /** True when a claimed issue is on this row — bold in the strip, and the
  *  key the card-to-shell join reads (never the label). */
 export function sessionNamedByIssue(info: TerminalSessionInfo): boolean {
@@ -122,6 +152,9 @@ export interface StripRow {
   namedByIssue: boolean
   /** The claimed issue when the label is a person's name; null otherwise. */
   issueAside: string | null
+  /** What the shell says it is doing — its own window title — null when it
+   *  says nothing or only repeats the label (GDK-1389). */
+  subtitle: string | null
   state: TerminalSessionState
   /** ISO instant the row's elapsed reads from, null when it never printed. */
   since: string | null
@@ -147,6 +180,7 @@ export function stripRows(
     label: sessionLabel(info, defaultName),
     namedByIssue: sessionNamedByIssue(info),
     issueAside: sessionIssueAside(info),
+    subtitle: sessionSubtitle(info),
     state: sessionState(info, nowMs),
     since: instantMs(info.last_output_at) === null ? null : (info.last_output_at ?? null),
     selected: info.id === selectedId,

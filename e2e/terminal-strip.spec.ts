@@ -195,6 +195,47 @@ test.describe('terminal session strip', () => {
    * issue binding moving: the key stays beside the name, and the row still
    * says which issue it is on.
    */
+  /*
+   * The shell's own window title as the row's subtitle (GDK-1389).
+   *
+   * The thing this pins that a unit test cannot: the OSC actually survives
+   * the whole path — PTY read, the bell scanner that decides where the
+   * string ends (internal/term/bell.go), the roster poll, the row — and
+   * arrives as one line of text rather than as escape bytes the browser
+   * paints or a newline that splits the row. The title is machine-written
+   * and changes on its own, so the *name* must not move when it lands.
+   */
+  test('the shell’s window title becomes the row’s subtitle (GDK-1389)', async ({ page }) => {
+    test.setTimeout(120_000)
+    const errors = await boot(page)
+    await openPane(page)
+    await expect(page.getByTestId('terminal-strip')).toHaveAttribute('data-count', '1', {
+      timeout: 20_000,
+    })
+
+    const name = page.getByTestId('terminal-strip-name')
+    await expect(name).toHaveText(/^shell \d+$/)
+    const before = await name.textContent()
+    // Nothing under the name until the shell says something about itself.
+    await expect(page.getByTestId('terminal-strip-subtitle')).toHaveCount(0)
+
+    // A title with a CR and a bare ESC in it: the shape a crafted title
+    // takes, and the one that would break a one-line row.
+    await typeLine(page, `printf '\\033]0;running the bu\\rild\\033x\\007%s\\n' ti''tled`)
+    await expect.poll(async () => readTerm(page)).toContain('titled')
+
+    const subtitle = page.getByTestId('terminal-strip-subtitle')
+    await expect(subtitle).toHaveText('running the bu ild', { timeout: 10_000 })
+    // The name a person reads is untouched by what the shell is printing.
+    await expect(name).toHaveText(before!)
+
+    // And the roster row does not read as "wants you": a title is not a
+    // request for a person (internal/term/attention_test.go).
+    await expect(page.getByTestId('terminal-strip-row')).not.toHaveAttribute('data-state', 'needs')
+
+    expect(appConsoleErrors(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
   test('a shell has a readable default name, and F2 renames it (GDK-1387 / GDK-1195)', async ({
     page,
   }) => {

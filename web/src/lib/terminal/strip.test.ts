@@ -6,6 +6,7 @@ import {
   sessionLabel,
   sessionNamedByIssue,
   sessionState,
+  sessionSubtitle,
   stripRows,
   type TerminalSessionInfo,
 } from './strip'
@@ -51,6 +52,36 @@ describe('sessionLabel (GDK-1153)', () => {
     expect(sessionNamedByIssue(named)).toBe(true)
     expect(sessionIssueAside(info({ issue_key: 'GDK-1195' }))).toBeNull()
     expect(sessionLabel(info({ name: '   ', issue_key: 'GDK-1195' }))).toBe('GDK-1195')
+  })
+})
+
+describe('sessionSubtitle (GDK-1389)', () => {
+  it('is the window title the shell set, when it set one', () => {
+    expect(sessionSubtitle(info({ title: 'running the build' }))).toBe('running the build')
+  })
+
+  it('is nothing when there is no title, or only whitespace in it', () => {
+    expect(sessionSubtitle(info())).toBeNull()
+    expect(sessionSubtitle(info({ title: '   ' }))).toBeNull()
+    // An older server sends no field at all.
+    expect(sessionSubtitle({ id: 'abc' })).toBeNull()
+  })
+
+  it('does not repeat the label it sits under', () => {
+    // A person named the shell after what it is doing, or the shell's
+    // title happens to be the issue key: one line, not two identical ones.
+    expect(sessionSubtitle(info({ name: 'build', title: 'build' }))).toBeNull()
+    expect(sessionSubtitle(info({ name: ' build ', title: 'build' }))).toBeNull()
+    expect(sessionSubtitle(info({ issue_key: 'GDK-1389', title: 'GDK-1389' }))).toBeNull()
+    // ...but it is shown when it says something the label does not.
+    expect(sessionSubtitle(info({ name: 'build', title: 'npm run build' }))).toBe('npm run build')
+  })
+
+  it('never becomes the label: a title does not name a shell', () => {
+    // The row's name is a person's choice, then the issue, then the
+    // ordinal. A machine-written title filling that slot would make the
+    // roster rename itself every few seconds.
+    expect(sessionLabel(info({ seq: 3, title: 'running the build' }))).toBe('shell 3')
   })
 })
 
@@ -126,6 +157,17 @@ describe('stripRows (GDK-1153)', () => {
   it('keeps the server’s order, which is creation order — a row must not move under the pointer', () => {
     const sessions = [info({ id: 'first' }), info({ id: 'second' }), info({ id: 'third' })]
     expect(stripRows(sessions, null, NOW).map((r) => r.id)).toEqual(['first', 'second', 'third'])
+  })
+})
+
+describe('stripRows subtitle (GDK-1389)', () => {
+  it('carries the subtitle on the row, null when there is none', () => {
+    const rows = stripRows(
+      [info({ id: 'a', title: 'writing tests' }), info({ id: 'b' })],
+      null,
+      NOW,
+    )
+    expect(rows.map((r) => r.subtitle)).toEqual(['writing tests', null])
   })
 })
 

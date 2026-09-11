@@ -147,6 +147,8 @@ type Session struct {
 	bells       bellScanner
 	issueKey    string
 	name        string
+	title       string
+	titleAt     time.Time
 	seq         int
 	closing     bool
 	finished    bool
@@ -194,6 +196,8 @@ func (s *Session) Info() Info {
 		NeedsAttention:     s.attention,
 		IssueKey:           s.issueKey,
 		Name:               s.name,
+		Title:              s.title,
+		TitleAt:            s.titleAt,
 		Seq:                s.seq,
 	}
 	s.mu.Unlock()
@@ -216,6 +220,16 @@ func (s *Session) SetName(name string) {
 	s.mu.Lock()
 	s.name = name
 	s.mu.Unlock()
+}
+
+// Title is the window title the shell last set with an OSC 0/2 sequence,
+// empty when it has never set one (GDK-1389). TitleAt is when — the pair
+// answers "what is this shell saying it is doing, and is that still fresh"
+// from `gadak terminal list` without a debugger. Runtime state like Name.
+func (s *Session) Title() (string, time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.title, s.titleAt
 }
 
 // Name is the label a person gave this session, empty when none.
@@ -458,6 +472,13 @@ func (s *Session) emit(p []byte) {
 	// ask for a person forever.
 	if s.bells.scan(chunk) {
 		s.attention = true
+	}
+	// ...and the payload the same scanner used to throw away (GDK-1389).
+	// Downstream of the bell decision on purpose: a window title is not a
+	// request for a person, and the capture cannot reach that bit.
+	if title, ok := s.bells.takeTitle(); ok {
+		s.title = title
+		s.titleAt = s.lastOutputAt
 	}
 	var dropped []*Attachment
 	for a := range s.attached {

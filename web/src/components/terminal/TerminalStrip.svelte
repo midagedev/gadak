@@ -178,13 +178,13 @@
       {:else}
       <button
         type="button"
-        class="group flex h-7 min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left transition-colors hover:bg-bg-hover"
+        class="group flex min-h-7 min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left transition-colors hover:bg-bg-hover"
         class:bg-bg-active={row.selected}
         aria-current={row.selected ? 'true' : undefined}
         aria-label={t('terminal.strip.show', { name: row.label })}
         title="{row.label}{row.issueAside ? ` · ${row.issueAside}` : ''} · {stateLabel(row.state)}{row.since
           ? ` · ${relativeTime(row.since, 'compact')}`
-          : ''}"
+          : ''}{row.subtitle ? `\n${row.subtitle}` : ''}"
         data-testid="terminal-strip-row"
         data-session-id={row.id}
         data-state={row.state}
@@ -205,13 +205,27 @@
         }}
       >
         <span class="h-1.5 w-1.5 flex-none rounded-full {DOT[row.state]}"></span>
-        <span
-          class="min-w-0 flex-1 truncate text-body"
-          class:text-text-primary={row.selected}
-          class:text-text-secondary={!row.selected}
-          class:font-medium={row.namedByIssue}
-          data-testid="terminal-strip-name">{row.label}</span
-        >
+        <!-- Name over subtitle (GDK-1389). The name is the chosen label and
+             holds its slot; under it, only when the shell has actually set a
+             window title, the line it is writing about itself. No title means
+             no second line at all — an empty one would move every row in the
+             roster for nothing. -->
+        <span class="flex min-w-0 flex-1 flex-col justify-center">
+          <span
+            class="truncate text-body"
+            class:text-text-primary={row.selected}
+            class:text-text-secondary={!row.selected}
+            class:font-medium={row.namedByIssue}
+            data-testid="terminal-strip-name">{row.label}</span
+          >
+          {#if row.subtitle}
+            <span
+              class="truncate text-micro text-text-secondary"
+              title={t('terminal.strip.subtitle', { title: row.subtitle })}
+              data-testid="terminal-strip-subtitle">{row.subtitle}</span
+            >
+          {/if}
+        </span>
         {#if row.issueAside}
           <!-- A person named the shell; the ticket it is on stays readable
                beside the name (GDK-1195), in the sidebar's count column. -->

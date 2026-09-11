@@ -26,6 +26,17 @@ package term
 // anywhere, including between the ESC and the ] that follows it.
 type bellScanner struct {
 	state bellState
+	// osc holds the payload of the OSC string currently open, empty when
+	// none is or when the open one is not an OSC (DCS/SOS/PM/APC carry no
+	// title). Capped at oscCaptureMax — see title.go for why a shell that
+	// opens a string and never closes it must not be able to grow it.
+	osc       []byte
+	capturing bool
+	// title is the last window title this stream set, waiting for
+	// takeTitle to collect it. titleSet is the "waiting" — an empty title
+	// is not a title, so the bool cannot be derived from the string.
+	title    string
+	titleSet bool
 }
 
 type bellState uint8
@@ -77,6 +88,11 @@ func (s *bellScanner) scan(p []byte) bool {
 			switch {
 			case opensString(b):
 				s.state = bellString
+				// Only OSC carries a window title; the other string
+				// openers are captured as "not a title" so a DCS
+				// payload can never be mistaken for one.
+				s.capturing = b == ']'
+				s.osc = s.osc[:0]
 			case b == escByte:
 				// Two ESCs in a row: the second one is the one that counts.
 			case b == bellByte:
@@ -89,17 +105,22 @@ func (s *bellScanner) scan(p []byte) bool {
 		case bellString:
 			switch b {
 			case bellByte:
-				s.state = bellGround
+				s.endString()
 			case escByte:
 				s.state = bellStringEscape
+			default:
+				s.capture(b)
 			}
 		case bellStringEscape:
 			switch b {
 			case stByte:
-				s.state = bellGround
+				s.endString()
 			case escByte:
 				// Still waiting for the byte after an ESC.
 			default:
+				// An ESC inside a string payload is malformed. Drop
+				// it and its introducer rather than let either reach
+				// the title; the terminator hunt continues.
 				s.state = bellString
 			}
 		}
