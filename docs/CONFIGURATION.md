@@ -125,7 +125,7 @@ below.
 | `ui.tokens` | `{\"colors\": {\"accent\": \"#7a4bd0\"}, \"spacing\": {\"row\": \"44px\"}, \"layout\": {\"sidebar\": \"280px\"}, \"type\": {\"heading\": \"24px\"}}` (colors also accept the flat `{\"accent\": …}`) | Overrides for **every** palette. Colors and the three dimension axes (`spacing`, `layout`, `type`) coexist here. A set **replaces the whole object** — see below. |
 | `ui.tokens.colors` | `{\"accent\": \"#7a4bd0\"}` | The colors axis alone, as a **key-wise merge** — the recommended way to update one axis. |
 | `ui.tokens.spacing` | `{\"row\": \"44px\"}` | The spacing axis alone, key-wise merge (rules judge the merged set). |
-| `ui.tokens.layout` | `{\"sidebar\": \"280px\"}` | The layout axis alone, key-wise merge. |
+| `ui.tokens.layout` | `{\"sidebar\": \"280px\"}` | The layout axis alone, key-wise merge. `sidebar` and `list` are what the column grips drag (GDK-759). |
 | `ui.tokens.type` | `{\"heading\": \"24px\"}` | The type axis alone, key-wise merge. |
 | `ui.tokens.<axis>.<name>` | `15px` / `#7a4bd0` / `44px` | One token as a **bare scalar** — the same key-wise merge as the axis path with a one-key object. `null` deletes that key. Unknown names save with a warning naming the catalog they missed (discover them with `ui.tokens.catalog` / `ui.tokens.dim-catalog`). |
 | `ui.tokensByTheme` | `{\"dark\": {\"colors\": {\"accent\": \"#9a6be0\"}}}` | Overlay for one palette only (theme wins over `ui.tokens`). **Colors only** — dimension axes are refused here (see below). |
@@ -227,6 +227,21 @@ pairs, unitless one-or-two-decimal numbers (`"1.4"`).
 | `spacing` | `row` (36px), `row-excerpt` (59px), `control` (32px), `control-sm` (24px) | `--spacing-*` |
 | `layout` | `sidebar` (272px), `sidebar-narrow` (208px), `list` (unset; pins the list column, 1360px is the width it caps at today), `list-min` (390px), `detail-min` (438px), `detail-max` (720px), `overlay-max` (560px), `shell-max` (2200px) | `--layout-*` |
 | `type` | `micro` (11px), `body` (13px), `title` (15px), `heading` (22px), each with a matching `…-line-height` (1.3 / 1.4 / 1.35 / 1.22), plus `terminal` (13px, range 9–24) | `--text-*` |
+
+**`layout.sidebar` and `layout.list` are also draggable** (GDK-759): the
+seam on each column's right edge is a grip — drag it, or focus it and use
+the arrow keys (8px a press, Shift for 1px). Reaching a grip by Tab alone is
+a long trip today: it sits after the column it follows, so the sidebar's is
+past every row in the sidebar and the list ([GDK-1796] shortens it). The
+drag writes these
+same two tokens, so a width set with the pointer and one set with `gadak
+config set ui.tokens.layout.sidebar 300px` are the same value in the same
+file, and any other open tab picks it up without a reload. Double-click a
+grip (or press Backspace on a focused one) to unset that token and go back
+to the shipped width. The drag stops at each token's catalog range — the
+CLI still lets you go outside it with the warning below.
+
+[GDK-1796]: https://midagedev.github.io/gadak/backlog/#/?ks=GDK-1796
 
 The dim catalog is the single source — `gadak config get
 ui.tokens.dim-catalog` lists all 22 with tier, default, range and

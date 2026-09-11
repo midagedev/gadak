@@ -40,7 +40,7 @@ async function writeThrough(patch: (current: GadakSettings) => GadakSettings): P
  *  had two copies of it — v0.20 audit, GDK-1377). */
 export async function writeThroughLook(
   patch: (current: GadakSettings) => GadakSettings,
-  toastKey: 'theme.savedLocally' | 'settings.terminalSavedLocally',
+  toastKey: 'theme.savedLocally' | 'settings.terminalSavedLocally' | 'layout.savedLocally',
   warnLabel: string,
 ): Promise<void> {
   try {

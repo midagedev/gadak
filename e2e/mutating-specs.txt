@@ -45,6 +45,7 @@ dashboards.spec.ts           # POST/DELETE dashboards + CLI `lib add`/`lib rm`; 
 issue-command.spec.ts        # POST terminal sessions + issue binds; afterEach drainTerminalSessions (deletes ALL sessions on the serve)
 linear.spec.ts               # writes through the Linear mock origin (POST issues/LNX-1/link/) against the linear port's home
 session-entry.spec.ts        # opens terminal panes; afterEach drainTerminalSessions
+layout-resize.spec.ts        # PUT SETTINGS_URL ui.tokens.layout (the resize handles save there); afterEach PUT restores ui: {}
 settings.spec.ts             # PUT settings staleThresholdHours 48→…; afterEach PUT restores 72
 sidebar-sections.spec.ts     # favorites POST via the UI; afterEach DELETEs each key it added (catch()ed — best effort)
 terminal-burst.spec.ts       # opens panes and asserts the drain count; afterEach drainTerminalSessions

@@ -213,6 +213,24 @@ export const shell = {
     ko: '터미널 크기 조절',
     ja: 'ターミナルのサイズを変更',
   },
+  /* ── Layout resize handles (GDK-759) ── */
+  // Each handle names its own column: a screen reader lands on a bare
+  // separator otherwise, and "Resize" alone does not say resize what.
+  'layout.resizeSidebar': {
+    en: 'Resize the sidebar',
+    ko: '사이드바 너비 조절',
+    ja: 'サイドバーの幅を変更',
+  },
+  'layout.resizeList': {
+    en: 'Resize the list column',
+    ko: '목록 열 너비 조절',
+    ja: 'リスト列の幅を変更',
+  },
+  'layout.savedLocally': {
+    en: 'Resized on this device only. The server did not take the width.',
+    ko: '이 기기에만 적용됨. 서버에 너비를 쓰지 못했습니다.',
+    ja: 'このデバイスにだけ反映されました。サーバーは幅を受け取りませんでした。',
+  },
   'terminal.shortcut': {
     en: 'Ctrl+`',
     ko: 'Ctrl+`',

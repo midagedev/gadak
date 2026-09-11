@@ -52,6 +52,7 @@
   import Sidebar from './components/shell/Sidebar.svelte'
   import MainColumn from './components/shell/MainColumn.svelte'
   import RightPanel from './components/shell/RightPanel.svelte'
+  import LayoutResizeHandle from './components/shell/LayoutResizeHandle.svelte'
   import TerminalPane from './components/terminal/TerminalPane.svelte'
   import LoadingShell from './components/shell/LoadingShell.svelte'
   import AuthGate from './components/shell/AuthGate.svelte'
@@ -884,6 +885,16 @@
           {/snippet}
         </MainColumn>
       </div>
+
+      <!-- GDK-759: the two grips, in their own columns' cells so each one
+           rides its seam without a fixed position to keep in sync. Docked
+           only: in the overlay regime the panel covers the list and the
+           sidebar is a narrow rail at its stepped width, so there is no
+           two-column seam to pull. -->
+      {#if viewport.regime === 'docked'}
+        <LayoutResizeHandle axis="sidebar" />
+        <LayoutResizeHandle axis="list" />
+      {/if}
 
       <!-- GDK-1194/GDK-1352: the dock spans the whole window, under the
            sidebar, the list and a docked detail panel alike, so the shell is
