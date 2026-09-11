@@ -360,7 +360,13 @@ started to make one behind your back. Its verification block runs every read
 verb in the usage list against the demo cache with the HTTP transport and the
 DNS resolver replaced by hooks that fail on use, and with a child-process
 ledger armed, because a detached sync has a transport of its own and would
-have walked past the first hook ([GDK-1792]).
+have walked past the first hook ([GDK-1792]). `docs/PROMISES.md` was rewritten as
+four questions instead of a numbered inventory — does it report on me, can I
+get my data back out, what can reach it while it runs, when does it go to the
+network — and twelve claims became eight, none of them dropped: the ones that
+were the same promise said twice now share one sentence and one block. Each
+block still runs in CI, and the counts other documents used to repeat are
+gone rather than left to go stale.
 
 The CLI itself says when its skill file is behind: a read verb prints one
 stderr line when the installed copy differs from this build's, so an agent

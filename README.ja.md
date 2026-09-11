@@ -74,7 +74,7 @@ gadak が負ける行もあります。最初のフル同期には時間がか�
 社内の課題データを手元に写すツールなので、導入前に確認したい点をここにまとめます。各説明の
 根拠となるソースファイルのパスは [SECURITY.md](SECURITY.md) で確認できます。接続先ごとの
 条件とオフにする方法は [docs/NETWORK.md](docs/NETWORK.md) に 1 つずつ、自分のマシンで確かめられる
-ことは確認用のコマンドと一緒に [docs/PROMISES.md](docs/PROMISES.md) に 11 項目まとめてあります。
+ことは確認用のコマンドと一緒に [docs/PROMISES.md](docs/PROMISES.md) にまとめてあります。
 
 ### 接続先は Jira Cloud です
 
