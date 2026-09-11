@@ -882,7 +882,7 @@ reading it: project and space hints, the Confluence on/off lines and the
 confirm button say sync in all three languages, and the warning about every
 team space names this computer rather than a disk ([GDK-1286]). The
 built-in tracker's display name was already Built-in on every surface the
-audit listed, so that item closed without a change ([GDK-1285]).
+audit listed, so that item closed without a change ([GDK-1285]). The FAQ's short answer about the hosted MCP now names the product boundary — no native aggregation tool, no offline read — instead of blaming hosting for it ([GDK-1629]).
 
 Personal history became something you can see and clear: the settings
 runtime panel names the local.db file beside the cache, and the History
@@ -2585,6 +2585,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1622]: https://gadak.dev/backlog/#/?ks=GDK-1622
 [GDK-1625]: https://gadak.dev/backlog/#/?ks=GDK-1625
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626
+[GDK-1629]: https://gadak.dev/backlog/#/?ks=GDK-1629
 [GDK-1633]: https://gadak.dev/backlog/#/?ks=GDK-1633
 [GDK-1634]: https://gadak.dev/backlog/#/?ks=GDK-1634
 [GDK-1635]: https://gadak.dev/backlog/#/?ks=GDK-1635

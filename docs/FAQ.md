@@ -76,11 +76,12 @@ The web UI reads through the same store layer. You can run all of them at once
 ## Why not the official Atlassian MCP / a Forge app / a browser extension?
 
 The long answer is [How it compares](#how-it-compares) below. The short one:
-a network MCP answers one question per round trip and cannot aggregate across
-a backlog or work offline; derived history (`reopen_count`, and days-in-status
-computed from `status_changed_at`) exists only because the mirror is local. A Forge app runs on
-Atlassian's side of the fence — the whole point here is that the data sits
-next to your agent.
+the hosted MCP answers the questions its tools anticipated — it searches and
+writes well, but it ships no native aggregation tool and no offline read, and
+that is a product boundary, not a consequence of hosting. Derived history
+(`reopen_count`, and days-in-status computed from `status_changed_at`) exists
+only because the mirror is local. A Forge app runs on Atlassian's side of the
+fence — the whole point here is that the data sits next to your agent.
 
 ## If an agent reads the mirror, where does my data go?
 

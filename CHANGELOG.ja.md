@@ -738,7 +738,7 @@ Tauri 設定からバージョンを読み、カレンダーのフォーマッ�
 プロジェクトとスペースの案内、Confluence のオン・オフの文、確認ボタンが
 三言語とも「同期」と言い、全チームスペースの警告はディスクではなくこの
 コンピュータを指します ([GDK-1286])。内蔵トラッカーの表示名は監査が
-挙げた場所すべてで既に Built-in だったため、その項目は変更なしで閉じました
+挙げた場所すべてで既に Built-in だったため、その項目は変更なしで閉じました FAQ の短い答えは、ホスト型 MCP の限界をホスティングのせいではなく製品の境界として述べます。集計ツールがなく、オフライン読み取りがないということです ([GDK-1629])。
 ([GDK-1285])。
 
 個人の履歴を見て消せるようになりました。設定のランタイムパネルがキャッシュの
@@ -2448,6 +2448,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1622]: https://gadak.dev/backlog/#/?ks=GDK-1622
 [GDK-1625]: https://gadak.dev/backlog/#/?ks=GDK-1625
 [GDK-1626]: https://gadak.dev/backlog/#/?ks=GDK-1626
+[GDK-1629]: https://gadak.dev/backlog/#/?ks=GDK-1629
 [GDK-1633]: https://gadak.dev/backlog/#/?ks=GDK-1633
 [GDK-1634]: https://gadak.dev/backlog/#/?ks=GDK-1634
 [GDK-1635]: https://gadak.dev/backlog/#/?ks=GDK-1635
