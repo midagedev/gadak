@@ -170,7 +170,7 @@ serve が動いていても安全です ([GDK-1617])。`gadak attach` のアッ�
 添付の欠けたバックアップは書くのを拒みます。復元は `docs/runbooks/backup-restore.md` にあります
 ([GDK-1277])。gadak はもう一日一回 GitHub に新しいリリースがあるか尋ねません。バックグラウンドの
 確認も、`updateCheck` 設定も、サイドバーのバナーもありません。アウトバウンドの宛先は六つから
-五つになり、`docs/PROMISES.md` は十二項目ではなく十一項目です。アップグレードは `brew upgrade`、
+五つになり、`docs/PROMISES.md` からは、それを確かめていた約束が消えます。アップグレードは `brew upgrade`、
 新しい dmg、新しい zip で、設定 → 同期がコマンドを示します ([GDK-1626])。
 `gadak mcp install claude-desktop` が `claude_desktop_config.json` に `gadak` 項目をマージして
 Claude Desktop に登録し（macOS・Windows・Linux のパス、ほかの項目はバイト単位で保持、解析
@@ -291,7 +291,16 @@ Atlassian アカウントのない人は、内蔵トラッカーの存在を知�
 いる間に何が届きうるのか、いつネットワークに出るのか。十二が八になりましたが、
 捨てた約束はありません: 同じ約束を二度言っていたものが、一つの文と一つのブロックを
 共有するようになっただけです。ブロックは今も CI ですべて実行され、他の文書が
-書き写していた個数は、古くなるに任せず取り除きました。
+書き写していた個数は、古くなるに任せず取り除きました。 列と列のあいだの継ぎ目が
+つまみになりました。サイドバーやリストの右端をドラッグすると幅がポインタに
+ついてきて、ダブルクリックで出荷時の幅に戻ります。`gadak config set
+ui.tokens.layout.sidebar 300px` が書くのと同じ二つのトークンに書くので、
+ポインタで決めた幅とコマンドで決めた幅は一つのファイルの同じ値であり、開いて
+いる別のタブも再読み込みなしで追いつきます — 保存はフレームごとではなく、手を
+離したときの一度だけです ([GDK-759])。課題の下の子課題リストは、終わったものを
+隠せるようになりました。チェックボックスは入った状態で始まり、件数も完了の割合も
+バーも子課題すべてを見たままなので、行を隠しても数字がよく見えることはありません
+(#102、gadak にとって初めての外部からの貢献)。
 
 CLI 自身がスキルファイルの古さを言います。インストール済みの写しがこのビルドのものと
 違えば、読み取り動詞が stderr に一行出すので、エージェントは doctor を走らせると
@@ -2180,6 +2189,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-756]: https://gadak.dev/backlog/#/?ks=GDK-756
 [GDK-757]: https://gadak.dev/backlog/#/?ks=GDK-757
 [GDK-758]: https://gadak.dev/backlog/#/?ks=GDK-758
+[GDK-759]: https://gadak.dev/backlog/#/?ks=GDK-759
 [GDK-766]: https://gadak.dev/backlog/#/?ks=GDK-766
 [GDK-768]: https://gadak.dev/backlog/#/?ks=GDK-768
 [GDK-769]: https://gadak.dev/backlog/#/?ks=GDK-769

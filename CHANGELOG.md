@@ -200,7 +200,7 @@ write one with attachments missing — `docs/runbooks/backup-restore.md` has
 the restore ([GDK-1277]). gadak no longer asks GitHub once a day whether a
 newer release exists: no background check, no `updateCheck` setting, no
 sidebar banner; outbound destinations go from six to five and
-`docs/PROMISES.md` is eleven claims rather than twelve; upgrading is
+`docs/PROMISES.md` drops the claim that checked it; upgrading is
 `brew upgrade`, a new dmg, a newer zip, and Settings → Sync still shows the
 command ([GDK-1626]). `gadak mcp install claude-desktop` registers with
 Claude Desktop by merging a `gadak` entry into `claude_desktop_config.json`
@@ -366,7 +366,16 @@ get my data back out, what can reach it while it runs, when does it go to the
 network — and twelve claims became eight, none of them dropped: the ones that
 were the same promise said twice now share one sentence and one block. Each
 block still runs in CI, and the counts other documents used to repeat are
-gone rather than left to go stale.
+gone rather than left to go stale. The seam between columns is a
+grip: drag the sidebar's or the list's right edge and the width follows the
+pointer, with a double-click to go back to the shipped one. It writes the
+same two tokens `gadak config set ui.tokens.layout.sidebar 300px` writes, so
+the pointer and the CLI are one value in one file and another open tab picks
+it up without a reload — and the document is written once, on release, not
+on every frame ([GDK-759]). The child list under an issue can hide what is
+already done, on a checkbox that starts checked; the count, the done/total
+line and the meter stay on every child, so hiding rows never flatters the
+number (#102, gadak's first outside contribution).
 
 The CLI itself says when its skill file is behind: a read verb prints one
 stderr line when the installed copy differs from this build's, so an agent
@@ -2327,6 +2336,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-756]: https://gadak.dev/backlog/#/?ks=GDK-756
 [GDK-757]: https://gadak.dev/backlog/#/?ks=GDK-757
 [GDK-758]: https://gadak.dev/backlog/#/?ks=GDK-758
+[GDK-759]: https://gadak.dev/backlog/#/?ks=GDK-759
 [GDK-766]: https://gadak.dev/backlog/#/?ks=GDK-766
 [GDK-768]: https://gadak.dev/backlog/#/?ks=GDK-768
 [GDK-769]: https://gadak.dev/backlog/#/?ks=GDK-769

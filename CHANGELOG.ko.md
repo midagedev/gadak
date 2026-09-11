@@ -155,7 +155,7 @@ stderr 한 줄로 말합니다. 빈 답이 「데이터가 없다」와 구별�
 말하는 유형을 실어, 말해 주는 대로 저장하는 origin이 PNG와 MP4를 같은 범용
 유형으로 두지 않고 스크린샷이 다시 썸네일입니다. `gadak backup`은 데이터베이스와 바이트를 함께 담은 `.tar`이고, 첨부가 빠진 백업은 쓰기를 거부합니다. 복원은 `docs/runbooks/backup-restore.md`에 있습니다
 ([GDK-1277]). gadak은 더 이상 하루 한 번 GitHub에 새 릴리스가 있는지 묻지
-않습니다. 백그라운드 확인도, `updateCheck` 설정도, 사이드바 배너도 없습니다. 아웃바운드 목적지는 여섯에서 다섯이 되고 `docs/PROMISES.md`는 열두 항목이 아니라 열한 항목입니다. 업그레이드는 `brew upgrade`, 새 dmg, 새 zip이고, 설정 → 동기화가 명령을 보여 줍니다 ([GDK-1626]). `gadak mcp install claude-desktop`이 `claude_desktop_config.json`에 `gadak` 항목을 병합해 Claude
+않습니다. 백그라운드 확인도, `updateCheck` 설정도, 사이드바 배너도 없습니다. 아웃바운드 목적지는 여섯에서 다섯이 되고 `docs/PROMISES.md`에서는 그것을 재던 약속이 빠집니다. 업그레이드는 `brew upgrade`, 새 dmg, 새 zip이고, 설정 → 동기화가 명령을 보여 줍니다 ([GDK-1626]). `gadak mcp install claude-desktop`이 `claude_desktop_config.json`에 `gadak` 항목을 병합해 Claude
 Desktop에 등록하고(macOS·Windows·Linux 경로, 다른 항목은 바이트 그대로 보존,
 파싱 안 되는 파일은 거절, `--dry-run`은 쓸 내용을 출력), `gadak mcp install claude`는 자기가 무엇인지 말합니다. 모든 앞문이 "셸 없는 호스트(Claude
 Desktop)용: `gadak mcp install claude`"라고 가르쳤는데 그 명령은 Claude *Code*의 `claude mcp add`라 Desktop은 읽지 않았고, Desktop 사용자는 아무것도 등록하지 못하거나 `claude`가 `PATH`에 없다는 말을 들었습니다. `claude` CLI를 찔러 보던 통합 카드는 호스트마다 하나씩 두 장이 됐고, 마법사·`gadak init`의
@@ -267,7 +267,15 @@ detached sync 는 자기 전송을 갖고 있어 첫 훅을 그냥 지나가기 
 무엇이 닿을 수 있는가, 언제 네트워크로 나가는가. 열둘이 여덟이 됐지만 버린 약속은
 없습니다: 같은 약속을 두 번 말하던 것들이 한 문장과 한 블록을 함께 쓰게 됐을 뿐입니다.
 블록은 여전히 CI 에서 전부 돌고, 다른 문서들이 따라 적던 개수는 낡게 두지 않고
-아예 뺐습니다.
+아예 뺐습니다. 컬럼 사이의 이음매가 손잡이가 됐습니다. 사이드바나
+목록의 오른쪽 가장자리를 끌면 너비가 포인터를 따라오고, 더블클릭하면 원래
+너비로 돌아갑니다. `gadak config set ui.tokens.layout.sidebar 300px` 가 쓰는
+바로 그 두 토큰에 쓰기 때문에 포인터로 정한 너비와 명령으로 정한 너비가 한
+파일의 같은 값이고, 열려 있는 다른 탭도 새로고침 없이 따라옵니다 — 저장은
+프레임마다가 아니라 손을 뗄 때 한 번입니다 ([GDK-759]). 이슈 아래 하위 목록은
+이미 끝난 것을 숨길 수 있습니다. 체크박스는 켜진 채로 시작하고, 개수와 완료
+비율과 막대는 전부 하위 전체 기준으로 남습니다 — 행을 숨긴다고 숫자가 좋아
+보이지는 않습니다 (#102, gadak 의 첫 외부 기여).
 
 CLI 가 스킬 파일이 낡았다고 스스로 말합니다. 설치된 사본이 이 빌드의 것과
 다르면 읽기 동사가 stderr 에 한 줄을 찍으므로, 에이전트가 doctor 를 돌리기로
@@ -2048,6 +2056,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-756]: https://gadak.dev/backlog/#/?ks=GDK-756
 [GDK-757]: https://gadak.dev/backlog/#/?ks=GDK-757
 [GDK-758]: https://gadak.dev/backlog/#/?ks=GDK-758
+[GDK-759]: https://gadak.dev/backlog/#/?ks=GDK-759
 [GDK-766]: https://gadak.dev/backlog/#/?ks=GDK-766
 [GDK-768]: https://gadak.dev/backlog/#/?ks=GDK-768
 [GDK-769]: https://gadak.dev/backlog/#/?ks=GDK-769
