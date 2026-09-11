@@ -882,7 +882,7 @@ reading it: project and space hints, the Confluence on/off lines and the
 confirm button say sync in all three languages, and the warning about every
 team space names this computer rather than a disk ([GDK-1286]). The
 built-in tracker's display name was already Built-in on every surface the
-audit listed, so that item closed without a change ([GDK-1285]). The FAQ's short answer about the hosted MCP now names the product boundary — no native aggregation tool, no offline read — instead of blaming hosting for it ([GDK-1629]).
+audit listed, so that item closed without a change ([GDK-1285]). The FAQ's short answer about the hosted MCP now names the product boundary — no native aggregation tool, no offline read — instead of blaming hosting for it ([GDK-1629]). A runbook walks a tailnet host from the release tarball to a paired device — service unit, linger, the tailscale serve variant, minting with an explicit endpoint ([GDK-1268]).
 
 Personal history became something you can see and clear: the settings
 runtime panel names the local.db file beside the cache, and the History
@@ -2456,6 +2456,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1265]: https://gadak.dev/backlog/#/?ks=GDK-1265
 [GDK-1266]: https://gadak.dev/backlog/#/?ks=GDK-1266
 [GDK-1267]: https://gadak.dev/backlog/#/?ks=GDK-1267
+[GDK-1268]: https://gadak.dev/backlog/#/?ks=GDK-1268
 [GDK-1269]: https://gadak.dev/backlog/#/?ks=GDK-1269
 [GDK-1270]: https://gadak.dev/backlog/#/?ks=GDK-1270
 [GDK-1273]: https://gadak.dev/backlog/#/?ks=GDK-1273
