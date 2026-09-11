@@ -391,7 +391,15 @@ commit or PR that closed the issue, one per line, because `main 1693107`
 records the fact in a shape nothing can read — not clickable, and invisible
 to the development-panel surface. It is the only record where automatic
 linking does not exist, which is the built-in tracker and any Jira site
-without the GitHub app ([GDK-529]).
+without the GitHub app ([GDK-529]). The session roster says what each shell is
+doing: the window title a shell sets for itself — Claude Code rewrites it as
+its task changes — now reads as a subtitle under the session's name, which
+stays the name a person chose. One parser does it, the OSC scanner that
+already had to know where such a string ends in order to tell a title's BEL
+terminator from a real one; the title never raises "a person is wanted", and
+it is bounded and stripped of control characters because the payload is
+whatever the shell ran chose to print. A session with no title renders no
+second line at all ([GDK-1389]).
 
 The CLI itself says when its skill file is behind: a read verb prints one
 stderr line when the installed copy differs from this build's, so an agent
@@ -2639,6 +2647,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1386]: https://gadak.dev/backlog/#/?ks=GDK-1386
 [GDK-1387]: https://gadak.dev/backlog/#/?ks=GDK-1387
 [GDK-1388]: https://gadak.dev/backlog/#/?ks=GDK-1388
+[GDK-1389]: https://gadak.dev/backlog/#/?ks=GDK-1389
 [GDK-1390]: https://gadak.dev/backlog/#/?ks=GDK-1390
 [GDK-1391]: https://gadak.dev/backlog/#/?ks=GDK-1391
 [GDK-1394]: https://gadak.dev/backlog/#/?ks=GDK-1394
