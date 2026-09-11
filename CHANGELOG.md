@@ -1078,8 +1078,11 @@ saved view and opening the Jira filter show on focus as well as hover
 ([GDK-728]); the document and person overlays carry the same back arrow as
 the issue overlay ([GDK-729]); the palette keeps its icon rail even for
 rows without one ([GDK-143]); the clipboard fallback's premise is scoped to
-the build it was measured on ([GDK-1114]); and the scoped-token hint on a
-401 was already there ([GDK-73]).
+the build it was measured on ([GDK-1114]); the scoped-token hint on a
+401 was already there ([GDK-73]); and the sub-issue rollup's *Show
+completed* box is drawn only when there are completed children to draw it
+for, counted before the filter runs so ticking it never removes the way back
+([GDK-1795]).
 
 ## v0.21.0 — 2026-09-08
 
@@ -2859,3 +2862,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1789]: https://gadak.dev/backlog/#/?ks=GDK-1789
 [GDK-1791]: https://gadak.dev/backlog/#/?ks=GDK-1791
 [GDK-1792]: https://gadak.dev/backlog/#/?ks=GDK-1792
+[GDK-1795]: https://gadak.dev/backlog/#/?ks=GDK-1795

@@ -200,6 +200,16 @@ describe('EpicProgress child selection (GDK-121)', () => {
     expect(ifTests[0]).toBe('children.length > 0')
   })
 
+  test('the show-completed control is guarded on the unfiltered done count', () => {
+    // GDK-1795 (2): a control that toggles nothing must not render. The guard
+    // has to read doneCount — derived from `children`, the unfiltered set —
+    // because guarding on the rendered rows would remove the checkbox as soon
+    // as it was ticked, stranding the reader with no way to bring them back.
+    const guard = source.match(/\{#if ([^}]+)\}\s*\n\s*<label[^>]*>\s*\n\s*<input\b/)
+    expect(guard, 'the show-completed label must sit behind an {#if} guard').toBeTruthy()
+    expect(guard?.[1].trim()).toBe('doneCount > 0')
+  })
+
   test('keeps the epic-progress test id the existing e2e binds to', () => {
     expect(source).toContain('data-testid="epic-progress"')
     expect(source).toContain('data-testid="epic-child-row"')

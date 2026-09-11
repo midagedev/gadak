@@ -75,16 +75,23 @@
       <MeterBar percent={percent} fill={categoryMetaOf('done').color} height="h-1" />
     </div>
 
-    <label class="mb-2 flex w-fit cursor-pointer items-center gap-2 text-micro text-text-secondary">
-      <input
-        type="checkbox"
-        data-testid="epic-show-completed"
-        class="accent-[var(--color-accent,#3b82f6)]"
-        checked={showCompleted}
-        onchange={(event) => (hideCompletedFor = event.currentTarget.checked ? null : issueKey)}
-      />
-      {t('detail.showCompletedChildren')}
-    </label>
+    <!-- Guarded on doneCount, which counts `children` — the unfiltered set.
+         Guarding on what is currently rendered would delete the control the
+         moment it was used, leaving no way back (GDK-1795). A checkbox that
+         toggles nothing is worse than a row that appears when there is
+         something to toggle. -->
+    {#if doneCount > 0}
+      <label class="mb-2 flex w-fit cursor-pointer items-center gap-2 text-micro text-text-secondary">
+        <input
+          type="checkbox"
+          data-testid="epic-show-completed"
+          class="accent-[var(--color-accent,#3b82f6)]"
+          checked={showCompleted}
+          onchange={(event) => (hideCompletedFor = event.currentTarget.checked ? null : issueKey)}
+        />
+        {t('detail.showCompletedChildren')}
+      </label>
+    {/if}
 
     {#if filteredChildren.length === 0}
       <p class="px-2 py-1.5 text-body text-text-muted">
