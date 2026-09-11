@@ -1085,7 +1085,12 @@ the build it was measured on ([GDK-1114]); the scoped-token hint on a
 401 was already there ([GDK-73]); and the sub-issue rollup's *Show
 completed* box is drawn only when there are completed children to draw it
 for, counted before the filter runs so ticking it never removes the way back
-([GDK-1795]).
+([GDK-1795]). A paired workspace can create a project again: its origin
+is the built-in tracker one machine away, but `project create` asked whether
+that tracker runs *here* and refused while blaming Jira, a site the
+workspace does not use. Three more verbs answered a paired workspace with a
+sentence written for somebody else's origin, and the helper that invited all
+four now carries its real name ([GDK-1793]).
 
 ## v0.21.0 — 2026-09-08
 
@@ -2865,5 +2870,6 @@ priority sorting keyed on `priority_rank`.
 [GDK-1789]: https://gadak.dev/backlog/#/?ks=GDK-1789
 [GDK-1791]: https://gadak.dev/backlog/#/?ks=GDK-1791
 [GDK-1792]: https://gadak.dev/backlog/#/?ks=GDK-1792
+[GDK-1793]: https://gadak.dev/backlog/#/?ks=GDK-1793
 [GDK-1795]: https://gadak.dev/backlog/#/?ks=GDK-1795
 [GDK-1797]: https://gadak.dev/backlog/#/?ks=GDK-1797

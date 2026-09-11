@@ -865,6 +865,11 @@ Jira 필터 열기는 hover 뿐 아니라 포커스에서도 보이고 ([GDK-728
 ([GDK-1114]), 401 의 scoped 토큰 힌트는 이미 있었습니다 ([GDK-73]). 하위 이슈
 롤업의 '완료 항목 표시' 체크박스는 완료된 하위가 있을 때만 그려집니다 — 거를 대상을
 거르기 전에 세므로, 체크를 풀어도 되돌릴 길이 사라지지 않습니다 ([GDK-1795]).
+페어링 워크스페이스에서 프로젝트를 다시 만들 수 있습니다. origin 은 한 대 건너에 있는
+built-in tracker 인데 `project create` 가 '그 트래커가 여기서 도는가'를 물었고, 쓰지도
+않는 Jira 를 탓하며 거절했습니다. 같은 착각으로 세 동사가 페어링 워크스페이스에 남의
+origin 용 문장을 답하고 있었고, 넷을 다 불러들인 헬퍼는 이제 제 이름을 답니다
+([GDK-1793]).
 
 ## v0.21.0 — 2026-09-08
 
@@ -2578,5 +2583,6 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1789]: https://gadak.dev/backlog/#/?ks=GDK-1789
 [GDK-1791]: https://gadak.dev/backlog/#/?ks=GDK-1791
 [GDK-1792]: https://gadak.dev/backlog/#/?ks=GDK-1792
+[GDK-1793]: https://gadak.dev/backlog/#/?ks=GDK-1793
 [GDK-1795]: https://gadak.dev/backlog/#/?ks=GDK-1795
 [GDK-1797]: https://gadak.dev/backlog/#/?ks=GDK-1797
