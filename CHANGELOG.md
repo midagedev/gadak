@@ -1096,6 +1096,13 @@ put the keyboard on the grip with its arrow keys live. The grip had been a
 real button with a real keyboard since GDK-759, about 150 tab stops deep —
 capability nothing measured the reach of, so the palette audit that covers
 column destinations now covers draggable axes the same way ([GDK-1796]).
+An advisory about a token — an unknown name, a value that is not a hex colour
+— is one line again rather than one per palette: the write path already
+folded them, and the read path that fills `ui.warnings` did not ([GDK-769]).
+The fonts axis names its one token where it says "token names", instead of
+pointing at a command that returns the stored overrides; the gate that was
+meant to catch that had only been checking a command was mentioned
+([GDK-769]).
 
 ## v0.21.0 — 2026-09-08
 

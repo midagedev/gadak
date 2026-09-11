@@ -488,6 +488,55 @@ func TestUITokenVarsDegradesToAdvisory(t *testing.T) {
 	}
 }
 
+func TestUITokenVarsFoldsPaletteAgnosticAdvisories(t *testing.T) {
+	// GDK-769 audit: the read path appended inside the CatalogPalettes loop,
+	// so an unknown token — which has nothing to do with any palette — was
+	// reported once per palette while the write-time sibling
+	// (ValidateUIConfig, "a CLI user should read one line, not four") folded
+	// it. config.json's ui.warnings carried the same line four times.
+	ui := &UIConfig{Tokens: &UITokens{Colors: map[string]string{
+		"no-such-token": "#111111",
+		"lozenge-red":   "red",
+	}}}
+	_, warns := UITokenVars(ui)
+	seen := map[string]int{}
+	for _, w := range warns {
+		seen[w.Rule+"\x00"+w.Token+"\x00"+w.Message]++
+	}
+	for k, n := range seen {
+		if n > 1 {
+			t.Errorf("advisory repeated %d times for %q — one line per (rule, token, message)", n, strings.ReplaceAll(k, "\x00", " / "))
+		}
+	}
+	if len(seen) != 2 {
+		t.Errorf("want one folded line per offending token, got %d distinct: %+v", len(seen), seen)
+	}
+}
+
+func TestUITokenVarsKeepsDistinctPerThemeValues(t *testing.T) {
+	// The fold keys on the message too, so two different bad values for the
+	// same token under different palettes stay two lines: folding on
+	// (rule, token) alone would hide one of them.
+	palettes := tokencheck.CatalogPalettes()
+	if len(palettes) < 2 {
+		t.Skip("needs at least two palettes")
+	}
+	ui := &UIConfig{Tokens: &UITokens{}, TokensByTheme: map[string]*UITokens{
+		palettes[0]: {Colors: map[string]string{"accent": "zzz"}},
+		palettes[1]: {Colors: map[string]string{"accent": "qqq"}},
+	}}
+	_, warns := UITokenVars(ui)
+	msgs := map[string]bool{}
+	for _, w := range warns {
+		if w.Token == "accent" {
+			msgs[w.Message] = true
+		}
+	}
+	if len(msgs) != 2 {
+		t.Errorf("two distinct bad values must stay two lines, got %d: %+v", len(msgs), msgs)
+	}
+}
+
 func TestConfigVersionMoves(t *testing.T) {
 	t.Setenv("GADAK_HOME", t.TempDir())
 	d, err := DirFor("")

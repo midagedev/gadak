@@ -438,18 +438,35 @@ func UITokenVars(u *UIConfig) (vars map[string]map[string]string, warns []tokenc
 	if u == nil {
 		return vars, nil
 	}
+	// Both rules below judge the token, not the palette, so walking every
+	// palette would report the same line once per palette — config.json
+	// carried four copies of one unknown-token advisory. The write-time
+	// sibling ValidateUIConfig already folds ("a CLI user should read one
+	// line, not four"); this is the read path catching up (GDK-769 audit).
+	// The key carries the message, not just (rule, token): a token set to a
+	// different bad value per theme is genuinely two findings, and folding
+	// on (rule, token) alone would hide one of them.
+	seen := map[string]bool{}
+	addWarn := func(v tokencheck.Violation) {
+		k := v.Rule + "\x00" + v.Token + "\x00" + v.Message
+		if seen[k] {
+			return
+		}
+		seen[k] = true
+		warns = append(warns, v)
+	}
 	for _, palette := range tokencheck.CatalogPalettes() {
 		for name, value := range u.effectiveTokenColors(palette) {
 			_, known := tokencheck.TierOf(name)
 			cssVar := "--color-" + strings.TrimPrefix(strings.TrimSpace(name), "--color-")
 			switch {
 			case !known:
-				warns = append(warns, tokencheck.Violation{
+				addWarn(tokencheck.Violation{
 					Token: name, Rule: "unknown-token", Severity: tokencheck.SeverityWarn,
 					Message: fmt.Sprintf("%s is not in the color catalog; ignored (a newer catalog may have renamed it)", cssVar),
 				})
 			case !tokencheck.ValidHex(value):
-				warns = append(warns, tokencheck.Violation{
+				addWarn(tokencheck.Violation{
 					Token: name, Rule: "hex", Severity: tokencheck.SeverityWarn,
 					Message: fmt.Sprintf("%s: %q is not a hex color; ignored", cssVar, value),
 				})

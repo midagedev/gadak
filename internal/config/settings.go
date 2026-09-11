@@ -1409,7 +1409,12 @@ func uiTokenDiscovery(axis string) string {
 		return "`gadak config get ui.tokens.catalog`"
 	}
 	if axis == "fonts" {
-		return "`gadak config get ui.tokens.fonts` (one token: mono-terminal, the terminal pane stack)"
+		// Named inline, not as a command: the other two axes point at real
+		// catalogs, but `config get ui.tokens.fonts` returns the stored
+		// overrides ({} when unset), so pointing there under the words
+		// "token names" promised a listing that command does not give
+		// (GDK-769 audit). One token fits in the sentence.
+		return "mono-terminal, the terminal pane stack — the only token on this axis"
 	}
 	return "`gadak config get ui.tokens.dim-catalog`"
 }

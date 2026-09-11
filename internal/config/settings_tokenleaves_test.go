@@ -43,8 +43,34 @@ func TestUITokenLeafListingIsTemplates(t *testing.T) {
 			if !strings.Contains(s.Description, "null") {
 				t.Errorf("%s Description must teach that null deletes: %q", s.Path, s.Description)
 			}
-			if !strings.Contains(s.Description, "gadak config get ui.tokens.") {
-				t.Errorf("%s Description must name a discovery command: %q", s.Path, s.Description)
+			// Discovery must actually work, not merely mention a command.
+			// GDK-769's audit found the fonts row pointing at `config get
+			// ui.tokens.fonts` under the words "token names" — that command
+			// returns the stored overrides ({} when unset), so the sentence
+			// promised a listing it does not give, and this gate passed it
+			// because it only looked for the command's spelling. An axis
+			// with a real catalog names the catalog command; an axis without
+			// one must name its token names inline, and they must be the
+			// catalog's actual names.
+			// The clause after "token names:" is what an agent reads to
+			// discover names, so the assertion is scoped to it — checking
+			// the whole Description would be satisfied by the leaf example
+			// ("ui.tokens.fonts.mono-terminal Menlo, monospace"), which is
+			// how the wrong sentence survived in the first place.
+			axis := strings.TrimSuffix(strings.TrimPrefix(s.Path, "ui.tokens."), ".<name>")
+			_, clause, found := strings.Cut(s.Description, "token names: ")
+			if !found {
+				t.Errorf("%s Description must carry a 'token names:' clause: %q", s.Path, s.Description)
+			}
+			clause, _, _ = strings.Cut(clause, ";")
+			if names := inlineDiscoverableNames(axis); names != nil {
+				for _, n := range names {
+					if !strings.Contains(clause, n) {
+						t.Errorf("%s 'token names:' clause must name %q inline (no catalog command lists this axis), got %q", s.Path, n, clause)
+					}
+				}
+			} else if !strings.Contains(clause, "gadak config get ui.tokens.") {
+				t.Errorf("%s 'token names:' clause must name a discovery command, got %q", s.Path, clause)
 			}
 			if got := marshalSettingGet(t, s, &Config{}); got != "null" {
 				t.Errorf("%s template Get = %s, want null (the placeholder is not a token)", s.Path, got)
@@ -286,4 +312,15 @@ func TestUITokenLeafRefusalLeavesConfigUnchanged(t *testing.T) {
 			t.Fatalf("refused %s %s mutated the config: %+v", tc.path, tc.raw, c.UI.Tokens)
 		}
 	}
+}
+
+// inlineDiscoverableNames returns the token names an axis must spell out in
+// its own description because no catalog command lists them, or nil when the
+// axis has a catalog to point at (colors → ui.tokens.catalog, the dimension
+// axes → ui.tokens.dim-catalog).
+func inlineDiscoverableNames(axis string) []string {
+	if axis == "fonts" {
+		return fontCatalogNames()
+	}
+	return nil
 }
