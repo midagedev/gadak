@@ -9,9 +9,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/server"
+	"github.com/midagedev/gadak/internal/skillinstall"
 	"github.com/midagedev/gadak/internal/store"
 	"github.com/midagedev/gadak/internal/workspace"
 )
@@ -257,6 +259,82 @@ func TestWorkspaceConfigJSON(t *testing.T) {
 		if strings.Contains(body, banned) {
 			t.Fatalf("config.json leaked %q: %s", banned, body)
 		}
+	}
+}
+
+// TestHealthzIdentity (GDK-1555): /healthz is the one endpoint every harness
+// polls, so it is also the one place a server can prove what it is while it
+// is being polled. The identity block has to answer four questions a poller
+// actually asks: which binary (commit — the skillinstall owner's answer; the
+// digest the harness builds stamp via -X), what it serves (home, workspace),
+// and since when (startedAt, pid) — the pair that tells "we started this
+// one" from "reuseExistingServer adopted it" without a side file.
+func TestHealthzIdentity(t *testing.T) {
+	mux, _ := testServeMux(t)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, loopbackGet("/healthz"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
+	}
+	var doc struct {
+		Status    string `json:"status"`
+		Version   string `json:"version"`
+		Commit    string `json:"commit"`
+		Digest    string `json:"digest"`
+		Home      string `json:"home"`
+		Workspace string `json:"workspace"`
+		StartedAt int64  `json:"startedAt"`
+		Pid       int    `json:"pid"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+		t.Fatalf("decode: %v (%s)", err, rec.Body.String())
+	}
+	if doc.Status != "ok" || doc.Version == "" {
+		t.Fatalf("status/version: %+v", doc)
+	}
+	if doc.Commit != skillinstall.BuildRevision() {
+		t.Fatalf("commit %q is not skillinstall.BuildRevision() = %q — healthz must not grow a second owner for the binary's revision", doc.Commit, skillinstall.BuildRevision())
+	}
+	// testServeMux points GADAK_HOME at a temp dir and selects the root
+	// profile, so the serve's own idea of its home is exactly that dir.
+	if doc.Home != os.Getenv("GADAK_HOME") {
+		t.Fatalf("home %q, want the GADAK_HOME %q the serve answers for", doc.Home, os.Getenv("GADAK_HOME"))
+	}
+	if doc.Workspace != "default" {
+		t.Fatalf("workspace %q, want the root profile's display name", doc.Workspace)
+	}
+	if doc.StartedAt <= 0 || doc.StartedAt > time.Now().UnixMilli() {
+		t.Fatalf("startedAt %d is not an epoch-ms process start", doc.StartedAt)
+	}
+	if doc.Pid != os.Getpid() {
+		t.Fatalf("pid %d, want this process's %d", doc.Pid, os.Getpid())
+	}
+
+	// The digest and the commit ride the same variables the linker stamps
+	// (-X main.buildDigest / -X main.buildCommit, e2e/serve.sh and
+	// mobile/e2e/gate-serve.sh), so a harness build is reflected without
+	// recompiling this test. The commit stamp is the one that matters in a
+	// linked worktree, where Go's buildvcs writes nothing and
+	// skillinstall.BuildRevision() answers "" — measured 2026-09-11.
+	prevDigest, prevCommit := buildDigest, buildCommit
+	buildDigest = "healthz-identity-probe"
+	buildCommit = "0123456789abcdef0123456789abcdef01234567"
+	t.Cleanup(func() { buildDigest, buildCommit = prevDigest, prevCommit })
+	rec2 := httptest.NewRecorder()
+	mux.ServeHTTP(rec2, loopbackGet("/healthz"))
+	var doc2 struct {
+		Digest string `json:"digest"`
+		Commit string `json:"commit"`
+	}
+	if err := json.Unmarshal(rec2.Body.Bytes(), &doc2); err != nil {
+		t.Fatalf("decode: %v (%s)", err, rec2.Body.String())
+	}
+	if doc2.Digest != "healthz-identity-probe" {
+		t.Fatalf("digest %q, want the stamped buildDigest", doc2.Digest)
+	}
+	if doc2.Commit != "0123456789abcdef0123456789abcdef01234567" {
+		t.Fatalf("commit %q, want the stamped buildCommit to win over the empty ReadBuildInfo answer", doc2.Commit)
 	}
 }
 

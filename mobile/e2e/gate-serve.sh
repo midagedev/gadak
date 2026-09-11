@@ -183,8 +183,25 @@ case "${1:-}" in
     STAMP="$(need GADAK_MOBILE_API_STAMP "${GADAK_MOBILE_API_STAMP:-}")"
     BIN="$(need GADAK_MOBILE_API_BIN "${GADAK_MOBILE_API_BIN:-}")"
     cd "$ROOT"
-    echo "[mobile-gate] building ${BIN}…"
-    CGO_ENABLED=0 go build -o "$BIN" ./cmd/gadak
+    # GDK-1555: the binary itself carries the digest it was built from, so
+    # /healthz can prove it and the gate's globalSetup can compare against
+    # this tree over HTTP — same strength as the UI bundle's stamp, with no
+    # side file in the trust path. The commit is stamped too: Go's buildvcs
+    # declines inside a linked worktree (measured 2026-09-11), and parallel
+    # gates are exactly the worktree case. The side stamp below is still
+    # written: it is the build record the log line prints and a debugger
+    # reads, not the thing the check believes. emit_stamp is deterministic for
+    # a given tree, so the values stamped into the binary and the ones
+    # re-computed by the check's own expectedStamp agree.
+    API_STAMP_JSON="$(emit_stamp api)"
+    API_DIGEST="$(printf '%s' "$API_STAMP_JSON" | sed -n 's/.*"digest":"\([^"]*\)".*/\1/p')"
+    API_HEAD="$(printf '%s' "$API_STAMP_JSON" | sed -n 's/.*"head":"\([^"]*\)".*/\1/p')"
+    if [ -z "$API_DIGEST" ] || [ -z "$API_HEAD" ]; then
+      echo "gate-serve.sh: could not read the api digest/head from emit_stamp" >&2
+      exit 1
+    fi
+    echo "[mobile-gate] building ${BIN} (head ${API_HEAD} digest ${API_DIGEST})…"
+    CGO_ENABLED=0 go build -ldflags "-X main.buildCommit=${API_HEAD} -X main.buildDigest=${API_DIGEST}" -o "$BIN" ./cmd/gadak
     emit_stamp api "$(now_ms)" "$BIN" >"$STAMP"
     echo "[mobile-gate] $(cat "$STAMP")"
     exec "$BIN" demo --addr "127.0.0.1:${PORT}" --no-open

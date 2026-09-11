@@ -1,0 +1,63 @@
+# The mutating census of e2e specs (GDK-1758) — single owner of the list.
+#
+# One suite shares ONE serve (one GADAK_E2E_PORT → one home
+# e2e/.tmp/home-<port> → one mirror DB → one terminal-session pool). A spec
+# that writes through any of those is sharing it with every other spec, and
+# `workers: 1` is load-bearing because of exactly this file's contents: two
+# workers running mutating specs concurrently would delete each other's
+# terminal sessions (drainTerminalSessions drains ALL of them) and race
+# dashboard/view ids. Raising workers is NOT "flip the config" — it is
+# answering for this list. The axes any workers>1 design must isolate:
+#
+#   shared state under one port     | isolation a worker would need
+#   --------------------------------+------------------------------------
+#   the served app instance         | per-worker port (homes are port-keyed)
+#   the mirror DB (writes)          | per-worker home → per-worker serve
+#   the terminal PTY pool           | per-worker drain scope, not "all"
+#   the shared home's loose files   | ui-focus.json etc. — per-worker home
+#   IndexedDB cache                 | already per-context (Playwright) ✔
+#
+# Not censused though shared: the visits append (POST history/visits/ on
+# browsing, web/src/lib/api.ts). Append-only and unobservable to other specs
+# — no assertion reads the visit log — so it cannot interleave into a
+# failure. It is still a per-worker-home design input, listed here rather
+# than in the gate, because the gate's markers are write-*shaped* and would
+# not see it anyway.
+#
+# This file IS the gate's list: e2e/mutation-census.unit.ts parses the
+# uncommented lines below as spec filenames and drifts red when a spec
+# mutates without being here, or is here without still mutating. A "# …"
+# comment after a filename is annotation, not part of the name.
+#
+# Measuring the read-only bundle (warm server, workers stay 1) — the sed
+# strips the annotations and awk takes the bare name (grep -xF compares
+# whole lines, so trailing spaces would match nothing):
+#   npx playwright test $(cd e2e && ls *.spec.ts \
+#     | grep -vxF -f <(sed 's/#.*$//' mutating-specs.txt | awk 'NF{print $1}'))
+# The point is the number, not a speedup: it is the wall-clock a workers>1
+# design starts from once the mutating half is quarantined onto its own
+# serve.
+
+cache-upgrade.spec.ts        # IndexedDB cache writes, page-side (objectStore.put); per-context, listed conservatively
+dashboard-frame-bg.spec.ts   # POST /api/v1/dashboards/ per test; afterEach DELETEs the saved id
+dashboard-legend-overflow.spec.ts  # POST /api/v1/dashboards/ per test; afterEach DELETEs the saved id
+dashboards.spec.ts           # POST/DELETE dashboards + CLI `lib add`/`lib rm`; beforeAll/afterAll sweep the PREFIX-named leftovers (a crashed run is cleaned by the next run's beforeAll); also spawns the CLI against e2eHomeDir()
+issue-command.spec.ts        # POST terminal sessions + issue binds; afterEach drainTerminalSessions (deletes ALL sessions on the serve)
+linear.spec.ts               # writes through the Linear mock origin (POST issues/LNX-1/link/) against the linear port's home
+session-entry.spec.ts        # opens terminal panes; afterEach drainTerminalSessions
+settings.spec.ts             # PUT settings staleThresholdHours 48→…; afterEach PUT restores 72
+sidebar-sections.spec.ts     # favorites POST via the UI; afterEach DELETEs each key it added (catch()ed — best effort)
+terminal-burst.spec.ts       # opens panes and asserts the drain count; afterEach drainTerminalSessions
+terminal-link-focus.spec.ts  # opens panes; afterEach drainTerminalSessions
+terminal-modes.spec.ts       # opens panes; afterEach drainTerminalSessions
+terminal-settings.spec.ts    # PUT SETTINGS_URL terminal block; afterEach PUT restores the pre-test body
+terminal-strip.spec.ts       # POST issue binds + panes; afterEach drainTerminalSessions
+terminal-theme.spec.ts       # PUT SETTINGS_URL terminal theme; afterEach PUT restores + drainTerminalSessions
+terminal.spec.ts             # opens panes; afterEach drainTerminalSessions
+theme.spec.ts                # PUT SETTINGS_URL theme; afterEach PUT restores
+user-tokens.spec.ts          # PUT SETTINGS_URL (token set through the UI); afterEach PUT restores the pre-test body
+view-cross-device.spec.ts    # page.evaluate fetch DELETE of views (POST-then-DELETE across contexts)
+workspaces-manage.spec.ts    # DELETE /workspaces/<WS>?destroy_origin=1 — the heaviest mutation (destroys a workspace home the spec created)
+jql.spec.ts                  # spawns the CLI (`views open --no-open`) with GADAK_HOME=e2eHomeDir(), which writes ui-focus.json into the shared home; cleanup is delegated to the next boot's clearUIFocus (helpers globalSetup)
+keys-focus.spec.ts           # writes ui-focus.json into e2eHomeDir() directly (focus seeding); next boot's clearUIFocus consumes it
+nav-issue-list.spec.ts       # writes ui-focus.json into e2eHomeDir() directly (focus seeding); next boot's clearUIFocus consumes it

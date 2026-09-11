@@ -908,6 +908,18 @@ paired workspace stops being offered a site-token dialog it has no token
 for. A source gate keeps the guessing vocabulary out of components
 ([GDK-1152]).
 
+The test harness stopped trusting a port number or a side file. The
+built-in workspace spec owns its serve port — pinned or grabbed free at run
+time, never the suite's port plus one — and its readiness poll checks the
+answering server's identity, so a neighbouring suite's serve is refused by
+name instead of adopted ([GDK-1789]). /healthz now says which binary
+answers: version, commit, source digest, home, workspace, start time and
+pid, stamped in at build time because Go's buildvcs writes nothing in a
+linked worktree; the phone gate reads that over HTTP instead of believing a
+stamp file next to the binary ([GDK-1555]). The mutating-spec census lives
+in one text file the unit gate parses, with a fifth marker for specs that
+touch the shared home directly ([GDK-1758]).
+
 Under 900 pixels there is one narrow regime. The sidebar's narrow width was
 redeclared in five places under a 760-pixel media query, so an 800-pixel
 window kept a 272-pixel sidebar and squeezed the list into what was left;
@@ -2562,6 +2574,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1551]: https://gadak.dev/backlog/#/?ks=GDK-1551
 [GDK-1552]: https://gadak.dev/backlog/#/?ks=GDK-1552
 [GDK-1554]: https://gadak.dev/backlog/#/?ks=GDK-1554
+[GDK-1555]: https://gadak.dev/backlog/#/?ks=GDK-1555
 [GDK-1560]: https://gadak.dev/backlog/#/?ks=GDK-1560
 [GDK-1561]: https://gadak.dev/backlog/#/?ks=GDK-1561
 [GDK-1598]: https://gadak.dev/backlog/#/?ks=GDK-1598
@@ -2683,3 +2696,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1786]: https://gadak.dev/backlog/#/?ks=GDK-1786
 [GDK-1787]: https://gadak.dev/backlog/#/?ks=GDK-1787
 [GDK-1788]: https://gadak.dev/backlog/#/?ks=GDK-1788
+[GDK-1789]: https://gadak.dev/backlog/#/?ks=GDK-1789

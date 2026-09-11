@@ -18,7 +18,6 @@
 // browser is actually being handed.
 import type { PlaywrightTestConfig } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -249,24 +248,118 @@ export async function assertServedBundle(env: NodeJS.ProcessEnv = process.env): 
   return stamp
 }
 
-export function assertServedAPI(env: NodeJS.ProcessEnv = process.env): GateStamp {
-  const path = apiStampPath(env)
+/**
+ * What the demo binary's /healthz answers (cmd/gadak/workspaces.go, GDK-1555).
+ * `digest` is the sha256 gate-serve.sh stamps in with -X main.buildDigest at
+ * build time — empty on a binary nobody stamped, which is itself the finding.
+ * `commit` is likewise stamped (-X main.buildCommit, full hex): Go's buildvcs
+ * writes nothing in a linked worktree (measured 2026-09-11), and parallel
+ * gates are exactly the worktree case, so the runtime ReadBuildInfo fallback
+ * cannot be the only source. The strip-one-"+" prefix compare below accepts
+ * both shapes (stamped full hex, fallback short+"dirty").
+ */
+export type HealthzDoc = {
+  status: string
+  commit: string
+  digest: string
+  startedAt?: number
+  pid?: number
+  home?: string
+}
+
+/**
+ * The API server's provenance check, read from the server itself (GDK-1555).
+ *
+ * The UI half of this gate proved itself over HTTP (the bundle serves its own
+ * stamp), while this half believed a side file next to the binary — a file the
+ * process never reads, written by whatever last built that path. A demo server
+ * the gate did not start answered /healthz fine and passed, because its binary
+ * just happened to occupy the port a previous gate's stamp file described. Now
+ * the binary itself carries the digest it was built from (ldflags), so the
+ * check asks the server over HTTP and compares what it says against this tree:
+ *
+ *   commit     the revision the binary reports — the full hex the harness
+ *              stamped, or BuildRevision()'s short form with its "+"
+ *              dirty marker — must prefix the head this worktree would build.
+ *   digest     present always (an unstamped binary is not one of ours), and
+ *              equal to this tree's when the server predates this run.
+ *   startedAt  self-reported process start, epoch ms — the adopted-vs-ours
+ *              discriminator, same role builtAt plays for the UI bundle: a
+ *              server we started is by definition the one we just built, and
+ *              the tree is allowed to move under it afterwards.
+ *
+ * Axes checkStamp keeps that this deliberately drops, and why each is safe to
+ * lose: `role` — the URL is the API server's own healthz, no second role can
+ * answer it; `worktree` — `gadak demo` serves from a throwaway home, so the
+ * tree is not observable over HTTP, and the digest subsumes it (it hashes
+ * status+diff of the api paths: two trees that hash equal serve equal bytes);
+ * `dirty` — derivable from the digest payload (equal digest ⇒ equal dirty),
+ * so the axis could only fire after the digest axis already had.
+ *
+ * The side stamp file (apiStampPath) is still written by gate-serve.sh as the
+ * build record the log prints; it is no longer in the trust path.
+ */
+export async function assertServedAPI(env: NodeJS.ProcessEnv = process.env): Promise<HealthzDoc> {
   const origin = mobileAPIOrigin(env)
-  if (!existsSync(path)) {
+  const url = `${origin}/healthz`
+  const expected = expectedStamp('api')
+  const remedy = `Stop it (pkill -f '${apiBinPath(env)}'), or run with GADAK_MOBILE_API_PORT set to a free port.`
+
+  let res: Response
+  try {
+    res = await fetch(url)
+  } catch (err) {
+    throw new Error(`stale phone gate server: GET ${url} threw ${String(err)}. ${remedy}`)
+  }
+  if (!res.ok) {
     throw new Error(
-      `stale phone gate server: ${origin} is up but ${path} is missing. ` +
-        `That demo server was not started by mobile/e2e/gate-serve.sh. ` +
-        `Stop it, or run with GADAK_MOBILE_API_PORT set to a free port.`,
+      `stale phone gate server: GET ${url} answered ${res.status}. Whatever is listening on ${origin} is not a gadak server. ${remedy}`,
     )
   }
-  const stamp = parseStamp(readFileSync(path, 'utf8'), path)
-  checkStamp({
-    expected: expectedStamp('api'),
-    served: stamp,
-    where: path,
-    remedy: `Stop it (pkill -f '${stamp.outDir ?? apiBinPath(env)}'), or run with GADAK_MOBILE_API_PORT set to a free port.`,
-  })
-  return stamp
+  let doc: HealthzDoc
+  try {
+    doc = (await res.json()) as HealthzDoc
+  } catch {
+    throw new Error(
+      `stale phone gate server: ${url} answered ${res.status} with a body that is not the healthz JSON. Whatever is listening on ${origin} is not a gadak server. ${remedy}`,
+    )
+  }
+
+  // A function declaration, not a const arrow: the explicit `never` return
+  // only narrows control flow for declarations, and the guards below rely on
+  // "fail() here means the line after it cannot run".
+  function fail(what: string): never {
+    throw new Error(
+      `stale phone gate server: ${what}\n` +
+        `  served (${url}): commit ${doc.commit} digest ${doc.digest} startedAt ${doc.startedAt ?? '(none)'}` +
+        `${doc.pid !== undefined ? ` pid ${doc.pid}` : ''}${doc.home !== undefined ? ` home ${doc.home}` : ''}\n` +
+        `  this worktree:      head ${expected.head} dirty ${expected.dirty} digest ${expected.digest}\n` +
+        `  reuseExistingServer adopted it instead of starting one. ${remedy}`,
+    )
+  }
+  if (doc.status !== 'ok') fail(`its healthz says status ${JSON.stringify(doc.status)}.`)
+  // Absent fields are the pre-GDK-1555 shape: a binary built by nobody in
+  // particular. They get the named refusal, never a TypeError on undefined.
+  if (typeof doc.digest !== 'string' || doc.digest === '') {
+    fail(
+      'its binary carries no build digest, so it was not built by mobile/e2e/gate-serve.sh (GDK-1555).',
+    )
+  }
+  if (typeof doc.commit !== 'string' || doc.commit === '') {
+    fail('its healthz reports no commit, so its sources cannot be named.')
+  }
+  const commit = doc.commit.replace(/\+$/, '')
+  if (!expected.head.startsWith(commit)) {
+    fail('it was built at another commit.')
+  }
+  if (typeof doc.startedAt !== 'number') {
+    fail('its healthz reports no startedAt, so its age cannot be judged.')
+  }
+  const startedByUs = doc.startedAt >= PROCESS_START_MS
+  if (!startedByUs && doc.digest !== expected.digest) {
+    fail('it predates this run and its sources differ from this tree.')
+  }
+  return doc
 }
 
 // TestConfigWebServer is not exported by name, so it is recovered from the
@@ -362,7 +455,7 @@ async function assertProxyReachesAPI(env: NodeJS.ProcessEnv = process.env): Prom
  */
 export default async function globalSetup(): Promise<void> {
   const ui = await assertServedBundle()
-  assertServedAPI()
+  await assertServedAPI()
   await assertProxyReachesAPI()
   console.log(
     `served ${ui.outDir ?? gateOutDir()} stamp ${stampText(ui)} ui :${mobileUIPort()} api :${mobileAPIPort()}`,

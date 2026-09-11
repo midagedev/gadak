@@ -57,8 +57,18 @@ SEED_DB="${GADAK_SEED_DB:-$ROOT/examples/demo.db}"
 
 mkdir -p "$TMP" "$HOME_DIR"
 
-echo "[e2e] building gadak binary…"
-CGO_ENABLED=0 go build -o "$BIN" ./cmd/gadak
+# GDK-1555: the serve's /healthz has to prove which sources built it, so the
+# digest line is computed before the build and its hash stamped into the
+# binary (-X main.buildDigest), together with the head itself
+# (-X main.buildCommit — Go's buildvcs stamps nothing in a linked worktree,
+# and this suite runs from worktrees). The same line feeds the port-keyed
+# stamp below, so there is one git pass and one truth; the stamp keeps its
+# shell=/origin=/seed= qualifiers, which are run facts the binary cannot know.
+SERVED="$(bash "$ROOT/e2e/served-digest.sh")"
+BUILD_COMMIT="$(printf '%s' "$SERVED" | awk '{print $1}')"
+BUILD_DIGEST="$(printf '%s' "$SERVED" | awk '{print $2}')"
+echo "[e2e] building gadak binary (commit ${BUILD_COMMIT} digest ${BUILD_DIGEST})…"
+CGO_ENABLED=0 go build -ldflags "-X main.buildCommit=${BUILD_COMMIT} -X main.buildDigest=${BUILD_DIGEST}" -o "$BIN" ./cmd/gadak
 ln -f "$BIN" "$TMP/gadak" 2>/dev/null || true
 
 echo "[e2e] building web UI…"
@@ -348,7 +358,7 @@ fi
 
 export GADAK_HOME="$HOME_DIR"
 WORKTREE="$(git rev-parse --show-toplevel)"
-DIGEST="$(bash "$ROOT/e2e/served-digest.sh")"
+DIGEST="$SERVED"
 # The shell the pane's sessions get is not a git fact, so served-digest.sh
 # cannot see it — but it changes what the suite measures, and
 # reuseExistingServer would otherwise hand a wide-prompt run the server a

@@ -4,33 +4,24 @@ import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
 
 /*
- * GDK-1758: the read-only/mutating census of e2e specs, as a gate.
+ * GDK-1758: the gate over e2e/mutating-specs.txt, the mutating census.
  *
  * `workers: 1` is not a Playwright quirk here — it is load-bearing. One
  * suite shares ONE serve (one GADAK_E2E_PORT → one home `e2e/.tmp/home-<port>`
  * → one mirror DB → one terminal-session pool). A spec that writes through
- * the app's API surface is sharing all four with every other spec; two
+ * the app's API surface is sharing all of them with every other spec; two
  * workers running mutating specs concurrently would delete each other's
  * terminal sessions (drainTerminalSessions below drains ALL of them) and
- * race dashboard/view ids. This file is the enumeration any future
- * `workers > 1` design has to answer for, kept honest mechanically:
+ * race dashboard/view ids.
  *
- *   shared state under one port     | isolation a worker would need
- *   --------------------------------+------------------------------------
- *   the served app instance         | per-worker port (homes are port-keyed)
- *   the mirror DB (writes)          | per-worker home → per-worker serve
- *   terminal PTY pool               | per-worker drain scope, not "all"
- *   IndexedDB cache                 | already per-context (Playwright) ✔
+ * The LIST lives in e2e/mutating-specs.txt — one file, readable by humans
+ * and by the shell that assembles a read-only bundle (its header documents
+ * the shared-state axes and the measurement command). This test is the
+ * gate half: it parses that file's uncommented lines as spec filenames and
+ * drifts red when the file and the specs disagree, in either direction.
  *
- * Enabling workers>1 is NOT this round (GDK-1757 first: port assignment
- * must fail loud before more ports exist to assign). What this gate buys
- * now: a spec cannot start mutating without this list knowing, and a
- * listed spec cannot silently stop mutating (then be assumed still
- * quarantined when the real isolation design lands).
- *
- * Four mechanical markers, one axis each — a spec hits the census if any
- * fires (helpers.ts itself is the fifth surface: drainTerminalSessions
- * deletes terminal sessions, so its callers are census entries by name):
+ * Five mechanical markers, one axis each (a spec hits the census if any
+ * fires):
  *   1. `(page.)request.(post|put|delete|patch)(` — API mutation via the
  *      Playwright request context. `searchParams.delete(` cannot match:
  *      the receiver must be `request`.
@@ -38,38 +29,28 @@ import { expect, test } from 'vitest'
  *      page.evaluate mutating the API.
  *   3. `.objectStore(...).put(` — a page-side cache write (IndexedDB).
  *   4. `drainTerminalSessions(` — helper-mediated session deletion.
+ *   5. `e2eHomeDir(` — a spec touching the shared home directly: the CLI
+ *      spawns and ui-focus.json writes this catches (jql, keys-focus,
+ *      nav-issue-list) mutate no API surface, so the first four markers
+ *      are blind to them — they still share one home with every worker.
  */
 
 const E2E_DIR = dirname(fileURLToPath(import.meta.url))
+const CENSUS_FILE = join(E2E_DIR, 'mutating-specs.txt')
 
 const API_MUTATION = /(?:^|[^\w.])(?:page\.)?request\.(?:post|put|delete|patch)\(/
 const EVAL_FETCH_MUTATION = /method:\s*'(?:POST|PUT|DELETE|PATCH)'/
 const PAGE_STORAGE_WRITE = /\.objectStore\([^)]*\)\.put\(/
 const HELPER_MUTATION = /\bdrainTerminalSessions\(/
+const HOME_TOUCH = /\be2eHomeDir\(/
 
-/** The hand-kept classification. A spec here mutates shared suite state. */
-const MUTATING: string[] = [
-  'cache-upgrade.spec.ts', // IndexedDB cache writes (page-side)
-  'dashboard-frame-bg.spec.ts',
-  'dashboard-legend-overflow.spec.ts',
-  'dashboards.spec.ts',
-  'issue-command.spec.ts',
-  'linear.spec.ts', // writes through the linear mock origin
-  'session-entry.spec.ts', // drainTerminalSessions
-  'settings.spec.ts',
-  'sidebar-sections.spec.ts',
-  'terminal-burst.spec.ts', // drainTerminalSessions
-  'terminal-link-focus.spec.ts', // drainTerminalSessions
-  'terminal-modes.spec.ts', // drainTerminalSessions
-  'terminal-settings.spec.ts',
-  'terminal-strip.spec.ts',
-  'terminal-theme.spec.ts',
-  'terminal.spec.ts', // drainTerminalSessions
-  'theme.spec.ts',
-  'user-tokens.spec.ts',
-  'view-cross-device.spec.ts', // evaluate fetch DELETE of views
-  'workspaces-manage.spec.ts', // destroy_origin=1 — the heaviest mutation
-]
+/** The census, parsed from e2e/mutating-specs.txt. A spec here mutates shared suite state. */
+function mutatingSpecs(): string[] {
+  return readFileSync(CENSUS_FILE, 'utf8')
+    .split('\n')
+    .map((line) => line.replace(/#.*$/, '').trim())
+    .filter((line) => line !== '')
+}
 
 function specFiles(): string[] {
   return readdirSync(E2E_DIR)
@@ -82,24 +63,26 @@ function mutatingHit(src: string): string | null {
   if (EVAL_FETCH_MUTATION.test(src)) return 'evaluate fetch mutation'
   if (PAGE_STORAGE_WRITE.test(src)) return 'page storage write'
   if (HELPER_MUTATION.test(src)) return 'drainTerminalSessions'
+  if (HOME_TOUCH.test(src)) return 'shared-home touch'
   return null
 }
 
 test('every mutating spec is censused, and every censused spec still mutates', () => {
+  const MUTATING = mutatingSpecs()
   const drift: string[] = []
   for (const f of specFiles()) {
     const src = readFileSync(join(E2E_DIR, f), 'utf8')
     const hit = mutatingHit(src)
     const listed = MUTATING.includes(f)
-    if (hit && !listed) drift.push(`${f}: ${hit} but not in MUTATING`)
-    if (!hit && listed) drift.push(`${f}: listed but no mutation marker fires`)
+    if (hit && !listed) drift.push(`${f}: ${hit} but not censused`)
+    if (!hit && listed) drift.push(`${f}: censused but no mutation marker fires`)
   }
   const ghosts = MUTATING.filter((f) => !specFiles().includes(f))
-  for (const g of ghosts) drift.push(`${g}: listed but no such spec file`)
-  expect(
-    drift,
-    'mutation census drift — update MUTATING in e2e/mutation-census.unit.ts (GDK-1758)',
-  ).toEqual([])
+  for (const g of ghosts) drift.push(`${g}: censused but no such spec file`)
+  // A census line that is not exactly a spec filename (a typo, a stray word)
+  // would silently pass as a ghost of nothing — the ghosts check above is
+  // what makes the parse honest.
+  expect(drift, 'mutation census drift — update e2e/mutating-specs.txt (GDK-1758)').toEqual([])
   // The census must stay non-trivial: an empty list would pass the loop
   // above only if no spec mutated, which today is not the world we serve.
   expect(MUTATING.length, 'the mutating census went empty — workers>1 maths changed').toBeGreaterThan(
@@ -107,17 +90,18 @@ test('every mutating spec is censused, and every censused spec still mutates', (
   )
 })
 
-test('the census and the workers>1 design agree on the axes they name', () => {
-  // The header names the shared-state axes. If the design section is
+test('the census file and the workers>1 design agree on the axes they name', () => {
+  // The census header names the shared-state axes. If the design section is
   // rewritten, keep the axes and this check in step — the point of the gate
   // is that the list IS the design input.
-  const src = readFileSync(new URL(import.meta.url), 'utf8')
+  const src = readFileSync(CENSUS_FILE, 'utf8')
   for (const axis of [
     'the served app instance',
     'the mirror DB',
     'terminal PTY pool',
+    "the shared home's loose files",
     'IndexedDB cache',
   ]) {
-    expect(src, `the shared-state axis "${axis}" left this file's design section`).toContain(axis)
+    expect(src, `the shared-state axis "${axis}" left the census header`).toContain(axis)
   }
 })

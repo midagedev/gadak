@@ -715,6 +715,18 @@ origin이 자기가 할 수 있는 일을 스스로 말합니다. config.json에
 대화상자를 더 이상 권하지 않습니다. 추측 어휘가 컴포넌트에 다시 들어오지
 못하게 소스 게이트가 지킵니다 ([GDK-1152]).
 
+테스트 하네스가 포트 번호나 옆에 놓인 파일을 믿지 않게 됐습니다. 내장
+워크스페이스 스펙은 자기 serve 포트를 직접 가집니다. 고정하거나 실행 시
+빈 포트를 잡되, 스위트 포트에 1을 더하는 식은 더 이상 없습니다. 준비 폴은
+응답한 서버의 신원을 확인하므로 옆 스위트의 serve를 입양하지 않고 이름을
+붙여 거절합니다 ([GDK-1789]). /healthz는 어느 바이너리가 답하는지 말합니다.
+버전, 커밋, 소스 다이제스트, 홈, 워크스페이스, 시작 시각, pid를 빌드 때
+새겨 넣습니다. Go의 buildvcs가 연결된 워크트리에서는 아무것도 남기지 않기
+때문입니다. 폰 게이트는 바이너리 옆의 스탬프 파일 대신 이 값을 HTTP로
+읽습니다 ([GDK-1555]). 상태를 바꾸는 스펙의 명단은 텍스트 파일 하나에 있고
+유닛 게이트가 그 파일을 읽으며, 공유 홈을 직접 만지는 스펙을 잡는 다섯째
+표지가 생겼습니다 ([GDK-1758]).
+
 900px 아래에는 좁은 레짐이 하나입니다. 사이드바의 좁은 폭이 760px 미디어 쿼리 아래 다섯
 자리에 재선언돼 있어서 800px 창은 272px 사이드바를 유지하고 리스트는 남는 만큼만 받았습니다.
 이제 좁은 값은 인라인 토큰 설치에 실리고, `app.css` 는 `--layout-sidebar` 를 어디에도 정의하지
@@ -2297,6 +2309,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1551]: https://gadak.dev/backlog/#/?ks=GDK-1551
 [GDK-1552]: https://gadak.dev/backlog/#/?ks=GDK-1552
 [GDK-1554]: https://gadak.dev/backlog/#/?ks=GDK-1554
+[GDK-1555]: https://gadak.dev/backlog/#/?ks=GDK-1555
 [GDK-1560]: https://gadak.dev/backlog/#/?ks=GDK-1560
 [GDK-1561]: https://gadak.dev/backlog/#/?ks=GDK-1561
 [GDK-1598]: https://gadak.dev/backlog/#/?ks=GDK-1598
@@ -2418,3 +2431,4 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1786]: https://gadak.dev/backlog/#/?ks=GDK-1786
 [GDK-1787]: https://gadak.dev/backlog/#/?ks=GDK-1787
 [GDK-1788]: https://gadak.dev/backlog/#/?ks=GDK-1788
+[GDK-1789]: https://gadak.dev/backlog/#/?ks=GDK-1789

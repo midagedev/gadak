@@ -4,7 +4,7 @@ import { mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { type Page } from '@playwright/test'
 import { expect, test } from './helpers'
-import { e2eDir, e2eServePort, openServerSettings, repoRoot } from './helpers'
+import { builtinServePort, e2eDir, openServerSettings, repoRoot } from './helpers'
 
 /**
  * GDK-1617: attachment bytes on a built-in workspace moved out of the
@@ -22,15 +22,21 @@ import { e2eDir, e2eServePort, openServerSettings, repoRoot } from './helpers'
  * the video plays and seeks, and the bytes that come back are the bytes
  * that went in.
  *
- * Port: the suite's port + 1, so the single-owner rule still holds — a
- * round given GADAK_E2E_PORT gets a matching second port and two rounds
- * cannot collide.
+ * Port: this spec's own, never derived from the suite's (GDK-1789). The
+ * default is a free ephemeral port grabbed at run time
+ * (helpers.ts builtinServePort); GADAK_E2E_BUILTIN_PORT pins one instead.
+ * The port used to be suite-port+1 — a derivation, not an assignment — so a
+ * parallel round on the neighbouring port silently held it, this spec's
+ * serve failed to bind, and the healthz poll below adopted the neighbour:
+ * all four tests then failed against a server that was never this spec's.
+ * The poll now checks the answering server's identity (the healthz home
+ * field, GDK-1555), so even a real collision fails in one named sentence.
  */
 
 const BIN = join(e2eDir(), '.tmp', 'gadak')
-const PORT = String(Number(e2eServePort()) + 1)
-const BASE = `http://127.0.0.1:${PORT}`
-const HOME = join(e2eDir(), '.tmp', `builtin-attach-${PORT}`)
+let PORT = ''
+let BASE = ''
+let HOME = ''
 
 const IMAGE = join(repoRoot(), 'examples', 'attachments', '10000.png')
 // A real h264 file, not synthetic bytes: "the video element got a src" is
@@ -39,6 +45,18 @@ const VIDEO = join(repoRoot(), 'docs', 'media', 'mcp.mp4')
 
 let serve: ChildProcess | undefined
 let issueKey = ''
+// Last ~4 KiB of the serve's output. A serve that cannot bind exits with the
+// reason on stderr; without this latch that reason is lost and the poll
+// below reports the impostor that took the port instead (GDK-1789).
+let serveLog = ''
+
+function captureServeOutput(child: ChildProcess): void {
+  const keep = (chunk: Buffer): void => {
+    serveLog = (serveLog + chunk.toString()).slice(-4096)
+  }
+  child.stdout?.on('data', keep)
+  child.stderr?.on('data', keep)
+}
 
 function cli(...args: string[]): string {
   return execFileSync(BIN, args, {
@@ -51,7 +69,39 @@ function sha256(path: string): string {
   return createHash('sha256').update(readFileSync(path)).digest('hex')
 }
 
+/**
+ * 'up' once this spec's own serve answers — proven by identity, not by 200.
+ * Any other healthy server on the port (a neighbour suite's serve, a stray
+ * listener) is named and refused; an unanswered poll is just 'down'.
+ */
+async function pollServeIdentity(): Promise<'up' | 'down'> {
+  let res: Response
+  try {
+    res = await fetch(`${BASE}/healthz`)
+  } catch {
+    return 'down'
+  }
+  if (!res.ok) return 'down'
+  let doc: { home?: string; pid?: number } = {}
+  try {
+    doc = (await res.json()) as { home?: string; pid?: number }
+  } catch {
+    // A 200 that is not our JSON: an impostor by definition.
+  }
+  if (doc.home !== HOME) {
+    throw new Error(
+      `the server answering ${BASE}/healthz is not this spec's serve: its home is ${JSON.stringify(doc.home ?? '(no home field)')}` +
+        (doc.pid ? `, pid ${doc.pid}` : '') +
+        `; this spec's home is ${HOME}. Something else holds port ${PORT} — free it, or pin GADAK_E2E_BUILTIN_PORT on a port you own.`,
+    )
+  }
+  return 'up'
+}
+
 test.beforeAll(async () => {
+  PORT = await builtinServePort()
+  BASE = `http://127.0.0.1:${PORT}`
+  HOME = join(e2eDir(), '.tmp', `builtin-attach-${PORT}`)
   rmSync(HOME, { recursive: true, force: true })
   mkdirSync(HOME, { recursive: true })
 
@@ -68,14 +118,15 @@ test.beforeAll(async () => {
     ['serve', '--addr', `127.0.0.1:${PORT}`, '--static', 'dist/app', '--no-open', '--no-sync'],
     { cwd: repoRoot(), env: { ...process.env, GADAK_HOME: HOME, GADAK_WORKSPACE: '' } },
   )
+  captureServeOutput(serve)
   const deadline = Date.now() + 60_000
   for (;;) {
-    try {
-      const res = await fetch(`${BASE}/healthz`)
-      if (res.ok) break
-    } catch {
-      // not listening yet
+    if (serve.exitCode !== null) {
+      throw new Error(
+        `built-in serve on port ${PORT} exited early (code ${serve.exitCode}); its last output was:\n${serveLog}`,
+      )
     }
+    if ((await pollServeIdentity()) === 'up') break
     if (Date.now() > deadline) throw new Error(`built-in serve did not come up on ${PORT}`)
     // why: polling a socket that is not open yet has no event to await.
     await new Promise((r) => setTimeout(r, 200))

@@ -11,6 +11,14 @@ npx playwright test --config e2e/playwright.config.ts
 GADAK_E2E_PORT=7901 npx playwright test --config e2e/playwright.config.ts
 ```
 
+One suite occupies three ports (`e2e/helpers.ts` has the full inventory):
+the base above, the Linear fixture on `GADAK_E2E_LINEAR_PORT` (default
+base+2), and the built-in spec's own serve, which grabs a free ephemeral
+port at run time (`GADAK_E2E_BUILTIN_PORT` pins one). Neighbouring base
+ports are safe now but were not always: the builtin port used to be
+base+1, a derivation a parallel round on the neighbouring port silently
+collided with (GDK-1789) — give parallel rounds bases at least two apart.
+
 Each spec is named for the user behaviour it protects, not the round that
 wrote it. Captures are never taken as a side effect of running the suite:
 capture-only tests skip unless a vision round names a directory

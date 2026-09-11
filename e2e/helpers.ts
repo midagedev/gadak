@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, unlinkSync } from 'node:fs'
+import { createServer } from 'node:net'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test as base, type ConsoleMessage, type Locator, type Page } from '@playwright/test'
@@ -49,6 +50,26 @@ export function repoRoot(): string {
 }
 const DEFAULT_E2E_PORT = '7877'
 const HARDCODED_E2E_HOST = '127.0.0.1:7877'
+
+/*
+ * PORTS ONE SUITE OCCUPIES (GDK-1789) — the whole inventory in one place, so
+ * handing a parallel round its ports is one look and never a guess:
+ *
+ *   GADAK_E2E_PORT (default 7877)              the main serve (serve.sh,
+ *                                              playwright.config webServer #1)
+ *   GADAK_E2E_LINEAR_PORT (default base+2)     the Linear fixture serve
+ *                                              (webServer #2, linear.spec.ts)
+ *   GADAK_E2E_BUILTIN_PORT (default: a free    built-in-attachments.spec.ts's
+ *   ephemeral port, grabbed at run time)       own serve — deliberately NOT
+ *                                              derived from the base port
+ *
+ * The builtin port used to be base+1, which turned "two rounds on
+ * neighbouring ports" into a silent collision: the neighbouring suite's serve
+ * answered this suite's healthz poll and four tests died on the wrong fixture
+ * (GDK-1789, measured 2026-09-11). Assigning parallel rounds: give each a
+ * distinct base (and linear if pinned); the builtin port needs no assignment
+ * at all unless a round wants it deterministic.
+ */
 
 /**
  * Issue count in examples/demo.db. Single owner: a fixture regen that
@@ -118,12 +139,12 @@ export function e2eServePort(): string {
 /**
  * The suite's second serve: the Linear fixture's port (GDK-1298,
  * e2e/linear.spec.ts). Defaults to two past e2eServePort() so a parallel
- * round that moves the base port moves this one with it. One past is taken:
- * built-in-attachments.spec.ts spawns its own serve on base+1, and this
- * default sitting there meant its healthz poll adopted the Linear serve and
- * every upload was refused by the linear origin — measured when linear.spec
- * landed. GADAK_E2E_LINEAR_PORT overrides it (same integer rules, and never
- * the base port — one listener per port, same contract as the base).
+ * round that moves the base port moves this one with it. (Base+1 once hosted
+ * built-in-attachments.spec.ts's serve; that derivation is what GDK-1789
+ * removed — the builtin port is now its own concern, see builtinServePort —
+ * but the default keeps its distance so a stale pin on base+1 still cannot
+ * meet it. GADAK_E2E_LINEAR_PORT overrides it: same integer rules, and never
+ * the base port — one listener per port, same contract as the base.)
  */
 export function linearServePort(): string {
   const raw = process.env.GADAK_E2E_LINEAR_PORT
@@ -133,6 +154,61 @@ export function linearServePort(): string {
     throw new Error(`GADAK_E2E_LINEAR_PORT must differ from GADAK_E2E_PORT (${port})`)
   }
   return port
+}
+
+/**
+ * The suite's third port: built-in-attachments.spec.ts's own serve (GDK-1617).
+ *
+ * GDK-1789: this used to be e2eServePort()+1 — a derivation, not an
+ * assignment, so a parallel round given the neighbouring base port silently
+ * held it first; the spec's serve failed to bind, its healthz poll adopted
+ * the neighbour, and every test in the spec died on the wrong fixture. Now
+ * the port is either pinned explicitly (GADAK_E2E_BUILTIN_PORT — validated
+ * against the suite's other two ports, one listener per port) or grabbed as
+ * a free ephemeral port at call time, which no neighbour assignment can
+ * predict. Resolved per run (async on purpose: reading the bound port of a
+ * listen(0) socket is the only race-free way to pick a free one).
+ *
+ * The grab listens on 127.0.0.1:0, reads the port and closes, so there is a
+ * small window before the spec's serve binds. That window is why the spec's
+ * healthz poll checks the answering server's identity (its home, GDK-1555),
+ * not just a 200: if something does slip in, the failure names the impostor
+ * in one sentence instead of four thumbnail mysteries.
+ */
+export async function builtinServePort(): Promise<string> {
+  const raw = process.env.GADAK_E2E_BUILTIN_PORT
+  if (raw !== undefined && raw !== '') {
+    const port = requirePort('GADAK_E2E_BUILTIN_PORT', raw)
+    const clash = [e2eServePort(), linearServePort()].find((p) => p === port)
+    if (clash) {
+      throw new Error(
+        `GADAK_E2E_BUILTIN_PORT must differ from the suite's other ports (GADAK_E2E_PORT/GADAK_E2E_LINEAR_PORT); ${port} is taken by one of them`,
+      )
+    }
+    return port
+  }
+  const taken = new Set([e2eServePort(), linearServePort()])
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const port = await freeLoopbackPort()
+    if (!taken.has(port)) return port
+  }
+  throw new Error('could not grab a free ephemeral port for the built-in serve after 10 attempts')
+}
+
+/** Bind 127.0.0.1:0, read what the kernel gave, close, and answer the port. */
+async function freeLoopbackPort(): Promise<string> {
+  return await new Promise<string>((resolve, reject) => {
+    const server = createServer()
+    server.on('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      const addr = server.address()
+      if (addr === null || typeof addr === 'string') {
+        server.close(() => reject(new Error('loopback listen(0) reported no port')))
+        return
+      }
+      server.close(() => resolve(String(addr.port)))
+    })
+  })
 }
 
 /** Absolute URL on the e2e server. Empty path is origin with no trailing slash. */
