@@ -399,7 +399,17 @@ already had to know where such a string ends in order to tell a title's BEL
 terminator from a real one; the title never raises "a person is wanted", and
 it is bounded and stripped of control characters because the payload is
 whatever the shell ran chose to print. A session with no title renders no
-second line at all ([GDK-1389]).
+second line at all ([GDK-1389]). The secret scanner covers the shapes it
+always claimed to: `internal/secretscan` owns seven credential patterns and
+every outbound artifact is checked against all of them, but the script that
+points that table at the repository grepped for two — so a real `ghp_` token
+committed into a fixture left the gate green. Slack, GitHub and both
+Authorization-header shapes now run over the tree as well, three of them
+spelled in POSIX ERE with the agreement asserted behaviourally because
+`(?i)` and `\b` have no portable spelling; a hit now names the shape that
+matched. PEM stays out on purpose, recorded in the script and pinned by a
+test, because two legitimate test vectors exist to contain a PEM header
+([GDK-1110]).
 
 The CLI itself says when its skill file is behind: a read verb prints one
 stderr line when the installed copy differs from this build's, so an agent
