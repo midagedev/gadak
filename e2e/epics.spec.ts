@@ -1,6 +1,7 @@
 import { type Page } from '@playwright/test'
 import { test, expect } from './helpers'
 import { attachConsoleErrors, gotoApp, searchInput } from './helpers'
+import type { IssueLite } from '../web/src/lib/types'
 
 /**
  * Epic hierarchy across the three surfaces that show it: the grouped list, the
@@ -125,11 +126,65 @@ test.describe('epic hierarchy', () => {
     // 12 fits under the collapse threshold, so nothing is hidden behind a toggle.
     await expect(panel.getByTestId('epic-children-toggle')).toHaveCount(0)
 
+    const showCompleted = panel.getByRole('checkbox', { name: 'Show completed', exact: true })
+    await expect(showCompleted).toBeChecked()
+    await expect(showCompleted).toHaveAttribute('data-testid', 'epic-show-completed')
+    await showCompleted.focus()
+    await page.keyboard.press('Space')
+    await expect(showCompleted).not.toBeChecked()
+    await expect(childRows).toHaveCount(8)
+    await expect(panel.getByTestId('epic-progress')).toContainText('4 of 12 done')
+    await expect(panel.getByTestId('epic-progress')).toContainText('33%')
+    await expect(panel.getByTestId('epic-children-toggle')).toHaveCount(0)
+    await page.keyboard.press('Space')
+    await expect(showCompleted).toBeChecked()
+    await expect(childRows).toHaveCount(12)
+
     await childRows.filter({ hasText: 'NMB-126' }).click()
     await expect(panel.getByRole('heading', { name: /tax twice/ })).toBeVisible()
     // The child is not an epic, so the rollup is gone with it.
     await expect(panel.getByTestId('epic-progress')).toHaveCount(0)
+    await expect(showCompleted).toHaveCount(0)
 
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('all completed direct children remain recoverable and another parent starts unfiltered', async ({ page }) => {
+    const errors = attachConsoleErrors(page)
+    // Reuse mirrored issue identities; only their child relation/category is synthetic.
+    await page.route('**/api/v1/issues/bootstrap/', async (route) => {
+      const response = await route.fetch()
+      const body = await response.json() as { issues: IssueLite[] }
+      for (const issue of body.issues) {
+        if (issue.epic_key === 'NMB-195') {
+          issue.epic_key = null
+          issue.parent_key = 'NMB-195'
+          issue.status_category = 'done'
+          issue.status = '진행 중'
+        }
+      }
+      await route.fulfill({ response, json: body })
+    })
+    await gotoApp(page)
+    await openIssue(page, 'NMB-195')
+    const panel = page.getByTestId('issue-detail-panel')
+    const showCompleted = panel.getByRole('checkbox', { name: 'Show completed', exact: true })
+    await expect(panel.getByRole('heading', { name: 'Child issues 12', exact: true })).toBeVisible()
+    await expect(panel.getByTestId('epic-child-row')).toHaveCount(12)
+    await showCompleted.uncheck()
+    await expect(panel.getByTestId('epic-child-row')).toHaveCount(0)
+    await expect(panel.getByText('No incomplete child issues.', { exact: true })).toBeVisible()
+    await expect(panel.getByTestId('epic-progress')).toContainText('12 of 12 done')
+    await expect(panel.getByTestId('epic-progress')).toContainText('100%')
+    await expect(panel.getByTestId('epic-children-toggle')).toHaveCount(0)
+    await showCompleted.check()
+    await expect(panel.getByTestId('epic-child-row')).toHaveCount(12)
+    await expect(panel.getByText('No incomplete child issues.', { exact: true })).toHaveCount(0)
+    await showCompleted.uncheck()
+    await page.keyboard.press('Escape')
+    await openIssue(page, 'NMA-174')
+    await expect(showCompleted).toBeChecked()
+    await expect(panel.getByTestId('epic-child-row').first()).toBeVisible()
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
