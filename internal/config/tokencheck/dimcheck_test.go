@@ -115,8 +115,14 @@ func TestDimCatalogShape(t *testing.T) {
 	// text size (`ui.tokens.type.terminal`) without dragging the app's body
 	// scale with it. FAIL-first: adding the token to the catalog made this
 	// line read "writable dimension tokens = 20, want 19" before it moved.
-	if len(have) != 20 {
-		t.Errorf("writable dimension tokens = %d, want 20 (have %v)", len(have), have)
+	//
+	// 2026-09-11 — GDK-769: 20 → 21, layout.list. Same kind of growth: the
+	// list column had a floor (list-min) but no settable width, so the SNB
+	// was the one track a person or an agent could not set the way they set
+	// the sidebar. FAIL-first: this line read "writable dimension tokens =
+	// 21, want 20" before it moved.
+	if len(have) != 21 {
+		t.Errorf("writable dimension tokens = %d, want 21 (have %v)", len(have), have)
 	}
 	tok, ok := DimTokenOf("layout", "docked-min")
 	if !ok {

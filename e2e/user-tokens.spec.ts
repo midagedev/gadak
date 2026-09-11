@@ -171,4 +171,50 @@ test.describe('user tokens', () => {
     expect(after.ui?.tokens?.colors?.['bg-base']).toBe('#000000')
     expect(after.ui?.tokens?.colors?.['lozenge-red']).toBeUndefined()
   })
+
+  // GDK-769 R1: the list column's width is settable the way the sidebar's
+  // already is. --layout-list has no default value — app.css consumes it as
+  // var(--layout-list, <the track that shipped>) — so this test pins both
+  // halves: the measured column is exactly what was asked for while the
+  // token is set, and the measured layout returns to the untouched one when
+  // it is cleared. Measuring the painted grid (getComputedStyle's resolved
+  // gridTemplateColumns is in used px) rather than the declaration is what
+  // makes this an assertion about the layout and not about the CSS text.
+  test('ui.tokens.layout.list pins the list column, and clearing it restores the layout', async ({
+    page,
+    request,
+  }) => {
+    await gotoApp(page)
+    const layout = page.getByTestId('issue-layout')
+    const columns = async () =>
+      layout.evaluate((el) => getComputedStyle(el).gridTemplateColumns)
+    const listWidth = async () =>
+      page
+        .locator('.issue-main-column')
+        .first()
+        .evaluate((el) => Math.round(el.getBoundingClientRect().width))
+
+    const stockColumns = await columns()
+    const stockList = await listWidth()
+    expect(stockList, 'the unpinned list fills the track it always had').not.toBe(520)
+
+    expect((await putUI(request, { tokens: { layout: { list: '520px' } } })).status).toBe(200)
+    await expect.poll(listWidth, { timeout: LIVE_REFLECT_BUDGET_MS }).toBe(520)
+    // The pin lands on the list track and nowhere else: the sidebar track is
+    // untouched and the freed width goes to the third track (measured: stock
+    // "272px 1008px 0px" → pinned "272px 520px 488px"), so the used widths
+    // still sum to the same grid.
+    const stock = stockColumns.split(' ').map(parseFloat)
+    const pinnedTracks = (await columns()).split(' ').map(parseFloat)
+    expect(pinnedTracks[0], 'the sidebar track is untouched').toBe(stock[0])
+    expect(pinnedTracks[1], 'the list track is the pinned width').toBe(520)
+    expect(
+      pinnedTracks.reduce((a, b) => a + b, 0),
+      'the grid keeps its total width — the pin moves space, it does not add any',
+    ).toBe(stock.reduce((a, b) => a + b, 0))
+
+    expect((await putUI(request, { tokens: {} })).status).toBe(200)
+    await expect.poll(listWidth, { timeout: LIVE_REFLECT_BUDGET_MS }).toBe(stockList)
+    expect(await columns()).toBe(stockColumns)
+  })
 })

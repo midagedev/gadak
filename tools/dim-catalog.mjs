@@ -57,6 +57,10 @@ const RANGE = {
   'spacing.control-sm': { min: 20, max: 32 },
   'layout.sidebar': { min: 208, max: 320 },
   'layout.sidebar-narrow': { min: 160, max: 240 },
+  // GDK-769: the list column's settable width. Floor 480 is above
+  // list-min's own ceiling so a pin can never land under the track floor;
+  // ceiling 2000 is inside shell-max's range with room for the sidebar.
+  'layout.list': { min: 480, max: 2000 },
   'layout.list-min': { min: 320, max: 480 },
   'layout.detail-min': { min: 360, max: 520 },
   'layout.detail-max': { max: 900 },
@@ -80,6 +84,7 @@ const RANGE = {
 const LAYOUT_ORDER = [
   'sidebar',
   'sidebar-narrow',
+  'list',
   'list-min',
   'detail-min',
   'detail-max',
@@ -89,6 +94,11 @@ const LAYOUT_ORDER = [
 const LAYOUT_DEFAULT = {
   sidebar: '272px', // web/src/lib/viewport-regime.ts LAYOUT_SIDEBAR_PX
   'sidebar-narrow': '208px', // app.css @media (max-width: 760px) LNB step
+  // GDK-769: the token is UNSET by default — app.css consumes it as
+  // var(--layout-list, <each track's shipped value>). The recorded default is
+  // the cap of the primary (no detail panel) list track, app.css
+  // .issue-layout: that is the width a pin replaces where the list is read.
+  list: '1360px',
   'list-min': '390px', // viewport-regime.ts LAYOUT_LIST_MIN_PX
   'detail-min': '438px', // viewport-regime.ts LAYOUT_DETAIL_MIN_PX
   'detail-max': '720px', // app.css docked clamp upper bound

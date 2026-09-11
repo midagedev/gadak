@@ -188,12 +188,37 @@ test('converted declarations resolve to the exact pre-conversion geometry', () =
     '--layout-shell-max': '2200px',
   }
   const narrowVars = { ...base, '--layout-sidebar': '208px' }
-  const resolve = (decl: string, vars: Record<string, string> = base) =>
-    decl.replace(/var\((--layout-[a-z-]+)(?:,\s*[^)]*)?\)/g, (_, name) => {
-      const v = vars[name]
-      if (!v) throw new Error(`no resolved value for ${name}`)
-      return v
-    })
+  /*
+   * GDK-769 R1: a var() with no entry in `vars` resolves to its DECLARED
+   * FALLBACK, which is what "the user set nothing" actually means in CSS.
+   * --layout-list is the first token that is unset by default — the grid
+   * consumes var(--layout-list, <the pre-GDK-769 track>) at every site, so
+   * resolving the fallback is how this test proves the default paint did
+   * not move. A var with neither an entry nor a fallback is still a bug.
+   */
+  const resolve = (decl: string, vars: Record<string, string> = base): string => {
+    const at = decl.indexOf('var(--layout-')
+    if (at < 0) return decl
+    // Brace-matched to the var()'s own close paren: a fallback can nest a
+    // clamp() of its own (.browse-open), which a [^)]* pattern cuts in half.
+    let depth = 0
+    let close = -1
+    for (let i = at + 3; i < decl.length; i++) {
+      if (decl[i] === '(') depth++
+      else if (decl[i] === ')' && --depth === 0) {
+        close = i
+        break
+      }
+    }
+    if (close < 0) throw new Error(`unbalanced var() in ${decl}`)
+    const inner = decl.slice(at + 4, close)
+    const comma = inner.indexOf(',')
+    const name = (comma < 0 ? inner : inner.slice(0, comma)).trim()
+    const fallback = comma < 0 ? undefined : inner.slice(comma + 1).trim()
+    const v = vars[name] ?? fallback
+    if (!v) throw new Error(`no resolved value for ${name}`)
+    return resolve(decl.slice(0, at) + v + decl.slice(close + 1), vars)
+  }
   /** First `prop` declaration in the first rule matching `selector` inside `scope`. */
   const declOf = (scope: string, selector: string, prop: string): string => {
     const rule = new RegExp(`${escapeRe(selector)}[^{}]*\\{([^}]*)\\}`).exec(scope)
@@ -218,6 +243,27 @@ test('converted declarations resolve to the exact pre-conversion geometry', () =
   expect(resolve(declOf(wide1600, '.issue-layout.browse-open', 'grid-template-columns'))).toBe(
     '272px clamp(640px, 40vw, 800px) minmax(0, 1fr)',
   )
+
+  /*
+   * GDK-769 R1: --layout-list is the list column's settable width. Unset it
+   * resolves to each track's pre-GDK-769 value (asserted above — those four
+   * expectations are byte-for-byte the ones that shipped). Set, it pins the
+   * column at every track that draws the list, which is the whole point: a
+   * person or an agent sets `ui.tokens.layout.list` once and the column is
+   * that wide whether the detail panel is docked, wide, or replaced by the
+   * browse pane. The floor (--layout-list-min) still wins in the docked
+   * tracks, because minmax() clamps a max below its own min back up.
+   */
+  const pinned = { ...base, '--layout-list': '520px' }
+  expect(resolve(declOf(CSS_CODE, '.issue-layout', 'grid-template-columns'), pinned)).toBe(
+    '272px minmax(0, 520px) minmax(0, 1fr)',
+  )
+  expect(
+    resolve(declOf(CSS_CODE, '.issue-layout.detail-open', 'grid-template-columns'), pinned),
+  ).toBe('272px minmax(390px, 520px) clamp(438px, 34vw, 720px)')
+  expect(
+    resolve(declOf(wide1600, '.issue-layout.browse-open', 'grid-template-columns'), pinned),
+  ).toBe('272px 520px minmax(0, 1fr)')
   expect(resolve(declOf(CSS_CODE, '.issue-sidebar', 'width'))).toBe('272px')
   expect(resolve(declOf(CSS_CODE, '.browse-pane', 'inset'))).toBe('0 0 0 272px')
   expect(resolve(declOf(CSS_CODE, '.browse-reentry', 'left'))).toBe('calc(272px + 1rem)')
@@ -246,8 +292,11 @@ test('converted declarations resolve to the exact pre-conversion geometry', () =
 test('app.css consumes the tokens and never restates their px', () => {
   // viewport-regime.ts's own rule ("CSS must not restate the px"): a px
   // definition of a JS-owned track token would fork the floor a second time.
+  // GDK-769 R1: the docked list track is still floored by --layout-list-min;
+  // its max is now the settable --layout-list, whose fallback is the 1fr this
+  // assertion used to spell out.
   expect(CSS_CODE, 'the docked grid sizes its tracks from the tokens').toContain(
-    'minmax(var(--layout-list-min), 1fr)',
+    'minmax(var(--layout-list-min), var(--layout-list, 1fr))',
   )
   /*
    * GDK-842 refinement (2026-08-25), not a relaxation. The pre-refinement
@@ -280,6 +329,17 @@ test('app.css consumes the tokens and never restates their px', () => {
     CSS_CODE,
     'the four JS-owned track tokens are never defined as px anywhere (GDK-849 closed the narrow exception)',
   ).not.toMatch(/--layout-(sidebar|list-min|detail-min|docked-min):\s*[\d.]/)
+  /*
+   * GDK-769 R1: --layout-list has no CSS owner either — it is unset unless
+   * the user's ui.tokens.layout.list arrives as a :root rule from
+   * user-tokens.ts. app.css may only CONSUME it with a fallback; a bare
+   * definition here would be the same fork the four track tokens are banned
+   * from, and it would beat nothing (the config rule is unlayered).
+   */
+  expect(
+    CSS_CODE,
+    '--layout-list is consumed with a fallback, never defined in CSS (GDK-769)',
+  ).not.toMatch(/--layout-list\s*:/)
 })
 
 test('the boot shell consumes the same tokens the app does (GDK-842 chunk 3)', () => {

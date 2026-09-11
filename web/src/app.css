@@ -799,9 +799,25 @@
     background: var(--color-shell);
   }
 
+  /*
+    GDK-769 (2026-09-11): --layout-list is the list column's width, the
+    settable sibling of --layout-sidebar. The mechanism is the var() FALLBACK,
+    not a :root default: every track below reads
+    var(--layout-list, <the value that track shipped with>), so with nothing
+    set the grid resolves to exactly the pre-GDK-769 declaration — 1360px cap
+    here, 1fr docked, the browse clamp under the pane — and no default paint
+    moves. A pin (`gadak config set ui.tokens.layout.list 520px`, which lands
+    as a :root rule from user-tokens.ts) replaces the max at every one of
+    them, so the column is that wide whichever companion is open. The floor
+    stays --layout-list-min in the docked tracks: minmax() raises a max that
+    fell below its own min, so a too-small pin degrades to the floor instead
+    of clipping rows. A px value is deliberately never written here — CSS
+    consumes this token and never defines it (layout-tokens.test.ts).
+  */
   .issue-layout {
     display: grid;
-    grid-template-columns: var(--layout-sidebar, 272px) minmax(0, 1360px) minmax(0, 1fr);
+    grid-template-columns: var(--layout-sidebar, 272px) minmax(0, var(--layout-list, 1360px))
+      minmax(0, 1fr);
     /*
       GDK-1194: two explicit rows. The second is the terminal dock, `auto` so
       it is zero-height when nothing is in it. GDK-1352: the dock spans every
@@ -827,7 +843,7 @@
   */
   .issue-layout.detail-open {
     grid-template-columns:
-      var(--layout-sidebar) minmax(var(--layout-list-min), 1fr)
+      var(--layout-sidebar) minmax(var(--layout-list-min), var(--layout-list, 1fr))
       clamp(var(--layout-detail-min), 34vw, var(--layout-detail-max, 720px));
   }
 
@@ -849,7 +865,8 @@
   */
   .issue-layout.detail-open.detail-wide {
     grid-template-columns:
-      var(--layout-sidebar) minmax(var(--layout-list-min), 1fr) minmax(0, 2.4fr);
+      var(--layout-sidebar) minmax(var(--layout-list-min), var(--layout-list, 1fr))
+      minmax(0, 2.4fr);
   }
 
   /*
@@ -943,14 +960,15 @@
     /* GDK-1311: the reading-width default — see the note above .detail-wide. */
     .issue-layout.detail-open {
       grid-template-columns:
-        var(--layout-sidebar) minmax(var(--layout-list-min), 1fr)
+        var(--layout-sidebar) minmax(var(--layout-list-min), var(--layout-list, 1fr))
         clamp(var(--layout-detail-min), 40vw, var(--layout-detail-max, 720px));
     }
 
     /* The list keeps a working width; everything past it goes to the page. */
     .issue-layout.browse-open,
     .issue-layout.detail-open.browse-open {
-      grid-template-columns: var(--layout-sidebar, 272px) clamp(640px, 40vw, 800px) minmax(0, 1fr);
+      grid-template-columns: var(--layout-sidebar, 272px)
+        var(--layout-list, clamp(640px, 40vw, 800px)) minmax(0, 1fr);
     }
 
     .browse-pane {

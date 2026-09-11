@@ -119,9 +119,14 @@ func TestDimCatalogEnumeration(t *testing.T) {
 	// an agent (`gadak config set ui.tokens.type.terminal`) with no new
 	// surface. FAIL-first: this line read "catalog lists 21 tokens, want 20"
 	// before it moved.
-	wantAxisCounts := map[string]int{"spacing": 4, "layout": 8, "type": 9}
-	if len(got) != 21 {
-		t.Fatalf("catalog lists %d tokens, want 21 (20 recordable + locked docked-min)", len(got))
+	//
+	// 2026-09-11 — GDK-769: layout 8 → 9 and the total 21 → 22, for
+	// layout.list — the list column's settable width, the sibling of
+	// layout.sidebar. FAIL-first: this line read "catalog lists 22 tokens,
+	// want 21" before it moved.
+	wantAxisCounts := map[string]int{"spacing": 4, "layout": 9, "type": 9}
+	if len(got) != 22 {
+		t.Fatalf("catalog lists %d tokens, want 22 (21 recordable + locked docked-min)", len(got))
 	}
 	// The two embeds read one file: the disk axes are tokencheck's axes.
 	if strings.Join(diskAxes, ",") != strings.Join(tokencheck.DimAxes(), ",") {

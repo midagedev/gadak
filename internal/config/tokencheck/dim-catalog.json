@@ -59,6 +59,14 @@
           "min": 160,
           "max": 240
         },
+        "list": {
+          "cssVar": "--layout-list",
+          "default": "1360px",
+          "tier": "validated-range",
+          "unit": "px",
+          "min": 480,
+          "max": 2000
+        },
         "list-min": {
           "cssVar": "--layout-list-min",
           "default": "390px",

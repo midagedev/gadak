@@ -325,7 +325,9 @@ clamp still warns and saves, identically ([GDK-769]). The tools' axis list and
 their prose are generated from that catalog rather than typed, because a tool
 description is a surface with no gate; and the dispatcher's allowlist is now
 `tools/list` itself, after a live round trip found two tools that the list
-advertised and the call path refused. A Confluence space says what it
+advertised and the call path refused. The list column
+gained a width of its own, `ui.tokens.layout.list`, the settable sibling of
+the sidebar's: unset, the grid resolves to exactly what it shipped with. A Confluence space says what it
 will cost before you mirror it: the picker rows carry the page count, fetched
 concurrently under a bounded budget, and a space the origin cannot count
 draws nothing at all rather than a zero it cannot stand behind ([GDK-965]).

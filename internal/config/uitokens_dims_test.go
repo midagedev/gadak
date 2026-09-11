@@ -295,3 +295,101 @@ func TestUIDimensionVarsShape(t *testing.T) {
 		t.Errorf("unexpected advisories: %+v", warns)
 	}
 }
+
+// TestDimCatalogLayoutClampTable pins the layout axis's clamp table: every
+// layout token's tier and its min/max bounds, read back through the same
+// tokencheck lookup the write gate uses. A row added, removed or re-bounded
+// in tools/dim-catalog.mjs moves this table and has to move it consciously.
+//
+// GDK-769 R1: layout.list is the new row — the list column's settable width
+// (--layout-list). Before it existed this table's lookup failed with
+// "layout.list missing from the catalog" (FAIL-first run in the round
+// report). Its default is the shipped cap of the un-docked list column
+// (1360px, app.css .issue-layout track 2); unset, the CSS fallback at each
+// consuming track is that track's pre-GDK-769 value, so the default paint is
+// unchanged and a set value pins the column.
+func TestDimCatalogLayoutClampTable(t *testing.T) {
+	type row struct {
+		name     string
+		tier     string
+		min, max float64 // 0 = bound absent
+		def      string
+	}
+	for _, r := range []row{
+		{"sidebar", "validated-range", 208, 320, "272px"},
+		{"sidebar-narrow", "validated-range", 160, 240, "208px"},
+		{"list", "validated-range", 480, 2000, "1360px"},
+		{"list-min", "validated-range", 320, 480, "390px"},
+		{"detail-min", "validated-range", 360, 520, "438px"},
+		{"detail-max", "validated-range", 0, 900, "720px"},
+		{"overlay-max", "validated-range", 360, 720, "560px"},
+		{"shell-max", "validated-range", 1600, 2800, "2200px"},
+		{"docked-min", "locked", 0, 0, "1100px"},
+	} {
+		t.Run(r.name, func(t *testing.T) {
+			tok, ok := tokencheck.DimTokenOf("layout", r.name)
+			if !ok {
+				t.Fatalf("layout.%s missing from the catalog", r.name)
+			}
+			if tok.Tier != r.tier {
+				t.Errorf("tier = %q, want %q", tok.Tier, r.tier)
+			}
+			if tok.Default != r.def {
+				t.Errorf("default = %q, want %q", tok.Default, r.def)
+			}
+			if tok.CSSVar != "--layout-"+r.name {
+				t.Errorf("cssVar = %q, want --layout-%s", tok.CSSVar, r.name)
+			}
+			gotMin, gotMax := 0.0, 0.0
+			if tok.Min != nil {
+				gotMin = *tok.Min
+			}
+			if tok.Max != nil {
+				gotMax = *tok.Max
+			}
+			if gotMin != r.min || gotMax != r.max {
+				t.Errorf("bounds = [%g, %g], want [%g, %g]", gotMin, gotMax, r.min, r.max)
+			}
+		})
+	}
+}
+
+// TestLayoutListWriteGate is the write half of the new row: an in-range pin
+// saves clean and expands to the CSS variable the grid consumes, and an
+// out-of-range one warns and still saves (GDK-858's judgment contract).
+func TestLayoutListWriteGate(t *testing.T) {
+	ui := &UIConfig{Tokens: &UITokens{Layout: map[string]string{"list": "520px"}}}
+	warns, err := ValidateUIConfig(ui)
+	if err != nil {
+		t.Fatalf("an in-range layout.list pin was refused: %v", err)
+	}
+	if len(warns) != 0 {
+		t.Errorf("unexpected warnings for a 520px list pin: %+v", warns)
+	}
+	vars, _ := UIDimensionVars(ui)
+	if vars["--layout-list"] != "520px" {
+		t.Fatalf("--layout-list not expanded: %+v", vars)
+	}
+
+	wide := &UIConfig{Tokens: &UITokens{Layout: map[string]string{"list": "2400px"}}}
+	warns, err = ValidateUIConfig(wide)
+	if err != nil {
+		t.Fatalf("an out-of-range list pin must warn, not refuse: %v", err)
+	}
+	saw := false
+	for _, w := range warns {
+		if w.Rule == "range" && w.Token == "list" {
+			saw = true
+		}
+	}
+	if !saw {
+		t.Fatalf("no range warning for a 2400px list pin: %+v", warns)
+	}
+	c := &Config{}
+	if err := ApplyUIConfig(c, wide); err != nil {
+		t.Fatalf("ApplyUIConfig refused a judgment write: %v", err)
+	}
+	if c.UI.Tokens.Layout["list"] != "2400px" {
+		t.Fatalf("judgment-violating layout.list = %q, want it saved", c.UI.Tokens.Layout["list"])
+	}
+}
