@@ -882,7 +882,7 @@ reading it: project and space hints, the Confluence on/off lines and the
 confirm button say sync in all three languages, and the warning about every
 team space names this computer rather than a disk ([GDK-1286]). The
 built-in tracker's display name was already Built-in on every surface the
-audit listed, so that item closed without a change ([GDK-1285]). The FAQ's short answer about the hosted MCP now names the product boundary — no native aggregation tool, no offline read — instead of blaming hosting for it ([GDK-1629]). A runbook walks a tailnet host from the release tarball to a paired device — service unit, linger, the tailscale serve variant, minting with an explicit endpoint ([GDK-1268]).
+audit listed, so that item closed without a change ([GDK-1285]). The FAQ's short answer about the hosted MCP now names the product boundary — no native aggregation tool, no offline read — instead of blaming hosting for it ([GDK-1629]). A runbook walks a tailnet host from the release tarball to a paired device — service unit, linger, the tailscale serve variant, minting with an explicit endpoint ([GDK-1268]). The install guide's staying-current list says how each channel upgrades — the Store on its own clock or `winget upgrade gadak` now — and that gadak neither checks for nor installs updates itself ([GDK-1494]).
 
 Personal history became something you can see and clear: the settings
 runtime panel names the local.db file beside the cache, and the History
@@ -2574,6 +2574,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1491]: https://gadak.dev/backlog/#/?ks=GDK-1491
 [GDK-1492]: https://gadak.dev/backlog/#/?ks=GDK-1492
 [GDK-1493]: https://gadak.dev/backlog/#/?ks=GDK-1493
+[GDK-1494]: https://gadak.dev/backlog/#/?ks=GDK-1494
 [GDK-1496]: https://gadak.dev/backlog/#/?ks=GDK-1496
 [GDK-1497]: https://gadak.dev/backlog/#/?ks=GDK-1497
 [GDK-1498]: https://gadak.dev/backlog/#/?ks=GDK-1498

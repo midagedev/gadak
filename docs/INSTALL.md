@@ -401,8 +401,11 @@ inventory is `gadak workspaces` (same as `gadak profiles`).
 
 ## Staying current
 
-Upgrading is `brew upgrade`, a new dmg, or a newer zip — four things catch
-people, learned the hard way:
+Upgrading is `brew upgrade`, a new dmg, a newer zip, or the Microsoft Store
+doing it for you. gadak itself never checks for updates or downloads one
+(there is no update check and no self-updater — the Store owns its package,
+and a zip-installed exe that replaced itself would lose the signature that
+got it past SmartScreen). Five things catch people, learned the hard way:
 
 1. **A running `gadak serve` keeps its old code.** Upgrading the binary does not
    touch a process that is already up — restart it (or re-run
@@ -417,6 +420,11 @@ people, learned the hard way:
    Linux](#arch-linux)). pacman only upgrades what a repository gave it, so
    nothing will ever tell you at the package-manager level; pull the repo and
    rebuild.
+5. **The Store app updates on the Store's clock, not on release day.**
+   Certification finishes the day a build is submitted; what takes up to a day
+   is your machine's Store client noticing. To take it now: Microsoft Store ›
+   Library › Get updates, or `winget upgrade gadak` — both install the same
+   signed package ([Desktop app (Windows)](#desktop-app-windows)).
 
 `gadak --version` against the
 [releases page](https://github.com/midagedev/gadak/releases) settles any doubt,

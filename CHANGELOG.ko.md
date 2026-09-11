@@ -693,7 +693,7 @@ Confluence 동기화·Jira 동기화·retro 패스는 각자 가장 긴 구간�
 안내, Confluence 켜기·끄기 문장, 확인 버튼이 세 언어 모두 "동기화"로
 말하고, 팀 스페이스 전체 경고는 디스크 대신 이 컴퓨터를 가리킵니다
 ([GDK-1286]). 내장 트래커의 표시 이름은 감사가 지목한 자리 전부에서 이미
-Built-in이어서 그 항목은 변경 없이 닫았습니다 ([GDK-1285]). FAQ의 짧은 답은 호스팅 MCP의 한계를 호스팅 탓이 아니라 제품 경계로 말합니다. 집계 도구가 없고 오프라인 읽기가 없다는 것입니다 ([GDK-1629]). 테일넷 호스트에 serve를 상주시키는 런북이 생겼습니다. 릴리스 tarball부터 서비스 유닛, linger, tailscale serve 대안, endpoint를 명시한 페어링 발급까지 한 장입니다 ([GDK-1268]).
+Built-in이어서 그 항목은 변경 없이 닫았습니다 ([GDK-1285]). FAQ의 짧은 답은 호스팅 MCP의 한계를 호스팅 탓이 아니라 제품 경계로 말합니다. 집계 도구가 없고 오프라인 읽기가 없다는 것입니다 ([GDK-1629]). 테일넷 호스트에 serve를 상주시키는 런북이 생겼습니다. 릴리스 tarball부터 서비스 유닛, linger, tailscale serve 대안, endpoint를 명시한 페어링 발급까지 한 장입니다 ([GDK-1268]). 설치 문서의 최신 유지 절이 채널마다 어떻게 올리는지 말합니다. Store는 자기 주기로, 지금 받으려면 `winget upgrade gadak`이고, gadak 자신은 업데이트를 확인하지도 설치하지도 않습니다 ([GDK-1494]).
 
 개인 기록을 보고 지울 수 있게 됐습니다. 설정의 런타임 패널이 캐시 옆의
 local.db 파일을 보여 주고, 기록 화면에는 되돌릴 수 없다고 적힌 지우기
@@ -2307,6 +2307,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1491]: https://gadak.dev/backlog/#/?ks=GDK-1491
 [GDK-1492]: https://gadak.dev/backlog/#/?ks=GDK-1492
 [GDK-1493]: https://gadak.dev/backlog/#/?ks=GDK-1493
+[GDK-1494]: https://gadak.dev/backlog/#/?ks=GDK-1494
 [GDK-1496]: https://gadak.dev/backlog/#/?ks=GDK-1496
 [GDK-1497]: https://gadak.dev/backlog/#/?ks=GDK-1497
 [GDK-1498]: https://gadak.dev/backlog/#/?ks=GDK-1498

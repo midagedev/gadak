@@ -766,7 +766,7 @@ Tauri 設定からバージョンを読み、カレンダーのフォーマッ�
 プロジェクトとスペースの案内、Confluence のオン・オフの文、確認ボタンが
 三言語とも「同期」と言い、全チームスペースの警告はディスクではなくこの
 コンピュータを指します ([GDK-1286])。内蔵トラッカーの表示名は監査が
-挙げた場所すべてで既に Built-in だったため、その項目は変更なしで閉じました FAQ の短い答えは、ホスト型 MCP の限界をホスティングのせいではなく製品の境界として述べます。集計ツールがなく、オフライン読み取りがないということです ([GDK-1629])。 テイルネットのホストに serve を常駐させるランブックができました。リリース tarball からサービスユニット、linger、tailscale serve の代替、endpoint を明示したペアリング発行まで一枚です ([GDK-1268])。
+挙げた場所すべてで既に Built-in だったため、その項目は変更なしで閉じました FAQ の短い答えは、ホスト型 MCP の限界をホスティングのせいではなく製品の境界として述べます。集計ツールがなく、オフライン読み取りがないということです ([GDK-1629])。 テイルネットのホストに serve を常駐させるランブックができました。リリース tarball からサービスユニット、linger、tailscale serve の代替、endpoint を明示したペアリング発行まで一枚です ([GDK-1268])。 インストール文書の最新維持の節が、チャネルごとの上げ方を述べます。Store は自分の周期で、今すぐなら `winget upgrade gadak`、gadak 自身は更新を確認も導入もしません ([GDK-1494])。
 ([GDK-1285])。
 
 個人の履歴を見て消せるようになりました。設定のランタイムパネルがキャッシュの
@@ -2437,6 +2437,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-1491]: https://gadak.dev/backlog/#/?ks=GDK-1491
 [GDK-1492]: https://gadak.dev/backlog/#/?ks=GDK-1492
 [GDK-1493]: https://gadak.dev/backlog/#/?ks=GDK-1493
+[GDK-1494]: https://gadak.dev/backlog/#/?ks=GDK-1494
 [GDK-1496]: https://gadak.dev/backlog/#/?ks=GDK-1496
 [GDK-1497]: https://gadak.dev/backlog/#/?ks=GDK-1497
 [GDK-1498]: https://gadak.dev/backlog/#/?ks=GDK-1498
