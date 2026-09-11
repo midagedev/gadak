@@ -330,7 +330,15 @@ gained a width of its own, `ui.tokens.layout.list`, the settable sibling of
 the sidebar's: unset, the grid resolves to exactly what it shipped with. A Confluence space says what it
 will cost before you mirror it: the picker rows carry the page count, fetched
 concurrently under a bounded budget, and a space the origin cannot count
-draws nothing at all rather than a zero it cannot stand behind ([GDK-965]).
+draws nothing at all rather than a zero it cannot stand behind ([GDK-965]). The front door shows both doors: the
+first command block in the README now carries `gadak init --local` beside
+`gadak init`, because a reader without a Jira account used to have to reach
+the middle of the install section to learn the built-in tracker exists. `gadak
+init` finishes the same way on both paths too — `gadak skill install` first,
+MCP for the hosts that need it. And the palette's promise was rewritten to the
+one its gate has always measured: every destination, plus any action whose only
+home is a keystroke — not "every action", which a single list row already
+outnumbers ([GDK-732]).
 
 The CLI itself says when its skill file is behind: a read verb prints one
 stderr line when the installed copy differs from this build's, so an agent

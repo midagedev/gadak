@@ -57,8 +57,18 @@ context menus are the same design: the pointer UI is a ladder into keyboard
 fluency, not an alternative to it.
 
 - **One palette, same key, everywhere.** No second menu with its own key.
-- **Omnipotent**: every action the app can do is registered in the palette —
-  triage keys, sync-now, view switches, settings. The registry is
+- **Complete, not omnipotent**: every destination the app can show, and every
+  action whose only home is a keystroke, is registered in the palette — triage
+  keys, sync-now, view switches, settings. An action that only means something
+  while pointing at a thing on screen — clicking a chip to add it as a filter,
+  deleting the one view under the cursor — is not the palette's job: the
+  palette is an index of destinations, not a mirror of the UI. (Revised
+  2026-09-11, GDK-732: "every action" was never true — a list row alone offers
+  hundreds — and taking it literally would bury the 32 rows that matter under
+  the ones that do not, which is the palette's own fuzzy-match promise
+  breaking. The gate has always measured the narrower claim:
+  `web/src/lib/palette-coverage.test.ts` requires every `COLUMN_KINDS` value to
+  have a palette row that opens it, or a listed exemption with a reason.) The registry is
   `web/src/lib/commands.ts`; a row's action lives in
   `web/src/lib/command-palette.ts`, which is why an action a component keeps
   as a private closure is invisible to the palette by construction. When a

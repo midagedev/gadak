@@ -713,7 +713,7 @@ next:
 next:
   gadak serve                   open the browser — the first sync runs inside it, newest issues first
   gadak sync                    no browser? fill the mirror from the terminal instead (minutes on a first run)
-  gadak mcp install claude      let your coding agent query it (also: claude-desktop, cursor, codex)
+  gadak skill install           let your coding agent use it (Claude Desktop: gadak mcp install claude-desktop)
 
 docs/AGENT_SETUP.md has one paste per agent; docs/RECIPES.md has the questions
 JQL cannot ask.

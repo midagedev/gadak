@@ -91,7 +91,8 @@ Connect to Jira Cloud, then open the address `gadak serve` prints
 issues first, and the list fills while it runs:
 
 ```bash
-gadak init && gadak serve
+gadak init && gadak serve         # mirror a Jira Cloud site
+gadak init --local && gadak serve # no Jira — start on the tracker gadak ships with
 ```
 
 A site needs one [API token](https://id.atlassian.com/manage-profile/security/api-tokens),
@@ -120,8 +121,7 @@ The window follows the browser or OS language (English, Korean or Japanese;
 Settings switches it). The signed dmg, the Linux tarball, Docker, upgrades:
 [`docs/INSTALL.md`](docs/INSTALL.md).
 
-**Other workspaces.** No Atlassian account? `gadak init --local` starts a
-workspace on the built-in tracker. `gadak --workspace <new> migrate --from
+**Other workspaces.** `gadak --workspace <new> migrate --from
 <old>` moves a synced workspace onto another origin; add `--to linear` to
 target a Linear team. A second machine pairs with a home `serve`:
 `gadak --workspace laptop init --pairing-code-stdin`.
