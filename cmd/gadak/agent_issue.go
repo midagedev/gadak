@@ -15,47 +15,29 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/midagedev/gadak/internal/fields"
 	"net/url"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
 	"time"
-	"unicode"
 
 	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/attachaudit"
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/fields"
+	"github.com/midagedev/gadak/internal/freshness"
 	"github.com/midagedev/gadak/internal/jql"
 	"github.com/midagedev/gadak/internal/skillinstall"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
-// staleAfter is when a mirror stops being worth trusting silently. It is a
-// warning, never a refusal: an old answer with a warning beats no answer.
-const staleAfter = time.Hour
-
 // skillDiffersWarned is the process-once latch for warnSkillDiffers: the
 // read verbs all share warnIfStale as their preamble, and one process (a
 // long-lived test, a future batch verb) must not repeat the line per read.
 var skillDiffersWarned bool
 
-// warnIfStale prints one stderr line when the last sync failed or is old, so a
-// caller reading stdout knows how far behind the answer may be. stdout stays
-// clean, which is what makes the output pipeable. It reads the caller's
-// already-open connection — every caller has one, and a second open here
-// doubled any diagnostic the open path prints (GDK-314).
-//
-// This function is the one funnel every read verb passes through, so it is
-// also where the skill-differs trip speaks (warnSkillDiffers, GDK-493):
-// an agent that never decides to call doctor still learns its loaded skill
-// copy is not this build's.
-//
-// A live first sync explains the mirror's state better than any staleness
-// verdict can (every source row is empty or half-written by design), so
-// warnFirstSync goes first and the rest stands down while it speaks (GDK-1677).
 // warnSkillDiffers is the bootstrap-gap trip (GDK-493): staleness detection
 // used to live inside the skill's own body, so the generations that needed
 // the sentence most — the stale ones — were exactly the ones without it. The
@@ -99,161 +81,68 @@ func warnSkillDiffers() {
 	}
 }
 
-func warnIfStale(db interface {
-	QueryRow(query string, args ...any) *sql.Row
-}) {
+// warnIfStale prints one stderr line when the last sync failed or is old, so a
+// caller reading stdout knows how far behind the answer may be. stdout stays
+// clean, which is what makes the output pipeable. It reads the caller's
+// already-open connection — every caller has one, and a second open here
+// doubled any diagnostic the open path prints (GDK-314).
+//
+// The judgment (SQL, thresholds, precedence) is internal/freshness's, single
+// owned there since GDK-599 so the MCP read tools can state the same fact in
+// their results where stderr never reaches; this function is the CLI's
+// sentence for the Report it returns. A live first sync outranks the
+// staleness verdicts (every source row is empty or half-written by design,
+// GDK-1677), and freshness.Assess keeps that order.
+//
+// This function is the one funnel every read verb passes through, so it is
+// also where warnSkillDiffers speaks — an agent that never decides to call
+// doctor still learns its loaded skill copy is not this build's.
+func warnIfStale(db freshness.Querier) {
 	warnSkillDiffers()
-	if warnFirstSync(db) {
-		return
-	}
-	type staleRow struct {
-		id        string
-		syncedAt  *string
-		lastError *string
-	}
-	var rows []staleRow
-	for off := 0; ; off++ {
-		var r staleRow
-		err := db.QueryRow(`SELECT st.source_id, src.synced_at, st.last_error
-			FROM sync_state st LEFT JOIN sources src ON src.id = st.source_id
-			ORDER BY st.source_id LIMIT 1 OFFSET ?`, off).Scan(&r.id, &r.syncedAt, &r.lastError)
-		if err != nil {
-			if off == 0 && !errors.Is(err, sql.ErrNoRows) {
-				return
-			}
-			break
-		}
-		rows = append(rows, r)
-	}
+	rep := freshness.Assess(db, time.Now(), confluenceConfigured)
 	warn := func(format string, a ...any) { fmt.Fprintf(os.Stderr, "warning: "+format+"\n", a...) }
-	if len(rows) == 0 {
-		warn("the mirror has never finished a sync — run `gadak sync`")
-		return
-	}
-	for _, r := range rows {
-		if r.lastError != nil && *r.lastError != "" {
-			warn("last sync failed (%s): %s", formatSourceID(r.id), *r.lastError)
-			return
+	switch rep.State {
+	case freshness.StateFirstSync:
+		count := formatIntComma(rep.Fetched)
+		if rep.Total.Valid {
+			count += " / " + formatIntComma(int(rep.Total.Int64))
 		}
-	}
-	var oldest *time.Time
-	var oldestID, oldestRaw string
-	for _, r := range rows {
-		if r.syncedAt == nil || *r.syncedAt == "" {
-			continue
-		}
-		t, ok := config.ParseTimestamp(*r.syncedAt)
-		if !ok {
-			continue
-		}
-		if oldest == nil || t.Before(*oldest) {
-			tt := t
-			oldest = &tt
-			oldestID = r.id
-			oldestRaw = *r.syncedAt
-		}
-	}
-	if oldest == nil {
-		// Every source is empty. A leftover never-synced jira row next to
-		// a fresh Linear source must not take this branch: that
-		// is anyEmpty with oldest set from the Linear row.
-		warn("the mirror has never finished a sync — run `gadak sync`")
-		return
-	}
-	if time.Since(*oldest) > staleAfter {
-		// GDK-810: name the source and echo its stored synced_at. "mirror
-		// last synced" made a stale confluence row look like the whole
-		// mirror (and its watermark) was that old.
-		warn("%s", staleSourceWarning(oldestID, oldestRaw, time.Since(*oldest)))
-	}
-}
-
-// warnFirstSync prints the one "first sync in progress" line when the mirror
-// itself says a first full sync is running (GDK-1677), and reports whether it
-// did. It reads plain SQL through the caller's handle — the same interface
-// warnIfStale takes — so every read verb (sql, list, search, page, fields,
-// memory, the agent verbs) gets the line with no per-verb edits, whatever
-// kind of connection the verb opened. The liveness cutoff is
-// store.SyncProgressCutoff, the single owner, so this and the store reader
-// cannot disagree about what "live" means. A read error (including a mirror
-// too old to have the table) just means no warning.
-func warnFirstSync(db interface {
-	QueryRow(query string, args ...any) *sql.Row
-}) bool {
-	var sourceID string
-	var fetched int
-	var total sql.NullInt64
-	err := db.QueryRow(`SELECT source_id, fetched, total FROM sync_progress
-		WHERE first = 1 AND updated_at >= ?
-		ORDER BY started_at DESC LIMIT 1`, store.SyncProgressCutoff(time.Now())).
-		Scan(&sourceID, &fetched, &total)
-	if err != nil {
-		return false
-	}
-	wikiNext := false
-	if sourceID != syncer.ConfluenceSourceID {
-		if cfg, cfgErr := config.Load(); cfgErr == nil && cfg.Confluence != nil {
-			var n int
-			if qErr := db.QueryRow(`SELECT COUNT(*) FROM sync_progress
-				WHERE source_id = ? AND updated_at >= ?`,
-				syncer.ConfluenceSourceID, store.SyncProgressCutoff(time.Now())).Scan(&n); qErr == nil && n == 0 {
-				wikiNext = true
+		var line string
+		if rep.SourceID == syncer.ConfluenceSourceID {
+			line = fmt.Sprintf("issues done, %s wiki pages so far — results are partial", count)
+		} else {
+			line = fmt.Sprintf("%s issues so far — results are partial", count)
+			if rep.WikiPending {
+				line += "; wiki follows"
 			}
 		}
+		fmt.Fprintf(os.Stderr, "warning: first sync in progress: %s\n", line)
+	case freshness.StateNeverSynced:
+		warn("the mirror has never finished a sync — run `gadak sync`")
+	case freshness.StateSyncFailed:
+		warn("last sync failed (%s): %s", freshness.FormatSourceID(rep.SourceID), rep.LastError)
+	case freshness.StateStaleSource:
+		warn("%s", staleSourceWarning(rep.SourceID, rep.SyncedAt, rep.Age))
 	}
-	count := formatIntComma(fetched)
-	if total.Valid {
-		count += " / " + formatIntComma(int(total.Int64))
-	}
-	var line string
-	if sourceID == syncer.ConfluenceSourceID {
-		line = fmt.Sprintf("issues done, %s wiki pages so far — results are partial", count)
-	} else {
-		line = fmt.Sprintf("%s issues so far — results are partial", count)
-		if wikiNext {
-			line += "; wiki follows"
-		}
-	}
-	fmt.Fprintf(os.Stderr, "warning: first sync in progress: %s\n", line)
-	return true
 }
 
-// parseSyncedAt is gone: its RFC3339-then-ISOMilli ladder was one of the
-// private timestamp tables folded into config.ParseTimestamp (GDK-1130),
-// and warnIfStale calls the owner directly. Unparseable values are skipped
-// by the caller so a corrupt row cannot crash a read, and cannot take the
-// never-synced branch while a sibling parsed.
-
-// sourceIDDisplayCols is the stderr budget for a sync_state.source_id.
-// jira / linear / confluence fit; a planted multi-kilobyte or control-laden
-// id must not wrap the one-line warning (GDK-810).
-const sourceIDDisplayCols = 32
-
-// formatSourceID makes a source_id safe to interpolate into one stderr line.
-// Control runes become a space; clip (already this file's width authority)
-// collapses remaining whitespace and truncates.
-func formatSourceID(id string) string {
-	var b strings.Builder
-	for _, r := range id {
-		if unicode.IsControl(r) {
-			b.WriteRune(' ')
-			continue
-		}
-		b.WriteRune(r)
-	}
-	s := clip(b.String(), sourceIDDisplayCols)
-	if s == "" {
-		return "?"
-	}
-	return s
+// confluenceConfigured is the lazy config answer freshness.Assess asks for
+// only while a first sync is live on the issues source (whether the wiki
+// pass is still to come). Lazy on purpose: warnIfStale runs on every read
+// verb, and a fresh mirror must not pay a config read.
+func confluenceConfigured() bool {
+	cfg, err := config.Load()
+	return err == nil && cfg.Confluence != nil
 }
 
 // staleSourceWarning is the one-line age warning. Source, stored synced_at,
 // and age are all on the line so `gadak status` text (`<id>.synced_at`) and
 // this warning can be compared by the same string. GDK-598's
-// `sync --if-stale 1h` teaching stays.
+// `sync --if-stale 1h` teaching stays. The id sanitization is
+// freshness.FormatSourceID's (single owner since GDK-599; the same guard the
+// MCP result notice interpolates through).
 func staleSourceWarning(id, syncedAt string, age time.Duration) string {
-	return formatSourceID(id) + " last synced " + age.Round(time.Minute).String() +
+	return freshness.FormatSourceID(id) + " last synced " + age.Round(time.Minute).String() +
 		" ago (synced_at " + syncedAt + ") — run `gadak sync --if-stale 1h`"
 }
 

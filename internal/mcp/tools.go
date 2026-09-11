@@ -334,6 +334,15 @@ func (s *Server) callTool(name string, args map[string]any) (content []contentIt
 	if err != nil {
 		return textResult(withErrorPrefix(err.Error())), true
 	}
+	// The staleness notice rides only successful results, appended as its
+	// own content item so the payload above stays byte-identical (GDK-599).
+	// Error results say one thing — the failure and its fix; a staleness
+	// line after ERROR: would dilute the retry teaching.
+	if carriesFreshnessNotice(name) {
+		if line := s.mirrorFreshnessLine(); line != "" {
+			out = append(out, contentItem{Type: "text", Text: line})
+		}
+	}
 	return out, false
 }
 

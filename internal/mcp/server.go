@@ -189,7 +189,12 @@ rows" — retry with the field names it lists. Empty rows after a
 status-name WHERE usually mean a localized name: rewrite using
 status_category and retry. A result with truncation_reason is
 incomplete; tighten LIMIT or columns. Do not treat a truncated page
-as the full set.`,
+as the full set.
+
+A read result may end with a "Mirror freshness:" line — a first sync
+is still running, the last sync failed, or the mirror is over an hour
+behind. It means the answer may be partial or out of date; gadak_status
+carries the detail.`,
 	}
 	return okResponse(msg.ID, result)
 }

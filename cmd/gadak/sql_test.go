@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mattn/go-runewidth"
 	_ "modernc.org/sqlite"
 
 	"github.com/midagedev/gadak/internal/config"
@@ -260,29 +259,10 @@ func TestSQLWarnsNamesOldestSource(t *testing.T) {
 	}
 }
 
-func TestFormatSourceIDStripsControlAndClips(t *testing.T) {
-	if got := formatSourceID("jira"); got != "jira" {
-		t.Fatalf("plain id: got %q", got)
-	}
-	if got := formatSourceID("confluence"); got != "confluence" {
-		t.Fatalf("known id: got %q", got)
-	}
-	got := formatSourceID("jira\nWARNING: pwned")
-	if strings.Contains(got, "\n") {
-		t.Fatalf("control rune leaked: %q", got)
-	}
-	if !strings.Contains(got, "jira") {
-		t.Fatalf("kept printable runes, got %q", got)
-	}
-	long := strings.Repeat("W", 200)
-	got = formatSourceID(long)
-	if runewidth.StringWidth(got) > sourceIDDisplayCols {
-		t.Fatalf("clipped width %d > %d: %q", runewidth.StringWidth(got), sourceIDDisplayCols, got)
-	}
-	if got := formatSourceID("\x00\x07\n"); got != "?" {
-		t.Fatalf("control-only id: got %q, want ?", got)
-	}
-}
+// TestFormatSourceIDStripsControlAndClips moved to
+// internal/freshness/freshness_test.go with the sanitizer it pins (GDK-599:
+// formatSourceID now lives there as FormatSourceID, single-owned beside the
+// judgment, so the MCP result notice interpolates through the same guard).
 
 // GDK-810 손상: unparseable synced_at is skipped (same as empty), so a
 // corrupt confluence row next to a fresh jira must not crash and must not
