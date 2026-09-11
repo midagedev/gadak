@@ -284,7 +284,12 @@ detached sync 는 자기 전송을 갖고 있어 첫 훅을 그냥 지나가기 
 덮는 대신 값이 하나 더해집니다 — 나머지 CLI 가 거부하는 조용한 누락이었습니다.
 값을 하나만 받는 필드에 여러 개를 주면 이름을 불러 거절하고, 여러 값을 받는
 필드에 하나를 주면 한 개짜리 목록이 되며, 모호한 옵션은 id 만 늘어놓는 대신
-후보마다 `표시 이름 (id)` 을 찍습니다 ([GDK-18]).
+후보마다 `표시 이름 (id)` 을 찍습니다 ([GDK-18]). 에이전트 스킬이 산문 대신 URL 을
+요구합니다. 이슈를 닫는 코멘트는 그것을 닫은 커밋이나 PR 로 끝나고, 한 줄에
+하나씩 적습니다 — `main 1693107` 같은 산문은 같은 사실을 아무것도 읽을 수 없는
+모양으로 남깁니다. 누를 수도 없고, 개발 패널 표면에도 보이지 않습니다. 자동
+연결이 아예 없는 곳에서는 그것이 유일한 기록입니다 — 내장 트래커, 그리고 GitHub
+앱이 없는 Jira 사이트가 그렇습니다 ([GDK-529]).
 
 CLI 가 스킬 파일이 낡았다고 스스로 말합니다. 설치된 사본이 이 빌드의 것과
 다르면 읽기 동사가 stderr 에 한 줄을 찍으므로, 에이전트가 doctor 를 돌리기로
@@ -1992,6 +1997,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-524]: https://gadak.dev/backlog/#/?ks=GDK-524
 [GDK-527]: https://gadak.dev/backlog/#/?ks=GDK-527
 [GDK-528]: https://gadak.dev/backlog/#/?ks=GDK-528
+[GDK-529]: https://gadak.dev/backlog/#/?ks=GDK-529
 [GDK-530]: https://gadak.dev/backlog/#/?ks=GDK-530
 [GDK-531]: https://gadak.dev/backlog/#/?ks=GDK-531
 [GDK-532]: https://gadak.dev/backlog/#/?ks=GDK-532

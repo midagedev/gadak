@@ -310,7 +310,12 @@ ui.tokens.layout.sidebar 300px` が書くのと同じ二つのトークンに書
 場所が拒む、黙った取りこぼしでした。単一の値しか持てない項目に複数を渡せば
 名前を挙げて拒み、複数を持てる項目に一つを渡せば一要素のリストになり、
 あいまいな選択肢は id を並べる代わりに候補ごとに `表示名 (id)` を出します
-([GDK-18])。
+([GDK-18])。 エージェントのスキルは、散文ではなく URL を求めます。課題を
+閉じるコメントは、それを閉じたコミットや PR で終わり、一行に一つずつ書きます
+— `main 1693107` のような散文は、同じ事実を何も読めない形で残すからです。
+押せませんし、開発パネルの面にも見えません。自動リンクがそもそも無い場所では
+それが唯一の記録です — 内蔵トラッカーと、GitHub アプリのない Jira サイトが
+それにあたります ([GDK-529])。
 
 CLI 自身がスキルファイルの古さを言います。インストール済みの写しがこのビルドのものと
 違えば、読み取り動詞が stderr に一行出すので、エージェントは doctor を走らせると
@@ -2126,6 +2131,7 @@ Jira サイトでも同じ意味になる軸をキーにします。解決の判
 [GDK-524]: https://gadak.dev/backlog/#/?ks=GDK-524
 [GDK-527]: https://gadak.dev/backlog/#/?ks=GDK-527
 [GDK-528]: https://gadak.dev/backlog/#/?ks=GDK-528
+[GDK-529]: https://gadak.dev/backlog/#/?ks=GDK-529
 [GDK-530]: https://gadak.dev/backlog/#/?ks=GDK-530
 [GDK-531]: https://gadak.dev/backlog/#/?ks=GDK-531
 [GDK-532]: https://gadak.dev/backlog/#/?ks=GDK-532

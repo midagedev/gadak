@@ -385,7 +385,13 @@ tool added later cannot reach them without inheriting the recording
 replacing the last one, the silent drop the rest of the CLI refuses; a
 single-valued field given more than one is refused by name, one value for a
 multi-valued field becomes a one-element list, and an ambiguous option prints
-each candidate as `label (id)` rather than a bare id ([GDK-18]).
+each candidate as `label (id)` rather than a bare id ([GDK-18]). The agent skill
+asks for a URL where it used to get prose: a closing comment ends with the
+commit or PR that closed the issue, one per line, because `main 1693107`
+records the fact in a shape nothing can read — not clickable, and invisible
+to the development-panel surface. It is the only record where automatic
+linking does not exist, which is the built-in tracker and any Jira site
+without the GitHub app ([GDK-529]).
 
 The CLI itself says when its skill file is behind: a read verb prints one
 stderr line when the installed copy differs from this build's, so an agent
@@ -2273,6 +2279,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-524]: https://gadak.dev/backlog/#/?ks=GDK-524
 [GDK-527]: https://gadak.dev/backlog/#/?ks=GDK-527
 [GDK-528]: https://gadak.dev/backlog/#/?ks=GDK-528
+[GDK-529]: https://gadak.dev/backlog/#/?ks=GDK-529
 [GDK-530]: https://gadak.dev/backlog/#/?ks=GDK-530
 [GDK-531]: https://gadak.dev/backlog/#/?ks=GDK-531
 [GDK-532]: https://gadak.dev/backlog/#/?ks=GDK-532

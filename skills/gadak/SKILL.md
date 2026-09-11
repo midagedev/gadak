@@ -1080,6 +1080,16 @@ status). `gadak issue KEY --json` includes it; SQL joins `dev_links` on
 - **paired** is kind `connected`: same refusal as Cloud. Write on the
   gadak home, then sync.
 
+When you close an issue, end the comment with the **full URL** of what closed
+it, one per line and nothing else on those lines — a commit URL, a PR URL, or
+`repo@hash` when the repository has no public one. Prose like `main 1693107`
+records the same fact in a shape nothing can read: it is not clickable, and
+the development-panel surface above cannot see it. A URL is what a future
+ingest would parse, so writing one costs nothing now and keeps the record
+usable later. This matters most where it is the only record: a built-in
+tracker, and a Jira Cloud site without the GitHub app, have no automatic
+commit linking at all.
+
 ## When the mirror does not model it
 
 Watchers, worklogs, user search, and anything else sync does not
