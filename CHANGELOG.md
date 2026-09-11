@@ -409,7 +409,15 @@ spelled in POSIX ERE with the agreement asserted behaviourally because
 `(?i)` and `\b` have no portable spelling; a hit now names the shape that
 matched. PEM stays out on purpose, recorded in the script and pinned by a
 test, because two legitimate test vectors exist to contain a PEM header
-([GDK-1110]).
+([GDK-1110]). The settings dialog got the gate its
+registry never had: surface-conditional visibility there is tab-granular and
+one list already owned it, but nothing measured that the list still matched
+the tabs that actually need a desktop server, and nothing stopped a row
+inside a tab from growing its own branch. Both sides are now read from their
+own owner. The inventory that produced it also settled a premise: `hosted`
+never reaches that dialog at all — it mounts under a condition that is false
+exactly on the snapshot — so settings has two surfaces and not three
+([GDK-9]).
 
 The CLI itself says when its skill file is behind: a read verb prints one
 stderr line when the installed copy differs from this build's, so an agent
@@ -2092,6 +2100,7 @@ mirror, so `gadak sql` and agents can see them; the hosted demo falls back to
 local storage. TUI parity: feed focus tabs, saved-view sort/dir/group_by, and
 priority sorting keyed on `priority_rank`.
 
+[GDK-9]: https://gadak.dev/backlog/#/?ks=GDK-9
 [GDK-18]: https://gadak.dev/backlog/#/?ks=GDK-18
 [GDK-19]: https://gadak.dev/backlog/#/?ks=GDK-19
 [GDK-21]: https://gadak.dev/backlog/#/?ks=GDK-21
