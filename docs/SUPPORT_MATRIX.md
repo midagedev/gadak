@@ -9,7 +9,7 @@ re-read after it lands.
 Every cell carries a footnote pointing at the code that makes it true — a
 `path:line` in this repository, or a line in the Built-in origin's
 compatibility inventory (module
-`github.com/midagedev/issuetap@v0.0.0-20260910005747-8c5389632383`, cited
+`github.com/midagedev/issuetap@v0.0.0-20260911063337-b2a2614dd570`, cited
 below as `issuetap/docs/COMPATIBILITY.md`). A Built-in cell is never "same
 as Jira": it means the Jira REST verb exists and the Built-in origin
 implements the route.
@@ -145,7 +145,7 @@ Markers:
     (`internal/server/attachment.go:379`).
 
 [^13]: The origin serves the bytes from disk with `Accept-Ranges` and an
-    `ETag` (`issuetap/docs/COMPATIBILITY.md:76`) and serve streams them
+    `ETag` (`issuetap/docs/COMPATIBILITY.md:77`) and serve streams them
     through `origin.Client`, passing `Range` on and relaying 206
     (`internal/server/attachment.go:453`) — so seeking in a video works on
     the path that does not go through the byte cache (GDK-1617). Until
@@ -175,7 +175,7 @@ Markers:
     rewrite unchanged rows (`Batch.Force` is write-through only).
 
 [^16]: The origin keeps a changelog and serves it
-    (`issuetap/docs/COMPATIBILITY.md:71`); the same columns derive from it.
+    (`issuetap/docs/COMPATIBILITY.md:66`); the same columns derive from it.
 
 [^17]: `issuelinks` in the issue payload plus the link-type catalog
     (`internal/jira/write.go:234`, `:212`).
@@ -184,7 +184,7 @@ Markers:
     (`internal/origin/writer.go:101`); reading relations is [^106].
 
 [^19]: Link-type catalog and both-direction elements
-    (`issuetap/docs/COMPATIBILITY.md:59`, `:75`).
+    (`issuetap/docs/COMPATIBILITY.md:59`, `:76`).
 
 [^20]: `ref`, `link KEY <url>` and `unlink KEY <url>` need an origin that
     stores remote links
@@ -207,7 +207,7 @@ Markers:
 
 [^24]: Always fetched, embedded or paired (`internal/sync/sync.go:1367`);
     `dev link|deploy|build` writes pass through (`cmd/gadak/dev.go:55`,
-    `issuetap/docs/COMPATIBILITY.md:77`).
+    `issuetap/docs/COMPATIBILITY.md:78`).
 
 [^25]: Mirrored with the issue row (`internal/sync/sync.go:843`).
 
@@ -217,7 +217,7 @@ Markers:
     (`internal/sync/linear.go:218`).
 
 [^28]: A per-project catalog derived from the project's issues
-    (`issuetap/docs/COMPATIBILITY.md:75`).
+    (`issuetap/docs/COMPATIBILITY.md:62`).
 
 [^29]: `GET /project/{key}/versions` (`internal/jira/write.go:181`).
 
@@ -249,7 +249,7 @@ Markers:
     `sprints.external_id` (schemaV46) so a write can walk it back.
 
 [^34]: The origin's issue model has no sprint field — the editable set
-    carries none (`issuetap/docs/COMPATIBILITY.md:72`).
+    carries none (`issuetap/docs/COMPATIBILITY.md:73`).
 
 [^135]: `/rest/agile/1.0/board` and `/board/{id}/sprint`, which answer the same
     shape on Cloud and Server — measured on Jira Software 11.3.11 DC
@@ -278,14 +278,14 @@ Markers:
 [^36]: No custom-field mapping exists (`internal/linear/MAPPING.md`).
 
 [^37]: Only fields declared by the workspace's data exist, and there is no
-    field-creation route (`issuetap/docs/COMPATIBILITY.md:72` — "fixture
+    field-creation route (`issuetap/docs/COMPATIBILITY.md:73` — "fixture
     custom fields").
 
 [^38]: From create/edit metadata (`internal/jira/write.go:379`, `:322`).
 
 [^39]: `issue_type` maps from nothing (`internal/linear/MAPPING.md:82`).
 
-[^40]: Editable set with allowed values (`issuetap/docs/COMPATIBILITY.md:72`).
+[^40]: Editable set with allowed values (`issuetap/docs/COMPATIBILITY.md:73`).
 
 [^41]: `parent_key` mirrors the direct parent; `epic_key` (nearest
     hierarchy-level-1 ancestor) is derived at sync (`internal/sync/sync.go:843`).
@@ -295,7 +295,7 @@ Markers:
     sub-issues (`internal/linear/MAPPING.md:137`).
 
 [^43]: A parent must exist and sit exactly one hierarchy level above the child
-    (`issuetap/docs/COMPATIBILITY.md:75`).
+    (`issuetap/docs/COMPATIBILITY.md:76`).
 
 [^44]: Confluence Cloud through the wiki client (`internal/origin/origin.go:408`,
     `internal/sync/confluence.go`). A team-spaces fix landed on main after
@@ -334,7 +334,7 @@ Markers:
     The CLI create carries the same actor trailer as Jira[^50], rendered to
     markdown with the body.
 
-[^52]: `issuetap/docs/COMPATIBILITY.md:75`, with the same parent-hierarchy
+[^52]: `issuetap/docs/COMPATIBILITY.md:76`, with the same parent-hierarchy
     rule.
 
 [^53]: ADF body with optional visibility and internal flag
@@ -348,7 +348,7 @@ Markers:
     degrade to their text.
 
 [^55]: `visibility` plus the `sd.public.comment` internal mapping
-    (`issuetap/docs/COMPATIBILITY.md:75`).
+    (`issuetap/docs/COMPATIBILITY.md:76`).
 
 [^56]: `POST /issue/{key}/transitions` with fields and comment
     (`internal/jira/write.go:116`). A transition comment from the CLI carries
@@ -359,7 +359,7 @@ Markers:
     (`internal/origin/linearwriter.go:73`).
 
 [^58]: `fields.resolution` and `update.comment` are honored, screen-checked
-    (`issuetap/docs/COMPATIBILITY.md:70`). The seeded workflow puts an optional
+    (`issuetap/docs/COMPATIBILITY.md:71`). The seeded workflow puts an optional
     `resolution` on the done transition's screen (`internal/origin/origin.go:739`,
     GDK-1347); a workspace seeded before 0.20.1 has none, and its screen 400 is
     reworded in gadak's terms (`cmd/gadak/agent.go:2394`).
@@ -370,7 +370,7 @@ Markers:
     (`internal/origin/linearwriter.go:178`); refused only at create time
     (`:297`).
 
-[^61]: `POST /issue/{key}/assignee` (`issuetap/docs/COMPATIBILITY.md:75`).
+[^61]: `POST /issue/{key}/assignee` (`issuetap/docs/COMPATIBILITY.md:76`).
 
 [^62]: The two-part edit — `fields` replaces, `update` carries add/remove
     operations (`internal/jira/write.go:293`).
@@ -379,10 +379,10 @@ Markers:
     and any field outside the editable set is refused (`:190`); labels are
     deliberately absent from Linear edit metadata.
 
-[^64]: Editable set (`issuetap/docs/COMPATIBILITY.md:72`).
+[^64]: Editable set (`issuetap/docs/COMPATIBILITY.md:73`).
 
 [^65]: Full replace on `fields`, `add`/`remove`/`set` on `update`, by id or by
-    name (`issuetap/docs/COMPATIBILITY.md:75`).
+    name (`issuetap/docs/COMPATIBILITY.md:76`).
 
 [^66]: Linear's 0-4 scale; clearing a priority maps to 0, "No priority"
     (`internal/origin/linearwriter.go:160`, `:32`).
@@ -418,7 +418,7 @@ Markers:
 [^74]: `ErrNoIssueTypes` — Linear has no issue types
     (`internal/origin/writer.go:133`).
 
-[^75]: `issuetype` with allowed values (`issuetap/docs/COMPATIBILITY.md:72`).
+[^75]: `issuetype` with allowed values (`issuetap/docs/COMPATIBILITY.md:73`).
 
 [^76]: `create --parent` / `edit --parent KEY|none` → `fields.parent`
     (`cmd/gadak/create.go:538`, `cmd/gadak/edit.go:357`). Jira has no
@@ -435,7 +435,7 @@ Markers:
     (`internal/origin/linearwriter.go:190`).
 
 [^78]: Same `fields.parent`, with hierarchy validation and honest 400s
-    (`issuetap/docs/COMPATIBILITY.md:75`).
+    (`issuetap/docs/COMPATIBILITY.md:76`).
 
 [^79]: `POST /issue/{key}/attachments` multipart (`internal/jira/write.go:497`),
     streamed through a pipe rather than buffered. The part declares its type
@@ -451,7 +451,7 @@ Markers:
 [^81]: `POST /issueLink`, `DELETE /issueLink/{id}`, catalog via
     `GET /issueLinkType` (`internal/jira/write.go:222`, `:246`, `:212`).
 
-[^82]: Same routes (`issuetap/docs/COMPATIBILITY.md:59`, `:75`).
+[^82]: Same routes (`issuetap/docs/COMPATIBILITY.md:59`, `:76`).
 
 [^83]: `gadak page create|edit|comment` → Confluence REST through the wiki
     client (`cmd/gadak/page.go:217`, `:444`, `:357`;
@@ -468,7 +468,7 @@ Markers:
     writer does not implement it (`cmd/gadak/agent.go:2539`).
 
 [^87]: One atomic mutation — the origin's own extension route
-    (`issuetap/docs/COMPATIBILITY.md:71`).
+    (`issuetap/docs/COMPATIBILITY.md:72`).
 
 [^88]: The `api` verb passes any Jira REST route through the origin client
     (`cmd/gadak/api.go:140`).

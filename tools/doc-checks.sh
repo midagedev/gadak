@@ -1224,7 +1224,19 @@ desktop_pin="$(grep -o 'github.com/midagedev/issuetap v[^ ]*' desktop/go.mod | h
 if [[ -n "$root_pin" && -n "$desktop_pin" && "$root_pin" != "$desktop_pin" ]]; then
   fail "issuetap pin differs: go.mod has ${root_pin#*issuetap } but desktop/go.mod has ${desktop_pin#*issuetap } — run: cd desktop && go mod tidy"
 fi
-ok "issuetap pin agrees between go.mod and desktop/go.mod"
+# docs/SUPPORT_MATRIX.md names the exact pinned version its Built-in cells
+# were read against, so a bump that leaves that line behind makes every
+# `issuetap/docs/COMPATIBILITY.md:NN` footnote cite a file the reader cannot
+# get to. Measured 2026-09-12: the pin moved four commits and the line did
+# not, which is what made the footnote drift visible at all.
+matrix_pin="$(grep -o 'issuetap@v[0-9][^`]*' docs/SUPPORT_MATRIX.md | head -1)"
+if [[ -z "$matrix_pin" ]]; then
+  fail "docs/SUPPORT_MATRIX.md names no issuetap version — its Built-in footnotes cite a module with no pin"
+fi
+if [[ "${matrix_pin#issuetap@}" != "${root_pin#*issuetap }" ]]; then
+  fail "docs/SUPPORT_MATRIX.md pins ${matrix_pin#issuetap@} but go.mod has ${root_pin#*issuetap } — the Built-in cells cite a version the build does not use"
+fi
+ok "issuetap pin agrees between go.mod, desktop/go.mod and docs/SUPPORT_MATRIX.md"
 
 # ── 20. User docs do not betray standalone (GDK-271 / 373) ──────────────
 # Class: v0.16's headline is a workspace with no Atlassian account, but the

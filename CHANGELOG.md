@@ -143,6 +143,13 @@ whether this workspace mirrors the development panel at all, so an empty
 answering a paired workspace with a sentence written for somebody else's
 origin — `project create` asked whether the built-in tracker runs *here* and
 refused while blaming Jira, a site the workspace does not use ([GDK-1793]).
+The built-in origin stopped saying the same kind of thing to itself: a
+database somebody else had written under its persist path was refused with
+the version message, which told the reader to upgrade a binary that was
+already current and to restore a copy nobody had taken; it now names the file
+it actually found, and three guarantees — a refusal moves nothing, a forward
+migration keeps the issue graph, every refusal names both versions and the
+way out — are tests ([GDK-243]).
 The audit before this tag
 found four places where the tool said something untrue and fixed them at the
 source: `gadak transition --field` advertised `(repeatable)` and silently kept
@@ -1481,6 +1488,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-238]: https://gadak.dev/backlog/#/?ks=GDK-238
 [GDK-239]: https://gadak.dev/backlog/#/?ks=GDK-239
 [GDK-241]: https://gadak.dev/backlog/#/?ks=GDK-241
+[GDK-243]: https://gadak.dev/backlog/#/?ks=GDK-243
 [GDK-246]: https://gadak.dev/backlog/#/?ks=GDK-246
 [GDK-247]: https://gadak.dev/backlog/#/?ks=GDK-247
 [GDK-248]: https://gadak.dev/backlog/#/?ks=GDK-248
