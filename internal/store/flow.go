@@ -420,72 +420,72 @@ func normalizeSprintChangelog(tx *sql.Tx) error {
 	return err
 }
 
-// backfillCarryover is the v48 migration hook: after the sprint changelog
-// rows can be recognised (normalizeSprintChangelog), run every mirrored issue
-// back through Derive so the stored carry-over columns and the sync path
-// cannot disagree. Only the three new columns are written back — the rest of
-// Derive's output already holds its values and the inputs here are lean.
-func backfillCarryover(tx *sql.Tx) error {
-	if err := normalizeSprintChangelog(tx); err != nil {
-		return fmt.Errorf("normalize sprint changelog: %w", err)
-	}
-	type row struct{ itemID, kind string }
-	var issues []row
-	if err := txEach(tx, `
-		SELECT ir.item_id, COALESCE(s.kind,'')
-		FROM issues_raw ir JOIN items it ON it.id = ir.item_id
-		LEFT JOIN sources s ON s.id = it.source_id`,
-		func(rows *sql.Rows) error {
-			var r row
-			if err := rows.Scan(&r.itemID, &r.kind); err != nil {
-				return err
-			}
-			issues = append(issues, r)
-			return nil
-		}); err != nil {
-		return err
-	}
-	for _, r := range issues {
-		entries := []ChangeEntry{}
-		if err := txEach(tx, `
-			SELECT COALESCE(field,''), COALESCE(at,''), COALESCE(to_id,'')
-			FROM changelog WHERE item_id = ? AND field = 'sprint'`,
-			func(rows *sql.Rows) error {
-				var e ChangeEntry
-				if err := rows.Scan(&e.Field, &e.At, &e.ToID); err != nil {
-					return err
-				}
-				entries = append(entries, e)
-				return nil
-			}, r.itemID); err != nil {
-			return err
-		}
-		d := Derive(DeriveInput{Changelog: entries, NoHistory: r.kind == "linear"})
-		if _, err := tx.Exec(`
-			UPDATE issues_raw SET carryover_count = ?, first_sprint_id = ?, first_sprint_at = ?
-			WHERE item_id = ?`,
-			d.CarryoverCount, d.FirstSprintID, d.FirstSprintAt, r.itemID); err != nil {
-			return fmt.Errorf("backfill carryover %s: %w", r.itemID, err)
-		}
-	}
-	return nil
+// derivedSpec is one derived-column backfill: the changelog field Derive has
+// to read, the normalisation (if any) that makes that field recognisable in an
+// older mirror, and the columns written back. One row per migration that
+// stores derived columns — v48's carry-over and v51's blocked time are the two
+// today (GDK-1810: they were written as two near-verbatim copies of one loop,
+// so a correctness fix to either silently missed the other — which is exactly
+// what happened to GDK-1805).
+type derivedSpec struct {
+	// field is the changelog field under the stable name sync normalises to
+	// at write time (internal/sync changelogField).
+	field string
+	// normalize recognises rows an older mirror stored under the site's own
+	// custom field id, before the loop reads them. Nil when no mirror-side
+	// join can name the field — see blockedSpec.
+	normalize func(tx *sql.Tx) error
+	// update writes one issue's derived columns: its placeholders are args(d)
+	// in order, then the item id.
+	update string
+	// args is update's value list, in placeholder order.
+	args func(d Derived) []any
+	// what names this backfill in the error a failed write returns.
+	what string
 }
 
-// BackfillCarryoverTx is backfillCarryover on a caller's transaction. The
-// snapshot pipeline builds its own fixture and never goes through the sync
-// write path, so it derives the sprint history itself and then asks this
-// package — the single owner of the rule — for the columns. Exported for
-// that one caller, the same reason BackfillFlow is.
-func BackfillCarryoverTx(tx *sql.Tx) error { return backfillCarryover(tx) }
+var carryoverSpec = derivedSpec{
+	field:     "sprint",
+	normalize: normalizeSprintChangelog,
+	update: `UPDATE issues_raw SET carryover_count = ?, first_sprint_id = ?, first_sprint_at = ?
+		WHERE item_id = ?`,
+	args: func(d Derived) []any { return []any{d.CarryoverCount, d.FirstSprintID, d.FirstSprintAt} },
+	what: "carryover",
+}
 
-// backfillBlocked is the v51 migration hook (the v48 carryover shape): run
-// every mirrored issue back through Derive so the stored blocked columns and
-// the sync path cannot disagree. Only the two new columns are written back.
-// There is deliberately no normalisation step in front of it — a checkbox
-// field has no sprints-like table to join the per-site field id against, so
-// pre-v51 rows keep their id until their issue's next sync (schemaV51's
-// comment owns that decision).
-func backfillBlocked(tx *sql.Tx) error {
+var blockedSpec = derivedSpec{
+	field: "flagged",
+	// Deliberately no normalisation: a checkbox field has no sprints-like
+	// table to join the per-site field id against, and the option's display
+	// name ("Impediment" by default) is site configuration a migration must
+	// not guess on (schemaV51's comment owns that decision).
+	update: `UPDATE issues_raw SET blocked_hours = ?, blocked_since = ?
+		WHERE item_id = ?`,
+	args: func(d Derived) []any { return []any{d.BlockedHours, d.BlockedSince} },
+	what: "blocked",
+}
+
+// backfillDerived runs every mirrored issue back through Derive so spec's
+// stored columns and the sync path cannot disagree. Only spec's own columns
+// are written back — the rest of Derive's output already holds its values and
+// the inputs here are lean.
+//
+// absenceIsAnswer is the caller's knowledge, not the field's: may "this issue
+// has no changelog row for spec.field" be written back as a derived value?
+// A caller says yes when it knows the rows it is reading were written under
+// the stable field name — because spec.normalize just ran, or because the
+// changelog came through this build's sync. A schema migration over a file an
+// older build wrote cannot say that for a field with no normalisation: there,
+// no rows means "not readable yet", and the honest write is no write at all,
+// leaving NULL (GDK-1805 — the v51 backfill wrote 0.0, the documented value
+// for *never flagged*, on all 7,177 rows of a real mirror holding 13
+// Impediment transitions under customfield_10021).
+func backfillDerived(tx *sql.Tx, spec derivedSpec, absenceIsAnswer bool) error {
+	if spec.normalize != nil {
+		if err := spec.normalize(tx); err != nil {
+			return fmt.Errorf("normalize %s changelog: %w", spec.field, err)
+		}
+	}
 	type row struct{ itemID, kind string }
 	var issues []row
 	if err := txEach(tx, `
@@ -506,7 +506,7 @@ func backfillBlocked(tx *sql.Tx) error {
 		entries := []ChangeEntry{}
 		if err := txEach(tx, `
 			SELECT COALESCE(field,''), COALESCE(at,''), COALESCE(to_value,''), COALESCE(to_id,'')
-			FROM changelog WHERE item_id = ? AND field = 'flagged'`,
+			FROM changelog WHERE item_id = ? AND field = ?`,
 			func(rows *sql.Rows) error {
 				var e ChangeEntry
 				if err := rows.Scan(&e.Field, &e.At, &e.ToValue, &e.ToID); err != nil {
@@ -514,22 +514,48 @@ func backfillBlocked(tx *sql.Tx) error {
 				}
 				entries = append(entries, e)
 				return nil
-			}, r.itemID); err != nil {
+			}, r.itemID, spec.field); err != nil {
 			return err
 		}
+		if len(entries) == 0 && !absenceIsAnswer {
+			continue
+		}
 		d := Derive(DeriveInput{Changelog: entries, NoHistory: r.kind == "linear"})
-		if _, err := tx.Exec(`
-			UPDATE issues_raw SET blocked_hours = ?, blocked_since = ?
-			WHERE item_id = ?`,
-			d.BlockedHours, d.BlockedSince, r.itemID); err != nil {
-			return fmt.Errorf("backfill blocked %s: %w", r.itemID, err)
+		if _, err := tx.Exec(spec.update, append(spec.args(d), r.itemID)...); err != nil {
+			return fmt.Errorf("backfill %s %s: %w", spec.what, r.itemID, err)
 		}
 	}
 	return nil
 }
 
-// BackfillBlockedTx is backfillBlocked on a caller's transaction — the
-// snapshot pipeline's seat beside BackfillCarryoverTx: the column-bag mover
-// does not know the derived columns, so the fixture recomputes them from its
-// own rows through the single owner of the rule.
-func BackfillBlockedTx(tx *sql.Tx) error { return backfillBlocked(tx) }
+// backfillCarryover is the v48 migration hook: after the sprint changelog rows
+// can be recognised (normalizeSprintChangelog, which spec carries), derive the
+// carry-over columns from them. Absence is an answer here because that
+// normalisation ran on this very transaction — a mirror whose sprint rows are
+// all named `sprint` and holds none for an issue says that issue was never
+// carried.
+func backfillCarryover(tx *sql.Tx) error { return backfillDerived(tx, carryoverSpec, true) }
+
+// BackfillCarryoverTx is backfillCarryover on a caller's transaction. The
+// snapshot pipeline builds its own fixture and never goes through the sync
+// write path, so it derives the sprint history itself and then asks this
+// package — the single owner of the rule — for the columns. Exported for
+// that one caller, the same reason BackfillFlow is.
+func BackfillCarryoverTx(tx *sql.Tx) error { return backfillCarryover(tx) }
+
+// backfillBlockedMigration is the v51 migration hook. It is the one caller
+// that passes absenceIsAnswer=false: blockedSpec has no normalisation, and a
+// mirror below 51 was written by builds that did not normalise the flagged
+// field id either, so "no `flagged` rows" there means "not readable yet", not
+// "never flagged". Rows it cannot read keep NULL until their issue's next sync
+// rewrites the changelog under the stable name — `gadak sync --full` heals a
+// whole mirror in one pass (GDK-1805).
+func backfillBlockedMigration(tx *sql.Tx) error { return backfillDerived(tx, blockedSpec, false) }
+
+// BackfillBlockedTx is blockedSpec on a caller's transaction — the snapshot
+// pipeline's seat beside BackfillCarryoverTx: the column-bag mover does not
+// know the derived columns, so the fixture recomputes them from its own rows
+// through the single owner of the rule. Absence is an answer here: those rows
+// reached the fixture through this build's sync, which writes the flagged
+// changelog under the stable name.
+func BackfillBlockedTx(tx *sql.Tx) error { return backfillDerived(tx, blockedSpec, true) }

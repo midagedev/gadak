@@ -8,11 +8,15 @@ package store
 //	B2 a v50 mirror derives the columns on the way to v51 —
 //	     TestMigrateV50DerivesBlockedColumns
 //	     ① flagged rows → blocked_hours / blocked_since written
-//	     ② no flagged rows → 0 (never flagged), not NULL — jira supplies a
-//	       changelog, and carryover's nil-vs-0 doctrine cuts the same way
+//	     ② no flagged rows → NULL, not 0 (2026-09-12, GDK-1805: clause ②
+//	       used to read "0 (never flagged)", which the migration is not in a
+//	       position to claim — nothing had normalised the field id it reads.
+//	       0 stays the sync path's answer, where the rows are normalised)
 //	     ③ a linear row stays NULL — no changelog, no answer
 //	     ④ a pre-v51 customfield_ row is NOT guessed at — no join key
 //	       exists (schemaV51's documented decision)
+//	B2b the migration claims nothing it could not read —
+//	     TestMigrateV50DoesNotClaimNeverFlagged (GDK-1805)
 //	B3 the read wire keeps nil / 0 / value distinct —
 //	     TestIssueLiteCarriesBlockedColumns
 //
@@ -227,11 +231,17 @@ func TestMigrateV50DerivesBlockedColumns(t *testing.T) {
 	if !since.Valid || since.String != blockedAgo(base, 1) {
 		t.Errorf("STD-1 blocked_since = %v, want the open interval's start %s", since, blockedAgo(base, 1))
 	}
+	// 2026-09-12, GDK-1805: this row used to demand 0 — "jira supplies a
+	// changelog, never flagged is an answer". The migration cannot make that
+	// claim: it reads a changelog written before any build normalised the
+	// flagged field id, so no rows means not readable yet. 0 remains the
+	// answer on the sync path (TestDeriveBlockedFlaggedIntervals) and in the
+	// snapshot backfill (BackfillBlockedTx), where the rows are normalised.
 	if err := db.QueryRow(`SELECT blocked_hours FROM issues_raw WHERE key = 'STD-2'`).Scan(&hours); err != nil {
 		t.Fatal(err)
 	}
-	if !hours.Valid || hours.Float64 != 0 {
-		t.Errorf("STD-2 blocked_hours = %v, want 0 — jira supplies a changelog, never flagged is an answer", hours)
+	if hours.Valid {
+		t.Errorf("STD-2 blocked_hours = %v, want NULL — the migration may not claim never flagged for a row it could not read", hours)
 	}
 	if err := db.QueryRow(`SELECT blocked_hours FROM issues_raw WHERE key = 'STD-3'`).Scan(&hours); err != nil {
 		t.Fatal(err)
@@ -247,8 +257,12 @@ func TestMigrateV50DerivesBlockedColumns(t *testing.T) {
 		Scan(&hours, &since); err != nil {
 		t.Fatal(err)
 	}
-	if hours.Valid && hours.Float64 != 0 {
-		t.Errorf("STD-4 blocked_hours = %v from a customfield_ row, want 0 — no mirror-side join can name that field", hours)
+	// 2026-09-12, GDK-1805: this was `hours.Valid && hours.Float64 != 0`,
+	// which passed on the 0.0 the bug wrote and on NULL alike — it pinned
+	// nothing. NULL is now the contract: no mirror-side join can name that
+	// field, so the migration writes no answer for the row.
+	if hours.Valid {
+		t.Errorf("STD-4 blocked_hours = %v from a customfield_ row, want NULL — no mirror-side join can name that field", hours)
 	}
 	if since.Valid {
 		t.Errorf("STD-4 blocked_since = %v from a customfield_ row, want NULL", since)
@@ -296,5 +310,103 @@ func TestIssueLiteCarriesBlockedColumns(t *testing.T) {
 	}
 	if rows[2].BlockedHours != nil {
 		t.Errorf("ENG-3 blocked_hours = %v, want nil — an origin with no changelog cannot answer", *rows[2].BlockedHours)
+	}
+}
+
+// TestMigrateV50DoesNotClaimNeverFlagged is GDK-1805's gate: the v51 backfill
+// may not write 0 — the documented value for *never flagged* — on a mirror
+// whose changelog it cannot read.
+//
+// Normalisation of the site's own flagged field id to `flagged` happens at
+// sync write time (internal/sync changelogField), and a mirror still below 51
+// has never been written by a build that does it. So at migration time every
+// flagged transition is still under `customfield_NNNNN`, the backfill's
+// `WHERE field = 'flagged'` matches nothing, and Derive's "a jira row with a
+// changelog and no flags is 0 hours" rule answers a question the migration was
+// never able to ask. Measured on a real 624 MB mirror (GDK-1801): 7,177 of
+// 7,177 rows at 0.0 against 13 `customfield_10021` Impediment transitions in
+// the same file.
+//
+// The contract this pins: the migration writes a value only for rows it could
+// actually read and leaves NULL — "this origin cannot say" — for the rest.
+// `gadak sync --full` rewrites the changelog under the stable name and the
+// next Derive fills the column in.
+func TestMigrateV50DoesNotClaimNeverFlagged(t *testing.T) {
+	base := time.Date(2026, 9, 11, 12, 0, 0, 0, time.UTC)
+	path := filepath.Join(t.TempDir(), "gadak.db")
+	mirrorAt(t, path, 50)
+
+	raw, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`INSERT INTO sources (id, kind) VALUES ('jira','jira')`); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	for _, key := range []string{"FLG-1", "FLG-2"} {
+		id := "jira:" + key
+		if _, err := raw.Exec(`
+			INSERT INTO items (id, source_id, kind, external_id, key, title, created_at, updated_at, synced_at)
+			VALUES (?, 'jira', 'issue', ?, ?, ?, '2026-01-01', '2026-02-01', '2026-02-01')`,
+			id, key, key, key); err != nil {
+			raw.Close()
+			t.Fatal(err)
+		}
+		if _, err := raw.Exec(`
+			INSERT INTO issues_raw (item_id, key, project_key, status_id, status_category, priority_rank, reopen_count, comment_count, raw)
+			VALUES (?, ?, 'FLG', '3', 'inprogress', 0, 0, 0, '{}')`, id, key); err != nil {
+			raw.Close()
+			t.Fatal(err)
+		}
+	}
+	// FLG-1 was flagged for two hours — under the site's own field id, the
+	// only shape a pre-v51 mirror has.
+	for _, e := range []struct{ id, at, from, to string }{
+		{"f1", blockedAgo(base, 6), "", "Impediment"},
+		{"f2", blockedAgo(base, 4), "Impediment", ""},
+	} {
+		if _, err := raw.Exec(`
+			INSERT INTO changelog (id, item_id, at, field, from_value, to_value)
+			VALUES (?, 'jira:FLG-1', ?, 'customfield_10021', ?, ?)`, e.id, e.at, e.from, e.to); err != nil {
+			raw.Close()
+			t.Fatal(err)
+		}
+	}
+	// FLG-2 has a changelog too — a status move, nothing flagged-shaped. The
+	// migration still cannot tell "never flagged" from "flagged under an id it
+	// cannot recognise", so it may not answer for this row either.
+	if _, err := raw.Exec(`
+		INSERT INTO changelog (id, item_id, at, field, from_id, to_id)
+		VALUES ('s1', 'jira:FLG-2', ?, 'status', '1', '3')`, blockedAgo(base, 9)); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if got := db.SchemaVersion(); got != len(migrations) {
+		t.Fatalf("schema version %d, want %d", got, len(migrations))
+	}
+
+	for _, key := range []string{"FLG-1", "FLG-2"} {
+		var hours sql.NullFloat64
+		var since sql.NullString
+		if err := db.QueryRow(`SELECT blocked_hours, blocked_since FROM issues_raw WHERE key = ?`, key).
+			Scan(&hours, &since); err != nil {
+			t.Fatal(err)
+		}
+		if hours.Valid {
+			t.Errorf("%s blocked_hours = %v after the v51 migration, want NULL — 0 is the documented value for *never flagged*, and the migration reads a changelog no build had normalised (docs/DERIVE.md, GDK-1805)", key, hours.Float64)
+		}
+		if since.Valid {
+			t.Errorf("%s blocked_since = %v, want NULL", key, since.String)
+		}
 	}
 }

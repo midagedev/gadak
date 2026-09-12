@@ -482,7 +482,12 @@ func sqliteAttachLiteral(path, mode string) string {
 // EnsureLocal creates local.db next to the mirror if needed and migrates it.
 // Failures are returned; callers of Open log them and still open the mirror.
 func EnsureLocal(mirrorPath string) error {
-	return ensureLocalDB(LocalPath(mirrorPath))
+	return EnsureLocalWith(mirrorPath, defaultOpenOptions())
+}
+
+// EnsureLocalWith is EnsureLocal under an explicit open policy.
+func EnsureLocalWith(mirrorPath string, opts OpenOptions) error {
+	return ensureLocalDB(LocalPath(mirrorPath), opts)
 }
 
 // localPersonalTablesReady reports whether the personal-state tables the
@@ -508,7 +513,7 @@ func localDSN(path string) string {
 	}, "&")
 }
 
-func ensureLocalDB(path string) error {
+func ensureLocalDB(path string, opts OpenOptions) error {
 	if dir := filepath.Dir(path); dir != "" && dir != "." {
 		if err := fsperm.EnsurePrivateDir(dir); err != nil {
 			if errors.Is(err, fsperm.ErrChmod) {
@@ -526,14 +531,74 @@ func ensureLocalDB(path string) error {
 		return err
 	}
 	defer sqlDB.Close()
-	if err := migrateLocal(sqlDB, path); err != nil {
+	if err := migrateLocal(sqlDB, path, opts); err != nil {
 		return err
 	}
 	secureDBFiles(path)
 	return nil
 }
 
-func migrateLocal(sqlDB *sql.DB, path string) error {
+// refuseLocalForward is enforceForwardPolicy (store.go) for the workspace's
+// other versioned file. A workspace is two files a release writes — the mirror
+// and local.db — and GDK-1687's rule is about the workspace: one open from a
+// dev checkout must not decide a schema bump for files an installed release
+// still reads. It was enforced on the mirror alone, so a refused open left the
+// mirror at its version and moved local.db anyway (GDK-1806), after which the
+// release warned on every command and stopped maintaining the tables it no
+// longer knew — a derived table silently disagreeing with its source.
+//
+// The decision lives here rather than at the Open boundary because local.db
+// has three entry points (OpenWith, OpenReadOnly, and attachLocalHook when the
+// file is missing); one owner covers them all. The two exceptions are the
+// mirror's, unchanged: a brand-new file never belonged to a release, and
+// GADAK_DEV_MIGRATE=1 is the operator's explicit override.
+//
+// A refusal is not an error — local.db's contract is that a failure here must
+// not refuse the mirror, and the file stays readable for every table this
+// build and the release both know.
+func refuseLocalForward(ctx context.Context, sqlDB *sql.DB, path string, have, want int, opts OpenOptions) bool {
+	if opts.ForwardMigration != RefuseForward {
+		return false
+	}
+	if have == 0 && emptyLocalDB(ctx, sqlDB) {
+		return false
+	}
+	if os.Getenv("GADAK_DEV_MIGRATE") == "1" {
+		return false
+	}
+	warnLocalForwardRefused(path, have, want, opts.BuildVersion)
+	return true
+}
+
+// emptyLocalDB reports whether the file holds no tables at all — the shape
+// only a just-created local.db has. user_version 0 with tables present is
+// ambiguous provenance, not a fresh file (emptyMirror's rule).
+func emptyLocalDB(ctx context.Context, sqlDB *sql.DB) bool {
+	var n int
+	return sqlDB.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'").Scan(&n) == nil && n == 0
+}
+
+// localForwardRefusedWarned is path → struct{} of local.db files that have
+// already logged the refusal this process, the same once-per-path shape
+// warnLocalNewerSchema uses (GDK-596: a repeated store: line on every command
+// pollutes every agent tool-result that reads stderr).
+var localForwardRefusedWarned sync.Map
+
+func warnLocalForwardRefused(path string, have, want int, buildVersion string) {
+	if _, dup := localForwardRefusedWarned.LoadOrStore(filepath.Clean(path), struct{}{}); dup {
+		return
+	}
+	bv := buildVersion
+	if bv == "" {
+		bv = "unversioned"
+	}
+	log.Printf("store: local.db: %s: this is a dev build (%s); personal history is at schema %d, this build writes %d. "+
+		"Migrating it forward would leave the installed release warning on every command, so it is left as it is — "+
+		"set GADAK_DEV_MIGRATE=1 to migrate it anyway, or work on a copy of the workspace.", path, bv, have, want)
+}
+
+func migrateLocal(sqlDB *sql.DB, path string, opts OpenOptions) error {
 	ctx := context.Background()
 	var have int
 	if err := sqlDB.QueryRowContext(ctx, "PRAGMA user_version").Scan(&have); err != nil {
@@ -551,6 +616,9 @@ func migrateLocal(sqlDB *sql.DB, path string) error {
 		return nil
 	}
 	if have == want {
+		return nil
+	}
+	if refuseLocalForward(ctx, sqlDB, path, have, want, opts) {
 		return nil
 	}
 	tx, err := sqlDB.BeginTx(ctx, nil)
@@ -645,7 +713,7 @@ const currentEpochSQLOnLocal = `COALESCE((SELECT CAST(v AS INTEGER) FROM local_m
 // PRAGMA to the connection BeginTx uses.
 func openLocalWriter(mirrorPath string) (*sql.DB, error) {
 	path := LocalPath(mirrorPath)
-	if err := ensureLocalDB(path); err != nil {
+	if err := ensureLocalDB(path, defaultOpenOptions()); err != nil {
 		return nil, err
 	}
 	sqlDB, err := sql.Open("sqlite", localDSN(path))
@@ -1433,40 +1501,74 @@ func (db *DB) PruneLocalHistory(ctx context.Context) error {
 	})
 }
 
-func pruneLocalHistoryTx(ctx context.Context, tx *sql.Tx, cutoff string) error {
-	if _, err := tx.ExecContext(ctx, `DELETE FROM local.visits WHERE viewed_at < ?`, cutoff); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM local.searches WHERE searched_at < ?`, cutoff); err != nil {
-		return err
-	}
-	// Sessions prune by ended_at (a row older than the retention window can no
-	// longer chain to anything the boundary needs), the ledger by at (GDK-1439/
-	// GDK-1440). Both ride the same window as the events they summarize.
-	if _, err := tx.ExecContext(ctx, `DELETE FROM local.sessions WHERE ended_at < ?`, cutoff); err != nil {
-		return err
-	}
-	_, err := tx.ExecContext(ctx, `DELETE FROM local.agent_writes WHERE at < ?`, cutoff)
-	return err
+// personalHistoryTable is one table of the personal timeline: what the
+// retention prune trims and what the clear verb empties.
+type personalHistoryTable struct {
+	name string // table name in the `local` schema
+	// stamp is the column the retention window compares. Sessions prune by
+	// ended_at (a row older than the window can no longer chain to anything
+	// the boundary needs), the ledger by at (GDK-1439/GDK-1440); both ride the
+	// same window as the events they summarize.
+	stamp string
 }
 
-// ClearLocalHistory empties the visits and searches tables — the personal
+// personalHistoryTables is the single list both pruneLocalHistoryTx and
+// ClearLocalHistory walk. It exists because they disagreed: the prune was
+// extended to sessions and agent_writes and the clear verb was not, so
+// "Clear history — cannot be undone" left the cleared timeline materialised in
+// local.sessions — still queried, still exported (GDK-1807). A table added
+// here is pruned and cleared by the same edit; one added to only one of those
+// paths is the defect this list removes.
+//
+// Recents, saved views, watches and favorites are deliberately absent: they
+// are the pickers' own memory, not history, and the clear verb must not reach
+// them (GDK-106).
+var personalHistoryTables = []personalHistoryTable{
+	{name: "visits", stamp: "viewed_at"},
+	{name: "searches", stamp: "searched_at"},
+	{name: "sessions", stamp: "ended_at"},
+	{name: "agent_writes", stamp: "at"},
+}
+
+func pruneLocalHistoryTx(ctx context.Context, tx *sql.Tx, cutoff string) error {
+	for _, t := range personalHistoryTables {
+		// Table and column names come from the list above, never from a
+		// caller: this is composition of literals, not user input.
+		if _, err := tx.ExecContext(ctx, `DELETE FROM local.`+t.name+` WHERE `+t.stamp+` < ?`, cutoff); err != nil {
+			return fmt.Errorf("prune local.%s: %w", t.name, err)
+		}
+	}
+	return nil
+}
+
+// ClearLocalHistory empties every personal-history table — the personal
 // timeline and nothing else (GDK-106). Recents and saved views are not
 // history: they are the pickers' own memory, and the clear verb the settings
-// and history surfaces offer must not reach them. Rows-affected counts come
-// back so the endpoint can say what it removed (a repeat call answers zeros).
+// and history surfaces offer must not reach them. The tables it walks are
+// personalHistoryTables, the same list the retention prune walks, so the
+// promise the button makes ("cannot be undone") cannot drift from what the
+// file keeps (GDK-1807).
+//
+// The visits and searches counts come back so the endpoint can say what it
+// removed (a repeat call answers zeros); the derived tables cleared alongside
+// them — sessions, the visit timeline rolled up, and the agent_writes ledger —
+// have no count on the wire because the surface reports the events, not their
+// summaries.
 func (db *DB) ClearLocalHistory(ctx context.Context) (visits, searches int64, err error) {
 	err = db.write(ctx, func(tx *sql.Tx) error {
-		res, err := tx.ExecContext(ctx, `DELETE FROM local.visits`)
-		if err != nil {
-			return err
+		for _, t := range personalHistoryTables {
+			// Literal composition from the list above, never a caller's string.
+			res, err := tx.ExecContext(ctx, `DELETE FROM local.`+t.name)
+			if err != nil {
+				return fmt.Errorf("clear local.%s: %w", t.name, err)
+			}
+			switch t.name {
+			case "visits":
+				visits, _ = res.RowsAffected()
+			case "searches":
+				searches, _ = res.RowsAffected()
+			}
 		}
-		visits, _ = res.RowsAffected()
-		res, err = tx.ExecContext(ctx, `DELETE FROM local.searches`)
-		if err != nil {
-			return err
-		}
-		searches, _ = res.RowsAffected()
 		return nil
 	})
 	return visits, searches, err

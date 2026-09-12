@@ -180,7 +180,7 @@ part of the `issues` view). Joined to `items` on `item_id`.
 | `carryover_count` | INTEGER | Derived (v48): distinct sprints the issue has ever entered, minus one — how many times it was carried past a sprint boundary. NULL, never 0, on an origin that supplies no changelog. See `docs/DERIVE.md` |
 | `first_sprint_id` | INTEGER | Derived (v48): the first sprint the issue entered, in the `sprints(source_id, id)` space. NULL when it never entered one |
 | `first_sprint_at` | TEXT | Derived (v48): when that first entry happened. `first_sprint_at` against that sprint's `start_at` is the added-mid-sprint question |
-| `blocked_hours` | REAL | Derived (v51): time spent flagged, in hours — closed flag intervals summed (set followed by clear), read from the changelog's `flagged` rows. 0 means never flagged; NULL, never 0, on an origin that supplies no changelog. See `docs/DERIVE.md` |
+| `blocked_hours` | REAL | Derived (v51): time spent flagged, in hours — closed flag intervals summed (set followed by clear), read from the changelog's `flagged` rows. 0 means never flagged; NULL, never 0, wherever the flag history cannot be read — an origin that supplies no changelog, and rows a mirror carried through the v51 migration under the site's own field id until their next sync (`gadak sync --full` heals them all). See `docs/DERIVE.md` |
 | `blocked_since` | TEXT | Derived (v51): the open flag interval's start. NULL when no flag is up. A stamp — the flag's age is the reader's `now − blocked_since` |
 
 Indexes: `(project_key, status_category)`, `(assignee_id)`, `(updated_at)`,

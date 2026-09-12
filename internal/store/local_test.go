@@ -213,6 +213,54 @@ func TestRecordSearchAndSetOpened(t *testing.T) {
 	}
 }
 
+// TestClearLocalHistoryEmptiesEveryPersonalHistoryTable is GDK-1807: the
+// clear verb's copy says "Clear history — cannot be undone", and it used to
+// leave local.sessions — the cleared timeline materialised, still queried by
+// the session boundary and still dumped by `gadak export` — plus the
+// agent_writes ledger. The prune had been extended to all four tables and the
+// clear had not.
+//
+// The gate is the list, not the four names: seeding is keyed by
+// personalHistoryTables, so a table added to that list without a seed here
+// turns this test red instead of silently going unasserted.
+func TestClearLocalHistoryEmptiesEveryPersonalHistoryTable(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	now := Now()
+	seeds := map[string]string{
+		"visits":       `INSERT INTO local.visits (kind, key, viewed_at) VALUES ('issue','CLR-1','` + now + `')`,
+		"searches":     `INSERT INTO local.searches (query, searched_at, result_count) VALUES ('clr', '` + now + `', 1)`,
+		"sessions":     `INSERT INTO local.sessions (started_at, ended_at, first_write_at, visits) VALUES ('` + now + `','` + now + `','',1)`,
+		"agent_writes": `INSERT INTO local.agent_writes (key, at, verb, source) VALUES ('CLR-1','` + now + `','edit','cli')`,
+	}
+	for _, tbl := range personalHistoryTables {
+		ins, ok := seeds[tbl.name]
+		if !ok {
+			t.Fatalf("personalHistoryTables carries %q and this test does not seed it — add a row to seeds so the clear is actually asserted", tbl.name)
+		}
+		if _, err := db.sql.ExecContext(ctx, ins); err != nil {
+			t.Fatalf("seed local.%s: %v", tbl.name, err)
+		}
+	}
+
+	visits, searches, err := db.ClearLocalHistory(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if visits != 1 || searches != 1 {
+		t.Errorf("ClearLocalHistory reported visits=%d searches=%d, want 1 and 1", visits, searches)
+	}
+	for _, tbl := range personalHistoryTables {
+		var n int
+		if err := db.sql.QueryRowContext(ctx, `SELECT COUNT(*) FROM local.`+tbl.name).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n != 0 {
+			t.Errorf("local.%s has %d rows after clear history, want 0 — the button says the history is gone", tbl.name, n)
+		}
+	}
+}
+
 func TestPruneLocalHistoryDropsOnlyOldRows(t *testing.T) {
 	db := openTemp(t)
 	ctx := context.Background()

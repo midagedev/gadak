@@ -211,8 +211,11 @@ func OpenWith(path string, opts OpenOptions) (*DB, error) {
 	}
 	// Personal history is a sibling file (local.db), ATTACHed as `local` by
 	// attachLocalHook on every connection. Create/migrate it first so the hook
-	// finds the file; a failure here must not refuse the mirror.
-	if err := EnsureLocal(path); err != nil {
+	// finds the file; a failure here must not refuse the mirror. The open
+	// policy travels with it — a refused open must leave both of the
+	// workspace's versioned files where the release left them (GDK-1806), and
+	// EnsureLocal cannot read that from the path.
+	if err := EnsureLocalWith(path, opts); err != nil {
 		log.Printf("store: local.db: %v", err)
 	}
 	db := &DB{sql: sqlDB, path: path}
@@ -390,9 +393,12 @@ func (db *DB) migrate() error {
 			}
 			// v51: derive the flagged/blocked columns from the changelog rows
 			// already normalised to `flagged` (flow.go). Pre-v51 rows under a
-			// per-site custom field id are not guessed at here — see schemaV51.
+			// per-site custom field id are not guessed at here — see schemaV51
+			// — and, unlike v48, an issue with no readable rows is left NULL
+			// rather than claimed as never flagged (GDK-1805, hence the
+			// migration's own entry point rather than BackfillBlockedTx).
 			if i+1 == 51 {
-				if err := backfillBlocked(tx); err != nil {
+				if err := backfillBlockedMigration(tx); err != nil {
 					return fmt.Errorf("migration 51 backfill: %w", err)
 				}
 			}

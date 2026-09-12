@@ -114,6 +114,174 @@ func TestOpenWithRefuseForwardLeavesReleaseMirrorAtItsVersion(t *testing.T) {
 	}
 }
 
+// localAt writes a local.db whose schema is exactly what a build whose local
+// head was `level` would have produced — mirrorAt's sibling, for the other
+// versioned file in a workspace.
+func localAt(t *testing.T, mirrorPath string, level int) {
+	t.Helper()
+	path := LocalPath(mirrorPath)
+	raw, err := sql.Open("sqlite", localDSN(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < level; i++ {
+		if _, err := raw.Exec(localMigrations[i]); err != nil {
+			raw.Close()
+			t.Fatalf("local migration %d: %v", i+1, err)
+		}
+	}
+	if _, err := raw.Exec("PRAGMA user_version = " + strconv.Itoa(level)); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// walize switches a mirror to WAL and closes it again — the journal mode
+// every gadak build opens it with, so a byte comparison across an open is
+// about what that open wrote, not about the conversion. `main.` is load
+// bearing: an unqualified journal_mode applies to every ATTACHed database,
+// and attachLocalHook has local.db on this connection — which gadak keeps on
+// a rollback journal.
+func walize(t *testing.T, path string) {
+	t.Helper()
+	raw, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mode string
+	if err := raw.QueryRow("PRAGMA main.journal_mode = WAL").Scan(&mode); err != nil {
+		raw.Close()
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// localUserVersion reads local.db's stamp the way an installed release would.
+func localUserVersion(t *testing.T, mirrorPath string) int {
+	t.Helper()
+	raw, err := sql.Open("sqlite", "file:"+LocalPath(mirrorPath)+"?mode=ro")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer raw.Close()
+	var v int
+	if err := raw.QueryRow("PRAGMA user_version").Scan(&v); err != nil {
+		t.Fatal(err)
+	}
+	return v
+}
+
+// TestOpenWithRefuseForwardLeavesReleaseLocalDBAlone is GDK-1806: a workspace
+// has two versioned files, and "a dev build does not decide for the release"
+// was enforced on one of them. EnsureLocal ran before enforceForwardPolicy and
+// took no OpenOptions, so the command whose whole purpose is to leave the
+// release's workspace alone migrated local.db anyway — measured on a real
+// workspace (GDK-1801): mirror stayed 49 with the correct refusal while
+// local.db went 7 → 11 and changed bytes, after which the installed release
+// warned on every command and, unable to maintain localSchemaV10, appended to
+// visits while sessions stopped moving.
+//
+// local.db is the file the origin cannot rebuild, so the assertion is bytes,
+// not just the stamp. Both files are compared as their main files only: a
+// refused open still has to read the mirror's user_version, which creates WAL
+// sidecars beside it; the sidecars are SQLite's scratch, the main files are
+// the release's data.
+func TestOpenWithRefuseForwardLeavesReleaseLocalDBAlone(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "profiles", "x", "gadak.db")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// The release's shape: both files one level behind this build. local.db
+	// first — attachLocalHook creates one at head on any open of a gadak.db
+	// that has none, mirrorAt's included.
+	localAt(t, path, len(localMigrations)-1)
+	mirrorAt(t, path, len(migrations)-1)
+	// A release leaves its mirror in WAL (mirrorDSN). Put the file in that
+	// shape before the byte snapshot, or the comparison measures SQLite's
+	// journal-mode conversion on first open instead of this policy.
+	walize(t, path)
+
+	mirrorBefore, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	localBefore, err := os.ReadFile(LocalPath(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = OpenWith(path, refuserOptions(path))
+	var refused *SchemaForwardRefusedError
+	if !errors.As(err, &refused) {
+		t.Fatalf("error is %T (%v), want *SchemaForwardRefusedError", err, err)
+	}
+
+	if got, want := userVersion(t, path), len(migrations)-1; got != want {
+		t.Errorf("mirror user_version = %d after a refused open, want %d", got, want)
+	}
+	if got, want := localUserVersion(t, path), len(localMigrations)-1; got != want {
+		t.Errorf("local.db user_version = %d after a refused open, want %d — the refusal must leave the release's personal history where it found it", got, want)
+	}
+	mirrorAfter, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(mirrorBefore, mirrorAfter) {
+		t.Errorf("gadak.db changed bytes across a refused open (%d → %d)", len(mirrorBefore), len(mirrorAfter))
+	}
+	localAfter, err := os.ReadFile(LocalPath(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(localBefore, localAfter) {
+		for i := range localBefore {
+			if i < len(localAfter) && localBefore[i] != localAfter[i] {
+				t.Logf("first differing byte at offset %d: %d → %d", i, localBefore[i], localAfter[i])
+				break
+			}
+		}
+		t.Errorf("local.db changed bytes across a refused open (%d → %d) — the one file the origin cannot rebuild", len(localBefore), len(localAfter))
+	}
+}
+
+// TestEnsureLocalWithRefuseForwardStillCreatesANewFile keeps the mirror's own
+// exception on the local side: a file no release ever wrote is created at
+// head, so a dev build in a fresh workspace is not left without the tables it
+// queries. GADAK_DEV_MIGRATE stays the operator override for an existing file.
+func TestEnsureLocalWithRefuseForwardStillCreatesANewFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gadak.db")
+	if err := EnsureLocalWith(path, OpenOptions{ForwardMigration: RefuseForward, BuildVersion: DevVersionForTest}); err != nil {
+		t.Fatalf("EnsureLocalWith on a workspace with no local.db: %v", err)
+	}
+	if got, want := localUserVersion(t, path), len(localMigrations); got != want {
+		t.Fatalf("local.db user_version = %d, want %d — a brand-new file never belonged to a release", got, want)
+	}
+
+	// An existing file one level behind is left alone...
+	older := filepath.Join(t.TempDir(), "gadak.db")
+	localAt(t, older, len(localMigrations)-1)
+	if err := EnsureLocalWith(older, OpenOptions{ForwardMigration: RefuseForward, BuildVersion: DevVersionForTest}); err != nil {
+		t.Fatalf("EnsureLocalWith on a behind local.db: %v", err)
+	}
+	if got, want := localUserVersion(t, older), len(localMigrations)-1; got != want {
+		t.Fatalf("local.db user_version = %d, want %d", got, want)
+	}
+	// ...until the operator says otherwise, the same override the mirror takes.
+	t.Setenv("GADAK_DEV_MIGRATE", "1")
+	if err := EnsureLocalWith(older, OpenOptions{ForwardMigration: RefuseForward, BuildVersion: DevVersionForTest}); err != nil {
+		t.Fatalf("EnsureLocalWith under GADAK_DEV_MIGRATE: %v", err)
+	}
+	if got, want := localUserVersion(t, older), len(localMigrations); got != want {
+		t.Fatalf("local.db user_version = %d under GADAK_DEV_MIGRATE, want %d", got, want)
+	}
+}
+
 func TestOpenWithMigrateForwardStillMigrates(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "gadak.db")
 	mirrorAt(t, path, 44)
