@@ -31,8 +31,19 @@ echo "export-terminal: source $WEBM"
 
 # Trim the boot skeleton: recording starts at page load, the clip should
 # open on the settled list. The spec's first beat waits for the scroller,
-# so the head is skeleton + settle. Re-measure if boot pacing changes.
-TRIM_HEAD=2.2
+# so the head is skeleton + settle.
+#
+# This was 2.2, with "re-measure if boot pacing changes" under it. Measured
+# 2026-09-12: the serve is warm and the page is painted at 0.20s (YMIN 0,
+# YAVG 213 — the settled page, not a skeleton), while the palette's scrim
+# comes down at 2.40s. So 2.2 opened the clip 0.2s before the scrim and the
+# spec's two-second "list at rest" beat — the one a ko or ja viewer uses to
+# check that the chips and headers really are their language — was not in
+# the render at all. It is measured per take now, and dense-cut.py below
+# time-lapses whatever of that hold is dead air, which is what the beat's
+# own comment in the spec assumes.
+TRIM_HEAD="$(bash "$ROOT/e2e/demo/first-ink.sh" "$WEBM" || echo 2.2)"
+echo "export-terminal: head trim ${TRIM_HEAD}s (first frame with ink)"
 
 # Twitter's player: H.264 High, yuv420p, even dimensions. 1440x900 (16:10) —
 # a window shape, which is what this clip is of. It walked down to that: 4:5

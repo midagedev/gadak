@@ -469,6 +469,16 @@ landing (`site/src/i18n.ts`) and all three READMEs.
   no offline reads". The row gadak loses is a real cost — a local binary and an
   initial sync — not a staged concession. Cite the 22 ms with its corpus and
   date wherever it appears.
+- **Every edition answers "why not the official one?" without scrolling**
+  (2026-09-12, GDK-1824). A reader arriving from a search for the Atlassian
+  MCP server is asking one question, and the landing's compare block was the
+  sixth section down while the READMEs kept it near the end. The landing puts
+  `compare` directly under the hero; each README answers it in a clause in its
+  opening and links to its own section. The compare table's axes include the
+  two that were missing: **rate limits** (§8's table row — 429 and a
+  Retry-After against reads off your disk) and **who maintains it** (§1 — one
+  person, Apache-2.0). Editions differ in where the section sits and what it
+  is called; they do not differ on whether the question is answered up top.
 - **Every edition ends by asking what happened** (§13 wording) and says what
   must stay out of a public report — in **two sentences and one caution line**
   (2026-09-09). What was cut: telling the reader to withhold an issue count

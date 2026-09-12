@@ -495,10 +495,14 @@ export const fields = {
     ko: '없음',
     ja: 'なし',
   },
+  // The control is called グループ化; its off row called itself a section,
+  // which is a second word for the same thing and reads as a translation of
+  // "No sections" (2026-09-12). It now says what it does to the control it
+  // sits in.
   'group.sectionNone': {
     en: 'No sections',
     ko: '섹션 없음',
-    ja: 'セクションなし',
+    ja: 'グループ化しない',
   },
   // Breakdown axes that are fields (status_category, status, assignee,
   // priority, type …) have no key of their own: BreakdownBar labels them

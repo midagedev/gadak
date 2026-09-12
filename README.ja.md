@@ -25,6 +25,9 @@ gadak は、指定した範囲の Jira と Confluence をキャッシュし、�
 
 **状態: 0.21、まだ 0.x です。** メンテナーは現在 1 人、ライセンスは Apache-2.0、対応している Jira は Cloud と Server / Data Center です。
 
+Atlassian 公式の Rovo MCP があるのになぜ、という問いへの答えは
+[公式の Rovo MCP との違い](#公式の-rovo-mcp-との違い)にあります。短く言えば集計とオフラインです。
+
 ## JQL では書けない集計を、まず試す
 
 インストールもアカウントも要りません。[ライブデモ](https://gadak.dev/demo/)を開くと、
@@ -260,6 +263,21 @@ Atlassian Cloud、Jira Server / Data Center、Linear、アプリに同梱の内�
 - **ワークスペースの移行**: `gadak --workspace <new> migrate --from <old>` で同期済みのデータを
   運べます。移行先を Linear のチームにするなら `--to linear` です。
 - **2 台目のマシン**: `gadak --workspace laptop init --pairing-code-stdin` でペアリングします。
+
+## 公式の Rovo MCP との違い
+
+Rovo MCP は Atlassian がホストしているのでインストールするものがなく、Jira と Confluence を
+検索でき、書き込みもできます。ただし集計のためのツールがなく、ネットワークなしでは何も読めません。
+「未完了の課題が多いエピックはどれか」を尋ねると、検索結果のページを何度も受け取って
+クライアント側で数えることになります。gadak は手元のキャッシュに SQL を投げるので、それが
+`GROUP BY` 1 行で済み、機内でも読めます。代わりにバイナリを 1 つ入れ、最初の同期を一度待ち、
+読める値は最後に同期した時点のものになります。レート制限は、読み取りが自分のディスクから
+返るのでかかりません。
+
+jira-cli はコマンドごとに API を叩きます。先行するものに Scrumdog、jira-offline、jira-cache が
+あります。gadak は Jira と Confluence を 1 つのキャッシュに入れ、SQL・デスクトップ・ブラウザー・
+CLI・MCP をそこに重ねた側です。項目ごとの表は
+[docs/FAQ.md](docs/FAQ.md#how-it-compares) にあります。
 
 ## 対応しない用途
 

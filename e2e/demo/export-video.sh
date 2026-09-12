@@ -18,7 +18,16 @@ fi
 echo "export-video: source $WEBM"
 
 # ── MP4 (Twitter / social — h264, yuv420p, faststart) ──────────────────────
-ffmpeg -y -i "$WEBM" \
+# These takes opened straight on the recording's first frame, which is the
+# page before anything is painted: 0.12s of it in search, 0.16s in the web
+# demo (measured 2026-09-12). A poster hides that from a reader who never
+# presses play, and the landing autoplays on a loop, so it came back every
+# cycle. The head is trimmed to the first frame that has ink in it
+# (first-ink.sh); a take that is painted from frame 0 trims nothing.
+INK_AT="$(bash "$ROOT/e2e/demo/first-ink.sh" "$WEBM" || echo 0)"
+echo "export-video: head trim ${INK_AT}s (first frame with ink)"
+
+ffmpeg -y -ss "$INK_AT" -i "$WEBM" \
   -an \
   -c:v libx264 -pix_fmt yuv420p -preset medium -crf 23 \
   -movflags +faststart \
@@ -39,10 +48,10 @@ trap 'rm -f "$PALETTE"' EXIT
 make_gif() {
   local fps="$1" width="$2" colors="${3:-128}"
   echo "export-video: palette 2-pass gif fps=${fps} width=${width} colors=${colors}" >&2
-  ffmpeg -y -i "$WEBM" \
+  ffmpeg -y -ss "$INK_AT" -i "$WEBM" \
     -vf "fps=${fps},scale=${width}:-1:flags=lanczos,palettegen=max_colors=${colors}:stats_mode=diff" \
     "$PALETTE"
-  ffmpeg -y -i "$WEBM" -i "$PALETTE" \
+  ffmpeg -y -ss "$INK_AT" -i "$WEBM" -i "$PALETTE" \
     -lavfi "fps=${fps},scale=${width}:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle" \
     "$OUT_DIR/web-demo.gif"
 }

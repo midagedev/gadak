@@ -134,8 +134,15 @@ func FormatDuration(d time.Duration) string {
 		return fmt.Sprintf("%dh", int(d.Hours()))
 	case d >= time.Minute:
 		return fmt.Sprintf("%dm", int(d.Minutes()))
-	default:
+	case d >= time.Second:
 		return fmt.Sprintf("%ds", int(d.Seconds()))
+	default:
+		// Not "0s". A span the clock cannot resolve is not zero elapsed
+		// time, and the chip that carries it sits beside the status: an
+		// issue moved to In Progress a moment ago read "Waited 21d ·
+		// In progress 0s" in the Korean release clip (2026-09-12), while
+		// the column beside it called the same instant "방금".
+		return "<1s"
 	}
 }
 

@@ -178,7 +178,11 @@ func TestFormatDuration(t *testing.T) {
 		d    time.Duration
 		want string
 	}{
-		{0, "0s"},
+		// A duration under one second is not zero elapsed time (2026-09-12):
+		// "0s" beside a status of In Progress read as a broken number.
+		{0, "<1s"},
+		{999 * time.Millisecond, "<1s"},
+		{time.Second, "1s"},
 		{45 * time.Second, "45s"},
 		{3 * time.Minute, "3m"},
 		{90 * time.Minute, "1h"},

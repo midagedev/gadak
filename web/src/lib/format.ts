@@ -54,6 +54,11 @@ export function formatSpan(ms: number | null | undefined): string {
   // Units come from the catalog, the same keys the compact relative time
   // uses — a Korean chip reads 1분, not 1m (seen in the ko landing take,
   // 2026-09-07). The number is still the CLI's.
+  // Not "0s": a span the clock cannot resolve is not zero elapsed time, and
+  // this chip sits beside the status. "Waited 21d · In progress 0s" was in
+  // the Korean release clip on 2026-09-12 while the column beside it called
+  // the same instant 방금. store.FormatDuration says "<1s" here too.
+  if (s < 1) return t('time.underSecond')
   if (s < 60) return t('time.second', { n: s })
   const m = Math.floor(s / 60)
   if (m < 60) return t('time.minute', { n: m })

@@ -174,7 +174,12 @@ that fail on use ([GDK-1792]). The
 front door says what gadak is before it says how fast it is — the landing
 heading in every language is a job, "Query your Jira backlog with SQL.", and
 the trust section became the facts a reader needs before handing over a token
-([GDK-1601], [GDK-1622]). Then the first sync got cheaper and stopped being
+([GDK-1601], [GDK-1622]). It also answers the question a reader arrives with:
+"why not the official Rovo MCP?" had been the site's sixth section and line 222
+of the README, so the comparison now sits directly under the hero and carries
+the two axes it was missing, rate limits and who maintains it, while all three
+READMEs answer it in their opening — Korean and Japanese, which had no
+comparison at all, gained one ([GDK-1824]). Then the first sync got cheaper and stopped being
 waited on: a pass ends with one stderr line of requests by kind and `gadak api
 --headers` prints every response header ([GDK-1672]); the Confluence pass runs
 through a bounded pool, `gadak sync --concurrency`, default 4, at most 8
@@ -333,11 +338,23 @@ the built-in tracker's translated catalogs spelled every status id but those
 two; the compact relative time shared its key with the long one, so たった今
 wrapped to two lines in a column priced for `2d`; the same English word was
 `内蔵` on one screen and `組み込み` on the next; and the sidebar's Documents
-section held a row called Documents in all three languages ([GDK-1837]). The
+section held a row called Documents in all three languages ([GDK-1837]). A
+second pass over the corrected frames found the screen telling the same moment
+two ways — an issue whose status said 진행 중 carried `0s` beside a column
+calling it 방금, because both duration formatters collapsed a sub-second span
+to zero rather than saying it was under a second — a filter menu too narrow to
+show the value it was opened to choose, and one English word translated two
+ways in Japanese, `未担当` where the rest of the product says `未割り当て`
+([GDK-1839]). The
 posters went the same way — the still a reader meets before pressing play was
 cut at a timestamp measured once on an English take, and both localized clips
 had been shipping a blank one; the frame is now chosen by looking for ink in
-it, and an export that cannot find any refuses ([GDK-1836]). Twenty-one sites
+it, and an export that cannot find any refuses ([GDK-1836]). The clips
+themselves started there too: four exporters cut their head at a constant, and
+measuring the first inked frame per take put it at 2.56s, 2.60s and 2.72s for
+the three languages against a 2.4 that was right for none of them, while the
+terminal's 2.2 had been cutting away the whole two-second beat the clip opens
+on ([GDK-1838]). Twenty-one sites
 spelling the same four utilities became one
 `.section-label` recipe, and Korean and Japanese keep their case ([GDK-141]);
 the QA teal became a `--color-status-qa` token from the avatar family
@@ -2184,8 +2201,11 @@ priority sorting keyed on `priority_rank`.
 [GDK-1815]: https://gadak.dev/backlog/#/?ks=GDK-1815
 [GDK-1816]: https://gadak.dev/backlog/#/?ks=GDK-1816
 [GDK-1817]: https://gadak.dev/backlog/#/?ks=GDK-1817
+[GDK-1824]: https://gadak.dev/backlog/#/?ks=GDK-1824
 [GDK-1826]: https://gadak.dev/backlog/#/?ks=GDK-1826
 [GDK-1833]: https://gadak.dev/backlog/#/?ks=GDK-1833
 [GDK-1835]: https://gadak.dev/backlog/#/?ks=GDK-1835
 [GDK-1836]: https://gadak.dev/backlog/#/?ks=GDK-1836
 [GDK-1837]: https://gadak.dev/backlog/#/?ks=GDK-1837
+[GDK-1838]: https://gadak.dev/backlog/#/?ks=GDK-1838
+[GDK-1839]: https://gadak.dev/backlog/#/?ks=GDK-1839

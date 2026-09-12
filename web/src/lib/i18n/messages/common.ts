@@ -283,6 +283,13 @@ export const common = {
     ko: '{n}초',
     ja: '{n}秒',
   },
+  // What a span shorter than the clock's resolution reads as. The CLI spells
+  // it `<1s` (internal/store/durations.go); the chip says it in words.
+  'time.underSecond': {
+    en: 'under 1s',
+    ko: '1초 미만',
+    ja: '1秒未満',
+  },
   'time.minute': {
     en: '{n}m',
     ko: '{n}분',

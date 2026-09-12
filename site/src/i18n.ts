@@ -186,7 +186,12 @@ export const strings: Record<Locale, Strings> = {
     // what happened. No `search` section: daily search is table stakes for
     // this reader, the hero recording already shows it, and its one useful
     // claim now sits in the lede and the agent section (GDK-1623).
-    layout: ['hero', 'query', 'speed', 'agent', 'compare', 'connect', 'install', 'status', 'ask'],
+    // `compare` sits second, directly under the hero (GDK-1824). A reader
+    // arriving from a search for the official Atlassian MCP server is asking
+    // one question, and it was the sixth section down — past the query, the
+    // speed table and the agent block. The pass condition is that a first-time
+    // reader can answer "why not Rovo MCP?" without scrolling.
+    layout: ['hero', 'compare', 'query', 'speed', 'agent', 'connect', 'install', 'status', 'ask'],
     hero: {
       eyebrow: 'gadak',
       heading: TAGLINE.en.heading,
@@ -264,6 +269,8 @@ export const strings: Record<Locale, Strings> = {
         { what: 'Writes: comment, transition, assign', a: 'yes', b: 'yes, through Jira first' },
         { what: 'Freshness', a: 'Atlassian’s hosted data', b: 'the last synced state, one interval behind' },
         { what: 'Local setup', a: 'none', b: 'a local binary and an initial sync' },
+        { what: 'Rate limits', a: '429 and a Retry-After', b: 'none on reads — they come off your disk' },
+        { what: 'Who maintains it', a: 'Atlassian', b: 'one person, and Apache-2.0' },
       ],
       note: 'The same comparison for jira-cli, Linear and Jira’s own UI:',
       noteLink: 'docs/FAQ.md#how-it-compares',

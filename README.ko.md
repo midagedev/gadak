@@ -24,6 +24,9 @@ Jira가 먼저 받은 뒤 캐시가 따라 바뀝니다. 데스크톱 앱, `gada
 브라우저 탭, CLI가 같은 캐시를 보고, Claude Code에는 스킬 하나로 넘깁니다.
 바이너리 하나로 돌고, gadak 계정은 없습니다.
 
+Atlassian이 직접 내는 Rovo MCP가 있는데 왜 이걸 쓰냐고 물으실 텐데, 대답은
+아래 [다른 선택지](#다른-선택지)에 적어 뒀습니다. 짧게는 집계와 오프라인입니다.
+
 ## 먼저 눌러 보기
 
 [라이브 데모](https://gadak.dev/demo/)에 이슈 534건이 들어 있습니다. 설치도
@@ -169,6 +172,20 @@ Atlassian 계정 없이 시작하려면 `gadak init --local`로 내장 트래커
 워크스페이스를 옮기는 명령은 `gadak --workspace <new> migrate --from <old>`이고,
 Linear로 옮길 때는 `--to linear`를 붙입니다. 다른 컴퓨터와 페어링은
 `gadak --workspace laptop init --pairing-code-stdin`입니다.
+
+## 다른 선택지
+
+Rovo MCP는 Atlassian이 호스팅하니 설치할 것이 없고, Jira와 Confluence를
+검색하고 쓰기도 합니다. 대신 집계 도구가 없고 네트워크 없이는 아무것도 못
+읽습니다. 에픽별 미해결 개수 같은 것을 물으면 페이지를 여러 번 받아다 클라이언트
+쪽에서 세게 됩니다. gadak은 로컬 캐시에 SQL을 던지니 그게 `GROUP BY` 한 줄이고,
+비행기에서도 읽힙니다. 대신 바이너리를 깔아야 하고, 첫 동기화를 한 번 기다려야
+하고, 읽는 값은 마지막 동기화 시점의 것입니다.
+
+jira-cli는 명령마다 API를 칩니다. 먼저 있던 것으로 Scrumdog, jira-offline,
+jira-cache가 있습니다. gadak은 Jira와 Confluence를 한 캐시에 넣고 SQL·데스크톱·
+브라우저·CLI·MCP를 함께 얹은 쪽입니다. 항목별 표는
+[`docs/FAQ.md`](docs/FAQ.md#how-it-compares)에 있습니다.
 
 ## 만들지 않기로 한 것
 

@@ -1736,7 +1736,7 @@ export const settings = {
   'palette.actionTerminalShape': {
     en: 'Terminal: fill the window or dock it',
     ko: '터미널: 창 전체 / 아래 도크 전환',
-    ja: 'ターミナル: ウィンドウ全体 / 下部ドック切り替え',
+    ja: 'ターミナル: ウィンドウ全体と下部ドックを切り替え',
   },
   'palette.actionFeed': {
     en: 'Open feed',
@@ -1915,10 +1915,14 @@ export const settings = {
     ko: '이 컴퓨터에 저장됨 · {when}',
     ja: 'この端末に保存済み · {when}',
   },
+  // ja put the token in front of the verb, which reads as a compound noun
+  // and produced 「たった今同期」 in frame (2026-09-12). Its four siblings in
+  // this file are all `… · {when}`; this one now matches them, and says
+  // that a sync happened rather than naming a kind of sync.
   'sync.settledOk': {
     en: 'Synced {when}',
     ko: '{when} 동기화됨',
-    ja: '{when}同期',
+    ja: '同期済み · {when}',
   },
   'sync.settledDelayedWhen': {
     en: 'Sync delayed · {when}',

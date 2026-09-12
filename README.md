@@ -21,7 +21,9 @@ together and searchable with no network. Use the mirror through the
 [desktop app](docs/DESKTOP.md), a browser tab (`gadak serve`), the CLI, or MCP.
 Writes go to Jira first. One binary, no gadak account. It is 0.x software from
 one maintainer; [status and promises](#status-compatibility-and-maintenance)
-are below.
+are below. Atlassian's own Rovo MCP server is hosted and needs nothing
+installed, but it has no aggregation tool and no offline reads; the trade is
+in [alternatives](#alternatives-and-prior-work).
 
 <p align="center">
   <a href="https://gadak.dev/demo/"><b>▶&nbsp; Open the live demo</b></a>
@@ -222,7 +224,9 @@ Config, enrichments and SQL make it yours without forking:
 jira-cli talks to the live API per command. Rovo MCP is hosted by Atlassian
 and searches Jira and Confluence; it has write tools, but no native aggregation
 tool and no offline reads. gadak runs SQL against a local mirror, and its cost
-is a local binary and an initial sync. Earlier projects in this area include
+is a local binary and an initial sync; reads come off your disk, so no rate
+limit applies to them, and the thing you are trusting is one maintainer under
+Apache-2.0 rather than Atlassian. Earlier projects in this area include
 Scrumdog, jira-offline and jira-cache; gadak combines a local Jira and
 Confluence mirror with SQL, desktop and browser interfaces, a CLI, and MCP.
 [`docs/FAQ.md`](docs/FAQ.md#how-it-compares).

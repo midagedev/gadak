@@ -52,11 +52,26 @@ echo "export-search: source $WEBM"
 
 # GDK-751 (2026-08-24): the landing shows this mp4 in a narrow column, so the
 # mp4 is cropped to the action region (palette + detail; the sidebar carries no
-# beat in this take). The README gif below stays full-frame. Source is
-# 1024×640; crop keeps x∈[224,1024).
-ffmpeg -y -i "$WEBM" \
+# beat in this take). The README gif below stays full-frame. Source is 1024×640.
+#
+# The crop used to start at x=224 and leave 48px of sidebar standing in every
+# frame: a column of counts with their labels cut off, and 기록 sliced down the
+# middle so it read as 가록 (Korean review, 2026-09-12). 224 was the sidebar's
+# width once; it is 272 now (web/src/lib/viewport-regime.ts LAYOUT_SIDEBAR_PX,
+# and 1024 is above the 899 step so the wide width is the one in frame). The
+# crop starts where the sidebar ends, which is what it always meant to do.
+# These takes opened straight on the recording's first frame, which is the
+# page before anything is painted: 0.12s of it in search, 0.16s in the web
+# demo (measured 2026-09-12). A poster hides that from a reader who never
+# presses play, and the landing autoplays on a loop, so it came back every
+# cycle. The head is trimmed to the first frame that has ink in it
+# (first-ink.sh); a take that is painted from frame 0 trims nothing.
+INK_AT="$(bash "$ROOT/e2e/demo/first-ink.sh" "$WEBM" || echo 0)"
+echo "export-search: head trim ${INK_AT}s (first frame with ink)"
+
+ffmpeg -y -ss "$INK_AT" -i "$WEBM" \
   -an \
-  -vf "crop=800:640:224:0" \
+  -vf "crop=752:640:272:0" \
   -c:v libx264 -pix_fmt yuv420p -preset medium -crf 21 \
   -movflags +faststart \
   "$MP4"
@@ -70,10 +85,10 @@ trap 'rm -f "$PALETTE"' EXIT
 make_gif() {
   local fps="$1" width="$2" colors="${3:-128}"
   echo "export-search: palette 2-pass gif fps=${fps} width=${width} colors=${colors}" >&2
-  ffmpeg -y -i "$WEBM" \
+  ffmpeg -y -ss "$INK_AT" -i "$WEBM" \
     -vf "fps=${fps},scale=${width}:-1:flags=lanczos,palettegen=max_colors=${colors}:stats_mode=diff" \
     "$PALETTE"
-  ffmpeg -y -i "$WEBM" -i "$PALETTE" \
+  ffmpeg -y -ss "$INK_AT" -i "$WEBM" -i "$PALETTE" \
     -lavfi "fps=${fps},scale=${width}:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle" \
     "$GIF"
 }

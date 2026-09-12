@@ -52,10 +52,18 @@ echo "export-scale: source $WEBM"
 
 # Trim the boot skeleton: the recording starts at page load, but the clip
 # should open on the settled list (the "20,000 issues" count already up),
-# not on gray placeholders. The spec's first beat waits for the count, so
-# 2.4s of head is skeleton + settle; the trim lands just after settle.
-# Measured on the take of 2026-08-23; re-measure if boot pacing changes.
-TRIM_HEAD=2.4
+# not on gray placeholders.
+#
+# This was 2.4 — "measured on the take of 2026-08-23; re-measure if boot
+# pacing changes". Boot pacing changed and nobody re-measured: on
+# 2026-09-12 the take settled at 2.72s, so the encoded clip opened on 0.2s
+# of empty page, and the landing hero autoplays it on a loop. It is measured
+# per take now (first-ink.sh), which also re-anchors the zoompan map below —
+# its times are seconds on the trimmed clip and were meant to start at
+# settle. The old constant stands as the floor to search from, so a take
+# that settles early cannot pull the opening back into the boot.
+TRIM_HEAD="$(bash "$ROOT/e2e/demo/first-ink.sh" "$WEBM" --from 2.4 || echo 2.4)"
+echo "export-scale: head trim ${TRIM_HEAD}s (first frame with ink at or after 2.4s)"
 
 # GDK-751 (2026-08-24): post-process camera work on the mp4 — smoothstep
 # push-in to the palette during the typing beats, back out for the regroup,

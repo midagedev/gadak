@@ -181,9 +181,16 @@ describe('formatSpan', () => {
     expect(formatSpan(3 * 86_400_000 + 5 * 60_000)).toBe('3d') // 3d5m still reads 3d
     expect(formatSpan(42_000)).toBe('42s')
   })
-  test('zero and negative clamp to 0s, never a negative chip', () => {
-    expect(formatSpan(0)).toBe('0s')
-    expect(formatSpan(-5)).toBe('0s')
+  // "0s" until 2026-09-12: the Korean release clip carried "대기 21일 ·
+  // 진행 0초" on an issue the same chip called 진행 중, while the column
+  // beside it called that instant 방금. A span the clock cannot resolve is
+  // not zero elapsed time. A negative still clamps here rather than reading
+  // "-1s"; it just clamps to the same under-a-second word.
+  test('zero and negative read as under a second, never a negative chip', () => {
+    expect(formatSpan(0)).toBe('under 1s')
+    expect(formatSpan(-5)).toBe('under 1s')
+    expect(formatSpan(999)).toBe('under 1s')
+    expect(formatSpan(1_000)).toBe('1s')
   })
 })
 

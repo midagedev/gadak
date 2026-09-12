@@ -620,10 +620,16 @@ export const shell = {
     ko: '신규 + 진행 중',
     ja: '未着手 + 進行中',
   },
+  // ja stays 未割り当て — the word Japanese Jira uses, and the word three
+  // other strings here already use (common.unassigned, filter.flagUnassigned,
+  // palette.actionToggleUnassigned). A 2026-09-12 review called this row
+  // stiff and it briefly became 未担当, which put two words for one concept
+  // on the same screen; a second review caught that. One vocabulary beats a
+  // smoother noun phrase.
   'view.unassignedNew.name': {
     en: 'Unassigned new',
     ko: '미할당 신규',
-    ja: '未担当の新規',
+    ja: '未割り当ての新規',
   },
   'view.unassignedNew.hint': {
     en: 'New with no assignee',

@@ -179,8 +179,14 @@
     </button>
 
     {#if open}
+      <!-- w-72, not w-64 (2026-09-12): at 256px the status menu truncated
+           its own longest value — "Selected for Developm…" with its count
+           still beside it — so a menu whose whole job is to show you what
+           you can pick could not show one. The other four rows fit at either
+           width; 288px clears the longest value in the demo catalogs with
+           the count intact. -->
       <div
-        class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-[70vh] w-64 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-overlay"
+        class="anim-enter absolute left-0 top-full z-30 mt-1 max-h-[70vh] w-72 overflow-y-auto rounded-lg border border-border-strong bg-bg-elevated p-1 shadow-overlay"
       >
         {#if !field && !dateField}
           <!-- Step 1: field pick + date axes + flags -->

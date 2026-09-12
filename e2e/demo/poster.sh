@@ -61,8 +61,10 @@ print(f[0]['tags']['lavfi.signalstats.YMIN'] if f else 255)
 # INK_MAX: a frame whose darkest pixel is lighter than this has nothing
 # drawn on it. The paper the app renders on measures 164-166 across the
 # three locales; settled frames measure 6-45. 100 is the middle of a gap
-# that is two orders of magnitude wide, not a tuned threshold.
-INK_MAX=100
+# that is two orders of magnitude wide, not a tuned threshold. It has one
+# owner — first-ink.sh, which trims the same blankness off the head of the
+# clip this poster is cut from.
+INK_MAX="$(bash "$(dirname "$0")/first-ink.sh" --ink-max)"
 
 CHOSEN=""
 if [[ -n "$TAIL" ]]; then

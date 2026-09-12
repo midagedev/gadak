@@ -445,10 +445,14 @@ export const list = {
     ko: '이슈 1건 변경',
     ja: '1件の課題が変更',
   },
+  // "그중 이 계정 배정 6건" stacked three nouns with no particle between them
+  // and called the reader "this account" (Korean review, 2026-09-12). The
+  // Japanese had the same shape. Both now say it the way the line is read:
+  // of those, the ones that are mine.
   'list.sessionMine': {
     en: '{k} of them assigned here',
-    ko: '그중 이 계정 배정 {k}건',
-    ja: 'うちこのアカウント担当 {k}件',
+    ko: '그중 내게 배정된 {k}건',
+    ja: 'うち自分の担当が {k}件',
   },
   // Hover title when the threshold was learned, not set — the row names its
   // rule (G7): what the 85% line is and where it came from.
