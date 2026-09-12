@@ -8,1128 +8,344 @@
 --server` creates a workspace against a self-hosted Jira with a Personal
 Access Token: no email, and the base URL may carry a context path. init asks
 the site which Jira it is (`/rest/api/2/serverInfo`) and refuses a workspace
-whose declared deployment does not match, because a Server instance's answer
-to Cloud's `/rest/api/3` says nothing about whether that API exists — measured,
-the same route gave 404, 401 and 302 depending only on which credential
-asked. The REST dialect belongs to the client: Cloud and the built-in tracker
-keep v3, a Server origin gets v2, and the endpoints that differ by more than
-a version (create metadata, JQL search, the approximate count, the attachment
-media route) answer in their own shape or refuse by name. Measured against a
-live Jira Server 11.3.11, `gadak sync` fills the mirror ([GDK-1635],
-[GDK-1640], [GDK-1636]). Under it, every shape Server sends differently is
-read as Server sends it: wiki markup where Cloud sends ADF, carried verbatim
-both ways so a `gadak create -m` no longer stores ADF JSON in a Server
-description ([GDK-1637]); users keyed by name with a plain email where Cloud
-keys by accountId, so `assignee_id` fills on both and `gadak assign` and user
-search speak each dialect's parameter ([GDK-1638]); attachments that live only
-at the address Server states, with no `/attachment/content` route — the mirror
-keeps that URL reduced to a site-relative path, an address on any other site
-is refused rather than fetched, `gadak attach get` returns the original bytes
-hash-for-hash on Jira Server 11.3.11, and the app's proxy answers `Range`
-with 206 ([GDK-1639]); the
-sprint field as the Java `toString` of a bean, `Sprint@4ffcc813[…,id=1,name=Sprint 1,…,state=ACTIVE,…]`, where
-Cloud sends an object, so `sprint_id`, `sprint_name` and `sprint_state` are
-no longer blank on Server and `ACTIVE`
-becomes the `active` queries ask for; the epic in the Epic Link field rather
-than `fields.parent`; `/filter/favourite` where `/filter/my` answered 404 on
-every sync ([GDK-1650], [GDK-1651], [GDK-1652]); and, with no hierarchy level
-on Server's issue types, `epic_key` derived from which type has a standard
-child — no extra request, and no keying on the display name "Epic"
-([GDK-1658]). Writes stopped trusting a polite origin. Server answers a
-standard issue's `parent` with 204 and changes nothing, so `edit --parent`
-(and the web's parent editor) send the Epic Link there, refuse by name on a
-Server without Jira Software, and every `edit` compares the re-read row with
-what it asked: a field that reads the same before and after is reported as
-dropped ([GDK-1645]). A login page is no longer mistaken for an answer — Go
-follows redirects, so an origin bouncing to its login page answered 200 with
-HTML, `gadak api` printed it, a status code cannot see a login page at 200: JSON calls failed with `invalid character '<'`; a 2xx of HTML where JSON was asked for is refused by name, error pages
-keep their status and body, and `gadak attach get`, which had written 257,592
-bytes of HTML as a `.png` and exited 0. It now compares what was served against
-the type the mirror recorded (an `.html` attachment still downloads, and
-Cloud's legitimate redirect is still followed) ([GDK-1648], [GDK-1644]). The
-guard keys on the one question every case agrees on — is there a body — so
-Server's answer to `POST /issueLink` with 201, `text/html` and no body,
-which the old guard refused as a login page, is the 201 it always was
-([GDK-1662]). Data Center's rate-limit budget is read before the wall instead of after a
-429. The
-Server client waits out the interval DC states on every response when the
-bucket is nearly spent, honours a 429's Retry-After once, and leaves Cloud's
-requests unchanged ([GDK-1646]). `docs/SUPPORT_MATRIX.md` reads Jira Cloud,
-Jira Server, Linear, Built-in, and every cell in the new column was run:
-`tools/jira-server-lab/seed.sh` plants the data each row needs and
-`tools/jira-server-lab/measure.sh` runs one command per row against a Jira
-Software 11.3.11 Data Center lab the runbook brings up. Two rows are honest
-refusals (the wiki: no Confluence Server client), two carry a limit (the
-board→project mapping is empty there, and the development panel's refusal
-still speaks of Cloud), and the READMEs, the roadmap and the product spec
-drop "untested, therefore unclaimed" ([GDK-1634], [GDK-1641]).
+whose declared deployment does not match: a Server answer to Cloud's
+`/rest/api/3` says nothing about whether that API exists, and the same route
+gave 404, 401 and 302 depending only on which credential asked. The REST dialect belongs to the client: Cloud and the
+built-in tracker keep v3, a Server origin gets v2, and the endpoints that
+differ by more than a version — create metadata, JQL search, the approximate
+count, the attachment media route — answer in their own shape or refuse by
+name ([GDK-1635], [GDK-1640], [GDK-1636]). Under it, every shape Server sends
+differently is read as Server sends it: wiki markup where Cloud sends ADF,
+carried verbatim both ways ([GDK-1637]); users keyed by name with a plain
+email ([GDK-1638]); attachments at the address Server states, returned
+hash-for-hash on Jira Server 11.3.11 and answering `Range` with 206
+([GDK-1639]); the sprint field as the Java `toString` of a
+bean, `Sprint@4ffcc813[…,id=1,name=Sprint 1,…,state=ACTIVE,…]`, where Cloud
+sends an object; the epic in the Epic Link field rather than `fields.parent`;
+`/filter/favourite` where `/filter/my` answered 404 on every sync ([GDK-1650],
+[GDK-1651], [GDK-1652]); `epic_key` derived from which type has a standard
+child, since Server's issue types carry no hierarchy level ([GDK-1658]); and a
+board's project key backfilled per board rather than left blank, because
+Server answers the board location differently from Cloud ([GDK-1665]). Writes
+stopped trusting a polite origin. Server answers a standard issue's `parent`
+with 204 and changes nothing, so `edit --parent` sends the Epic Link there,
+refuses by name on a Server without Jira Software, and every `edit` compares
+the re-read row with what it asked ([GDK-1645]). A login page is no longer
+mistaken for an answer: a 2xx of HTML where JSON was asked for is refused by
+name — `gadak attach get` had written 257,592 bytes of HTML as a `.png` and
+exited 0 — while error pages keep their status and body and Cloud's legitimate
+redirect is still followed ([GDK-1648], [GDK-1644]); the guard keys on whether
+there is a body, so Server's `POST /issueLink` answering 201 with `text/html`
+and nothing in it is the 201 it always was ([GDK-1662]). Data Center's
+rate-limit budget is read before the wall instead of after a 429 ([GDK-1646]).
+`docs/SUPPORT_MATRIX.md` now reads Jira Cloud, Jira Server, Linear, Built-in,
+and every cell in the new column was run — `tools/jira-server-lab/seed.sh`
+plants the data and `measure.sh` runs one command per row against a Jira
+Software 11.3.11 Data Center lab — with two honest refusals, two limits, and
+"untested, therefore unclaimed" gone from the READMEs, the roadmap and the
+product spec ([GDK-1634], [GDK-1641]).
 
-**A sprint is an object.** A sprint used to exist only as `sprint_id` /
-`sprint_name` / `sprint_state` on each issue, so an empty sprint did not
-exist and its goal, dates and board existed nowhere. The mirror has `sprints`
-and `boards` tables from the Agile API — the one surface where Cloud and
-Server answer the same shape — and `gadak sprint list` reads them (a Linear
-workspace lists its cycles there too, so `gadak sprint list` works on every
-origin with sprints);
-`gadak sprint add`, `remove`, `create`, `start` and `close` write through the
-origin and re-read the sprint and its issues rather than trusting what was
-sent; a Linear or built-in workspace refuses them by name ([GDK-1653],
-[GDK-1654], [GDK-1655], [GDK-1657]). The tracker gadak carries serves Jira
-Software's own Agile surface too — boards, sprints, the sprint field, JQL's
-`openSprints()` family — so `gadak sprint` works with no Atlassian account
-and on a paired workspace, and closing a sprint sweeps its unfinished issues
-to the backlog the way Jira does ([GDK-1666]). The sprint controls now appear for the teams that
-run sprints rather than for everyone: the axis is the board's own type, so a
-kanban team on a site that also has scrum boards no longer sees a scope
-control about someone else's cadence, and a cross-project view keeps the old
-answer because it has no one team to ask about ([GDK-1689]). The demo mirror's
-sprints carry a goal, so the strip's goal line is finally in the frame it was
-written for ([GDK-1717]). The `sprints` table is the one
-owner of a sprint's state: each issue derives `sprint_state` from it on every
-tick and the listing runs on quiet ticks too, so a closed sprint's finished
-issues — never re-read by an incremental sync, their `sprint_state` frozen —
-no longer read "active" forever and inflate every active-sprint query
-([GDK-1661]); each sprint state compiles to its own JQL function instead of
-all three becoming `openSprints()` (measured on Jira 11.3.11 with one active
-sprint and one future one), and the parser reads all three back ([GDK-1216]).
-The board knows about sprints: a scope beside the layout switch (the active
-sprint by name, the backlog, or all) that the URL carries, the back button
-undoes and a saved view keeps; `gadak views open --jql 'sprint in
-openSprints()'` lands on the same board; the filter bar gains a Sprint axis
-and a Sprint state axis, the detail panel shows the sprint, and `sprint is EMPTY` round-trips as `sprint_state=none`; the demo fixture carries three
-derived sprints so the scope has something to show ([GDK-1656]). The scope
-names its axis — it read as sprints only because the demo's active sprint is
-called "Sprint 42"; on a Linear origin the same row is "Cycle 1 · Backlog ·
-All" ([GDK-1682]). Linear's cycles are sprints as well: a Linear workspace
-fills the same three columns, lists its cycles as `sprints` rows with one
-board per team, and `sprint add` / `remove` write through (measured against
-a live team), while `start`, `close` and `create` refuse by name because a
-cycle begins and ends by its dates and Linear generates them from the team's
-cadence ([GDK-1667], [GDK-1678]). The history was already in the mirror and
-unreachable: Jira records every sprint move in the changelog — on one
-measured site the second most common row, behind status and ahead of links —
-under whatever custom-field number the site assigned, so `where field = 'sprint'` answered nothing. Sync normalises the field with the id it already
-discovers, and three columns follow: `carryover_count`, `first_sprint_id`
-and `first_sprint_at`, so "what was added after this sprint began" is a join
-against `sprints.start_at`; an origin with no changelog reads NULL rather
-than 0, and an existing mirror is recognised without a re-sync ([GDK-1694]).
-The sprint's goal is readable — `gadak sprint list` carries it and the
-board's scope names it beside the end date ([GDK-1695]) — and the retro can
-be cut by sprint instead of by ISO week, `gadak retro --by-sprint` or a
-fourth segment on the range control, one column per sprint with the running
-one marked, on every origin that has sprints ([GDK-1693]). On the board,
-the active sprint has a line of its own between the toolbar and the
-columns — name, goal, dates, days left, and a progress bar counted
-server-side over the whole sprint, in points too where the workspace maps
-them — where before all of that lived in a tooltip ([GDK-1709]); and a card
-or row that has been through more than one sprint says so with a quiet
-mark, read from the `carryover_count` the mirror had been deriving for no
-one ([GDK-1711]).
+**A sprint is an object, and a retrospective is a screen.** A sprint used to
+exist only as `sprint_id` / `sprint_name` / `sprint_state` on each issue, so
+an empty sprint did not exist and its goal, dates and board existed nowhere.
+The mirror has `sprints` and `boards` tables from the Agile API — the one
+surface where Cloud and Server answer the same shape — and the `gadak sprint` verbs — list, add, remove, create, start, close —
+write through the origin and re-read rather than trusting what was sent ([GDK-1653], [GDK-1654],
+[GDK-1655], [GDK-1657]). The tracker gadak carries serves Jira Software's own
+Agile surface too — boards, sprints, the sprint field, JQL's `openSprints()`
+family — so `gadak sprint` works with no Atlassian account and on a paired
+workspace ([GDK-1666]), and Linear's cycles are sprints as well, listed with
+one board per team, where `start`, `close` and `create` refuse by name because
+a cycle begins and ends by its dates ([GDK-1667], [GDK-1678]). The `sprints`
+table is the one owner of a sprint's state, so a closed sprint's finished
+issues no longer read "active" forever and inflate every active-sprint query
+([GDK-1661]), and each sprint state compiles to its own JQL function instead
+of all three becoming `openSprints()` ([GDK-1216]). The board gained a scope
+beside the layout switch — the active sprint by name, the backlog, or all —
+carried in the URL, undone by the back button, kept by a saved view, with
+Sprint and Sprint state axes on the filter bar and `sprint is EMPTY`
+round-tripping as `sprint_state=none` ([GDK-1656]); the scope names its axis
+rather than reading as sprints only because the demo's sprint is called
+"Sprint 42" ([GDK-1682]); the controls appear for the teams that run sprints,
+keyed on the board's own type ([GDK-1689]); the active sprint has a line of
+its own with name, goal, dates, days left and a server-side progress bar,
+where all of that used to live in a tooltip ([GDK-1709]); and a card that has
+been through more than one sprint says so ([GDK-1711]). The history was
+already in the mirror and unreachable — Jira records every sprint move under
+whatever custom-field number the site assigned, so `where field = 'sprint'`
+answered nothing — and sync normalises it now, filling `carryover_count`,
+`first_sprint_id` and `first_sprint_at`, NULL rather than 0 where the origin
+has no changelog ([GDK-1694]). The goal is readable
+([GDK-1695]), and the demo mirror's sprints carry one ([GDK-1717]).
 
-**Elsewhere: a retro screen, comments you can take back, attachments the
-size of real ones, one fewer outbound call, and two answers the tool used
-to let you assume.** `gadak retro`'s document was served for a surface that never came; the
-palette's *Weekly retro* opens a calm table, one column per week, one row per metric with its
-definition underneath; a cell that holds issues is a door onto that list;
-four, eight or twelve weeks ([GDK-1660]). The table now reads as a report:
-the running bucket's four numbers stand above it with their step from the
-bucket before, every row carries a sparkline, every cell its delta —
-coloured only where the team agreed which way is better, never red, and
-never on the bucket still running — and the definitions fold behind one
-toggle ([GDK-1712]); a sprint cut on a workspace where several boards
-carry sprints offers a board picker instead of "could not load"
-([GDK-1713]). The report now opens with a sentence — closed, unplanned, reopened, oldest in progress, each number a door — and under it the materials a retrospective is actually held on: the decisions labelled `retro-action` with the metric each named then and now ([GDK-1453]), the age of everything in progress as bars against a p85 line ([GDK-1721]), a per-day density strip with the bucket's surprises named — reopened, churned, and under a sprint cut joined after the start or carried in ([GDK-1722]) — what closed by type and by epic with the cycle time of each as a dot and the unplanned share ([GDK-1723]), the issues you opened that nothing moved beside the ones that moved unseen ([GDK-1725]), and the full table folded at the foot ([GDK-1724]); every section unfolds three lines saying what it is, why a retro reads it and how, and the CLI prints the same sections with `--explain` ([GDK-1726]). All of it works on weekly buckets; only the two sprint surprises need the sprint cut. The demo mirror finally has flow to show: its issue histories had been written seconds apart, so every cycle time read 0.0d, and it carried no reading history at all — the snapshot now draws each issue a lifetime in days and seeds a month of visits, so the demo's retro has cycle percentiles, sessions and resume times ([GDK-1720]). It says why a cell is empty (a
-mirror with no `status_catalog` cannot say what `closed` means, and the
-reason now travels with the payload and prints under the table, including on
-a cold mirror), the definitions are no longer cut off or naming a repository
-file ([GDK-1679], [GDK-1681]), the demo mirror has a status catalog derived
-from its own issues so `closed`, `in progress` and both wip-age rows have a
-value ([GDK-1680]), the definitions read in the reader's language and name
-the session gap the report ran with ([GDK-1692]), a cell under a day says
-hours or minutes instead of `0.0d` ([GDK-1683]), and `status_changed_at` no
-longer drifts in a snapshot onto an instant no transition happened
-([GDK-1684]). The report knows who "I" am on the built-in tracker, where a
-write is attributed to the actor slug and not to a credential: the resume row
-counted any agent's writes as the reader's own, and the footer now says which
-identifier decided ([GDK-1427]) — the demo and the e2e serve derive that
-identity from the mirror they serve, so the cell is no longer a dash there
-([GDK-1729]). Reopens are shown by whether the origin can answer at all
-rather than by the count: an origin that supplies no changelog leaves
-`reopen_count` at zero forever, and "reopened 0" read as "this team has no
-regressions" when nobody could tell, so the clause is dropped and the reason
-said ([GDK-1690]). The mismatch row stopped firing on ordinary Korean —
-"검토 완료 후 진행" schedules the work and does not claim it is done, and a
-done word inside a clause about work still to come is no longer counted
-([GDK-1428]); the surprises the CLI prints name the work rather than only its
-key ([GDK-1746]). The demo mirror's issues carry priority ids, so a surface
-that keys by id — the phone's priority sheet, the web filter's id path — can
-be checked against the one mirror everybody opens instead of a mock
-([GDK-1492], [GDK-1524]). An optional capability no longer disappears when the actor
-trailer is on: the wrapper that signs an agent's comments embeds the writer,
-and an embedded interface promotes only what it declares, so versions, issue
-links, create-field catalogs, media refs and sprints were invisible to the
-capability check, which now looks through the wrapper ([GDK-1655]).
-`gadak comment edit <KEY> <ID> -m "…"` replaces a comment's body and
-`gadak comment rm <KEY> <ID> --yes` removes it, on Jira, Linear and the
-built-in tracker; the id is whatever a read handed you (`gadak sql` prints
-`jira:91653`, `gadak issue` prints `91653`, both accepted), an edit sends
-what a post sends, and the actor trailer survives it without doubling
-([GDK-1647]). The write verbs meet the reader where the reads left them:
-`gadak create` resolves its project and issue type through one catalog path
-on every origin — a lone project needs no `--project`, a parent key names
-its own project, a localized type name answers to its English spelling, and
-an ambiguous type asks the mirror before refusing — and `create --json`
-names the default that chose each field. Every write verb takes `--dry-run`:
-one JSON line carrying the ids the resolutions found — a transition that
-would change nothing says so, and a link that does not exist still refuses —
-and nothing reaches the origin. A `link` or `unlink` refusal quotes the
-phrase as the issue displays it, a query that trips over an unqualified
-column in a `json_each` join is told both tables it could have meant, and
-the one-line help for reading an issue says its comments and history are
-already in what it prints. On the built-in tracker, attachment bytes live in a directory
-beside the database, one content-addressed file each, streaming both ways
-(`gadak attach`, `gadak attach get`, and the app, where `Range` makes video
-seeking work); the upload cap is `gadak config set attachmentMaxMB <n>`,
-default 1 GiB, up from a hard-coded 32 MiB; opening a built-in workspace
-with this build moves the bytes out once, keeps `issuetap.db.pre-v2.bak`
-beside it, and is safe with a serve up ([GDK-1617]). `gadak attach` uploads carry the type
-their filename says instead of `multipart.CreateFormFile`'s
-`application/octet-stream`, so an origin that keeps what it is told no longer stores a PNG and an MP4
-under one generic type and a screenshot is a thumbnail again, and
-`gadak backup` is a `.tar` of the database and the bytes that refuses to
-write one with attachments missing — `docs/runbooks/backup-restore.md` has
-the restore ([GDK-1277]). gadak no longer asks GitHub once a day whether a
-newer release exists: no background check, no `updateCheck` setting, no
-sidebar banner; outbound destinations go from six to five and
-`docs/PROMISES.md` drops the claim that checked it; upgrading is
-`brew upgrade`, a new dmg, a newer zip, and Settings → Sync still shows the
-command ([GDK-1626]). `gadak mcp install claude-desktop` registers with
-Claude Desktop by merging a `gadak` entry into `claude_desktop_config.json`
-(macOS, Windows and Linux paths; other entries kept byte for byte; an
-unparsable file refused; `--dry-run` prints the write), and
-`gadak mcp install claude` says what it is — the command every front door
-had taught as "for hosts without a shell (Claude Desktop):
-`gadak mcp install claude`" runs Claude *Code*'s `claude mcp add`, which
-Desktop never reads, so a Desktop user registered nothing or was told
-`claude` was not on `PATH`; the
-Integrations card that probed the `claude` CLI is two cards, one per host, and the wizard, `gadak init`'s
-next-steps, the help, the README and the site name the right command
-([GDK-1633]). The front door says what gadak is before it says how fast it
-is: the landing heading in every language is a job, "Query your Jira backlog
-with SQL.", the canonical `GROUP BY` runs in the browser under it, and the
-trust section became the facts a reader needs before handing over a token —
-Jira Cloud only, `--projects`/`--spaces` with the wiki off until named, one
-SQLite file that needs a first full sync (10.6 minutes on the benchmark
-site) and then trails Jira by one interval (60 s by default, with an hourly
-reconcile), where the token lives, that a rejected write fails rather than
-queues, which four reads still ask Jira, and that an agent forwards what it
-reads to its model; "8 API pages" is labelled as this measurement's number,
-the attribution claim shrank to what the code does, and the READMEs follow
-the same order under `docs/project/FACT_LEDGER.md` §16 ([GDK-1601],
-[GDK-1622]). Then that first sync got cheaper and stopped being waited on. A
-pass ends with one stderr line of requests by kind and the wall time on
-each, and `gadak api --headers` prints every response header ([GDK-1672]);
-the Confluence pass fetches page bodies, comments and versions through a
-bounded pool (`gadak sync --concurrency`, default 4, at most 8; 1 is the old
-serial pass) while one writer commits in listing order, a 429 halves the
-width, and the summary names `concurrency=<width>/<min>` ([GDK-1673]); the
-documented first run is `gadak init && gadak serve`, the window opens while
-the sync fills the mirror newest-first under a band that reads
-`Recent issues first · 1,200 / 3,514 · wiki next`, `gadak status --json` carries
-`first_sync`, every read verb prints one `first sync in progress` line on
-stderr while it is true, and the skill says to work with what has landed
-([GDK-1677]). And a dev build stopped deciding for the installed release: a
-`0.0.0-dev` binary refuses to migrate a mirror forward, naming both versions
-and both ways out (`GADAK_DEV_MIGRATE=1`, or a copy of the profile), the
-backlog snapshot script syncs a `sqlite3 .backup` copy under a scratch home
-([GDK-1687]), and with `GADAK_HOME` unset a dev build lives in `~/.gadak-dev`
-while the release keeps `~/.gadak`, which `gadak doctor` prints as `home`
-with the reason ([GDK-1697]). Before the version is cut, the audit
-now starts from a census rather than a reading, and this cycle it found
-things the release would otherwise have shipped: what landed since v0.21.0
-reached the skill and the MCP tools, so an agent can see a self-hosted Jira
-workspace, edit and delete its own comments, and start a first sync
-([GDK-1700]); twenty-four English strings that had escaped the catalog on the
-phone screens and two web panels became keys in all three languages, and the
-phone's dates stopped being an English month table ([GDK-1704]); ten places
-where the docs and the site disagreed with the code were fixed at the copy
-([GDK-1705]); the retro table takes the width it needs ([GDK-1706]); and the
-CI run got cheaper — the static-analysis gate skips a push that touches no
-Go, the browser shards are dealt by measured seconds instead of file order,
-and five assertions that never needed a browser moved to the unit suite
-([GDK-1702], [GDK-1698]). The service installer now carries serve flags
-given after -- into the unit's ExecStart and validates them at install time
-with serve's own parser — an address serve refuses would otherwise install
-fine and crash-loop under KeepAlive ([GDK-1267]). The public-backlog export
-now refuses a kept description that carries a credential-shaped string, on
-the same patterns the shell scan greps for, instead of publishing it and
-failing later in the pipeline ([GDK-1260]). `reopen_count` now counts the reopen most
-teams actually fire: in a workflow whose resolved statuses sit in the
-in-progress category (QA testing → Reopened), a done→new-only rule read 59%
-of real reopens as 0. The rule keys on the status category the transition
-leaves, every stored row is recomputed once on upgrade, and docs/DERIVE.md
-is where it lives. `gadak init` under a throwaway `GADAK_HOME` no longer
-rewrites the real skills directory — the automatic sync is skipped with one
-line saying why, while `gadak skill install` still writes where it is
-pointed. `gadak doctor` shows the site host (the token stays masked) and
-calls the documented placeholders a configuration error rather than a
-healthy workspace. And a read that names an issue this workspace never
-mirrors gets one stderr line naming the workspace that answered and what it
-holds, where an empty answer used to be indistinguishable from no data. The list reads at every width it is given: a
-label chip that cannot show six characters folds into the `+N` badge whose
-tooltip names every label, and the deploy column, where no label of the set
-fits at all, keeps its dot and drops the word rather than cutting it
-mid-glyph ([GDK-1744]). A count is grouped for the locale wherever it
-appears, because `t()` formats a numeric parameter rather than each of
-eighteen call sites remembering to ([GDK-1560]). The dashboard frame carries
-the app's background rather than white, so opening the tab no longer flashes
-([GDK-1598]). An exact issue key in the palette resolves to that row instead
-of an empty search line ([GDK-1255]), and onboarding calls the local copy a
-cache throughout rather than switching between two words for it inside one
-dialog ([GDK-1323]). The phone's controls live in the catalog rather than in its
-markup, and a test that walks both the templates and the modules is what keeps
-them there ([GDK-1150]). A server that refuses now says which refusal it was —
-an origin check that does not know this phone, a rejected pairing, an offer
-carrying no serve scope ([GDK-1121]) — and a copy that fails raises a toast
-instead of nothing at all ([GDK-1504]). What you read on the phone lands in the
-same visit history the window writes ([GDK-1538]). An empty `dev_links` table used to mean two very
-different things — no pull requests, or a workspace that never asks — and
-nothing said which. `gadak doctor` and `gadak status --json` now report
-whether this workspace mirrors the development panel at all, off the same
-flag sync consults, so the two can never disagree ([GDK-1496]). A folded
-group resolves the same way from the CLI, a REST write and `gadak claim`,
-because the mirror-usage tiebreak has one owner instead of three
-([GDK-1521]). And a board on a self-hosted Jira knows its project: Server
-answers the board location differently from Cloud, so the key is backfilled
-per board rather than left blank ([GDK-1665]). `migrate` stopped swallowing two failures: a dev-links
-count that errored reported success anyway, and a Linear assignee that could
-not be resolved vanished from the report rather than being named in it — the
-run still continues, it just says who it could not place ([GDK-1318]). The
-pairing dialog decides a loopback refusal from the error's type rather than
-by matching the sentence it happens to carry ([GDK-1317]). And three
-grammars became one: the `gadak://` pointer had a parser in the CLI and
-another in the server ([GDK-1316]), the Cloud category fold had a hand-written
-copy beside it ([GDK-1315]), and the page-id case policy differed between
-the store and sync ([GDK-1104]). Each has a single owner now, held there by a
-gate that names any second copy. The create dialog fills what the
-origin requires: create metadata now carries each field's kind and its
-allowed values, the required fields this dialog can edit get editors, and the
-ones it cannot are named in a sentence that keeps Create disabled instead of
-sending a create Jira will reject ([GDK-533]). A comment can be restricted
-where the origin has restrictions — a role, a group, or internal on a service
-desk. The composer refuses to post a half-chosen one, and the restriction the
-origin states comes back as a badge on the comment ([GDK-528]). An agent with no shell can read and set
-the design tokens: `gadak_ui_tokens` answers what is set and what may be set,
-`gadak_ui_set` merges one axis, and both go through the same settings owner
-`gadak config` and the web's PUT already use — so a refusal refuses and a
-clamp still warns and saves, identically ([GDK-769]). The tools' axis list and
-their prose are generated from that catalog rather than typed, because a tool
-description is a surface with no gate; and the dispatcher's allowlist is now
-`tools/list` itself, after a live round trip found two tools that the list
-advertised and the call path refused. The list column
-gained a width of its own, `ui.tokens.layout.list`, the settable sibling of
-the sidebar's: unset, the grid resolves to exactly what it shipped with. A Confluence space says what it
-will cost before you mirror it: the picker rows carry the page count, fetched
-concurrently under a bounded budget, and a space the origin cannot count
-draws nothing at all rather than a zero it cannot stand behind ([GDK-965]). The front door shows both doors: the
-first command block in the README now carries `gadak init --local` beside
-`gadak init`, because a reader without a Jira account used to have to reach
-the middle of the install section to learn the built-in tracker exists. `gadak
-init` finishes the same way on both paths too — `gadak skill install` first,
-MCP for the hosts that need it. And the palette's promise was rewritten to the
-one its gate has always measured: every destination, plus any action whose only
-home is a keystroke — not "every action", which a single list row already
-outnumbers ([GDK-732]). `gadak retro` is on the MCP surface too:
-`gadak_retro` answers the same document `gadak retro --json` prints — one
-column per ISO week or sprint, definitions under the numbers — so a host
-without a shell can put the week beside you instead of only the backlog
-([GDK-1404]). The token pair got three corrections from the same review: the
-no-argument call no longer ships the whole colour catalog, `gadak_ui_set`
-returns `previous` so a merge can be undone by passing it back, and
-`ui.tokensByTheme` and `ui.dataColors` are writable rather than merely named
-in a description. And the list row stopped making the
-title pay for everything: the furniture on the right — stale age, labels, the
-avatar, the updated time — took its fixed widths first, so a window 30%
-narrower cost the title 60% of its width and every row at 1000px clipped
-mid-verb. The strip is now priced against a width at which a title is still a
-title, and folds away in order, whole, until that width is there: 222px to
-302px at 1000, 166px to 336px at 800, and 1440 unchanged to the pixel
-([GDK-1791]). `docs/PROMISES.md` grew a twelfth
-claim, and it is about *when* rather than what: a read verb answers from the
-disk and opens no socket — no request, no name lookup, and no child process
-started to make one behind your back. Its verification block runs every read
-verb in the usage list against the demo cache with the HTTP transport and the
-DNS resolver replaced by hooks that fail on use, and with a child-process
-ledger armed, because a detached sync has a transport of its own and would
-have walked past the first hook ([GDK-1792]). `docs/PROMISES.md` was rewritten as
-four questions instead of a numbered inventory — does it report on me, can I
-get my data back out, what can reach it while it runs, when does it go to the
-network — and twelve claims became eight, none of them dropped: the ones that
-were the same promise said twice now share one sentence and one block. Each
-block still runs in CI, and the counts other documents used to repeat are
-gone rather than left to go stale. The seam between columns is a
-grip: drag the sidebar's or the list's right edge and the width follows the
-pointer, with a double-click to go back to the shipped one. It writes the
-same two tokens `gadak config set ui.tokens.layout.sidebar 300px` writes, so
-the pointer and the CLI are one value in one file and another open tab picks
-it up without a reload — and the document is written once, on release, not
-on every frame ([GDK-759]). The child list under an issue can hide what is
-already done, on a checkbox that starts checked; the count, the done/total
-line and the meter stay on every child, so hiding rows never flatters the
-number (#102, gadak's first outside contribution). An agent working through MCP
-leaves a trail: `gadak_issue` and `gadak_search` now record the visit and the
-search the way the CLI's do, and `gadak_recents` walks it back — a host with
-no shell had zero rows, so after a compaction its `recents` was empty. The
-mirror's detail and search are private to one file in that package now, so a
-tool added later cannot reach them without inheriting the recording
-([GDK-631]). Repeating `--field` for one alias adds a value instead of
-replacing the last one, the silent drop the rest of the CLI refuses; a
-single-valued field given more than one is refused by name, one value for a
-multi-valued field becomes a one-element list, and an ambiguous option prints
-each candidate as `label (id)` rather than a bare id ([GDK-18]). The agent skill
-asks for a URL where it used to get prose: a closing comment ends with the
-commit or PR that closed the issue, one per line, because `main 1693107`
-records the fact in a shape nothing can read — not clickable, and invisible
-to the development-panel surface. It is the only record where automatic
-linking does not exist, which is the built-in tracker and any Jira site
-without the GitHub app ([GDK-529]). The session roster says what each shell is
-doing: the window title a shell sets for itself — Claude Code rewrites it as
-its task changes — now reads as a subtitle under the session's name, which
-stays the name a person chose. One parser does it, the OSC scanner that
-already had to know where such a string ends in order to tell a title's BEL
-terminator from a real one; the title never raises "a person is wanted", and
-it is bounded and stripped of control characters because the payload is
-whatever the shell ran chose to print. A session with no title renders no
-second line at all ([GDK-1389]). The secret scanner covers the shapes it
-always claimed to: `internal/secretscan` owns seven credential patterns and
-every outbound artifact is checked against all of them, but the script that
-points that table at the repository grepped for two — so a real `ghp_` token
-committed into a fixture left the gate green. Slack, GitHub and both
-Authorization-header shapes now run over the tree as well, three of them
-spelled in POSIX ERE with the agreement asserted behaviourally because
-`(?i)` and `\b` have no portable spelling; a hit now names the shape that
-matched. PEM closed the set last: it is the one shape with legitimate
-hits in the tree, so covering it needed per-file exemptions, and those live
-in one file both readers share — an entry is an exact path plus the reason
-that file may carry a key header, an entry without a reason is refused at
-parse time, and an entry whose file no longer carries the shape fails the
-scan and names itself for deletion ([GDK-1110], [GDK-1797]). The settings dialog got the gate its
-registry never had: surface-conditional visibility there is tab-granular and
-one list already owned it, but nothing measured that the list still matched
-the tabs that actually need a desktop server, and nothing stopped a row
-inside a tab from growing its own branch. Both sides are now read from their
-own owner. The inventory that produced it also settled a premise: `hosted`
-never reaches that dialog at all — it mounts under a condition that is false
-exactly on the snapshot — so settings has two surfaces and not three
-([GDK-9]).
+`gadak retro`'s document had been served for a surface that never came. The
+palette's *Weekly retro* now opens a calm table — one column per week, one row
+per metric with its definition underneath, a cell that holds issues a door
+onto that list, four, eight or twelve weeks ([GDK-1660]) — and it reads as a
+report: the running bucket's four numbers above it with their step from the
+bucket before, a sparkline on every row, a delta in every cell, coloured only
+where the team agreed which way is better ([GDK-1712]). It opens with a sentence — closed, unplanned, reopened,
+oldest in progress, each number a door — and under it what a retrospective is
+actually held on: the decisions labelled `retro-action` with
+the metric each named then and now ([GDK-1453]), the age of everything in
+progress as bars against a p85 line ([GDK-1721]), a per-day density strip
+naming the bucket's surprises ([GDK-1722]), what closed by type and by epic
+with each cycle time as a dot ([GDK-1723]), the issues you opened that nothing
+moved beside the ones that moved unseen ([GDK-1725]), and the full table
+folded at the foot ([GDK-1724]); every section unfolds three lines on what it is
+and why a retro reads it, and `--explain` prints the same ([GDK-1726]). It can be cut by sprint instead of by ISO week — `gadak retro
+--by-sprint`, one column per sprint with the running one marked ([GDK-1693]) —
+and offers a board picker where several boards carry sprints instead of "could
+not load" ([GDK-1713]). The numbers under it became answerable: the demo
+mirror's issue histories had been written seconds apart so every cycle time
+read 0.0d, and it carried no reading history at all ([GDK-1720]); an empty
+cell says why it is empty and the definitions are no longer cut off
+([GDK-1679], [GDK-1681]); the demo mirror has a status catalog derived from
+its own issues ([GDK-1680]); the definitions read in the reader's language and
+name the session gap ([GDK-1692]); a cell under a day says hours or minutes
+instead of `0.0d` ([GDK-1683]); and `status_changed_at` no longer drifts onto
+an instant no transition happened ([GDK-1684]). The report knows who "I" am on
+the built-in tracker, where a write is attributed to an actor slug and not a
+credential ([GDK-1427], [GDK-1729]). Reopens are shown by whether the origin
+can answer at all, because "reopened 0" read as "this team has no regressions"
+when nobody could tell ([GDK-1690]), and `reopen_count` counts the reopen most
+teams actually fire: where resolved statuses sit in the in-progress category,
+a done→new-only rule read 59% of real reopens as 0, so the rule keys on the
+category the transition leaves and stored rows are recomputed on upgrade
+([GDK-1753]). The mismatch row stopped
+firing on ordinary Korean ([GDK-1428]), the surprises the CLI prints name the
+work rather than only its key ([GDK-1746]), and the demo mirror's issues carry
+priority ids so an id-keyed surface can be checked against the one mirror
+everybody opens ([GDK-1492], [GDK-1524]). Under all of it the mirror learned
+how long an issue was flagged — schema v51 adds `blocked_hours` and
+`blocked_since` — and grew two local tables of its own, `sessions` and
+`agent_writes` ([GDK-1449], [GDK-1439], [GDK-1440], [GDK-1756], [GDK-1303],
+[GDK-1429]); a visit stamps what it saw ([GDK-1451]); and the demo fixture's
+wiki pages ride the same time window as its issues ([GDK-1731]).
 
-The CLI itself says when its skill file is behind: a read verb prints one
-stderr line when the installed copy differs from this build's, so an agent
-learns it without ever deciding to run doctor ([GDK-493]). "Mine" is in the
-database: `local.me` holds the workspace's own identity and two views,
-`my_open` and `handed_off`, join it to the issues, so an agent asks what is
-its own in plain SQL with no `:me` to substitute ([GDK-1438]). A linked
-issue's line reads as the link type's own sentence — the backend renders it
-from the link catalog, and the web no longer shows the wire token for a
-direction spelling it did not name ([GDK-1215]). A Jira Server workspace is
-refused in its own words: the wiki says Confluence Server is not implemented
-rather than asking for an email, and a dev-link write names the deployment
-it actually has ([GDK-1663]). Four timestamp parsers with four layout tables
-became one, so a Jira-stamped instant no longer reads as "no date" in the
-calendar ([GDK-1130]); and two `$effect` blocks that wrote state — the
-new-issue dialog's defaults and the document panel's write-through overlay —
-are derivations now ([GDK-1133]).
+**The tool says what it knows — to a person, to an agent, and to itself.**
+Answers that used to rest on an assumption now come from the tool. `gadak
+doctor` prints a `binary` line beside the version: the executable's real path
+with the symlink resolved, and the kind of signature on it, `developer-id` for
+the released app and `adhoc` for whatever the local toolchain signed — the
+pair that separates "the release is broken" from "you are not running the
+release" ([GDK-1798], [GDK-1794]). A mirror that is behind says so where an
+agent reads: the staleness verdict moved into one owner both callers share, so
+the MCP read tools append it to their result instead of a stderr no MCP host
+can see ([GDK-599]). The CLI says when its
+skill file is behind ([GDK-493], [GDK-1438], [GDK-1215], [GDK-1663],
+[GDK-1130], [GDK-1133]). The origin states what it can do, in a capabilities
+block ([GDK-1152]). A Confluence space says what it will cost before you
+mirror it, and one the origin cannot count draws nothing rather than a zero it
+cannot stand behind ([GDK-965]). `gadak doctor` and `gadak status --json` say
+whether this workspace mirrors the development panel at all, so an empty
+`dev_links` can no longer mean two things ([GDK-1496]). Four verbs stopped
+answering a paired workspace with a sentence written for somebody else's
+origin — `project create` asked whether the built-in tracker runs *here* and
+refused while blaming Jira, a site the workspace does not use ([GDK-1793]).
+The audit before this tag
+found four places where the tool said something untrue and fixed them at the
+source: `gadak transition --field` advertised `(repeatable)` and silently kept
+only the last value, so a repeat is now refused by name ([GDK-1804]); the
+agent skill named a persist file that does not exist, denied the stored
+current workspace `gadak workspace use` sets, and said `dev link` refuses on
+a paired workspace where it passes ([GDK-1803]); the
+v51 backfill wrote `blocked_hours = 0` — which the docs define as "never
+flagged" — onto every row it could not read, and writes NULL now ([GDK-1805]);
+a refused dev open migrated `local.db` anyway, so the forward policy moved to
+where both files pass ([GDK-1806]); and *Clear history* left two of its four
+tables, which one list now drives for both the prune and the clear
+([GDK-1807]). And gadak no longer asks GitHub once a day whether a newer release exists: no
+background check, no `updateCheck` setting, no sidebar banner, outbound
+destinations from six to five, and `docs/PROMISES.md` drops the claim that
+checked it ([GDK-1626]). That document was rewritten as four questions instead
+of a numbered inventory — does it report on me, can I get my data back out,
+what can reach it while it runs, when does it go to the network — and gained a
+twelfth claim about *when*: a read verb answers from the disk and opens no
+socket, verified with the transport and the DNS resolver replaced by hooks
+that fail on use ([GDK-1792]). The
+front door says what gadak is before it says how fast it is — the landing
+heading in every language is a job, "Query your Jira backlog with SQL.", and
+the trust section became the facts a reader needs before handing over a token
+([GDK-1601], [GDK-1622]). Then the first sync got cheaper and stopped being
+waited on: a pass ends with one stderr line of requests by kind and `gadak api
+--headers` prints every response header ([GDK-1672]); the Confluence pass runs
+through a bounded pool, `gadak sync --concurrency`, default 4, at most 8
+([GDK-1673]); and the documented first run is `gadak init && gadak serve`,
+where the window opens while the mirror fills newest-first under a band
+reading `Recent issues first · 1,200 / 3,514 · wiki next` ([GDK-1677]). A dev
+build stopped deciding for the installed release ([GDK-1687], [GDK-1697]), and
+the service installer validates serve flags at install time rather than
+crash-looping under KeepAlive ([GDK-1267]).
 
-The session strip's boundary has one seat: the `X-Gadak-Session-Boundary`
-header, on bootstrap and delta alike — the body field that overlapped it for
-one release is gone ([GDK-1548]). `gadak migrate` carries the source's
-locale, so a Korean built-in workspace migrates into one that still shows
-Korean status and type chips under its Korean prose, and the report says
-which locale came along ([GDK-1561]). The phone's wire types are picks of
-the desk's, so a field's optionality cannot drift between the two clients
-again ([GDK-1132]). A sync against a paired serve too old to know sprints
-says so — the Agile API's 501 is the origin's age, not a failed sync, and
-the log names the upgrade ([GDK-1691]). And a sprint has a burn-up:
-`GET sprints/{id}/burnup/` and `gadak sprint show <id>` print the same daily
-scope, started and done series, reconstructed from the changelog and
-withheld on an origin that keeps none ([GDK-1710]); the chart is next.
+To an agent, the surface caught up with the product. `gadak comment edit <KEY>
+<ID> -m "…"` replaces a comment's body and `gadak comment rm <KEY> <ID>
+--yes` removes it, on Jira, Linear and the built-in tracker, taking whatever
+id a read handed you — `gadak sql` prints `jira:91653`, `gadak issue` prints
+`91653`, both accepted ([GDK-1647]). Every write verb takes `--dry-run`: one
+JSON line carrying the ids the resolutions found, and nothing reaches the
+origin. `gadak link KEY <url> --title` writes a remote link through the origin
+([GDK-530]); repeating `--field` for one alias adds a value instead of
+replacing the last one, the silent drop the rest of the CLI refuses
+([GDK-18]); the create dialog fills what the origin requires and keeps Create
+disabled rather than sending a create Jira will reject ([GDK-533]); and a
+comment can be restricted where the origin has restrictions ([GDK-528]). On
+the built-in tracker attachment bytes live beside the database, one
+content-addressed file each, streaming both ways, with the cap now `gadak
+config set attachmentMaxMB <n>`, default 1 GiB, up from a hard-coded 32 MiB
+([GDK-1617]), and uploads carry the type their filename says rather than
+`application/octet-stream`, with `gadak backup` a `.tar` that refuses to write
+one with attachments missing ([GDK-1277]). An optional capability no longer
+disappears when the actor trailer is on ([GDK-1655]). `gadak mcp install
+claude-desktop` registers with Claude Desktop, and `gadak mcp install claude`
+says what it is — every front door had taught the Desktop user a command that
+runs Claude *Code*'s `claude mcp add`, which Desktop never reads ([GDK-1633]).
+An agent with no shell can read and set the design tokens ([GDK-769]), read
+the week with `gadak_retro` ([GDK-1404]), and leaves a trail doing it:
+`gadak_issue` and `gadak_search` record the visit and the search the way the
+CLI's do, and `gadak_recents` walks it back, where a host with no shell used to
+have zero rows after a compaction ([GDK-631]). The skill asks for a URL where
+it used to get prose, because `main 1693107` records the fact in a shape
+nothing can read ([GDK-529]). The session roster says what each shell is
+doing, reading the window title a shell sets for itself through the OSC
+scanner that already had to know where such a string ends ([GDK-1389]). The
+secret scanner covers the shapes it always claimed to: `internal/secretscan`
+owned seven patterns while the script pointing it at the repository grepped
+for two, so a real `ghp_` token in a fixture left the gate green ([GDK-1110],
+[GDK-1797]). The settings dialog got the gate its registry never had
+([GDK-9]). The public-backlog export refuses a kept description carrying a
+credential-shaped string ([GDK-1260]). Two doors onto one write stopped
+disagreeing: `gadak link KEY <url>` and `gadak ref KEY <url>` mint the same
+remote link, so both now take `--title`, `--as` and `--dry-run` — the plans
+are byte-identical — and `gadak unlink KEY <url>` removes what `link` created,
+so the verb that makes a remote link unmakes it ([GDK-1816]). An agent with no
+shell can say which mirror answered: `gadak_status` carries `workspace`,
+`workspace_source` and `actor` with the CLI's own field names ([GDK-1813]),
+and every tool refuses an unknown argument by name, where two did and seven
+quietly answered a different question because the published contract and the
+enforced one were separate objects ([GDK-1812]). `gadak sprint show` reached
+the skill, the tool descriptions and the top-level help, which none of them
+knew ([GDK-1814]).
 
-A dashboard list no longer ends in a row cut through its glyphs: the wall's
-height is the panel's, so the label-ratio example and the skill's copyable
-snippet give the list its own scroll region floored to whole rows, with a
-`+N more` line shown only while rows are hidden, and an e2e gate measures
-the cut-row count at both window sizes ([GDK-1745]).
+To itself: before the version was cut, the whole tree was read twice. The
+audit now starts from a census rather than a reading — five scripts under
+`tools/audit/`, each printing its own source commands, with a contract test
+doc-checks runs ([GDK-1707], [GDK-1206]) — and the first pass found things the
+release would otherwise have shipped: what landed since v0.21.0 reached the
+skill and the MCP tools ([GDK-1700]); twenty-four English strings that had
+escaped the catalog became keys in all three languages ([GDK-1704]); ten
+places where the docs and the site disagreed with the code were fixed at the
+copy ([GDK-1705]); the retro table takes the width it needs ([GDK-1706]); and
+the CI run got cheaper, with the static-analysis gate skipping a push that
+touches no Go and the browser shards dealt by measured seconds instead of file
+order ([GDK-1702], [GDK-1698]). The reading rounds followed. The Go tree lost
+code that lived in the wrong room ([GDK-688], [GDK-689], [GDK-718],
+[GDK-1113], [GDK-1245], [GDK-1319], [GDK-1332]); the server stopped paying per
+request for things it could know once ([GDK-1674], [GDK-1547], [GDK-1004],
+[GDK-307], [GDK-1413], [GDK-978], [GDK-1429], [GDK-936], [GDK-954]); the gates
+got cheaper and stopped drifting apart ([GDK-1227], [GDK-1488], [GDK-1759],
+[GDK-1107], [GDK-1105], [GDK-1108], [GDK-1485], [GDK-1546], [GDK-1518],
+[GDK-1554]); the web tree lost its last document-wide lookups and its last
+effects that read what they write ([GDK-645], [GDK-693], [GDK-630],
+[GDK-696], [GDK-941], [GDK-942], [GDK-698], [GDK-829], [GDK-1324],
+[GDK-1326], [GDK-1732], [GDK-1187], [GDK-1101], [GDK-1455], [GDK-1135]); the
+test pyramid moved weight down a rung ([GDK-1757], [GDK-723], [GDK-724],
+[GDK-725], [GDK-1327], [GDK-1328], [GDK-1147], [GDK-1502], [GDK-1758]); the
+demo fixture exercises what the code maps ([GDK-1755], [GDK-114], [GDK-45],
+[GDK-25], [GDK-1349]); the CLI and the skill lost duplicate vocabulary
+([GDK-1534], [GDK-1535], [GDK-1545], [GDK-1520], [GDK-1528], [GDK-136],
+[GDK-1588], [GDK-1242], [GDK-976], [GDK-487]); the documentation gained gates
+where it had habits ([GDK-670], [GDK-1288], [GDK-524], [GDK-1003],
+[GDK-1625], [GDK-1604]); `doctor` says what the store already knew and a
+paired serve says which version it is ([GDK-1549], [GDK-596], [GDK-1273],
+[GDK-768], [GDK-1760], [GDK-722]); the phone's network boundary moved into
+Rust ([GDK-897], [GDK-875], [GDK-890], [GDK-952], [GDK-1525], [GDK-1550],
+[GDK-1552], [GDK-1529], [GDK-1530], [GDK-1551]); five pieces of
+infrastructure stopped trusting luck ([GDK-1761], [GDK-783], [GDK-506],
+[GDK-234], [GDK-1407]); and thirty-three Go identifiers nothing outside their
+package used went lowercase, with three web modules dropping exports nothing
+imports ([GDK-1141], [GDK-1232]). Then a second pass closed what the first had
+only measured — `gadak workspace export` writes version 2 now, carrying the
+visit and search history the cache rule excuses ([GDK-1762], [GDK-1769],
+[GDK-1778], [GDK-1771], [GDK-1775], [GDK-1772]), took the complexity census at its word, remaking `gadak migrate` to Jira
+and to Linear as a staged pipeline ([GDK-1774], [GDK-1780], [GDK-1779], [GDK-1777], [GDK-1773], [GDK-1781]) —
+put the test suite itself on the list ([GDK-1782], [GDK-1785], [GDK-1786],
+[GDK-1783], [GDK-1776], [GDK-1764]), and, on the surfaces, gave the terminal
+pane and the phone's shell one socket driver where they had shared a
+ninety-line skeleton by copy ([GDK-1767], [GDK-1768], [GDK-1765], [GDK-1788],
+[GDK-1763], [GDK-1787]). Three grammars became one — the `gadak://` pointer
+had a parser in the CLI and another in the server ([GDK-1316]), the Cloud
+category fold had a hand-written copy beside it ([GDK-1315]), the page-id case
+policy differed between the store and sync ([GDK-1104]) — each held there now
+by a gate that names any second copy, as are three more duplicate
+implementations ([GDK-927], [GDK-928], [GDK-1320]) and four lists that
+described the code ([GDK-1482], [GDK-832], [GDK-921], [GDK-923], [GDK-1483]).
+A folded group resolves the same way from the CLI, a REST write and `gadak
+claim` ([GDK-1521]). The test harness stopped trusting a port number or a side
+file ([GDK-1789], [GDK-1555]), the scheme test asks the artifact ([GDK-919]),
+and three e2e cases stopped re-proving a unit ([GDK-720]).
 
-A comment that quotes CSS no longer asks the origin who `@media` is: at-rule
-names, code spans and package paths never become mention sites, and the one
-warning left says the comment was saved as typed ([GDK-1125], [GDK-1544]);
-an `@email` already becomes a real mention node, which is now pinned by a
-test rather than by a comment that said "add it when someone asks"
-([GDK-21]).
-
-The release audit's census is five scripts under `tools/audit/`, each
-printing its own source commands, with a contract test that doc-checks runs
-([GDK-1707]); and the semantic-axis audit — is any other mapping mirrored
-the way link direction was — is a document with two candidate defects and
-four notes ([GDK-1206]).
-
-The phone remembers the last issue it opened, so the terminal session sheet
-opens with that key filled in ([GDK-1527]), and the bottom-sheet inset is
-measured again — the formula is one function, the stylesheet is pinned to
-it, and the viewport walk opens a sheet that really opens ([GDK-911]).
-
-The demo fixture has one content original and one artifact —
-`examples/demo-source.db` builds `examples/demo.db` with a pinned clock, and
-`make demo-fixture-check` fails when two builds differ or the committed file
-is not what the source builds ([GDK-1751]); the fixture's media nodes carry
-`alt` the way real Jira Cloud's do (measured: 24 of 24 on a live site), so
-Dana's comment attachments render as images instead of chips, and a gate
-keeps every media node joined to its attachment ([GDK-1517]); the sync
-fixture localizes priorities and issue types the way it already localized
-statuses, so keying on a display name goes red on all three axes ([GDK-47]).
-
-The e2e suite serves a Linear-shaped mirror beside the Jira one:
-`examples/demo-linear.db` is built by replaying a deterministic dataset
-through the production Linear sync against a loopback stub, so the mapping
-in the file is the connector's own, and `e2e/linear.spec.ts` renders origin
-deep links, link labels in both directions, the write refusal and the
-freshness chip against it on the suite's second port ([GDK-1298]).
-
-Wiki page attachments reach the mirror: the sync lists a page's attachments
-beside its body, they live in the same table as an issue's under the page's
-own key, the page detail carries them the way the issue detail does — one
-builder owns both wire shapes, and a gate keeps an empty list `[]` rather
-than `null` — and `pages/<key>/attachments/<id>/content/` streams the bytes
-through the same handler as an issue's, so a page's media nodes render as
-images on the desk and the phone instead of unresolved chips ([GDK-1750],
-[GDK-1541]). A built-in origin that has not grown the attachment routes is
-measured once per sync and skipped with one summary line, not a failure.
-
-The reopen verdict has one owner. `reopen_count` in SQL counted an
-in-progress → new move as a reopen and the feed painted it red, while the
-history timeline in the web left the same row grey, because the web kept a
-done-only rule of its own. The server now stamps each history row with
-`is_reopen` from the same function that derives the column, the timeline reads
-that field and nothing else, and a source-level gate keeps a second spelling of
-the predicate from coming back ([GDK-1753]).
-
-A visit now stamps what it saw. `local.visits.seen_updated_at` is the issue's
-`updated_at` at the moment you opened it, so "what changed since I last
-looked" is a local join over the mirror rather than a sync, and the recipe for
-it sits in the Mine section of `docs/RECIPES.md`. Reads from the CLI are an
-agent looking, not you returning, and stay out of the answer ([GDK-1451]).
-
-The demo fixture's wiki pages ride the same time window as its issues. The
-snapshot spread used to skip pages, so the fixture shipped two pages updated
-before they were created and twenty page comments outside their page's span;
-pages and their comments are now placed on the same window, and a gate over
-the committed fixture keeps created ≤ updated and every comment inside its
-page's span ([GDK-1731]).
-
-`gadak migrate` no longer holds the archive in memory. The seed document
-used to inline every attachment as base64 and then marshal the whole thing a
-second time, so a workspace big enough to be worth migrating was the one that
-could not be; attachment bytes now stream from the origin straight into the
-seed file as the writer reaches them, the size cap and the missing-file
-accounting are unchanged, and a test pins that memory does not grow with the
-archive ([GDK-1618]).
-
-There is a way out of the built-in tracker that deletes nothing. Until
-now the only path from a locally originated backlog to a real Jira site was
-`init --replace-local`, whose own help says converting drops those issues.
-`gadak --workspace <jira workspace> migrate --from <workspace> --to jira
---project KEY` carries them out instead, the way `--to linear` already did
-for Linear: issues with their descriptions, types, priorities, labels,
-parents, links, comments and attachment bytes land in the project, the status
-is set by one transition into the same category (never by name), and a re-run
-is idempotent through the same footer. Change history, wiki pages,
-authorship and assignees stay behind, and the report says so ([GDK-378]).
-
-Three sync corrections. A link is stored on both ends, and an incremental
-window that carried only one of them used to leave the far end's row behind
-forever, so `open_blockers` stayed high and `gadak ready` hid an issue nothing
-blocks; the store now deletes the counterpart of every link an issue just lost
-and recomputes the touched rows, `gadak doctor` counts one-sided links, and a
-Linear relation list the origin paged deletes nothing ([GDK-1507]). A full
-pass rewrites every row again, so a derived column whose rule changed since
-the issue's last edit is recomputed instead of waiting for someone to touch
-the issue, without the reported changed count inflating to the fetched count
-([GDK-1457]). The divergence probe reads Jira Cloud's approximate count as an
-approximation, agreeing inside one percent of the origin's own number instead
-of escalating to a full key scan every tick on the sites where that scan
-costs the most ([GDK-1490]).
-
-Search finds labels and word forms. An issue whose only mention of
-`payments` was its label was invisible to `gadak search payments`, and
-`uploads` did not find `upload`; `items_fts` now carries a labels column,
-ranked between title and body, and stems English with porter while the CJK
-two-rune contract is unchanged, so `retries` reaches every `retry` and a label
-alone is enough to be found. The mirror schema moves up one version and the
-index is rebuilt on the first open. Every writer of that index in the tree,
-including the fixture translator no Go test compiles, is now checked by a
-census gate that reads the canonical column list out of the schema
-([GDK-1021]).
-
-Three things on the phone side. The REST responses the phone decodes are
-now a golden the server test writes and a phone test consumes, so a removed
-field or a changed type is red on both ends ([GDK-803]). The pairing token
-is asserted absent from the server's log, bodies and headers across nine gate
-branches and from every console call the phone makes, with a source rule on
-each side that follows the argument list across line breaks ([GDK-804]). And
-`gadak://` links open an issue on the phone: the Go parser emits its grammar
-as a vector table the phone parser replays, a cold-launch link is held until
-the app is paired, another app's scheme passes in silence, and the scheme
-carries no verb, so the worst a hostile link does is show the wrong issue
-([GDK-873]).
-
-Three duplicate implementations collapse to one owner each. A byte count is
-rendered by one function everywhere, so `gadak snapshot` stops printing
-`1024.0 MB` for a gigabyte and a negative size stops leaking through
-([GDK-927]). The single-statement SELECT/WITH check the MCP query tool and the
-saved group query both make is one walk now, with each surface keeping its own
-refusal sentence because they address different readers ([GDK-928]). And the
-migrate package's own sorted-keys helper gives way to the standard library
-([GDK-1320]).
-
-Four lists that described the code stop being lists. The web asked
-`hasServerVerb(verb)` before rendering a server-backed entry point, but the
-answer never depended on the verb and never had since the function was born,
-so the verb table, its type and its diagnostic report are gone and the
-question is `hasServer()` ([GDK-1482]). The grouping and sorting menus
-derived their options from hand-kept arrays that could silently omit an axis;
-they now come from a map the compiler checks, so a new axis without a label
-is a build error ([GDK-832]). A 29-name field list nothing read, which had
-already drifted from the catalog it claimed to describe, is replaced by a
-test that asks the two real sources instead ([GDK-921]), and two interfaces
-left over from the removed push stack are gone ([GDK-923], [GDK-1483]).
-
-Three places the keyboard could not reach. A comment's Reply button appeared
-on hover alone, so tabbing to it moved nothing into view ([GDK-734]).
-Favourite rows could be reordered by dragging but not by typing; Alt+↑↓ now
-steps a row, and the gesture, its no-wrap edges and its step arithmetic are
-one owner shared with the sidebar sections, so the second list cannot drift
-into a different key ([GDK-733]). And the file paths in Settings broke
-mid-word rather than at their separators ([GDK-1093]).
-
-The scheme test asks the artifact. `TestBundleRegistersTheScheme` read
-`build-app.sh`, and LaunchServices never reads `build-app.sh` — it reads
-`Contents/Info.plist` out of the packed app, so a plist the script no longer
-produces was invisible. A new test parses that plist inside the bundle and
-the release workflow mounts the dmg to run it; the script check keeps its
-place under a name that says what it actually measures ([GDK-919]).
-
-The settings tabs are a tablist. Nine plain buttons told a screen reader
-nothing about which one was showing — `aria-selected` read null on every tab
-— and leaving the header cost nine Tab presses. They now carry the role's
-whole contract: one Tab stop, Left/Right and Home/End between tabs, and the
-panel names the tab that filled it. Every close control draws its × with the
-icon component instead of one of four byte-identical hand-rolled SVGs, and
-names itself the same way twice; the rule those follow is written down and
-measured rather than decided per file ([GDK-138]). One flag stopped being
-state: whether the Confluence turn-on button reads armed is a function of the
-click and of the source being off, so an effect that cleared it when a space
-arrived no longer decides the label by when it ran ([GDK-1134]).
-
-The palette knows where the main column can go. Its §3 promise — every action
-the app can do is registered, and that is auditable — was auditable only by
-reading. The destinations now have one owner, a union and a runtime array
-bound to each other by the compiler, and a test asks that list and the
-palette's own rows whether they agree; an exception needs a written reason,
-and a reason that has gone stale is a failure too. Returning to the issue
-list was the hole it found ([GDK-137]). Copying an issue's link and marking
-the feed read joined the registry, each moving out of the component that
-privately owned it, and saving the current view is one row rather than a
-policy repeated per surface ([GDK-732]). Deleting a team view stayed out on
-purpose, and the principles file now says why a destructive action may be
-absent: the list is two clicks and an owner check away from a shared, final
-deletion, and a palette row collapses all three into one Enter on a view the
-reader cannot see.
-
-Three e2e cases stopped re-proving a unit. What an integration's output means
-— a run that stops before its status, an `exit=` line in the middle of the
-log, an exit 0 the detection still contradicts — is a parser's verdict, and
-`web/src/lib/integrations.test.ts` already holds each one; running them again
-in a browser was cost, not coverage. The page-comment shortcut chip is the
-same: one unit already asserts it has a single owner and that both composers
-render it. What keeps them down there is a lint — an e2e title that repeats a
-unit's title exactly is red — plus a paragraph in `e2e/README.md` giving the
-test the lint cannot apply: take the browser out of the sentence, and see
-whether anything is left ([GDK-720]).
-
-Two totals of different scope stopped sitting side by side. The Documents
-header read "Documents 0" on an account with 71 wiki pages: the badge counted
-the tab it was on, the library held the rest, and nothing said the number had
-been narrowed. The denominator beside a screen's name is now the library on
-every tab, one owner, and a narrowed number is written as a fraction of it —
-the rule is in the principles file rather than re-decided per screen
-([GDK-1092]). The empty state stopped saying its own title twice: the hint
-line is the only room a screen has for the next move, and on a search with no
-matches that move is the search the reader has not run yet — Enter, over
-bodies and comments. A test reads the screens rather than a hand-kept list, so
-a pair written next year is measured the day it is written ([GDK-1091]). And
-the two panels that laid out their own "not found" block by hand use the same
-empty state as everything else, so the message sits where every other one
-does.
-
-A piece of chrome now looks like what it is. In the dark palette the seam
-between the terminal and the list measured 1.28:1 against the panel behind
-it, so two windows read as one body; the fix is not a brighter token but a
-second word — a boundary between two regions is `border-strong` (2.11:1 in
-dark, 1.77 in light), a divider inside one surface stays `border-subtle`, and
-a test names the six seams and checks the two tokens stay two words in all
-four palettes ([GDK-1093]). The epic progress bar drew its empty half in the
-elevated ground it sat on, 1.00:1 — an underline, not a proportion; one
-`MeterBar` now owns track and fill, and the QA-impact bar and the priority
-menu's distribution use it too. A status dot came in three sizes depending on
-the file; `StatusDot` decides colour and size, with the list's lead dot the
-one documented exception. 'Unassigned' (a value that is absent) and 'Add a
-label' (an action) were byte-identical muted italics; the two costumes are
-constants that share no class, and nothing may spell either by hand. And the
-focus trap learned what the browser already knew — a roving tabindex parks
-`-1` on real buttons, and the trap stopped at them anyway ([GDK-142]).
-
-The Go tree lost some code that lived in the wrong room. Picking a transition
-by name is a use case, not an HTTP concern, so it left the Jira client for
-`internal/transition`, and the origin package no longer imports the client to
-ask it ([GDK-688]); seven identity wrappers on the Jira writer went with it,
-and a zero-value workspace registry opens and binds its origin instead of
-panicking on a nil map ([GDK-689]). `gadak fields` prints the fragment you
-would paste into the config — a `FieldSpec`, not the alias map `--apply`
-would then discard — and never proposes a field the classifier refuses; the
-`--json` key is byte-identical ([GDK-718]). `doctor` and the MCP status tool
-counted the shared comments table as one figure, which disagreed with the
-settings runtime on every mirror with wiki comments; both now report
-`issue_comments` and `page_comments` ([GDK-1113]). A label holding a comma is
-warned about on create and edit, flag or batch, from one helper ([GDK-1245]);
-the "origin too old" hint keys on a typed 501 instead of a substring
-([GDK-1319]); and the refusal a Jira workspace gives without a site has a
-test ([GDK-1332]).
-
-The server stopped paying per request for things it could know once. The
-Jira issue pass fetched each issue's comment and changelog overflow one at a
-time; it now rides the same ordered fetch pool the Confluence pass already
-used, up to eight wide, with the 429 back-off wired to each fetch and one
-summary line saying how wide it actually ran ([GDK-1674]). `LastSessionEnd`
-walked three hundred thousand visits on every bootstrap and delta poll —
-113 ms a call; pinned to its index it is 1.3 ms, and an `EXPLAIN QUERY PLAN`
-test keeps the planner from wandering back ([GDK-1547]). The 700 ms probe
-budget lived in two files that had to agree by hand; `origin.ProbeTimeout`
-owns it and a test reads both sources ([GDK-1004]). The store learned to say
-how large the mirror's `-wal` sidecar is ([GDK-307]) and whether one priority
-holds seventy percent of the open work ([GDK-1413]) — helpers with their
-thresholds tested, waiting for `doctor` to print them. Two questions were
-answered by measurement rather than code: `mmap_size` buys about seven
-percent on a warm cache, so the DSN stays as it is ([GDK-978]); the cycle-time
-p85 costs 60 ms at fifty thousand closed issues, recorded as the number that
-would reopen the question ([GDK-1429]). And the teardown window the audit
-asked about no longer exists — the advertise file it worried about went with
-GDK-936 ([GDK-954]).
-
-The gates got cheaper and stopped drifting apart. `tools/doc-checks.sh`
-starts its six delegated gates together the moment they are unblocked and
-replays each one's output in its original place, and an exit trap prints
-where the time went — 74 s to 42 s on a quiet machine ([GDK-1227],
-[GDK-1488]); `complexity.sh` no longer goes red on a deleted file that is
-still in the index ([GDK-1759]). Four regexes that lived in two places each
-and had to agree by hand — the tenant-host allowlist, the home-path pattern,
-the profile-name grammar the deep link mirrors, the ui-token family the Go
-and web sides both parse — are read from both live sources by
-`tools/mirror-pins.sh`, and a divergence names both positions ([GDK-1107],
-[GDK-1105], [GDK-1108]); `scan-internal` keeps its two-pattern tree scope on
-purpose, with the measurement that shows why written down ([GDK-1110]). Four
-probes that rounds had built by hand are tools now: `export-census.sh` lists
-exported Go identifiers nothing outside their package uses — and its seed
-script had been writing its index inside the tree it scanned, so every run
-after the first reported a hollow zero; the honest count is thirty-one
-([GDK-1485]); `skill-overwrite-probe.sh` plants a stale skill in a throwaway
-home and says PRESERVED or OVERWRITTEN ([GDK-1546]); `adf-render.mjs` prints
-the rendered HTML for one issue's description and comments ([GDK-1518]); and
-`scope-sheet.mjs` prints the phone's scope sheet from the demo snapshot
-([GDK-1554]).
-
-The web tree lost its last document-wide lookups and its last effects that
-read what they write. The global chords found their targets with
-`document.querySelector` at dispatch time; components now register the
-element themselves, an unmounted target is a null the dispatch already
-treats as "not spent", and the GDK-645 sweep that had carved keymap out as an
-exception no longer has one ([GDK-693]); the scope picker's document-level
-click closes through the shared outside-click action, and a sweep forbids
-the next `svelte:document onclick` ([GDK-630]). The viewport regime had one
-`$state` in the app shell and another in the detail panel; one module owns
-it, and a sweep keeps it that way ([GDK-696]). Selecting an issue records
-the visit and marks it read where the selection is written, instead of two
-untracked effects watching the key and writing back to the store they read
-([GDK-941]); the docs view consumes a focus-author request through a nonce
-rather than nulling the field it reads ([GDK-942]); and BulkBar's five batch
-runners share one loop ([GDK-698]). Smaller: rows in the issue list are
-tab-reachable on the same terms as document and history rows ([GDK-829]),
-the onboarding source picker is a real radiogroup — one tab stop, arrows move
-selection and focus, and its first e2e run caught the arrow moving from the
-wrong anchor ([GDK-1324]); a cross-workspace reference that cannot be
-resolved is a plain span, and one that can is an `<a>` ([GDK-1326]); the
-empty-state hint has room for a sentence ([GDK-1732]); the right panel says
-whether it is open in the DOM, since it stays mounted when closed
-([GDK-1187]); the boot-time token mirror in `index.html` carries the fonts
-axis the runtime does, with a parity test ([GDK-1101]); the locale tag has
-one owner ([GDK-1455]); and the history store's boundary is documented as
-the write path it is rather than moved into its one reader, because it has
-four callers ([GDK-1135]).
-
-The test pyramid moved some weight down. A held e2e port is named before the
-build starts — port, pid, worktree, and the `pkill` that frees it — and the
-serve stamp carries the pid, so a suite that inherits another worktree's
-server is refused by name rather than run against the wrong code
-([GDK-1757]); three fixed waits became signals (a database delete that
-rejects on `onblocked`, a focus poll counted through a wrapped `fetch`, a
-frozen digest instead of a spawned process) ([GDK-723]); the bench smoke
-seeds fifty rows instead of a thousand and the static export test carries
-its own one-row mirror instead of the whole demo ([GDK-724]). Six dialogs
-times two viewports in the browser became a registry unit test plus two
-representative shapes ([GDK-725]); the router's coalescing window is ten
-fake-timer cases in vitest with one smoke per rule family left in Playwright
-([GDK-1327]); a component renders under `svelte/server` with no new
-dependency, as a pilot whose limits are written in its header ([GDK-1328]);
-the desktop chrome spec asserts the relation to the traffic lights rather
-than exact pixels ([GDK-1147]); and the integrations tests poll to a deadline
-with the gate released in cleanup, so a sibling can no longer inherit a leak
-([GDK-1502]). Workers stay at one; a census gate now says which specs mutate
-and the design for per-worker isolation is written down with the measured
-worst files ([GDK-1758]).
-
-The demo fixture exercises what the code maps. `examples/demo.db` had no
-`dev_links` row, so the PR chip's open/merged/declined mapping had never run
-against the fixture; a `tools/demo-enrich` seeder in the `make demo-fixture`
-pipeline now plants one of each, a clone relation and a wiki-URL comment that
-becomes a page reference, a store test pins the fixture's content and an e2e
-spec shows the chips ([GDK-1755], [GDK-114]). `tools/seed-demo` resolves
-symbolic references — an issue's `ref:` and a document's `{{ref:…}}` — after
-creation, so authored documents can join issues without hard-coded keys, and
-an unresolved reference is an error ([GDK-45]); the Confluence sync test
-asserts that `version.by` becomes `author_id` ([GDK-25]). The demo recording
-specs have a rot gate, `npm run test:e2e:demo`, outside the CI set; its first
-run caught two specs that had already rotted — one stale against the retro
-folding UI, one with a hard-coded port ([GDK-1349]). The FTS rebuild on first
-open is measured at 73 ms and is the designed repair path; making the
-committed file carry `contentless_delete=1` would break the snapshot's
-Datasette Lite contract, so that question is left open with the numbers
-([GDK-1756]).
-
-The CLI and the skill surface lost some duplicate vocabulary. The skill's
-status word and card label had two spellings, one in `doctor` and one in the
-integrations table; `internal/skillinstall` owns both now ([GDK-1534]). The
-app's integrations tab always refused a conflicting install because it had
-no `--force`; Replace is asked for twice — an armed button on the second
-tap — and the argv is built in one place for the app and the CLI
-([GDK-1535]). A dev build's first `init` printed the skill refusal twice, from
-the daily auto-sync hook and from the install itself; one line ([GDK-1545]).
-The skill receipt survives a CRLF checkout and a symlinked destination, so
-a file that is ours by content is recognised as ours ([GDK-1520]). The
-terminal font family was resolved in two renderers; `protocol.ts` owns it,
-with the phone renderer delegating and a pin on `app.css` ([GDK-1528]). The
-three sync-status string families — sidebar, freshness chip, sync — are one
-`sync.*` family with byte-identical text, so the e2e strings did not move
-([GDK-136]); the remaining toast punctuation drift was aligned to the
-current rule rather than the one the issue was written under, which GDK-1588
-had since reversed ([GDK-1242]). Mentions no longer read `@3×` or `@media`
-as a person ([GDK-976]), and `source: "jira"` on a built-in-tracker row is
-documented as the stored slug it is, since the write pickers key on it
-([GDK-487]).
-
-The documentation gained gates where it had habits. The CHANGELOG reference
-tails — 659 definitions per edition, appended by hand in the order work
-landed — are generated now: `tools/changelog-tails.py` rewrites them in
-numeric order from the keys the body cites, and a check refuses a tail that
-drifted ([GDK-670]). "Connected" and "standalone" left the two sentences
-where they still stood in for a category, and a check keeps them out of
-reader-facing prose while leaving wire values and dated records alone
-([GDK-1288]). The two meanings of *watch* — Jira's site-side watchers, which
-sync never copies, and the local follows that `export` carries — are told
-apart in the skill and the agent-access page ([GDK-524]). `CONTRIBUTING`
-no longer opens with five documents to read before a first pull request;
-nothing does, and the links are on-need ([GDK-1003]). Three more checks
-watch the front door: every README link resolves and a path-shaped label is
-the path it points at, the site's video captions name the locale they
-serve ([GDK-1625]), and the three README editions may not share both a
-paragraph count and a heading sequence — measured 49/43/81 paragraphs today,
-with the em-dash density capped at the frontier it sits on ([GDK-1604]).
-
-`doctor` says what the store already knew, and a paired serve says which
-version it is. The wal-sidecar size, the priority concentration and the last
-session boundary reach `doctor` — the sidecar is measured before the mirror
-is opened, since opening it checkpoints the file away ([GDK-307], [GDK-1413],
-[GDK-1549]); the local schema skew has one owner in the store, `doctor`
-carries the remediation, and the stderr line fires once per path
-([GDK-596]). A paired workspace records the serve's version at pairing
-time, every serve response carries `X-Gadak-Version`, `status` and `doctor`
-name the skew, and a 501 from an older home is folded into an upgrade hint
-at the one choke point every paired round trip passes ([GDK-1273]). A
-built-in workspace can export its seed: `gadak workspaces export` and
-`GET /api/v1/origin/export` share one gate that refuses a connected or
-remote origin by name ([GDK-768]). The retro test stopped reading the wall
-clock — anchored mid-week, it is green under `TZ=Asia/Tokyo` and `TZ=UTC`
-alike ([GDK-1760]); the probe budget's second literal is gone ([GDK-1004]);
-`IssueLite`'s field names are checked by reflection ([GDK-722]); and the
-integrations probe reads exit 0 through a runner seam ([GDK-723]).
-
-The phone's network boundary moved into Rust. The websocket dial used to be
-a JavaScript allowlist over a process-wide `websocket:default` grant; the
-grant and the plugin are gone, and `shell.rs` owns the URL, the scope
-verdict, the dial and the bearer, with the webview passing only a session id
-([GDK-897]). The search plate shows what the snapshot already carried — a
-due date on the detail meta line and the last five issues you looked at
-([GDK-875]) — and a document row whose title already shows the query no
-longer repeats that title as its snippet, by the same rule the web uses
-([GDK-890]). A serve without a credential is read as read-only from the
-bootstrap, not after the first refusal ([GDK-952]); the description editor's
-Save wears the accent only when armed ([GDK-1525]). The viewport gate reads
-a median row height instead of the first row, and the search-results plate
-has a density floor of its own ([GDK-1550]); the shell spec waits on the PTY
-echo through CDP frames rather than a page-side poll that starved the socket
-([GDK-1552]). Two audit items were already closed on HEAD — per-session
-scrollback ([GDK-1529]) and separate slots for a session's name and its
-bound key ([GDK-1530]) — and the document row keeps one line, since none of
-the fixture's 71 titles truncates ([GDK-1551]).
-
-Five pieces of infrastructure stopped trusting luck. The hard-coded-host
-scan now reads `e2e/demo/*.spec.ts` too — the demo rot gate had just caught
-a port literal there that the scan should have ([GDK-1761]). The desktop's
-CSP is asserted as one exact string through the real mux, a doc check
-refuses a fenced dashboard example that compares a display name, and a pin
-keeps that check's grammar identical to the runtime warning's; the other
-three dashboard gates were already on HEAD ([GDK-783]). The cask publish
-step waits for the tap formula to be at least the cask's version before it
-pushes, and logs the mirror schema level each tag ships ([GDK-506]). The
-Linux desktop job caches its GTK `.deb`s and apt lists, so an Ubuntu mirror
-outage replays the cache instead of failing the run ([GDK-234]). And the
-Windows executable declares PerMonitorV2 DPI awareness through a committed
-manifest and `.syso` pair, with a regenerator and a byte check in the pack
-script ([GDK-1407]).
-
-Thirty-three Go identifiers that nothing outside their package ever used
-went lowercase, and three web modules dropped exports nothing imports; the
-census the previous round promoted is what named them, and it now reports
-eleven where it reported thirty-seven — the rest are either a migration
-another issue has already promised or a symbol whose real fate is deletion,
-which this round did not decide ([GDK-1141]). The simplification bucket was
-re-measured item by item: the CI-status test is wired after all, the
-calendar instrumentation has consumers, the `e2e` class assertions were
-already gone, and one hand-run diagnostic script is left to the user
-([GDK-1232]).
-
-The second audit pass before 0.22 closed what its first pass had only
-measured. A paired serve that answers 501 to a route it predates is now read
-as an answer, not a transient: the retry ladder returns on the first attempt
-instead of walking every rung against a home that will say the same thing
-([GDK-1762]). `gadak workspace export` writes version 2 and carries the
-visit and search history the invariants had excused it from, and import
-accepts both versions ([GDK-1769]). Under the hood, six compound commands
-route their verbs through one dispatcher where each used to keep a switch of
-its own, `agent.go` is five files by topic with every declaration kept, and
-`doctor` collects its report through nine named probes; `init` gives its
-credential resolution a function of its own ([GDK-1778], [GDK-1771],
-[GDK-1775], [GDK-1772]).
-
-The same pass took the complexity census at its word. `gadak migrate` to
-Jira and to Linear each ran as one function near a hundred branches deep;
-both are now a staged pipeline — load, report, preflight, scan, create,
-complete, link, count — with the verify report's counting shared between them
-([GDK-1774]). The Jira and Confluence clients carried the same usage-meter
-methods twice; one `UsageBox` owns them and both embed it ([GDK-1780]). The
-Linear client pages its connections through one generic follow loop instead
-of three hand-copied ones ([GDK-1779]); the string-valued settings leaves
-that repeated the same twenty lines each go through four small helpers
-([GDK-1777]); the Confluence sync, the Jira sync and the retro pass each gave
-their longest stretch a function of its own ([GDK-1773]); and the help entry
-for `gadak wiki` is derived from the one for `page`, so the alias cannot
-drift from its noun ([GDK-1781]).
-
-The test suite itself was on the audit's list. The log-rotation test proves
-the rotate-and-rename path at a 64 KiB cap instead of writing 6 MiB, and the
-epic benchmark's wall-clock bound runs only in the opt-in perf suite, so a
-loaded runner under `-race` no longer fails a healthy build ([GDK-1782]).
-Every live table in the mirror and in `local.db` now has a row in the data
-model document, and a test compares the two in both directions ([GDK-1785]);
-a second test seeds rows into every v44 table and walks the migration to head,
-so a step that silently loses rows is caught before it reaches a user's
-mirror, and a refused open of a newer schema is checked to leave the file
-untouched ([GDK-1786]). The e2e specs that had no header carry one, the twelve
-that were missing from the shard weights are listed, and a catalog assertion
-that lived in a browser spec moved to the unit suite that owns the catalog
-([GDK-1783]); the DOM sweeps that keep `querySelector`, raw listeners and
-`setInterval` out of components now walk the phone's sources too
-([GDK-1776]); and the release-audit runbook's slowest-test row names the
-timeout it actually needs ([GDK-1764]).
-
-On the surfaces, the terminal pane and the phone's shell shared a
-ninety-line socket skeleton by copy — attach, the generation guard, the
-reconnect ladder, the sixty-second grace, the resize handshake — with the
-same incident comments maintained twice. One driver owns it now and both
-panes hand it their transport and their measurements; the round found and
-fixed a regression on the way, a detached pane that still answered to its old
-session id ([GDK-1767]). The phone's shell-drop test seam lives in the
-transport module rather than on the screen ([GDK-1768]), and the phone's
-relative times say 5분 and 9時間 instead of 5m and 9h ([GDK-1765]). The
-settings screens had two identical "Copied" strings and a field editor that
-showed raw wire enums where a person expected "single select"; one toast key
-and four labels fix that, the phone's footer reads its version from the
-Tauri config, and the calendar formatter requires a locale ([GDK-1788]). The
-privacy page and the FAQ now count five outbound destinations, matching the
-security policy after the update check was removed ([GDK-1763]). The Korean catalog stopped
-forking its own vocabulary: one word for watching, one for the history view,
-one form of "active sprint", and issue counts in 건 throughout; the Japanese
-catalog sets its counters without a space before 件 ([GDK-1787]).
-
-The phone's detail header gained a share button: the OS share sheet where
-the webview offers one, otherwise a clipboard copy announced with the copy
-toast the link taps already use. The payload builder is the one door and it
-refuses anything shaped like a pairing offer ([GDK-877]). Two phone items
-closed on evidence rather than code: every wiki title in the three demo
-locales fits the 402px document row on one line, so the row is not clamped
-([GDK-1551]), and the secure-storage plugin stays because no maintained
-keychain alternative exists yet ([GDK-1136]).
-
-The settings window's Sources tab stopped saying "mirror" to the person
-reading it: project and space hints, the Confluence on/off lines and the
-confirm button say sync in all three languages, and the warning about every
-team space names this computer rather than a disk ([GDK-1286]). The
-built-in tracker's display name was already Built-in on every surface the
-audit listed, so that item closed without a change ([GDK-1285]). The FAQ's short answer about the hosted MCP now names the product boundary — no native aggregation tool, no offline read — instead of blaming hosting for it ([GDK-1629]). A runbook walks a tailnet host from the release tarball to a paired device — service unit, linger, the tailscale serve variant, minting with an explicit endpoint ([GDK-1268]). The install guide's staying-current list says how each channel upgrades — the Store on its own clock or `winget upgrade gadak` now — and that gadak neither checks for nor installs updates itself ([GDK-1494]).
-
-Personal history became something you can see and clear: the settings
-runtime panel names the local.db file beside the cache, and the History
-screen has a clear button whose label says it cannot be undone; one DELETE
-empties visits and searches and leaves recents and saved views alone
-([GDK-106]). The sprint strip draws the burn-up: scope as a dashed neutral
-line, completed as the done-coloured line with an end-dot, both on one
-y-axis, with the CLI's own sentences for a tracker without history or a
-sprint without a window ([GDK-1752]). Three audit items closed on the
-current tree rather than on code: the toast full-stop rule was reversed by a
-later decision ([GDK-1242]), the second terminal renderer was removed a
-release ago ([GDK-957]), and the terminal panel already has a user-set
-height and no longer competes with the detail pane for width ([GDK-1183]).
-
-The origin now states what it can do. config.json carries a capabilities
-block — issue writes, page writes, identity, an origin page to link to, and
-whether the write credential is a site token the app can edit — computed by
-one owner from the predicates the write paths already used. Five web
-affordances that used to guess from the reader's identity or the workspace
-kind ask that block instead, so an anonymous writer on the built-in or a
-paired tracker keeps the description pencil and the field editor, and a
-paired workspace stops being offered a site-token dialog it has no token
-for. A source gate keeps the guessing vocabulary out of components
-([GDK-1152]).
-
-The test harness stopped trusting a port number or a side file. The
-built-in workspace spec owns its serve port — pinned or grabbed free at run
-time, never the suite's port plus one — and its readiness poll checks the
-answering server's identity, so a neighbouring suite's serve is refused by
-name instead of adopted ([GDK-1789]). /healthz now says which binary
-answers: version, commit, source digest, home, workspace, start time and
-pid, stamped in at build time because Go's buildvcs writes nothing in a
-linked worktree; the phone gate reads that over HTTP instead of believing a
-stamp file next to the binary ([GDK-1555]). The mutating-spec census lives
-in one text file the unit gate parses, with a fifth marker for specs that
-touch the shared home directly ([GDK-1758]).
-
-The mirror learned how long an issue was flagged: schema v51 adds
-blocked_hours and blocked_since, derived from Jira's Flagged transitions
-the same way sprint is, and honestly NULL on an origin without a changelog
-([GDK-1449]). Local history grew two tables of its own — sessions, so
-"since my last session" is one query ([GDK-1439]), and agent_writes, a
-ledger of every write a CLI or MCP session landed ([GDK-1440]). The
-committed demo fixture now carries the store's canonical FTS DDL, so
-opening it no longer rebuilds the index; the Datasette Lite strip moved to
-the published copy at gadak.dev/demo, and the reader-facing links point
-there ([GDK-1756]). `gadak page get --storage` and `page edit
---storage-file` round-trip a page body losslessly ([GDK-1303]), the
-Confluence client can count a space's pages before it is mirrored
-([GDK-965]), and the flow p85 is memoized per sync version ([GDK-1429]).
-
-`gadak link KEY <url> --title` writes a remote link through the origin — the
-same row `gadak ref` mints, spelled as a URL — and a PR-shaped one shows in
-the issue's linked PRs on the CLI and in the app; typing a URL where an
-issue key was expected used to reach the origin as a garbage key and is now
-refused ([GDK-530]).
-
-The mirror learned how long an issue was flagged: schema v51 adds
-blocked_hours and blocked_since, derived from Jira's Flagged transitions
-the same way sprint is, and honestly NULL on an origin without a changelog
-([GDK-1449]). Local history grew two tables of its own — sessions, so
-"since my last session" is one query ([GDK-1439]), and agent_writes, a
-ledger of every write a CLI or MCP session landed ([GDK-1440]). The
-committed demo fixture now carries the store's canonical FTS DDL, so
-opening it no longer rebuilds the index; the Datasette Lite strip moved to
-the published copy at gadak.dev/demo, and the reader-facing links point
-there ([GDK-1756]). `gadak page get --storage` and `page edit
---storage-file` round-trip a page body losslessly ([GDK-1303]), the
-Confluence client can count a space's pages before it is mirrored
-([GDK-965]), and the flow p85 is memoized per sync version ([GDK-1429]).
-
-Under 900 pixels there is one narrow regime. The sidebar's narrow width was
-redeclared in five places under a 760-pixel media query, so an 800-pixel
-window kept a 272-pixel sidebar and squeezed the list into what was left;
-the narrow value now rides the inline token install, `app.css` defines
-`--layout-sidebar` nowhere, the step sits at 899, and the terminal overlay
-shares the same boundary ([GDK-1369], [GDK-1091]). The shell's height falls
-through `100vh`, `100dvh`, `100svh`, so an in-app tab bar no longer eats the
-bottom row ([GDK-54]). Section labels — twenty-one sites spelling the same
-four utilities — are one `.section-label` recipe, and Korean and Japanese
-keep their case, so the hierarchy comes from size, weight and tracking
-rather than from capitals ([GDK-141]). The QA teal was the only off-palette
-neon in either theme; it is a `--color-status-qa` token from the avatar
-family now, measured against done and in-progress ([GDK-160]). Deleting a
-saved view and opening the Jira filter show on focus as well as hover
-([GDK-728]); the document and person overlays carry the same back arrow as
-the issue overlay ([GDK-729]); the palette keeps its icon rail even for
-rows without one ([GDK-143]); the clipboard fallback's premise is scoped to
-the build it was measured on ([GDK-1114]); the scoped-token hint on a
-401 was already there ([GDK-73]); and the sub-issue rollup's *Show
-completed* box is drawn only when there are completed children to draw it
-for, counted before the filter runs so ticking it never removes the way back
-([GDK-1795]). A paired workspace can create a project again: its origin
-is the built-in tracker one machine away, but `project create` asked whether
-that tracker runs *here* and refused while blaming Jira, a site the
-workspace does not use. Three more verbs answered a paired workspace with a
-sentence written for somebody else's origin, and the helper that invited all
-four now carries its real name ([GDK-1793]). The column seams are
-reachable from the palette: *Resize the sidebar* and *Resize the issue list*
-put the keyboard on the grip with its arrow keys live. The grip had been a
-real button with a real keyboard since GDK-759, about 150 tab stops deep —
-capability nothing measured the reach of, so the palette audit that covers
-column destinations now covers draggable axes the same way ([GDK-1796]).
-An advisory about a token — an unknown name, a value that is not a hex colour
-— is one line again rather than one per palette: the write path already
-folded them, and the read path that fills `ui.warnings` did not ([GDK-769]).
-The fonts axis names its one token where it says "token names", instead of
-pointing at a command that returns the stored overrides; the gate that was
-meant to catch that had only been checking a command was mentioned
-([GDK-769]). Two more lines stopped claiming an Atlassian account a paired
-workspace does not have — the serve's listen line and sync's scope label now
-say the paired serve holds the projects, the last of the same misreading
-([GDK-1793]). Two answers used to rest on an assumption, and both now come
-from the tool itself. `gadak doctor` prints a `binary` line beside the
-version: the executable's real path with the symlink resolved —
-`/opt/homebrew/bin/gadak` is a link into `/Applications/Gadak.app`, so
-unresolved it names the link and not the build — and the kind of signature on
-it, `developer-id` for the released app and `adhoc` for whatever the local
-toolchain signed. That pair is what separates "the release is broken" from
-"you are not running the release": measured, brew reported a cask installed in
-August while the app under it had been overwritten by a local build, and the
-Gatekeeper refusal that followed was filed against the published dmg, which is
-notarized and fine ([GDK-1798], [GDK-1794]). And a mirror that is behind now
-says so where an agent reads. The staleness verdict — a first sync still
-running, a sync that failed, an hour past the last one — moved out of the CLI
-into one owner both callers share, so the MCP read tools append it to their
-result instead of writing it to a stderr no MCP host can see; the existing
-payload is untouched byte for byte, and a fresh mirror adds nothing
-([GDK-599]). The Raycast extension gadak installs answers two of its
-own. Its "gadak is not installed" screen copied `brew install
-midagedev/tap/gadak` to the clipboard, which is not how the app is installed —
-it is a cask — and a search that matched nothing rendered nothing at all, so an
-empty cache and a broken extension looked the same. Both say what they mean
-now, and the store listing carries the scaffolding its review asked for
+The app itself grew up at the edges. Under 900 pixels there is now one narrow
+regime: the sidebar's narrow width had been redeclared in five places under a
+760-pixel media query, so an 800-pixel window kept a 272-pixel sidebar and
+squeezed the list into what was left; the step sits at 899 and the terminal
+overlay shares the boundary ([GDK-1369], [GDK-1091]), while the shell's height
+falls through `100vh`, `100dvh`, `100svh` so an in-app tab bar no longer eats
+the bottom row ([GDK-54]). The list reads at every width it is given: the
+furniture on the right takes its fixed widths first, so a window 30% narrower
+used to cost the title 60% of its width and clip mid-verb at 1000px — the
+strip is now priced against a width at which a title is still a title, 222px
+to 302px at 1000, 166px to 336px at 800, and 1440 unchanged to the pixel
+([GDK-1791]) — and a label chip that cannot show six characters folds into the
+`+N` badge ([GDK-1744]). The seam between columns is a grip, writing the same
+two tokens `gadak config set ui.tokens.layout.sidebar 300px` writes, so the
+pointer and the CLI are one value in one file ([GDK-759]); the grips are
+reachable from the palette, which had been about 150 tab stops deep
+([GDK-1796]); and the list column gained a width of its own, `ui.tokens.layout.list`
+([GDK-769]). Twenty-one sites spelling the same four utilities became one
+`.section-label` recipe, and Korean and Japanese keep their case ([GDK-141]);
+the QA teal became a `--color-status-qa` token from the avatar family
+([GDK-160]); the palette keeps its icon rail even for rows without one
+([GDK-143]); the settings tabs are a tablist where nine plain buttons told a
+screen reader nothing ([GDK-138], [GDK-1134]); the palette knows where the
+main column can go ([GDK-137], [GDK-732]); three places the keyboard could not
+reach are reachable ([GDK-734], [GDK-733], [GDK-1093]); deleting a saved view
+and opening the Jira filter show on focus as well as hover ([GDK-728]); the
+overlays carry the same back arrow ([GDK-729]); a piece of chrome looks like
+what it is ([GDK-142]); two totals of different scope stopped sitting side by
+side ([GDK-1092]); the sub-issue rollup's *Show completed* box is drawn only
+when there are completed children to draw it for ([GDK-1795]); a count is
+grouped for the locale wherever it appears ([GDK-1560]); the dashboard frame
+carries the app's background rather than white ([GDK-1598]); an exact issue key
+in the palette resolves to that row ([GDK-1255]); a dashboard list no longer
+ends in a row cut through its glyphs ([GDK-1745]); and the clipboard
+fallback's premise is scoped to the build it was measured on ([GDK-1114]),
+with the scoped-token hint on a 401 already there ([GDK-73]). The settings
+window stopped saying "mirror" to the person reading it ([GDK-1286],
+[GDK-1285], [GDK-1629], [GDK-1268], [GDK-1494]) and onboarding calls the local
+copy a cache throughout ([GDK-1323]); personal history became something you
+can see and clear ([GDK-106], [GDK-1752], [GDK-957], [GDK-1183]). On the
+phone, the controls live in the catalog rather than the markup ([GDK-1150]),
+the detail header gained a share button ([GDK-877], [GDK-1136]), the terminal
+session sheet opens with the last issue's key filled in ([GDK-1527],
+[GDK-911]), a refusal says which refusal it was ([GDK-1121]), a copy that
+fails raises a toast ([GDK-1504]), what you read lands in the same visit
+history the window writes ([GDK-1538]), and three more things moved
+([GDK-803], [GDK-804], [GDK-873]). Wiki page attachments reach the mirror
+([GDK-1750], [GDK-1541]); a comment that quotes CSS no longer asks the origin
+who `@media` is ([GDK-1125], [GDK-1544], [GDK-21]); search finds labels and
+word forms ([GDK-1021]); three sync corrections landed ([GDK-1507],
+[GDK-1457], [GDK-1490]); `gadak migrate` no longer holds the archive in memory
+([GDK-1618]) and stopped swallowing two failures ([GDK-1318]); there is a way
+out of the built-in tracker that deletes nothing ([GDK-378]); the pairing
+dialog decides a loopback refusal from the error's type ([GDK-1317]); the
+session strip's boundary has one seat ([GDK-1548], [GDK-1561], [GDK-1132],
+[GDK-1691], [GDK-1710]); the demo fixture has one content original and one
+artifact ([GDK-1751], [GDK-1517], [GDK-47]); the e2e suite serves a
+Linear-shaped mirror beside the Jira one ([GDK-1298]); and the Raycast
+extension gadak installs stopped copying an install command the tap does not
+answer and stopped rendering nothing for a search that matched nothing
 ([GDK-1800]).
-
 ## v0.21.0 — 2026-09-08
 
 **What happened while you were away, answered from the mirror.** Every
@@ -2391,6 +1607,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-631]: https://gadak.dev/backlog/#/?ks=GDK-631
 [GDK-635]: https://gadak.dev/backlog/#/?ks=GDK-635
 [GDK-643]: https://gadak.dev/backlog/#/?ks=GDK-643
+[GDK-645]: https://gadak.dev/backlog/#/?ks=GDK-645
 [GDK-654]: https://gadak.dev/backlog/#/?ks=GDK-654
 [GDK-658]: https://gadak.dev/backlog/#/?ks=GDK-658
 [GDK-670]: https://gadak.dev/backlog/#/?ks=GDK-670
@@ -2517,6 +1734,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-923]: https://gadak.dev/backlog/#/?ks=GDK-923
 [GDK-927]: https://gadak.dev/backlog/#/?ks=GDK-927
 [GDK-928]: https://gadak.dev/backlog/#/?ks=GDK-928
+[GDK-936]: https://gadak.dev/backlog/#/?ks=GDK-936
 [GDK-941]: https://gadak.dev/backlog/#/?ks=GDK-941
 [GDK-942]: https://gadak.dev/backlog/#/?ks=GDK-942
 [GDK-944]: https://gadak.dev/backlog/#/?ks=GDK-944
@@ -2785,6 +2003,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1555]: https://gadak.dev/backlog/#/?ks=GDK-1555
 [GDK-1560]: https://gadak.dev/backlog/#/?ks=GDK-1560
 [GDK-1561]: https://gadak.dev/backlog/#/?ks=GDK-1561
+[GDK-1588]: https://gadak.dev/backlog/#/?ks=GDK-1588
 [GDK-1598]: https://gadak.dev/backlog/#/?ks=GDK-1598
 [GDK-1601]: https://gadak.dev/backlog/#/?ks=GDK-1601
 [GDK-1604]: https://gadak.dev/backlog/#/?ks=GDK-1604
@@ -2915,3 +2134,12 @@ priority sorting keyed on `priority_rank`.
 [GDK-1797]: https://gadak.dev/backlog/#/?ks=GDK-1797
 [GDK-1798]: https://gadak.dev/backlog/#/?ks=GDK-1798
 [GDK-1800]: https://gadak.dev/backlog/#/?ks=GDK-1800
+[GDK-1803]: https://gadak.dev/backlog/#/?ks=GDK-1803
+[GDK-1804]: https://gadak.dev/backlog/#/?ks=GDK-1804
+[GDK-1805]: https://gadak.dev/backlog/#/?ks=GDK-1805
+[GDK-1806]: https://gadak.dev/backlog/#/?ks=GDK-1806
+[GDK-1807]: https://gadak.dev/backlog/#/?ks=GDK-1807
+[GDK-1812]: https://gadak.dev/backlog/#/?ks=GDK-1812
+[GDK-1813]: https://gadak.dev/backlog/#/?ks=GDK-1813
+[GDK-1814]: https://gadak.dev/backlog/#/?ks=GDK-1814
+[GDK-1816]: https://gadak.dev/backlog/#/?ks=GDK-1816
