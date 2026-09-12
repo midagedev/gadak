@@ -28,6 +28,11 @@ const sprintUsage = `usage: gadak sprint <subcommand>
   gadak sprint start <sprint-id>          start it (default 14 days)
   gadak sprint close <sprint-id>          complete it
 
+Options:
+  --goal <text>    the sprint goal (create)
+  --days N         sprint length in days, default 14 (start)
+  --json           emit JSON (show)
+
 On a Jira origin these are Jira Software sprints. On a Linear origin they
 are cycles — one board per team, and start/close refuse: a cycle begins and
 ends by its dates, so edit the cycle's dates in Linear instead. The built-in

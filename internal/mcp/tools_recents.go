@@ -18,7 +18,6 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/midagedev/gadak/internal/store"
@@ -28,10 +27,6 @@ const toolRecents = "gadak_recents"
 
 // recentsDefaultLimit is `gadak recents`' own --limit default.
 const recentsDefaultLimit = 20
-
-// recentsArgNames is the accepted argument set — and the refusal message's
-// list, so an ignored limit is named rather than silently dropped.
-var recentsArgNames = []string{"limit"}
 
 // recentsKinds is the kind vocabulary, taken from the store constants that
 // RecordVisit validates against rather than retyped: internal/mcp tool
@@ -82,22 +77,9 @@ func recentsToolDefinition() Tool {
 	}
 }
 
-func recentsUnknownArgs(args map[string]any) []string {
-	var bad []string
-	for k := range args {
-		if !containsString(recentsArgNames, k) {
-			bad = append(bad, k)
-		}
-	}
-	sort.Strings(bad)
-	return bad
-}
-
 func (s *Server) toolRecents(args map[string]any) ([]contentItem, error) {
-	if bad := recentsUnknownArgs(args); len(bad) > 0 {
-		return nil, fmt.Errorf("%s does not take %s — it takes %s (the flags of `gadak recents`)",
-			toolRecents, strings.Join(bad, ", "), strings.Join(recentsArgNames, ", "))
-	}
+	// callTool has already refused any argument this tool does not publish
+	// (GDK-1812) — its InputSchema is the allowlist.
 	limit := intArg(args, "limit", recentsDefaultLimit)
 	if limit <= 0 {
 		return nil, fmt.Errorf("limit must be 1 or more")

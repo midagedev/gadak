@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 
@@ -50,12 +51,26 @@ Schema essentials:
   carryover_count (times an issue was carried into another sprint after the
   first; NULL — not 0 — when the origin supplies no changelog), first_sprint_id
   and first_sprint_at (which sprint it first entered and when: compare that
-  stamp to sprints.start_at to see what was added mid-sprint).
+  stamp to sprints.start_at to see what was added mid-sprint),
+  blocked_hours and blocked_since (how long the issue was flagged as blocked,
+  and since when — NULL when the origin cannot say), resolution (the display
+  name; resolution_id is the stable key), reopen_reason,
+  open_blockers (recorded open blockers — an inward blocking link whose target
+  is not done; 0 is what "gadak ready" means by ready),
+  custom (mapped custom fields by alias, via json_extract; empty until
+  "gadak fields --apply" has run — gadak_status's custom_fields.mapped says
+  whether it has),
+  security_level_id and security_level. Check security_level_id before quoting
+  an issue anywhere public (a commit message, a summary, a chat): NULL means
+  unrestricted, or a row the next sync has not rewritten. Key on the id, never
+  on security_level — the names localize.
 - sprints / boards: rows of their own — sprints has id, board_id, name, goal,
   state (lowercase active|future|closed), start_at, end_at, complete_at,
   activated_at, external_id (the origin's own id). A sprint with no issues is
   here and nowhere else; the issues columns cannot answer "when does this
-  sprint end". Filled on Jira with Jira Software (Cloud or Server), on the
+  sprint end". A sprint's daily burn-up is not a column either — it is computed
+  from the changelog, and on a host with a shell "gadak sprint show <sprint-id>"
+  prints it (scope, started, done per day). Filled on Jira with Jira Software (Cloud or Server), on the
   built-in tracker, and on Linear (a cycle is a sprint, a team is a board);
   empty on a Jira site without Jira Software.
 - issues_full: VIEW of issues plus summary (the item title) and description_text
@@ -138,7 +153,18 @@ Pass {key: "NMB-140"} for one issue, or {keys: ["NMB-140", "NMB-141"]} for
 several (same document shape, wrapped as {"issues":[…], "missing"?:[…]}).
 Use when you need the whole conversation around a key.`
 
-const toolStatusDescription = `Return mirror freshness: watermark, version, last_error, last_full_sync_at,
+const toolStatusDescription = `Return which mirror answered and how fresh it is.
+
+workspace is the mirror you are reading ("default" for the root) and
+workspace_source is what selected it — "flag", "stored" (a default somebody set
+with gadak workspace use), "default", or the name of the environment variable
+that supplied it. Quote workspace whenever the answer could differ per site;
+say workspace_source too when nobody in this conversation chose it.
+actor is the identity writes from this session record (actor.slug, with the
+source that resolved it); absent means no identity resolved and a write would
+land as the origin's default user.
+
+Freshness: watermark, version, last_error, last_full_sync_at,
 schema_version, row counts (issues, issue_comments, page_comments), origin_type (jira|jira-server|linear|gadak)
 and transport (local|remote), the older workspace kind (connected|standalone)
 with its origin, and frozen (sync is paused when true). A paired workspace is
@@ -287,7 +313,18 @@ func toolDefinitions() []Tool {
 	// the CLI flag and its kind vocabulary is generated from the store
 	// constants RecordVisit validates against.
 	out = append(out, recentsToolDefinition())
-	return append(out, uiToolDefinitions()...)
+	out = append(out, uiToolDefinitions()...)
+	// The GDK-599 staleness notice rides six of these results as a second
+	// content item. Driven from carriesFreshnessNotice — the single owner of
+	// which tools emit it — rather than hand-copied into six descriptions,
+	// where the seventh tool to start emitting it would be the one nobody
+	// documented (GDK-1813).
+	for i := range out {
+		if carriesFreshnessNotice(out[i].Name) {
+			out[i].Description += freshnessNoticeSentence
+		}
+	}
+	return out
 }
 
 // callTool dispatches a tools/call. Failures that the agent can fix (bad SQL,
@@ -295,6 +332,25 @@ func toolDefinitions() []Tool {
 // place that turns a Go error into isError text; withErrorPrefix owns the
 // ERROR: token so models cannot mistake a failure for an empty result.
 func (s *Server) callTool(name string, args map[string]any) (content []contentItem, isError bool) {
+	// GDK-1812: one validator for every tool, before anything else runs.
+	//
+	// The behaviour used to split at the delta boundary — gadak_retro and
+	// gadak_recents refused an argument they did not have, the seven older
+	// tools read the keys they knew and ignored the rest. A host that sent
+	// `weeks` instead of `since` got a refusal; a host that sent `weeks` to
+	// gadak_query got a confident answer to a question it had not asked.
+	//
+	// The allowlist is the tool's own InputSchema (additionalProperties is
+	// already false there), so the contract tools/list publishes is the
+	// contract the server enforces — there is no second list to keep.
+	def, listed := lookupTool(name)
+	if !listed {
+		// Unknown tool is a protocol-level invalid params (caller should list first).
+		return textResult(withErrorPrefix(fmt.Sprintf("unknown tool %q — use tools/list", name))), true
+	}
+	if bad := unknownArgs(args, toolArgNames(def)); len(bad) > 0 {
+		return textResult(withErrorPrefix(refuseUnknownArgs(def, bad))), true
+	}
 	// gadak_show keys/issue/jql do not read the mirror (same as views open --keys / KEY / --jql).
 	// Name lookup opens it inside toolShow. The ui.tokens pair reads and writes
 	// config.json and never opens the mirror at all. Other tools still require
@@ -328,8 +384,10 @@ func (s *Server) callTool(name string, args map[string]any) (content []contentIt
 	case toolUISet:
 		out, err = s.toolUISet(args)
 	default:
-		// Unknown tool is a protocol-level invalid params (caller should list first).
-		return textResult(withErrorPrefix(fmt.Sprintf("unknown tool %q — use tools/list", name))), true
+		// Listed above and not dispatched here: a tool that exists in the
+		// roster and nowhere else. TestEveryListedToolIsCallable is the
+		// standing assertion that this branch is unreachable.
+		return textResult(withErrorPrefix(fmt.Sprintf("tool %q is listed but has no handler — this is a gadak bug", name))), true
 	}
 	if err != nil {
 		return textResult(withErrorPrefix(err.Error())), true
@@ -501,7 +559,28 @@ func (s *Server) issuePayload(key string) (map[string]any, error) {
 
 func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
 	_ = args
-	st := map[string]any{"profile": s.Profile}
+	// GDK-1813: which mirror answered, and what chose it.
+	//
+	// SKILL.md tells every agent to "say which mirror you read", and until now
+	// this tool could only answer `profile` — the empty string on the root
+	// workspace, which cannot distinguish "the default" from "a stored default
+	// somebody set last week" from "GADAK_WORKSPACE in an environment I did not
+	// configure". `gadak status --json` has carried workspace /
+	// workspace_source for exactly that since GDK-619; a shell-less host had
+	// no way to ask.
+	//
+	// Shape owner is the CLI: cmd/gadak/workspace_cmd.go (workspaceJSONName /
+	// workspaceJSONSource) — package main, so it cannot be imported and the
+	// three lines below are a deliberate second implementation of it, the same
+	// arrangement visits.go states for the visit recorders. What is NOT
+	// duplicated is the policy: config.NormalizeProfile owns the display-name
+	// mapping (GDK-619) and config.WorkspaceSource owns the verdict; only the
+	// JSON key names are restated here.
+	st := map[string]any{
+		"profile":          s.Profile,
+		"workspace":        config.NormalizeProfile(s.Profile),
+		"workspace_source": workspaceSourceValue(),
+	}
 	// A shell-less host must be able to tell one origin from another
 	// (GDK-420); origin.Describe is the single owner of the kind verdict,
 	// and the two axes ride beside it (GDK-1280). cfg outlives the block:
@@ -516,6 +595,14 @@ func (s *Server) toolStatus(args map[string]any) ([]contentItem, error) {
 		st["origin"] = originDesc
 		st["frozen"] = cfg.SyncFrozen()
 		st["custom_fields"] = cfg.CustomFieldsStatus()
+		// The resolved actor (GDK-586, GDK-1813): the identity this session's
+		// writes record. `gadak status --json` has carried it since GDK-586 and
+		// SKILL.md points agents at actor.slug; the shell-less surface could
+		// not answer it. Absent when the ladder resolves nothing, exactly like
+		// the CLI — writes then use the origin's default user.
+		if actor, ok := config.ResolveActor(cfg); ok {
+			st["actor"] = actor
+		}
 		// Same pairing object as `gadak status --json` (origin.PairedStatus).
 		if rem, err := origin.PairedStatus(cfg); err != nil {
 			st["pairing_error"] = err.Error()
@@ -779,6 +866,64 @@ func pageIDHint(key string) string {
 		}
 	}
 	return " — a numeric id is a wiki page id, not an issue key; read it with gadak_query (items.kind = 'page' AND items.key = the id)"
+}
+
+// workspaceSourceValue is the workspace_source value, byte-for-byte the one
+// `gadak status --json` prints: flag | stored | default, or the name of the
+// environment variable that supplied the workspace. Restated from
+// cmd/gadak/workspace_cmd.go's workspaceJSONSource because that lives in
+// package main; config.WorkspaceSource is the verdict's owner, and the branch
+// below is only the naming convention for the JSON (GDK-1813).
+func workspaceSourceValue() string {
+	kind, envName := config.WorkspaceSource()
+	if kind == config.SourceEnv {
+		return envName
+	}
+	if kind == "" {
+		return config.SourceDefault
+	}
+	return kind
+}
+
+// toolArgNames are the argument names a tool publishes: the property names of
+// its own InputSchema, sorted. The single owner of "what this tool takes" —
+// tools/list hands the client this map, and callTool validates against the
+// same one, so the two cannot drift (GDK-1812).
+func toolArgNames(t Tool) []string {
+	props, _ := t.InputSchema["properties"].(map[string]any)
+	names := make([]string, 0, len(props))
+	for k := range props {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// unknownArgs names the keys of args that names does not allow, sorted. One
+// function for the whole package: gadak_retro and gadak_recents each carried a
+// copy of it differing only in the list they closed over (GDK-1812).
+func unknownArgs(args map[string]any, names []string) []string {
+	var bad []string
+	for k := range args {
+		if !slices.Contains(names, k) {
+			bad = append(bad, k)
+		}
+	}
+	sort.Strings(bad)
+	return bad
+}
+
+// refuseUnknownArgs is the sentence a refused call reads. It names what was
+// rejected and what the tool does take, because an argument that is silently
+// dropped is a wrong answer the reader cannot see — a window nobody asked for,
+// a limit nobody set.
+func refuseUnknownArgs(def Tool, bad []string) string {
+	accepted := toolArgNames(def)
+	if len(accepted) == 0 {
+		return fmt.Sprintf("%s does not take %s — it takes no arguments", def.Name, strings.Join(bad, ", "))
+	}
+	return fmt.Sprintf("%s does not take %s — it takes %s (the arguments tools/list publishes for it)",
+		def.Name, strings.Join(bad, ", "), strings.Join(accepted, ", "))
 }
 
 func stringArg(args map[string]any, key string) (string, bool) {

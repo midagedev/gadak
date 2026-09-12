@@ -12,11 +12,12 @@ package mcp
 // Thin on purpose, like the ui pair next door: retro.Compute and
 // retro.Report.JSON() are the owners the CLI's --json and
 // GET /api/v1/issues/retro/ already share, and nothing here recomputes,
-// reformats or copies a query. The argument names are the CLI's flag names
-// (since, session-gap, by-sprint, board, open, week) and the metric enum is
-// GENERATED from retro.OpenMetrics — internal/mcp/tools.go descriptions are
-// the one surface in this repo with no gate, so the vocabulary must not be
-// typed here twice.
+// reformats or copies a query. The argument names are the CLI's flag names and
+// are spelled once, in this tool's InputSchema below — callTool refuses
+// anything else against that same map (GDK-1812) — and the metric enum is
+// GENERATED from retro.OpenMetrics. internal/mcp/tools.go descriptions are the
+// one surface in this repo with no gate, so the vocabulary must not be typed
+// here twice.
 
 import (
 	"context"
@@ -24,7 +25,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -43,12 +43,6 @@ var retroNow = time.Now
 // reader that is looking at a document rather than typing a flag; the CLI's
 // 14d stays the CLI's, and a caller that wants it says since: "14d".
 const retroMCPDefaultSince = "4w"
-
-// retroArgNames is the accepted argument set, in help order. It is also the
-// refusal message's list: an argument the CLI does not have is named rather
-// than dropped, because a silently ignored window is a wrong number the
-// reader cannot see.
-var retroArgNames = []string{"since", "session-gap", "by-sprint", "board", "open", "week"}
 
 func retroDescription() string {
 	return `The user's retrospective numbers — the same document ` + "`gadak retro --json`" + ` prints.
@@ -130,29 +124,6 @@ func retroToolDefinition() Tool {
 	}
 }
 
-// retroUnknownArgs names every key the CLI does not have. additionalProperties
-// is already false in the schema, but a host that does not validate would
-// otherwise get a report for a window it did not ask for.
-func retroUnknownArgs(args map[string]any) []string {
-	var bad []string
-	for k := range args {
-		if !containsString(retroArgNames, k) {
-			bad = append(bad, k)
-		}
-	}
-	sort.Strings(bad)
-	return bad
-}
-
-func containsString(list []string, v string) bool {
-	for _, s := range list {
-		if s == v {
-			return true
-		}
-	}
-	return false
-}
-
 func boolArg(args map[string]any, key string) (bool, bool) {
 	if args == nil {
 		return false, false
@@ -166,11 +137,8 @@ func boolArg(args map[string]any, key string) (bool, bool) {
 }
 
 func (s *Server) toolRetro(args map[string]any) ([]contentItem, error) {
-	if bad := retroUnknownArgs(args); len(bad) > 0 {
-		return nil, fmt.Errorf("%s does not take %s — it takes %s (the flags of `gadak retro`)",
-			toolRetro, strings.Join(bad, ", "), strings.Join(retroArgNames, ", "))
-	}
-
+	// An argument this tool does not take never reaches here: callTool refuses
+	// it against this tool's own InputSchema, for every tool (GDK-1812).
 	sinceRaw, sinceGiven := stringArg(args, "since")
 	sinceRaw = strings.TrimSpace(sinceRaw)
 	sinceGiven = sinceGiven && sinceRaw != ""

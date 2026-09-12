@@ -227,9 +227,12 @@ Three rules follow, and they are the point of the design:
   it sets `GADAK_WORKSPACE` to the workspace its window shows, so a bare
   `gadak` there is on that workspace by construction — but the transcript
   still records nothing, so name `--workspace` on writes.
-- **Say which mirror you read.** `gadak status --json` carries a `profile`
-  field (the workspace name; empty for the root); quote it when the answer
-  could differ per site.
+- **Say which mirror you read.** `gadak status --json` carries `workspace`
+  (the name, `default` for the root) and `workspace_source` (what selected it:
+  `flag`, `stored`, `default`, or the environment variable that supplied it).
+  Quote `workspace` when the answer could differ per site, and say
+  `workspace_source` too when nobody in this conversation chose it. The MCP
+  `gadak_status` tool answers the same two.
 - **Never write to one origin while reading another.** `gadak comment`,
   `transition`, `assign` and `api --write` all take the same `--workspace`. If
   the question came from data in one mirror, the write goes to that same one.
@@ -318,6 +321,8 @@ Some columns exist only here, derived from the changelog while syncing:
 `carryover_count` (how many times an issue was carried into another sprint
 after the first — NULL, not 0, on an origin with no changelog),
 `first_sprint_id` / `first_sprint_at`,
+`blocked_hours` / `blocked_since` (how long an issue was flagged as blocked,
+and since when — NULL when the origin cannot say),
 `reopen_count`, `reopened_at`, `reopen_reason`, and `epic_key` (the nearest
 level-1 ancestor). Jira cannot answer questions about these at all.
 
@@ -1101,10 +1106,12 @@ means Jira's site-side subscribers on an issue — not mirrored, so the
 They never touch the site. Sprints *are*
 projected (`issues.sprint_id`, `sprint_name`, `sprint_state`); filter on
 `sprint_id` or `sprint_state='active'`, never on `sprint_name`. The
-`sprints` and `boards` tables carry the rest, and `gadak sprint` writes:
+`sprints` and `boards` tables carry the rest, and `gadak sprint` reads and
+writes them:
 
 ```bash
 gadak sprint list                      # active first, with issue counts and the sprint goal
+gadak sprint show 14                   # that sprint's daily burn-up: scope, started, done (a mirror read)
 gadak sprint add 12 NMB-140 NMB-141    # into sprint 12
 gadak sprint remove NMB-140            # back to the backlog
 gadak sprint create 3 "Sprint 14" --goal "ship the uploader"
@@ -1117,7 +1124,9 @@ the built-in tracker, which serves the same Agile surface, and on Linear,
 where a cycle is a sprint and a team is a board — there `list`, `add` and
 `remove` work, and `create`, `start` and `close` refuse by name: a cycle
 begins and ends by its dates, and Linear makes them from the team's cadence
-rather than on request.
+rather than on request. `show` is the one read in the group: it reconstructs
+the daily scope from the changelog, so on Linear it prints the sprint's
+header and says the burn-up is not available.
 
 ```bash
 gadak api GET /rest/api/3/issue/NMB-140/watchers

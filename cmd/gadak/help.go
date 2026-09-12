@@ -724,14 +724,16 @@ var helps = map[string]cmdHelp{
 	},
 	"page": {
 		summary: "wiki pages — read from the mirror (get, list; no network), write through the origin (create, edit, comment; Confluence, or gadak's own wiki)",
-		usage: "gadak [--workspace <name>] page get <ID> [--json]\n" +
+		usage: "gadak [--workspace <name>] page get <ID> [--json|--storage]\n" +
 			"| page list [--space K] [--limit N] [--json|--csv|--no-header]\n" +
 			"| page create|edit|comment [<ID>]\n" +
-			"[--space K] [--title T] [-m <text|->] [--adf-file F]\n" +
+			"[--space K] [--title T] [-m <text|->] [--adf-file F] [--storage-file F]\n" +
 			"[--parent ID] [--version N] [--force] [--json]",
 		options: []helpOption{
 			{name: "space", desc: "create in this space key (create); list only this space (list)"},
 			{name: "limit", desc: "maximum rows to list (default 30) (list)"},
+			{name: "storage", desc: "print the raw storage (ADF) document only, verbatim — the lossless half of the round trip (get)"},
+			{name: "storage-file", desc: "replace the whole body with a storage document `page get --storage` printed; wins over -m (edit)"},
 			{name: "json", desc: "one JSON object for get; one per row for list"},
 			{name: "csv", desc: "emit CSV with a header row (list)"},
 			{name: "no-header", desc: "omit the TSV/CSV header row (list)"},
@@ -751,15 +753,16 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak search", "gadak open"},
 	},
 	"ref": {
-		summary: "point this issue at an issue in another workspace (built-in tracker, here or paired) — the list hydrates the target's live state from that workspace's own mirror, no network",
-		usage: "gadak [--workspace <name>] ref <KEY> <workspace>/<TARGET-KEY>|<url> [--as <relationship>] [--json]\n" +
-			"| ref <KEY> --list [--json] | ref <KEY> --rm <id>",
+		summary: "point this issue at an issue in another workspace (built-in tracker, here or paired) — the list hydrates the target's live state from that workspace's own mirror, no network; with a URL target this is the same write as `gadak link KEY <url>`, and `gadak unlink KEY <url>` removes it by URL instead of by id",
+		usage: "gadak [--workspace <name>] ref <KEY> <workspace>/<TARGET-KEY>|<url> [--as <relationship>] [--title T] [--json] [--dry-run]\n" +
+			"| ref <KEY> --list [--json] | ref <KEY> --rm <id> [--json] [--dry-run]",
 		examples: []string{
 			"gadak --workspace plan ref STD-1 work/NMA-9",
 			"gadak --workspace plan ref STD-1 work/NMA-9 --as \"blocked by\"",
+			"gadak --workspace plan ref STD-1 work/NMA-9 --as \"blocked by\" --dry-run",
 			"gadak --workspace plan ref STD-1 --list",
 		},
-		seeAlso: []string{"gadak link", "gadak issue", "gadak workspaces"},
+		seeAlso: []string{"gadak link", "gadak unlink", "gadak issue", "gadak workspaces"},
 	},
 	"migrate": {
 		summary: "export a workspace's mirror into a new workspace on the built-in tracker — issues, comments, history, links, attachments, and wiki pages leave with you; ends with a source-vs-migrated count report. --to linear --team <KEY> and --to jira --project <KEY> send the issues into an existing Linear team or Jira project instead, through the credential of the workspace the command runs in (history and wiki pages stay behind either way, and the report says so)",
@@ -856,10 +859,16 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak claim", "gadak comment", "gadak transition", "gadak issue"},
 	},
 	"sprint": {
-		summary: "boards and sprints — list them, move issues in and out, open, start and close one (Jira Software only)",
-		usage:   "gadak [--workspace <name>] sprint list|add|remove|create|start|close [...]",
+		summary: "boards and sprints — list them, read one's burn-up, move issues in and out, open, start and close one (Jira Software only)",
+		usage:   "gadak [--workspace <name>] sprint list|show|add|remove|create|start|close [...]",
+		options: []helpOption{
+			{name: "goal", desc: "the sprint goal (create)"},
+			{name: "days", desc: "sprint length in days, default 14 (start)"},
+			{name: "json", desc: "emit JSON (show)"},
+		},
 		examples: []string{
 			"gadak sprint list",
+			"gadak sprint show 14                   # the daily burn-up: scope, started, done",
 			"gadak sprint add 12 NMB-140 NMB-141    # into sprint 12",
 			"gadak sprint remove NMB-140            # back to the backlog",
 			"gadak sprint create 3 \"Sprint 14\" --goal \"ship the uploader\"",
@@ -879,24 +888,27 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak assign", "gadak transition", "gadak issue"},
 	},
 	"link": {
-		summary: "create an issue link (A <type> B) or a remote link to a URL (KEY <url> --title; built-in or paired workspace, a PR-shaped URL also shows in the issue's PR section); not `gadak issue --link`, which prints a gadak:// URL",
+		summary: "create an issue link (A <type> B) or a remote link to a URL (KEY <url> --title --as; built-in or paired workspace, a PR-shaped URL also shows in the issue's PR section); `gadak unlink` removes either, `gadak ref` is the same remote-link write spelled for another workspace's issue; not `gadak issue --link`, which prints a gadak:// URL",
 		usage: "gadak [--workspace <name>] link <A> <B> --type <name|inward|outward|id> [--json] [--dry-run]\n" +
-			"| link <KEY> <url> [--title T] [--json] [--dry-run]",
+			"| link <KEY> <url> [--title T] [--as <relationship>] [--json] [--dry-run]",
 		examples: []string{
 			"gadak link NMB-140 NMB-141 --type blocks",
 			"gadak link NMB-140 NMB-141 --type \"is blocked by\"",
 			"gadak link NMB-140 https://github.com/org/app/pull/7 --title \"Fix login\"",
+			"gadak link NMB-140 https://example.com/rfc --title RFC --as \"blocked by\"",
 		},
-		seeAlso: []string{"gadak issue", "gadak edit", "gadak comment", "gadak ref"},
+		seeAlso: []string{"gadak unlink", "gadak ref", "gadak issue", "gadak edit"},
 	},
 	"unlink": {
-		summary: "remove an issue link — the one `gadak link A B --type t` created (looked up live for its id; the mirror carries none)",
-		usage:   "gadak [--workspace <name>] unlink <A> <B> --type <name|inward|outward|id> [--json] [--dry-run]",
+		summary: "remove what `gadak link` created — the issue link `link A B --type t` made, or the remote link `link KEY <url>` made (either id is looked up live; the mirror carries no issue-link id and can be behind on remote links)",
+		usage: "gadak [--workspace <name>] unlink <A> <B> --type <name|inward|outward|id> [--json] [--dry-run]\n" +
+			"| unlink <KEY> <url> [--json] [--dry-run]",
 		examples: []string{
 			"gadak unlink NMB-140 NMB-141 --type blocks",
 			"gadak unlink NMB-140 NMB-141 --type \"is blocked by\"",
+			"gadak unlink NMB-140 https://github.com/org/app/pull/7",
 		},
-		seeAlso: []string{"gadak link", "gadak issue"},
+		seeAlso: []string{"gadak link", "gadak ref", "gadak issue"},
 	},
 	"fields": {
 		summary: "report which custom fields are populated (samples the mirror; queries Jira)",

@@ -315,13 +315,22 @@ func Logf(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "gadak mcp: "+format+"\n", args...)
 }
 
-// listedTool reports that tools/list advertises this name. One owner for
-// "what tools exist" — see handleToolsCall.
-func listedTool(name string) bool {
+// lookupTool returns the definition tools/list advertises under this name. One
+// owner for "what tools exist" — see handleToolsCall — and, since GDK-1812, for
+// "what arguments that tool takes" as well: callTool validates a call against
+// this same InputSchema, so the published contract and the enforced one cannot
+// be two different things.
+func lookupTool(name string) (Tool, bool) {
 	for _, t := range toolDefinitions() {
 		if t.Name == name {
-			return true
+			return t, true
 		}
 	}
-	return false
+	return Tool{}, false
+}
+
+// listedTool reports that tools/list advertises this name.
+func listedTool(name string) bool {
+	_, ok := lookupTool(name)
+	return ok
 }

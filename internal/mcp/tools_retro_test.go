@@ -116,14 +116,23 @@ func TestRetroMetricEnumComesFromRetroPackage(t *testing.T) {
 
 // An argument the CLI does not have is refused by name rather than ignored:
 // a silently dropped window is a wrong number the reader cannot see.
+// GDK-1812 moved the check from this tool's own handler to the one dispatch,
+// so the assertion enters through callTool — the same door a host knocks on.
+// Same refusal, same two things named; the owner is now the tool's InputSchema
+// rather than a list beside the handler. TestEveryToolRefusesAnUnknownArgument
+// makes the same assertion for every other tool.
 func TestRetroRefusesUnknownArgument(t *testing.T) {
 	s := retroServer(t)
-	_, err := callRetro(t, s, map[string]any{"weeks": 4})
-	if err == nil {
+	content, isErr := s.callTool(toolRetro, map[string]any{"weeks": 4})
+	if !isErr {
 		t.Fatal("gadak_retro accepted an argument the CLI does not have")
 	}
-	if !strings.Contains(err.Error(), "weeks") || !strings.Contains(err.Error(), "since") {
-		t.Errorf("error should name the rejected argument and the accepted set, got: %v", err)
+	var text string
+	for _, c := range content {
+		text += c.Text
+	}
+	if !strings.Contains(text, "weeks") || !strings.Contains(text, "since") {
+		t.Errorf("error should name the rejected argument and the accepted set, got: %s", text)
 	}
 }
 

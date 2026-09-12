@@ -33,6 +33,19 @@ func carriesFreshnessNotice(name string) bool {
 	return false
 }
 
+// freshnessNoticeSentence is what a tool's description says about the notice.
+// toolDefinitions appends it to every tool carriesFreshnessNotice names and to
+// no other, so the set an agent is told about and the set that emits it are the
+// same list read twice (GDK-1813). Until then the extra content item was
+// documented nowhere: an agent received a second, unannounced text item and had
+// to guess whether it was part of the answer.
+const freshnessNoticeSentence = `
+
+A successful result may carry a second text item starting "Mirror freshness:" —
+the local cache this answered from is behind, or its last sync failed. It is a
+notice, not part of the payload (the first item is byte-identical either way):
+read it, and say in your answer that the numbers are as of that point.`
+
 // mirrorFreshnessLine is the notice for the mirror this server serves, or ""
 // when the mirror is fresh (or its freshness cannot be read — silence never
 // fails a tool; gadak_status and doctor own the detailed verdicts). It reuses

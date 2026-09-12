@@ -253,7 +253,7 @@ Writing through to the workspace origin — ` + writeThroughOriginPhrase + `:
   assign     set assignee     <KEY> <email|name|accountId|-> [--json] | --batch -
   claim      take an issue as yours (assignee + in-progress transition) <KEY> [--take-over] [--json]
                    (a claim another actor holds is refused — exit 75; their name is in the error)
-  sprint     boards and sprints (Jira Software)  list | add <sprint-id> <KEY>... | remove <KEY>...
+  sprint     boards and sprints (Jira Software)  list | show <sprint-id> | add <sprint-id> <KEY>... | remove <KEY>...
                    | create <board-id> <name> [--goal ...] | start <sprint-id> [--days N] | close <sprint-id>
   link       create an issue link <A> <B> --type <name|inward|outward|id> [--json]
                    | a remote link to a URL  <KEY> <url> [--title T] [--json] [--dry-run]

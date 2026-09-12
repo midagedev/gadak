@@ -10,7 +10,11 @@ package retro
 // against — the tool's metric enum is GENERATED from OpenMetrics below, so a
 // description cannot teach a metric this package does not answer.
 
-import "sort"
+import (
+	"slices"
+	"sort"
+	"strings"
+)
 
 // OpenMetrics are the --open values, in help order. Each names a cell of the
 // table by its row.
@@ -27,26 +31,10 @@ var OpenMetrics = []string{"closed", "in-progress", "mismatch", "cycle",
 var ReportMetrics = []string{"aging"}
 
 // IsOpenMetric reports whether m names a cell this package can answer.
-func IsOpenMetric(m string) bool {
-	for _, v := range OpenMetrics {
-		if v == m {
-			return true
-		}
-	}
-	return false
-}
+func IsOpenMetric(m string) bool { return slices.Contains(OpenMetrics, m) }
 
 // JoinOpenMetrics is the value list an "unknown metric" message prints.
-func JoinOpenMetrics() string {
-	out := ""
-	for i, m := range OpenMetrics {
-		if i > 0 {
-			out += ", "
-		}
-		out += m
-	}
-	return out
-}
+func JoinOpenMetrics() string { return strings.Join(OpenMetrics, ", ") }
 
 // KeysFor is the key set behind one cell of one bucket.
 func KeysFor(b Bucket, metric string) []string {
@@ -84,14 +72,7 @@ func KeysFor(b Bucket, metric string) []string {
 // at now, not inside a bucket, so it has no week. The bool is false for every
 // metric that is per bucket.
 func ReportKeysFor(rep Report, metric string) ([]string, bool) {
-	report := false
-	for _, m := range ReportMetrics {
-		if m == metric {
-			report = true
-			break
-		}
-	}
-	if !report {
+	if !slices.Contains(ReportMetrics, metric) {
 		return nil, false
 	}
 	keys := make([]string, 0, len(rep.Aging.Items))
