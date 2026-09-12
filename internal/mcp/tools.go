@@ -309,6 +309,10 @@ func toolDefinitions() []Tool {
 	// generated enums and generated prose, so a description here cannot teach
 	// a value the server does not accept.
 	out = append(out, retroToolDefinition())
+	// gadak_sprint is the third caller of store.SprintBurnup, beside the CLI
+	// verb and the burnup endpoint — the series is computed, so gadak_query
+	// cannot stand in for it (GDK-1826).
+	out = append(out, sprintToolDefinition())
 	// gadak_recents reads back the trail visits.go writes; its one argument is
 	// the CLI flag and its kind vocabulary is generated from the store
 	// constants RecordVisit validates against.
@@ -377,6 +381,8 @@ func (s *Server) callTool(name string, args map[string]any) (content []contentIt
 		out, err = s.toolShow(args)
 	case toolRetro:
 		out, err = s.toolRetro(args)
+	case toolSprint:
+		out, err = s.toolSprint(args)
 	case toolRecents:
 		out, err = s.toolRecents(args)
 	case toolUITokens:

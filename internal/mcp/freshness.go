@@ -27,7 +27,7 @@ import (
 //     and never opens the mirror; a mirror fact there would be noise.
 func carriesFreshnessNotice(name string) bool {
 	switch name {
-	case toolQuery, toolSearch, toolIssue, toolShow, toolRecents, toolRetro:
+	case toolQuery, toolSearch, toolIssue, toolShow, toolRecents, toolRetro, toolSprint:
 		return true
 	}
 	return false

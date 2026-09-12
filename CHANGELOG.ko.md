@@ -207,7 +207,9 @@ unlink KEY <url>`이 `link`가 만든 것을 지우므로, 원격 링크를 만�
 거절합니다 — 둘만 그랬고 일곱은 조용히 다른 질문에 답했습니다. 공개된 계약과
 집행되는 계약이 다른 객체였기 때문입니다 ([GDK-1812]). `gadak sprint show`가
 스킬과 툴 서술과 최상위 도움말에 닿았습니다. 셋 다 그 동사를 몰랐습니다
-([GDK-1814]).
+([GDK-1814]). 그리고 번업 자체가 `gadak_sprint`로 MCP에 닿았습니다. 그 주제에서
+`gadak_query`가 대신할 수 없는 유일한 답입니다 — 일별 계열은 저장된 것이 아니라
+변경 이력에서 다시 재생하는 것이니까요 ([GDK-1826]).
 
 자기 자신에게는, 버전을 자르기 전에 트리 전체를 두 번 읽었습니다. 감사는 이제
 읽기가 아니라 센서스에서 시작하고 — `tools/audit/` 아래 다섯 스크립트가 각자
@@ -2054,3 +2056,4 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1815]: https://gadak.dev/backlog/#/?ks=GDK-1815
 [GDK-1816]: https://gadak.dev/backlog/#/?ks=GDK-1816
 [GDK-1817]: https://gadak.dev/backlog/#/?ks=GDK-1817
+[GDK-1826]: https://gadak.dev/backlog/#/?ks=GDK-1826

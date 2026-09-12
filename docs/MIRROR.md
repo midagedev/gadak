@@ -468,9 +468,9 @@ gadak mcp                          # stdio JSON-RPC; logs go to stderr only
 gadak --workspace demo mcp
 ```
 
-Nine tools: `gadak_query` (read-only SQL), `gadak_search`, `gadak_issue`,
+Ten tools: `gadak_query` (read-only SQL), `gadak_search`, `gadak_issue`,
 `gadak_status`, `gadak_show`, `gadak_retro` (the `gadak retro` document),
-`gadak_recents` (this machine's read history, which `gadak_issue` and
+`gadak_sprint` (one sprint's daily burn-up), `gadak_recents` (this machine's read history, which `gadak_issue` and
 `gadak_search` append to in `local.db` as they run), and
 the design-token pair `gadak_ui_tokens` / `gadak_ui_set`. Tools do not write to the mirror or to Jira; `gadak_show`
 writes a local ui-focus file so the running app presents the set (SQL answers;

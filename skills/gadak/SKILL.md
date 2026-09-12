@@ -1119,6 +1119,11 @@ gadak sprint start 14 --days 7
 gadak sprint close 14
 ```
 
+A host without a shell reaches the burn-up as the `gadak_sprint` MCP tool,
+with `id` as its argument — the series is computed from the changelog rather
+than stored, so `gadak_query` cannot answer it. An origin that keeps no change
+history says so (`has_history: false`) instead of returning a row of zeros.
+
 They work on Jira (Cloud and Server, where Jira Software is installed), on
 the built-in tracker, which serves the same Agile surface, and on Linear,
 where a cycle is a sprint and a team is a board — there `list`, `add` and

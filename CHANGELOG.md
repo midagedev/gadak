@@ -225,7 +225,9 @@ and every tool refuses an unknown argument by name, where two did and seven
 quietly answered a different question because the published contract and the
 enforced one were separate objects ([GDK-1812]). `gadak sprint show` reached
 the skill, the tool descriptions and the top-level help, which none of them
-knew ([GDK-1814]).
+knew ([GDK-1814]) — and then the burn-up itself reached MCP as `gadak_sprint`,
+the one answer in that theme `gadak_query` could not stand in for, because the
+daily series is replayed from the changelog rather than stored ([GDK-1826]).
 
 To itself: before the version was cut, the whole tree was read twice. The
 audit now starts from a census rather than a reading — five scripts under
@@ -2153,3 +2155,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1815]: https://gadak.dev/backlog/#/?ks=GDK-1815
 [GDK-1816]: https://gadak.dev/backlog/#/?ks=GDK-1816
 [GDK-1817]: https://gadak.dev/backlog/#/?ks=GDK-1817
+[GDK-1826]: https://gadak.dev/backlog/#/?ks=GDK-1826
