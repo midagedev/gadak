@@ -374,7 +374,9 @@ was recorded, and an export that is not the size of its take refuses
 ([GDK-1839]). The view-settings menu scrolled as one piece, so an 80vh cap landed
 inside a column row at the window heights a laptop actually has — the catalog
 scrolls on its own now and stops on a row boundary, the rule a dashboard list
-already followed ([GDK-1840], [GDK-1745]). Twenty-one sites
+already followed ([GDK-1840], [GDK-1745]). One header was still reading `1,775`
+and `1069` in the same row, the count [GDK-1560] grouped everywhere except the
+one place nothing had looked. Twenty-one sites
 spelling the same four utilities became one
 `.section-label` recipe, and Korean and Japanese keep their case ([GDK-141]);
 the QA teal became a `--color-status-qa` token from the avatar family

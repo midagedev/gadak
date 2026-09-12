@@ -58,7 +58,11 @@
         {#if group.counts.category[c] > 0}
           <span class="flex items-center gap-1 text-micro text-text-muted" title={categoryMetaOf(c).label}>
             <StatusDot cat={c} />
-            {group.counts.category[c]}
+            <!-- formatNumber, like the total three rows up. These two sat in the
+                 same header reading `1,775` and `1069` (vision round, 2026-09-12)
+                 — GDK-1560 grouped counts "wherever it appears" and this was the
+                 one that got missed. -->
+            {formatNumber(group.counts.category[c])}
           </span>
         {/if}
       {/each}
