@@ -498,9 +498,11 @@ that stays green at every step: (1) land the last content commit, tag it,
 push branch then tag; (2) wait for Release and Desktop release; (3) run
 the two update scripts, then `contrib/aur/gadak-bin/verify.sh` — it needs
 a docker daemon (`orb start` on this machine) and is what regenerates
-`.SRCINFO`, since makepkg is not on a mac; (4) bump README (en+ko) and
-`Last tagged:`, run `tools/doc-checks.sh` and `contrib/scoop/verify.sh`,
-and commit all six files as `release: <tag> manifests and state`. A push
+`.SRCINFO`, since makepkg is not on a mac; (4) bump every file in the pin
+list below — the three READMEs, `site/public/llms.txt`, the four strings in
+`site/src/i18n.ts`, `Last tagged:` and the two package manifests — run
+`tools/doc-checks.sh` and `contrib/scoop/verify.sh`, and commit them as
+`release: <tag> manifests and state`. A push
 during (4) cancels the previous commit's CI run (concurrency group), so
 the tagged commit's verdict is the manifests commit's run.
 
@@ -508,6 +510,23 @@ In-repo pins to bump:
 
 - `README.md` — status line, **minor** only (`v0.16.1` → `0.16`)
 - `README.ko.md` — same minor
+- `README.ja.md` — same minor (`状態: 0.16`). It joined the front door in
+  GDK-1601 and this list did not follow; check 6 has covered all three
+  editions since, so the gate caught what the list forgot.
+- `site/public/llms.txt` — same minor
+- `site/src/i18n.ts` — same minor, **four places** (en status, the ko heading
+  and its sentence, ja status). This one had no gate at all until 2026-09-12:
+  measured on v0.21.0, the tag landed 08:57, the manifests commit 09:10, and
+  these four strings 13 hours later at 22:29 — carried in by an unrelated
+  front-door round rather than by a release step, so gadak.dev told visitors
+  the previous minor all day. Check 6 now compares them, which is why it is
+  on this list rather than only in someone's memory.
+- `docs/project/FACT_LEDGER.md` — the same minor in the status fact (§ the
+  status bullet, quoted three ways) and in the landing bullet's
+  `<minor> / 0.x`. **Not** every `0.NN` there: "since 0.20.2" is history and
+  the ledger's own `Last verified against the tree:` names the tag it was
+  checked against — neither moves with a release, which is why check 6 keys
+  on those two shapes rather than on the number.
 - `docs/project/STATE_OF_PLAY.md` — `Last tagged:` is the tag itself (`v0.16.1`)
 - `contrib/scoop/gadak.json` — top-level `"version"`, full patch (`0.16.1`)
 - `contrib/aur/gadak-bin/PKGBUILD` — `pkgver=`, full patch (`0.16.1`)

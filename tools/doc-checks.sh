@@ -303,7 +303,54 @@ else
   if ! grep -q "Last tagged: ${tag}" docs/project/STATE_OF_PLAY.md; then
     fail "docs/project/STATE_OF_PLAY.md does not say \"Last tagged: ${tag}\""
   fi
-  ok "README (en+ko) and STATE_OF_PLAY agree with ${tag}"
+  # site/src/i18n.ts is the copy a person reads on gadak.dev, and it was the
+  # one version pin with no gate and no line in the runbook's "In-repo pins to
+  # bump" list. Measured on v0.21.0: the tag landed 08:57, the manifests commit
+  # 09:10, and the site's status strings 13 hours later at 22:29 — and not as a
+  # release step, but as a side effect of an unrelated front-door round that
+  # happened to rewrite those sentences. For those 13 hours gadak.dev told
+  # every visitor the previous minor.
+  #
+  # The regex, not the (Status|상태|状態) one above: the Korean edition spells
+  # it "버전 0.21" and its heading is bare ("0.21, 만드는 사람 한 명"), so a
+  # label-anchored match would skip two of the four. Measured on this tree,
+  # every \b0\.N\b in the file except the literal "0.x" is the product minor —
+  # four occurrences, zero false positives. A future sentence that names an
+  # older minor on purpose will land here, and that is the right place to
+  # decide it rather than a silent pass.
+  site_vers="$(grep -oE '\b0\.[0-9]+\b' site/src/i18n.ts | sort -u || true)"
+  if [[ -z "$site_vers" ]]; then
+    fail "site/src/i18n.ts names no version at all — the status copy cannot have been deleted to satisfy this"
+  fi
+  site_drift=""
+  while IFS= read -r v; do
+    [[ "$v" == "$minor" ]] || site_drift+="  $v"$'\n'
+  done <<< "$site_vers"
+  if [[ -n "$site_drift" ]]; then
+    fail "site/src/i18n.ts names a version that is not ${minor} (latest tag ${tag}):"$'\n'"$site_drift"
+  fi
+  # The fact ledger is the source the three READMEs are written from, so a
+  # stale ledger is what makes an edition stale next time someone rewrites
+  # it from the source rather than from a sibling. Two shapes carry the
+  # product minor there and nothing else does: the quoted status strings,
+  # and the "<minor> / 0.x" status line. Deliberately not every `0.NN` —
+  # "since 0.20.2" is history and the ledger's own verification date names
+  # the tag it was checked against; neither moves with a release.
+  ledger_vers="$( { grep -oE '(Status|상태|状態): 0\.[0-9]+' docs/project/FACT_LEDGER.md
+                    grep -oE '\b0\.[0-9]+ / 0\.x' docs/project/FACT_LEDGER.md
+                  } | grep -oE '\b0\.[0-9]+' | sort -u || true)"
+  if [[ -z "$ledger_vers" ]]; then
+    fail "docs/project/FACT_LEDGER.md states no status version at all — the status facts cannot have been deleted to satisfy this"
+  fi
+  ledger_drift=""
+  while IFS= read -r v; do
+    [[ -z "$v" ]] && continue
+    [[ "$v" == "$minor" ]] || ledger_drift+="  $v"$'\n'
+  done <<< "$ledger_vers"
+  if [[ -n "$ledger_drift" ]]; then
+    fail "docs/project/FACT_LEDGER.md states a status version that is not ${minor} (latest tag ${tag}):"$'\n'"$ledger_drift"
+  fi
+  ok "README (en+ko+ja), llms.txt, the site copy, the fact ledger and STATE_OF_PLAY agree with ${tag}"
 fi
 
 # ── 7. Web logic does not key status/priority/type on display names ─────
