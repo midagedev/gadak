@@ -18,8 +18,8 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/mattn/go-runewidth"
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
@@ -243,22 +243,11 @@ func FormatSourceID(id string) string {
 		}
 		b.WriteRune(r)
 	}
-	s := clipWidth(b.String(), sourceIDDisplayCols)
+	s := fields.Clip(b.String(), sourceIDDisplayCols)
 	if s == "" {
 		return "?"
 	}
 	return s
-}
-
-// clipWidth flattens onto one line and cuts to a column budget. The same
-// contract cmd/gadak's clip (agent_print.go) has; it lives here too because
-// package main is not importable — kept byte-for-byte in step with it.
-func clipWidth(s string, cols int) string {
-	s = strings.Join(strings.Fields(s), " ")
-	if runewidth.StringWidth(s) <= cols {
-		return s
-	}
-	return runewidth.Truncate(s, cols, "…")
 }
 
 // noticePrefix is the fixed start of the in-result notice, so a host (or a

@@ -17,7 +17,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/mattn/go-runewidth"
 	"github.com/midagedev/gadak/internal/adf"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/fields"
@@ -676,18 +675,9 @@ func oneLine(s, empty string) string {
 	return s
 }
 
-// clip flattens a value onto one line and cuts it to a column budget. Columns,
-// not runes: a Hangul or CJK rune occupies two cells, so a rune-counted cut
-// renders twice as wide as the same cut in ASCII — which is how a 72-"character"
-// column landed at 144 on a Korean issue. runewidth is already this binary's
-// width authority (fields.go pads its tables with it).
-func clip(s string, cols int) string {
-	s = strings.Join(strings.Fields(s), " ")
-	if runewidth.StringWidth(s) <= cols {
-		return s
-	}
-	return runewidth.Truncate(s, cols, "…")
-}
+// clip is package main's short name for term.Clip (GDK-1811), the single
+// owner of collapse-then-truncate. No logic lives here.
+func clip(s string, cols int) string { return fields.Clip(s, cols) }
 
 func orNone(s string) string {
 	if s == "" {

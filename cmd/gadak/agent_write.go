@@ -713,7 +713,7 @@ func newTransitionFlags(name string) (*flag.FlagSet, *bool, *string, *labelFlags
 	asJSON := fs.Bool("json", false, "emit JSON")
 	resolution := fs.String("resolution", "", "resolution name or id; a name is resolved from the transition's allowedValues, else GET /resolution")
 	var fieldFlags labelFlags
-	fs.Var(&fieldFlags, "field", "screen field key from `gadak transition KEY` (not a configured alias); key=JSON (repeatable); a value that is not JSON is sent as a string")
+	fs.Var(&fieldFlags, "field", "screen field key from `gadak transition KEY` (not a configured alias); key=JSON, one flag per screen field — a key may not repeat (a multi-value field takes a JSON array); a value that is not JSON is sent as a string")
 	text := fs.String("m", "", "comment posted with the transition; `-` reads it from stdin")
 	dryRun := fs.Bool("dry-run", false, "print the resolved transition id (or the no-op) this write would send and exit; nothing reaches the origin")
 	return fs, asJSON, resolution, &fieldFlags, text, dryRun
@@ -1022,6 +1022,14 @@ func parseTransitionFieldFlags(raw []string) (map[string]any, error) {
 		if err != nil {
 			return nil, err
 		}
+		// A repeat used to overwrite and say nothing (GDK-1804) — the
+		// silent drop this repo refuses. edit/create answer it by
+		// collecting (GDK-18); a transition screen cannot, because its
+		// fields are a map and a list where the screen wants a scalar is
+		// a type error at the origin. So refuse, and name the key.
+		if _, seen := out[key]; seen {
+			return nil, fmt.Errorf("--field %s given more than once — a transition screen field takes one value; a multi-value field takes a JSON array: --field %s='[\"a\",\"b\"]'", key, key)
+		}
 		out[key] = v
 	}
 	return out, nil
@@ -1030,8 +1038,9 @@ func parseTransitionFieldFlags(raw []string) (map[string]any, error) {
 // parseFieldFlagItem splits one --field item into its key and value: the
 // value is JSON when it parses as JSON, otherwise the literal string.
 // Single owner of that rule (GDK-18) — transition/close keep the map shape
-// where a repeat is last-wins over screen fields, while the alias path
+// and refuse a repeated key (GDK-1804), while the alias path
 // (parseAliasFieldRaws) collects repeats, and neither re-spells the split.
+// Both answer the same silent drop; only the shape of the answer differs.
 func parseFieldFlagItem(item string) (string, any, error) {
 	key, val, ok := strings.Cut(item, "=")
 	key = strings.TrimSpace(key)

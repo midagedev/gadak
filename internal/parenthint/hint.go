@@ -28,7 +28,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mattn/go-runewidth"
+	"github.com/midagedev/gadak/internal/fields"
 	"github.com/midagedev/gadak/internal/jira"
 )
 
@@ -158,21 +158,10 @@ func openEpicHint(q Querier, projectKey string) string {
 		if err := rows.Scan(&key, &summary); err != nil {
 			return ""
 		}
-		parts = append(parts, fmt.Sprintf("%s %q", key, clip(summary, 60)))
+		parts = append(parts, fmt.Sprintf("%s %q", key, fields.Clip(summary, 60)))
 	}
 	if err := rows.Err(); err != nil || len(parts) == 0 {
 		return ""
 	}
 	return "open epics in " + projectKey + ": " + strings.Join(parts, ", ")
-}
-
-// clip flattens a value onto one line and cuts it to a column budget. Columns,
-// not runes: a Hangul or CJK rune occupies two cells, so a rune-counted cut
-// renders twice as wide as the same cut in ASCII.
-func clip(s string, cols int) string {
-	s = strings.Join(strings.Fields(s), " ")
-	if runewidth.StringWidth(s) <= cols {
-		return s
-	}
-	return runewidth.Truncate(s, cols, "…")
 }
