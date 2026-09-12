@@ -39,7 +39,9 @@
     TERMINAL_MIN_HEIGHT_PX,
     TERMINAL_MIN_WIDTH_PX,
     terminalChrome,
+    terminalHeightGrip,
   } from '../../lib/terminal/pane.svelte'
+  import LayoutResizeHandle from '../shell/LayoutResizeHandle.svelte'
   import { terminalSessions } from '../../lib/terminal/sessions.svelte'
   import TerminalStrip from './TerminalStrip.svelte'
   import { config } from '../../lib/config'
@@ -73,6 +75,10 @@
   let sendTerminalData: ((bytes: Uint8Array) => void) | null = null
 
   const heightPx = $derived(terminalChrome.heightPx)
+  // One grip object for the pane's lifetime: lib/layout-resize.ts holds the
+  // key-burst commit timer under its axis, and a fresh object per render
+  // would be fine for that but pointless churn.
+  const heightGrip = terminalHeightGrip()
   const connectingGrace = createSkeletonGrace(() => !attached && status.kind === 'none')
 
   const DROPPED_KEYS = {
@@ -373,25 +379,6 @@
     }
   })
 
-  function onHandlePointerDown(e: PointerEvent): void {
-    if (overlay) return
-    e.preventDefault()
-    dragging = true
-    const startY = e.clientY
-    const startH = heightPx
-    // Up is taller: the handle is on the dock's top edge (GDK-1194).
-    const move = (ev: PointerEvent) => {
-      terminalChrome.persistHeight(startH + (startY - ev.clientY))
-    }
-    const up = () => {
-      dragging = false
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-  }
-
   /*
    * GDK-991: a click on the status line is a pressed Enter key — the same
    * byte through the same data sink, so the restart gates and the restart
@@ -544,12 +531,15 @@
   {/if}
   </div>
   {#if !overlay}
-    <button
-      type="button"
-      class="absolute top-0 right-0 left-0 h-1 cursor-row-resize border-0 bg-transparent p-0 hover:bg-border-subtle"
-      aria-label={t('terminal.resize')}
-      data-testid="terminal-resize"
-      onpointerdown={onHandlePointerDown}
-    ></button>
+    <!--
+      GDK-1815: the shell's one grip, driven by the dock's own store. It was
+      a bare <button onpointerdown> here — the only drag affordance in the
+      app you could not reach from a keyboard.
+    -->
+    <LayoutResizeHandle
+      axis="terminal"
+      grip={heightGrip}
+      ondragging={(d) => (dragging = d)}
+    />
   {/if}
 </aside>

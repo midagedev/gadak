@@ -59,6 +59,10 @@ export const DETAIL_TESTID = {
 export const RESIZE_GRIP_TESTID = {
   sidebar: 'layout-resize-sidebar',
   list: 'layout-resize-list',
+  // GDK-1815: the dock's grip keeps the testid it has had since GDK-1194 —
+  // it is the same seam, now the same component, and renaming it would move
+  // an e2e contract for nothing.
+  terminal: 'terminal-resize',
 } as const satisfies Record<DraggableLayoutAxis, string>
 
 export type TriageMenuKey = 'status' | 'assignee' | 'labels' | 'priority'
@@ -326,10 +330,13 @@ export interface PaletteSpec {
    */
   opens?: ColumnKind
   /**
-   * The draggable layout axis whose grip this row focuses (GDK-1796).
+   * The draggable axis whose grip this row focuses (GDK-1796, GDK-1815).
    * Declared for the same reason `opens` is: the coverage gate compares the
-   * axes LAYOUT_DRAG_CLAMP knows against the palette without either side
-   * keeping a list of the other (same test file, second describe block).
+   * axes RESIZE_GRIP_ORIENTATION knows against the palette without either
+   * side keeping a list of the other (same test file, second describe
+   * block). It reads that registry rather than LAYOUT_DRAG_CLAMP because the
+   * clamp map holds only the token-backed tracks, which is how the dock's
+   * grip stayed invisible to a gate whose whole job was to see it.
    */
   axis?: DraggableLayoutAxis
 }
@@ -981,7 +988,10 @@ export const COMMANDS: readonly CommandDef[] = [
       axis: 'sidebar',
       sort: 126,
       testid: 'palette-action-resize-sidebar',
-      labelKey: 'palette.resizeSidebar',
+      // GDK-1815 (audit A4): was `palette.resizeSidebar`, byte-identical to
+      // this key in all three languages. Two catalog entries that can never
+      // differ are one entry and a maintenance trap.
+      labelKey: 'layout.resizeSidebar',
     },
   },
   {
@@ -994,6 +1004,24 @@ export const COMMANDS: readonly CommandDef[] = [
       sort: 127,
       testid: 'palette-action-resize-list',
       labelKey: 'palette.resizeList',
+    },
+  },
+  /*
+   * GDK-1815: the dock's seam joins them. Same row shape, same focus-not-
+   * click contract — the difference is only that this grip is mounted with
+   * the terminal rather than with the columns, which is why the row's
+   * availability asks about the dock (lib/command-palette.ts).
+   */
+  {
+    id: 'a:resize-terminal',
+    chords: [],
+    palette: {
+      id: 'a:resize-terminal',
+      kind: 'focus-resize',
+      axis: 'terminal',
+      sort: 128,
+      testid: 'palette-action-resize-terminal',
+      labelKey: 'terminal.resize',
     },
   },
   {

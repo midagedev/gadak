@@ -897,18 +897,23 @@
     dragged, which is exactly the button the base rule exempts.
   */
   .layout-resize-handle {
+    z-index: 20;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    touch-action: none;
+  }
+
+  /* The two column seams: drawn vertically, value moves horizontally. 9px
+     wide with 4 of them overhanging the seam. */
+  .layout-resize-handle[data-orientation='horizontal'] {
     grid-row: 1;
     justify-self: end;
     align-self: stretch;
     position: relative;
     right: -4px;
-    z-index: 20;
     width: 9px;
-    border: 0;
-    padding: 0;
-    background: transparent;
     cursor: col-resize;
-    touch-action: none;
   }
 
   .layout-resize-handle[data-axis='sidebar'] {
@@ -917,6 +922,21 @@
 
   .layout-resize-handle[data-axis='list'] {
     grid-column: 2;
+  }
+
+  /* GDK-1815 — the terminal dock's top edge: drawn horizontally, value moves
+     vertically. The whole 9px sits INSIDE the pane rather than straddling the
+     seam like the column grips do, because the pane is `overflow-hidden` and
+     an overhang would be clipped to 5px. It costs the top ~5px of the first
+     terminal row as a click target, which is the trade every editor's bottom
+     panel makes; 4px was not a target a hand could hit. */
+  .layout-resize-handle[data-orientation='vertical'] {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 9px;
+    cursor: row-resize;
   }
 
   .layout-resize-handle:hover,

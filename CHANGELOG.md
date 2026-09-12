@@ -301,7 +301,13 @@ to 302px at 1000, 166px to 336px at 800, and 1440 unchanged to the pixel
 two tokens `gadak config set ui.tokens.layout.sidebar 300px` writes, so the
 pointer and the CLI are one value in one file ([GDK-759]); the grips are
 reachable from the palette, which had been about 150 tab stops deep
-([GDK-1796]); and the list column gained a width of its own, `ui.tokens.layout.list`
+([GDK-1796]); the terminal dock's grip is now that same grip — arrow keys
+resize it, Shift for a single pixel, Backspace puts it back, a screen reader
+hears a slider with a live value, and the target is hand-sized rather than
+4px — and the gate certifying that every draggable seam has a keyboard door
+now reads a registry that can see all three of them, where its axis list had
+named only the two that already did ([GDK-1815]); and the list column
+gained a width of its own, `ui.tokens.layout.list`
 ([GDK-769]). Twenty-one sites spelling the same four utilities became one
 `.section-label` recipe, and Korean and Japanese keep their case ([GDK-141]);
 the QA teal became a `--color-status-qa` token from the avatar family
@@ -2142,4 +2148,5 @@ priority sorting keyed on `priority_rank`.
 [GDK-1812]: https://gadak.dev/backlog/#/?ks=GDK-1812
 [GDK-1813]: https://gadak.dev/backlog/#/?ks=GDK-1813
 [GDK-1814]: https://gadak.dev/backlog/#/?ks=GDK-1814
+[GDK-1815]: https://gadak.dev/backlog/#/?ks=GDK-1815
 [GDK-1816]: https://gadak.dev/backlog/#/?ks=GDK-1816

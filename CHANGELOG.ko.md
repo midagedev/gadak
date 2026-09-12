@@ -275,8 +275,13 @@ serve는 자기 버전을 말합니다 ([GDK-1549], [GDK-596], [GDK-1273], [GDK-
 칩은 `+N` 배지로 접힙니다 ([GDK-1744]). 컬럼 사이 이음매는 그립이고, `gadak
 config set ui.tokens.layout.sidebar 300px`가 쓰는 그 토큰 둘을 그대로 써서
 포인터와 CLI가 한 파일 안의 한 값입니다 ([GDK-759]). 그립은 팔레트에서 닿을 수
-있습니다. 탭으로는 150번쯤 들어가야 했습니다 ([GDK-1796]). 목록 컬럼은 자기
-너비 `ui.tokens.layout.list`를 얻었습니다 ([GDK-769]). 같은 유틸리티 넷을
+있습니다. 탭으로는 150번쯤 들어가야 했습니다 ([GDK-1796]). 터미널 도크의 그립도
+이제 같은 그립입니다 — 화살표로 크기를 바꾸고, Shift로 1픽셀씩, Backspace로
+되돌리고, 스크린 리더는 값이 살아 있는 슬라이더를 듣고, 표적은 4px이 아니라 손
+크기입니다. 그리고 "드래그 가능한 모든 이음매에 키보드 문이 있다"를 증명하던
+게이트는 이제 셋을 다 볼 수 있는 레지스트리를 읽습니다. 그 축 목록에는 이미 문이
+있던 둘만 있었습니다 ([GDK-1815]). 목록 컬럼은 자기 너비
+`ui.tokens.layout.list`를 얻었습니다 ([GDK-769]). 같은 유틸리티 넷을
 스물한 군데서 쓰던 것이 `.section-label` 레시피 하나가 됐고 한국어와 일본어는
 대소문자를 지킵니다 ([GDK-141]). QA 청록은 아바타 계열의 `--color-status-qa`
 토큰이 됐고 ([GDK-160]), 팔레트는 아이콘 없는 행에도 아이콘 레일을 지키며
@@ -2044,4 +2049,5 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1812]: https://gadak.dev/backlog/#/?ks=GDK-1812
 [GDK-1813]: https://gadak.dev/backlog/#/?ks=GDK-1813
 [GDK-1814]: https://gadak.dev/backlog/#/?ks=GDK-1814
+[GDK-1815]: https://gadak.dev/backlog/#/?ks=GDK-1815
 [GDK-1816]: https://gadak.dev/backlog/#/?ks=GDK-1816

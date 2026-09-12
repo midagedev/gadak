@@ -29,10 +29,11 @@ import {
   KEY_COMMIT_DELAY_MS,
   RESIZE_STEP_FINE_PX,
   RESIZE_STEP_PX,
-  handleResizeKey,
+  handleGripKey,
+  layoutGrip,
   persistLayoutWidth,
   resetLayoutWidth,
-  widthForKey,
+  stepForKey,
 } from './layout-resize'
 import { LAYOUT_DRAG_CLAMP, applyLayoutDimOverrides, clampLayoutPx } from './viewport-regime'
 
@@ -99,12 +100,25 @@ describe('the drag limit is the dim catalog (GDK-759)', () => {
   })
 
   test('an arrow press moves one step and never leaves the range', () => {
-    expect(widthForKey('sidebar', 272, 'ArrowRight', false)).toBe(272 + RESIZE_STEP_PX)
-    expect(widthForKey('sidebar', 272, 'ArrowLeft', true)).toBe(272 - RESIZE_STEP_FINE_PX)
-    expect(widthForKey('sidebar', LAYOUT_DRAG_CLAMP.sidebar.max, 'ArrowRight', false)).toBe(
-      LAYOUT_DRAG_CLAMP.sidebar.max,
-    )
-    expect(widthForKey('sidebar', 272, 'Enter', false)).toBeNull()
+    /*
+     * GDK-1815: through the grip, which is the composition the app runs —
+     * a step from stepForKey, painted through the axis's own clamp. The
+     * step→direction half is pinned on its own in resize-grip.test.ts; what
+     * is measured here is that a press at the range end stays there.
+     */
+    const grip = layoutGrip('sidebar', () => null)
+    const step = (key: string, fine = false): number => {
+      const delta = stepForKey(key, fine, grip.orientation)
+      expect(delta, `${key} is a sidebar grip key`).not.toBeNull()
+      grip.paint(grip.current() + (delta ?? 0))
+      return grip.current()
+    }
+    applyLayoutDimOverrides({ '--layout-sidebar': '272px' })
+    expect(step('ArrowRight')).toBe(272 + RESIZE_STEP_PX)
+    expect(step('ArrowLeft', true)).toBe(272 + RESIZE_STEP_PX - RESIZE_STEP_FINE_PX)
+    applyLayoutDimOverrides({ '--layout-sidebar': `${LAYOUT_DRAG_CLAMP.sidebar.max}px` })
+    expect(step('ArrowRight'), 'the ceiling holds').toBe(LAYOUT_DRAG_CLAMP.sidebar.max)
+    expect(stepForKey('Enter', false, grip.orientation)).toBeNull()
   })
 })
 
@@ -162,7 +176,10 @@ describe('one save per intent, never per frame (GDK-759)', () => {
      * keyboard.
      */
     vi.useFakeTimers()
-    for (let i = 0; i < 10; i++) handleResizeKey('sidebar', 'ArrowRight', false, null)
+    // GDK-1815: through handleGripKey, which is the body the focused grip
+    // now runs — the layout track and the terminal dock share it.
+    const grip = layoutGrip('sidebar', () => null)
+    for (let i = 0; i < 10; i++) handleGripKey(grip, 'ArrowRight', false)
     expect(calls.filter((c) => c.method === 'PUT'), 'nothing saved mid-burst').toHaveLength(0)
     await vi.advanceTimersByTimeAsync(KEY_COMMIT_DELAY_MS + 50)
     vi.useRealTimers()

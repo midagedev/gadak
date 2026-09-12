@@ -226,15 +226,13 @@ export const shell = {
     ko: '목록 열 너비 조절',
     ja: 'リスト列の幅を変更',
   },
-  // The palette rows that focus those two grips (GDK-1796). Worded as the
-  // palette's own grammar ("the issue list", what the app calls the column)
-  // rather than the grip's aria-label above — a row says what it does to
-  // what, a handle says what it is.
-  'palette.resizeSidebar': {
-    en: 'Resize the sidebar',
-    ko: '사이드바 너비 조절',
-    ja: 'サイドバーの幅を変更',
-  },
+  // The palette rows that focus the grips (GDK-1796). Worded as the palette's
+  // own grammar ("the issue list", what the app calls the column) rather than
+  // the grip's aria-label above — a row says what it does to what, a handle
+  // says what it is. Only where the two really differ, though: GDK-1815
+  // (audit A4) deleted `palette.resizeSidebar`, which was byte-identical to
+  // `layout.resizeSidebar` in all three languages, and the dock's row takes
+  // `terminal.resize` for the same reason.
   'palette.resizeList': {
     en: 'Resize the issue list',
     ko: '이슈 목록 너비 조절',

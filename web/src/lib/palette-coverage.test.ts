@@ -20,7 +20,7 @@
 import { describe, expect, test } from 'vitest'
 import { COLUMN_KINDS, type ColumnKind } from './column-view'
 import { COMMANDS } from './commands'
-import { LAYOUT_DRAG_CLAMP, type DraggableLayoutAxis } from './viewport-regime'
+import { RESIZE_GRIP_ORIENTATION, type DraggableLayoutAxis } from './viewport-regime'
 
 /**
  * Destinations that legitimately have no palette row. Every entry carries the
@@ -82,12 +82,22 @@ describe('palette covers every column destination', () => {
  * a motion whose only home is a keystroke (UX_PRINCIPLES §3), and this block
  * is what stops the next draggable axis from shipping without one.
  *
- * The axis list is read off LAYOUT_DRAG_CLAMP for the same reason the block
- * above reads COLUMN_KINDS: the Record type is compiler-checked in both
- * directions (every axis has a clamp, no clamp names a stranger), so this
- * file keeps no second list to drift.
+ * The axis list is read off a registry for the same reason the block above
+ * reads COLUMN_KINDS: the Record type is compiler-checked in both directions
+ * (every axis declares itself, no entry names a stranger), so this file
+ * keeps no second list to drift.
+ *
+ * GDK-1815 moved WHICH registry, and that move is the finding. It used to be
+ * LAYOUT_DRAG_CLAMP — the map of `ui.tokens.layout` drag ranges, two entries
+ * — so this gate quantified over "axes whose width is a config token" while
+ * claiming to quantify over "axes you can drag". The terminal dock is
+ * draggable and is not a token, so the one axis in the app with no keyboard
+ * door was the one axis this gate could not see, and it stayed green for it.
+ * RESIZE_GRIP_ORIENTATION is keyed by DraggableLayoutAxis itself, which is
+ * the set the grips are quantified over, so a new draggable seam cannot
+ * enter the app without entering this list.
  */
-const DRAGGABLE_AXES = Object.keys(LAYOUT_DRAG_CLAMP) as DraggableLayoutAxis[]
+const DRAGGABLE_AXES = Object.keys(RESIZE_GRIP_ORIENTATION) as DraggableLayoutAxis[]
 
 /**
  * Axes whose grip legitimately has no palette row. Empty today — kept (and

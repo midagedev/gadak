@@ -66,6 +66,15 @@ export interface PaletteActionInput {
    * row that cannot act is a promise the palette should not show.
    */
   docked: boolean
+  /**
+   * The terminal is open AND is a dock rather than an overlay sheet — the
+   * only state that paints the dock's grip (GDK-1815). A separate field from
+   * `docked` because the two thresholds are genuinely different: between 900
+   * and 1099px with no docked detail panel the terminal is a dock while the
+   * layout is already overlay, so `docked` would hide a row that works and
+   * `!docked` would show one that cannot.
+   */
+  terminalDocked: boolean
   query: string
   favoriteHas: (key: string) => boolean
   watchHas: (key: string) => boolean
@@ -345,10 +354,13 @@ function itemsFor(spec: PaletteSpec, input: PaletteActionInput): PaletteActionIt
     }
     case 'focus-resize': {
       const axis = spec.axis
-      // Same rule as issue-list/save-view: off the docked regime the grips
-      // are not mounted (App.svelte), and a row that cannot reach its
-      // target is a no-op wearing an action's clothes.
-      if (!axis || !input.docked) return []
+      // Same rule as issue-list/save-view: a grip that is not mounted cannot
+      // be focused, and a row that cannot reach its target is a no-op
+      // wearing an action's clothes. The column grips are mounted by the
+      // docked regime (App.svelte); the dock's is mounted with the terminal
+      // pane, in its split rather than its overlay form (TerminalPane).
+      if (!axis) return []
+      if (!(axis === 'terminal' ? input.terminalDocked : input.docked)) return []
       return [
         {
           id: spec.id,

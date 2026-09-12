@@ -15,7 +15,15 @@
  *      compared against each other.
  */
 import { type Page } from '@playwright/test'
-import { apiURL, attachConsoleErrors, appConsoleErrors, expect, gotoApp, test } from './helpers'
+import {
+  apiURL,
+  attachConsoleErrors,
+  appConsoleErrors,
+  drainTerminalSessions,
+  expect,
+  gotoApp,
+  test,
+} from './helpers'
 
 const SETTINGS_URL = apiURL('/api/v1/issues/settings/')
 
@@ -182,5 +190,91 @@ test.describe('layout resize handles', () => {
         return doc.ui?.tokens?.layout?.list ?? null
       })
       .toBe('600px')
+  })
+})
+
+/*
+ * GDK-1815: the third seam. The dock's grip had a pointer and nothing else —
+ * the only drag affordance in the app with no keyboard door — and it is now
+ * the same component the two column grips are, so what is worth measuring in
+ * a browser is that the shared component really is mounted on this seam and
+ * really moves THIS pane.
+ *
+ * Deliberately not in `terminal*.spec.ts`: nothing here reads the terminal
+ * buffer, so none of the wide-prompt shell conditions (24-column prompt,
+ * title OSC, no banner) can reach it, and being in that glob would put a
+ * geometry test behind a shell-environment gate for nothing.
+ *
+ * The rungs below this one are already taken: the arrow mapping and the
+ * paint-many/save-once cadence are unit tests
+ * (web/src/lib/resize-grip.test.ts), and "the dock has a palette row at all"
+ * is the coverage gate (web/src/lib/palette-coverage.test.ts). What is left
+ * genuinely needs a browser: focus, a real pane box, and the clamp against a
+ * real window height.
+ */
+test.describe('the terminal dock grip', () => {
+  test.afterEach(async ({ page }) => {
+    await drainTerminalSessions(page)
+  })
+
+  async function openDock(page: Page): Promise<void> {
+    await page.keyboard.press('Control+Backquote')
+    await expect(page.getByTestId('terminal-pane')).toBeVisible()
+  }
+
+  async function dockHeight(page: Page): Promise<number> {
+    const box = await page.getByTestId('terminal-pane').boundingBox()
+    return Math.round(box?.height ?? 0)
+  }
+
+  test('announces itself as a slider on the vertical axis', async ({ page }) => {
+    await gotoApp(page)
+    await openDock(page)
+    const grip = page.getByTestId('terminal-resize')
+    await expect(grip).toHaveAttribute('role', 'slider')
+    // The direction the VALUE moves, which is the direction of the arrow
+    // keys — the opposite of the way the seam is drawn.
+    await expect(grip).toHaveAttribute('aria-orientation', 'vertical')
+    const now = Number(await grip.getAttribute('aria-valuenow'))
+    const min = Number(await grip.getAttribute('aria-valuemin'))
+    const max = Number(await grip.getAttribute('aria-valuemax'))
+    expect(now, 'the announced height is the painted one').toBe(await dockHeight(page))
+    expect(min).toBeLessThan(now)
+    expect(max).toBeGreaterThan(now)
+  })
+
+  test('arrows resize the dock and Backspace puts it back', async ({ page }) => {
+    await gotoApp(page)
+    await openDock(page)
+    const start = await dockHeight(page)
+    const grip = page.getByTestId('terminal-resize')
+    await grip.focus()
+    await expect(grip).toBeFocused()
+
+    // Up is taller: the grip is on the dock's TOP edge.
+    await page.keyboard.press('ArrowUp')
+    await page.keyboard.press('ArrowUp')
+    expect(await dockHeight(page)).toBe(start + 16)
+    await page.keyboard.press('Shift+ArrowDown')
+    expect(await dockHeight(page)).toBe(start + 15)
+    await expect(grip).toHaveAttribute('aria-valuenow', String(start + 15))
+
+    await page.keyboard.press('Backspace')
+    expect(await dockHeight(page), 'back to the shipped height').toBe(start)
+  })
+
+  test('the palette row leaves the keyboard on the grip', async ({ page }) => {
+    await gotoApp(page)
+    await openDock(page)
+    await page.keyboard.press('ControlOrMeta+k')
+    const row = page.getByTestId('palette-action-resize-terminal')
+    await expect(row).toBeVisible()
+    await row.click()
+    // Focus-shaped, not click-shaped: the row hands over the keyboard and
+    // the grip's own handler does the sizing.
+    await expect(page.getByTestId('terminal-resize')).toBeFocused()
+    const start = await dockHeight(page)
+    await page.keyboard.press('ArrowUp')
+    expect(await dockHeight(page)).toBe(start + 8)
   })
 })

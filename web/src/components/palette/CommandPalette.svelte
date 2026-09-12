@@ -648,6 +648,9 @@ import type { SettingsTab } from '../../lib/settings-tabs'
       feedUnread: me.feedUnread.all,
       onIssueList: column.is('list'),
       docked: viewport.regime === 'docked',
+      // GDK-1815: the dock's grip is mounted with the split terminal, not
+      // with the docked layout — the two thresholds do not coincide.
+      terminalDocked: terminalChrome.open && !terminalChrome.narrow,
       query: raw,
       favoriteHas: (key) => favorites.has(key),
       watchHas: (key) => watches.has(key),

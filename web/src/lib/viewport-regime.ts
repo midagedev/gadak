@@ -361,8 +361,54 @@ function commitLayoutOverrides(next: LayoutOverrides): void {
   refreshLayoutTokenInstall()
 }
 
-/** The two tracks a person can drag (GDK-759). Both are settable tokens. */
-export type DraggableLayoutAxis = 'sidebar' | 'list'
+/**
+ * The two tracks whose width IS a `ui.tokens.layout` token (GDK-759) — the
+ * axes `gadak config set` can write, `LAYOUT_DRAG_CLAMP` ranges, and
+ * lib/layout-resize.ts persists through the shared settings queue.
+ *
+ * GDK-1815 renamed this from `DraggableLayoutAxis`, which is now the wider
+ * set below. The old name was the defect in one word: it read as "every
+ * seam you can drag" and held only the token-backed two, so the palette
+ * coverage gate — which keyed off it — could not see the terminal dock's
+ * grip at all. The name now says which property the members share, and
+ * "draggable" belongs to the set that really is every draggable seam.
+ */
+export type LayoutTokenAxis = 'sidebar' | 'list'
+
+/**
+ * Every seam in the shell a person can drag — the two token-backed tracks
+ * and the terminal dock's top edge, whose height is browser-local
+ * (lib/terminal/pane.svelte.ts) rather than a token. Membership here is
+ * about the affordance, not about where the number is stored: this is the
+ * set every grip contract is quantified over — one component
+ * (shell/LayoutResizeHandle.svelte), one testid map (lib/commands.ts
+ * RESIZE_GRIP_TESTID), one palette row each, and the coverage gate in
+ * lib/palette-coverage.test.ts.
+ */
+export type DraggableLayoutAxis = LayoutTokenAxis | 'terminal'
+
+/**
+ * Which way a grip's VALUE moves under the arrow keys — which is also what
+ * `aria-orientation` names on a slider, and it is the opposite of the seam
+ * you see: the sidebar seam is drawn vertically and its width moves
+ * horizontally, the dock seam is drawn horizontally and its height moves
+ * vertically.
+ *
+ * A `Record` over the whole union rather than a list, for the reason
+ * palette-coverage.test.ts states about `COLUMN_KINDS`: the compiler checks
+ * it in both directions (every axis has an orientation, no orientation
+ * names a stranger), so adding a draggable axis cannot forget to declare
+ * itself, and the gate that reads this keeps no second list to drift. It is
+ * not a list only a test holds: LayoutResizeHandle reads it for both
+ * `aria-orientation` and its key mapping.
+ */
+export type GripOrientation = 'horizontal' | 'vertical'
+
+export const RESIZE_GRIP_ORIENTATION: Record<DraggableLayoutAxis, GripOrientation> = {
+  sidebar: 'horizontal',
+  list: 'horizontal',
+  terminal: 'vertical',
+}
 
 /**
  * The drag limits, read off internal/config/tokencheck/dim-catalog.json's
@@ -383,27 +429,27 @@ export type DraggableLayoutAxis = 'sidebar' | 'list'
  * (The CLI keeps the wider door on purpose — a hand-written config.json may
  * still go outside with its eyes open. A pointer has no way to say that.)
  */
-export const LAYOUT_DRAG_CLAMP: Record<DraggableLayoutAxis, { min: number; max: number }> = {
+export const LAYOUT_DRAG_CLAMP: Record<LayoutTokenAxis, { min: number; max: number }> = {
   sidebar: { min: 208, max: 320 },
   list: { min: 480, max: 2000 },
 }
 
 /** `px` brought inside the catalog range for `axis`, rounded to a whole pixel. */
-export function clampLayoutPx(axis: DraggableLayoutAxis, px: number): number {
+export function clampLayoutPx(axis: LayoutTokenAxis, px: number): number {
   const { min, max } = LAYOUT_DRAG_CLAMP[axis]
   return Math.min(max, Math.max(min, Math.round(px)))
 }
 
 /** Axes whose handle is currently held — see applyLayoutDimOverrides. */
-const pinnedAxes = new Set<DraggableLayoutAxis>()
+const pinnedAxes = new Set<LayoutTokenAxis>()
 
 /** Pin `axis` to the local value for the lifetime of a pointer drag. */
-export function pinLayoutAxis(axis: DraggableLayoutAxis): void {
+export function pinLayoutAxis(axis: LayoutTokenAxis): void {
   pinnedAxes.add(axis)
 }
 
 /** Release the pin. The next config document wins the axis again. */
-export function unpinLayoutAxis(axis: DraggableLayoutAxis): void {
+export function unpinLayoutAxis(axis: LayoutTokenAxis): void {
   pinnedAxes.delete(axis)
 }
 
@@ -416,7 +462,7 @@ export function unpinLayoutAxis(axis: DraggableLayoutAxis): void {
  * caller can install a width outside the catalog's tested range.
  */
 export function setLayoutOverride(
-  axis: DraggableLayoutAxis,
+  axis: LayoutTokenAxis,
   px: number | undefined,
 ): void {
   commitLayoutOverrides({
@@ -436,7 +482,7 @@ export function setLayoutOverride(
 export function layoutGeometryDebug(): {
   effective: EffectiveLayout
   overrides: LayoutOverrides
-  pinned: DraggableLayoutAxis[]
+  pinned: LayoutTokenAxis[]
   installed: Record<string, string>
   clamp: typeof LAYOUT_DRAG_CLAMP
   narrow: boolean
