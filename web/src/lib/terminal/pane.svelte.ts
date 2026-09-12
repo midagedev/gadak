@@ -17,7 +17,9 @@ import type { ResizeGrip } from '../layout-resize'
 import {
   TERMINAL_HEIGHT_KEY,
   TERMINAL_MIN_HEIGHT_PX,
+  TERMINAL_MODE_KEY,
   TERMINAL_OVERLAY_MAX_PX,
+  type TerminalMode,
   terminalIsNarrow,
   dockDefaultHeight,
   dockMaxHeight,
@@ -38,6 +40,16 @@ function readStoredHeight(): number {
   return 0
 }
 
+function readStoredMode(): TerminalMode {
+  try {
+    const raw = localStorage.getItem(TERMINAL_MODE_KEY)
+    if (raw === 'dock' || raw === 'full') return raw
+  } catch {
+    /* private mode */
+  }
+  return ''
+}
+
 function defaultHeight(): number {
   if (typeof window === 'undefined') return TERMINAL_MIN_HEIGHT_PX
   return dockDefaultHeight(window.innerHeight)
@@ -50,20 +62,68 @@ function maxHeight(): number {
 
 class TerminalChrome {
   open = $state(false)
-  /** Overlay sheet rather than the dock band — see terminalIsNarrow. */
+  /** Overlay sheet rather than the dock band. The reader's pinned mode when
+   *  there is one, the window's width when there is not (GDK-1835). */
   narrow = $state(false)
   /** 0 means "use 40% of the window on next read". */
   #heightPx = $state(0)
+  /** '' = follow the window. Persisted beside the height, same owner. */
+  #mode = $state<TerminalMode>('')
+
+  /*
+   * The roster can be rendered in two places — the dock's own left column,
+   * and the app sidebar while the pane is the full-screen sheet (GDK-1835) —
+   * so the two verbs it offers cannot live inside whichever copy happens to
+   * be mounted. The pane publishes them here on mount and clears them on
+   * destroy; a roster with a null verb renders the row disabled rather than
+   * guessing, which is what a pane that has not booted actually means.
+   */
+  newSession = $state<(() => void) | null>(null)
+  /** The shell the pane is on can be restarted from its status (GDK-991). */
+  restartable = $state(false)
+  restart = $state<(() => void) | null>(null)
 
   constructor() {
     if (typeof window === 'undefined') return
-    this.narrow = terminalIsNarrow(window.innerWidth)
+    this.#mode = readStoredMode()
+    this.#applyNarrow()
     this.#heightPx = readStoredHeight()
+  }
+
+  /** '' when the reader has not pinned one — the window decides. */
+  get mode(): TerminalMode {
+    return this.#mode
+  }
+
+  /*
+   * The control is a toggle, not a cycle: whatever the pane is showing now,
+   * pressing it pins the other one. Pinning what the window already chose is
+   * still a pin — the point of GDK-1835 is that resizing the window must not
+   * undo the reader's answer.
+   */
+  toggleMode(): void {
+    this.#writeMode(this.narrow ? 'dock' : 'full')
+  }
+
+  /** Back to the window's verdict — the palette's "follow the window". */
+  resetMode(): void {
+    this.#writeMode('')
+  }
+
+  #writeMode(mode: TerminalMode): void {
+    this.#mode = mode
+    try {
+      if (mode) localStorage.setItem(TERMINAL_MODE_KEY, mode)
+      else localStorage.removeItem(TERMINAL_MODE_KEY)
+    } catch {
+      /* private mode */
+    }
+    this.#applyNarrow()
   }
 
   #applyNarrow(): void {
     if (typeof window === 'undefined') return
-    this.narrow = terminalIsNarrow(window.innerWidth)
+    this.narrow = this.#mode ? this.#mode === 'full' : terminalIsNarrow(window.innerWidth)
   }
 
   get heightPx(): number {

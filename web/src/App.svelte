@@ -457,6 +457,12 @@
     toggleTerminal() {
       terminalChrome.toggle()
     },
+    toggleTerminalShape() {
+      // A shape command on a closed pane is a no-op the palette row cannot
+      // explain, so it opens first and lands in the shape it asked for.
+      if (!terminalChrome.open) terminalChrome.toggle()
+      terminalChrome.toggleMode()
+    },
   })
 
   // Inspectable next to cacheScope / uiFocusPoll: was the list ready for keys?
@@ -632,6 +638,22 @@
    * the module's own subscription rather than per-component copies.
    */
   const overlayModal = $derived(isOverlayModal(viewport.regime, panelOpen))
+
+  /*
+   * The sidebar is the one frame the detail-panel overlay cannot make inert
+   * while the terminal is the full-window sheet (GDK-1835). In that shape the
+   * sidebar carries the pane's own chrome — the session rows, the way out and
+   * the shape control — and the sheet is the top surface anyway, so the panel
+   * underneath is covered rather than competing. Measured before this: at
+   * 860px with an issue opened first and the pane opened after, the shape and
+   * close buttons rendered inside an inert sidebar and did not answer a click
+   * (`elementFromPoint` landed on them, the press did nothing) — visible
+   * controls that do not work, which is worse than absent ones. MainColumn
+   * and RightPanel keep the overlay verdict: they are under the sheet.
+   */
+  const terminalSheetUp = $derived(terminalChrome.open && terminalChrome.narrow)
+  const sidebarInert = $derived(overlayModal && !terminalSheetUp)
+  const scrimOpen = $derived(overlayModal && !terminalSheetUp)
 
   /* GDK-1585: the overlay chrome is declarative now. `overlayModal` goes to
    * the frames as props — Sidebar/MainColumn `inert`, RightPanel `modal`
@@ -819,7 +841,7 @@
       style={layoutTokenStyle()}
       data-detail-wide={panelOpen && reading.wide}
     >
-      <Sidebar inert={overlayModal}>
+      <Sidebar inert={sidebarInert}>
         {#snippet children()}
           <SidebarNav
             onOpenSettings={(tab) => {
@@ -906,13 +928,20 @@
       </RightPanel>
 
       <!-- Overlay-regime scrim (GDK-201): only when overlayModal is true.
-           Click closes; pointer-events are live. Docked has nothing to cover. -->
+           Click closes; pointer-events are live. Docked has nothing to cover.
+           It stands down while the terminal is the full-window sheet
+           (GDK-1835) for the same reason the sidebar stops being inert: the
+           sheet is the top surface, the panel it dims is already covered by
+           it, and the scrim's own live pointer-events reached across the
+           sidebar and swallowed the presses meant for the pane's chrome
+           there — measured at 860px, `elementFromPoint` on the shape control
+           returned `issue-scrim`. -->
       <div
         class="issue-scrim"
-        class:is-open={overlayModal}
+        class:is-open={scrimOpen}
         data-testid="issue-scrim"
         aria-hidden="true"
-        onclick={overlayModal ? closeOpenPanel : undefined}
+        onclick={scrimOpen ? closeOpenPanel : undefined}
       ></div>
 
       <!-- Over the detail area: an original page is what you asked to see

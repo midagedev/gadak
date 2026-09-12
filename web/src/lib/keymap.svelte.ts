@@ -163,6 +163,8 @@ export interface GlobalKeyHost {
   /** The terminal pane covers the content track as an overlay (pane.svelte owns the verdict). */
   get terminalOverlayOpen(): boolean
   toggleTerminal: () => void
+  /** GDK-1835: dock band ⇄ full-window sheet, opening the pane if closed. */
+  toggleTerminalShape: () => void
 }
 
 function contextFromEvent(e: KeyboardEvent, host: GlobalKeyHost): KeyContext {
@@ -217,6 +219,13 @@ function dispatchKeyCommand(e: KeyboardEvent, cmd: KeyCommand, host: GlobalKeyHo
     case 'toggle-terminal':
       e.preventDefault()
       host.toggleTerminal()
+      return
+    /* GDK-1835: dock band ⇄ full-window sheet, the reader's call. Opens the
+       pane first when it is closed — a shape command on nothing is a no-op
+       the palette row cannot explain. */
+    case 'terminal-toggle-shape':
+      e.preventDefault()
+      host.toggleTerminalShape()
       return
     /*
      * GDK-1250: walk the session roster. The sessions singleton lives in a

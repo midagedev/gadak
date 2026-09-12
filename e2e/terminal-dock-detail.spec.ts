@@ -92,3 +92,108 @@ test('below the narrow step the pane is still the sheet (GDK-1833 keeps one rule
   await expect(pane).toBeVisible()
   await expect(pane).toHaveAttribute('data-overlay', 'true')
 })
+
+/*
+ * The shape is the reader's (GDK-1835).
+ *
+ * Before this, the only way to change the terminal's shape was to resize the
+ * window, and the window could change it back. These cases pin the three
+ * things that makes different: the control flips it, the choice survives a
+ * resize that would have decided otherwise, and in the full shape the roster
+ * is a block in the app sidebar rather than a second rail beside it.
+ */
+test('the reader pins the shape, and a resize does not unpin it (GDK-1835)', async ({ page }) => {
+  test.setTimeout(90_000)
+  await page.setViewportSize({ width: 1400, height: 860 })
+  await forceLocale(page, 'en')
+  await page.goto('/')
+  await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
+
+  await page.keyboard.press('Control+Backquote')
+  const pane = page.getByTestId('terminal-pane')
+  await expect(pane).toBeVisible()
+  await expect(pane).toHaveAttribute('data-attached', 'true', { timeout: 60_000 })
+  await expect(pane).not.toHaveAttribute('data-overlay', 'true')
+
+  // The dock's roster is the column inside the pane.
+  await expect(page.locator('[data-testid="terminal-chrome"][data-variant="dock"]')).toBeVisible()
+  await expect(page.locator('[data-testid="terminal-chrome"][data-variant="sidebar"]')).toHaveCount(0)
+
+  await page.getByTestId('terminal-shape').click()
+  await expect(pane).toHaveAttribute('data-overlay', 'true')
+
+  // In the full shape the rows moved into the sidebar and the pane has no
+  // rail of its own — the whole point of the move.
+  const inSidebar = page.locator('[data-testid="terminal-chrome"][data-variant="sidebar"]')
+  await expect(inSidebar).toBeVisible()
+  await expect(page.locator('[data-testid="terminal-chrome"][data-variant="dock"]')).toHaveCount(0)
+  await expect(inSidebar.locator('xpath=ancestor::aside[contains(@class,"issue-sidebar")]')).toHaveCount(1)
+
+  // The roster's verbs cross a boundary now: the rows are in the sidebar and
+  // the session they start belongs to the pane. `+` is the one that does, so
+  // press it here rather than trusting that the dock's press covers it.
+  const rows = inSidebar.getByTestId('terminal-strip-row')
+  const before = await rows.count()
+  await inSidebar.getByTestId('terminal-new').click()
+  await expect(rows).toHaveCount(before + 1)
+
+  // A width that would have chosen the dock does not take the choice back.
+  await page.setViewportSize({ width: 1600, height: 860 })
+  await expect(pane).toHaveAttribute('data-overlay', 'true')
+
+  // And back, by the same control, from its sidebar home.
+  await page.getByTestId('terminal-shape').click()
+  await expect(pane).not.toHaveAttribute('data-overlay', 'true')
+  await expect(page.locator('[data-testid="terminal-chrome"][data-variant="dock"]')).toBeVisible()
+
+  // A width that would have chosen the sheet does not take *that* back either.
+  await page.setViewportSize({ width: 820, height: 860 })
+  await expect(pane).not.toHaveAttribute('data-overlay', 'true')
+})
+
+/*
+ * The way out is reachable from under the sheet (GDK-1835).
+ *
+ * The narrow regime makes the sidebar inert and raises a live scrim when a
+ * detail panel is open — both correct when the panel is the top surface, and
+ * both wrong once the terminal sheet is, because the sheet's own chrome now
+ * lives in that sidebar. Measured before the fix at this exact width and
+ * order: the shape and close controls rendered, and `elementFromPoint` on
+ * the shape control returned `issue-scrim`. A control that is drawn and does
+ * not answer is worse than one that is not drawn.
+ */
+test('narrow: a detail panel does not lock the sheet chrome away (GDK-1835)', async ({ page }) => {
+  test.setTimeout(90_000)
+  await page.setViewportSize({ width: 860, height: 860 })
+  await forceLocale(page, 'en')
+  await page.goto('/')
+  await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTestId('issue-list-scroller')).toBeVisible({ timeout: 30_000 })
+
+  // Open the issue first: after the pane is up the sheet covers the list, so
+  // this is the order that reaches the state at all.
+  await page.locator('[data-testid="issue-list-scroller"] [data-issue-key]').first().click()
+  await expect(page.getByTestId('detail-scroll')).toBeVisible({ timeout: 30_000 })
+
+  await page.keyboard.press('Control+Backquote')
+  const pane = page.getByTestId('terminal-pane')
+  await expect(pane).toBeVisible()
+  await expect(pane).toHaveAttribute('data-attached', 'true', { timeout: 60_000 })
+  await expect(pane).toHaveAttribute('data-overlay', 'true')
+  await expect(page.locator('[data-testid="terminal-chrome"][data-variant="sidebar"]')).toBeVisible()
+
+  // Nothing between the press and the control.
+  const hit = await page.evaluate(() => {
+    const el = document.querySelector('[data-testid="terminal-shape"]')
+    const r = el?.getBoundingClientRect()
+    if (!r) return 'no control'
+    const at = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
+    return at?.closest('[data-testid="terminal-shape"]') ? 'the control' : (at as HTMLElement)?.dataset?.testid || at?.tagName || 'something else'
+  })
+  expect(hit, 'what a press on the shape control actually lands on').toBe('the control')
+
+  // And it works: the pane goes back to the dock from here.
+  await page.getByTestId('terminal-shape').click()
+  await expect(pane).not.toHaveAttribute('data-overlay', 'true')
+})
+

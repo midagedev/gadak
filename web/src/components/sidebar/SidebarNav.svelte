@@ -42,6 +42,7 @@
   import FavoritesNav from '../personal/FavoritesNav.svelte'
   import Icon from '../ui/Icon.svelte'
   import SidebarSection from './SidebarSection.svelte'
+  import TerminalRoster from '../terminal/TerminalRoster.svelte'
   import { sidebarSections, type SectionDrag, type SectionId } from '../../stores/sidebar-sections.svelte'
 
   sidebarSections.hydrate()
@@ -978,6 +979,16 @@
     </div>
     {/if}
   </div>
+
+  <!-- The session roster, while the pane is the full-screen sheet (GDK-1835).
+       The sheet starts at this sidebar's right edge, so the sidebar is on
+       screen either way and a second rail inside the sheet was two rails for
+       one job. Outside the reorderable section list on purpose: this is the
+       pane's chrome visiting, not a view someone can hide or drag — it is
+       here exactly as long as the pane is in that shape. -->
+  {#if terminalChrome.open && terminalChrome.narrow}
+    <TerminalRoster variant="sidebar" />
+  {/if}
 
   <!-- Footer (GDK-1335): one row — settings, who you are, the terminal. The
        server settings entry point is absent — not disabled — wherever there

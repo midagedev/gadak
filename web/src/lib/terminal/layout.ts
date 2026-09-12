@@ -16,6 +16,18 @@ import { LAYOUT_NARROW_MAX_PX } from '../viewport-regime'
  * height is a dock that opens nearly half-screen on one machine and 300px on
  * another.
  */
+/*
+ * The reader's own choice of shape (GDK-1835), beside the height and for the
+ * same reason the comment on TERMINAL_HEIGHT_KEY gives: this is a preference
+ * of one viewer's chrome, not a fact about the workspace document the CLI and
+ * other tabs share. Empty (absent) means "follow the window", which is what a
+ * reader who has never touched the control gets.
+ */
+export const TERMINAL_MODE_KEY = 'gadak.terminal.mode'
+
+/** The two shapes a reader can pin; '' is the width-derived default. */
+export type TerminalMode = 'dock' | 'full' | ''
+
 export const TERMINAL_HEIGHT_KEY = 'gadak.terminal.height'
 export const TERMINAL_MIN_HEIGHT_PX = 160
 /*

@@ -289,8 +289,18 @@ describe('overlay chrome is props on the shell (GDK-1585)', () => {
     expect(SRC.panel).toMatch(/use:trapWhileModal=\{modal\}/)
   })
 
-  test('App drives the chrome with the overlay verdict alone', () => {
-    expect(SRC.app).toMatch(/<Sidebar inert=\{overlayModal\}>/)
+  /*
+   * The invariant is that the chrome is props derived in App, never a walk
+   * over the rendered DOM. Until 2026-09-12 every frame took `overlayModal`
+   * itself; GDK-1835 gave the sidebar its own derived, because while the
+   * terminal is the full-window sheet that sidebar carries the pane's chrome
+   * and must stay live — the frames under the sheet keep the overlay
+   * verdict. The narrowing is still one `$derived` in this file, which is
+   * the thing this case exists to protect.
+   */
+  test('App drives the chrome with derived verdicts, not a DOM walk', () => {
+    expect(SRC.app).toMatch(/<Sidebar inert=\{sidebarInert\}>/)
+    expect(SRC.app).toMatch(/const sidebarInert = \$derived\(overlayModal && !terminalSheetUp\)/)
     expect(SRC.app).toMatch(/<MainColumn inert=\{overlayModal\}>/)
     expect(SRC.app).toMatch(/<RightPanel open=\{panelOpen\} modal=\{overlayModal\}>/)
     expect(SRC.app.includes('applyOverlayChrome')).toBe(false)

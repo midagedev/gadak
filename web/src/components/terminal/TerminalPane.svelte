@@ -17,7 +17,6 @@
    */
   import { onMount } from 'svelte'
   import { t } from '../../lib/i18n'
-  import Icon from '../ui/Icon.svelte'
   import LoadingState from '../ui/LoadingState.svelte'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import { createRenderer, type BehaviorTerminalRenderer } from '../../lib/terminal/renderer'
@@ -35,7 +34,7 @@
     type DroppedReason,
     type UnavailableCause,
   } from '../../lib/terminal/session'
-  import { TERMINAL_OVERLAY_ROSTER_PX,
+  import {
     TERMINAL_MIN_HEIGHT_PX,
     TERMINAL_MIN_WIDTH_PX,
     terminalChrome,
@@ -43,7 +42,7 @@
   } from '../../lib/terminal/pane.svelte'
   import LayoutResizeHandle from '../shell/LayoutResizeHandle.svelte'
   import { terminalSessions } from '../../lib/terminal/sessions.svelte'
-  import TerminalStrip from './TerminalStrip.svelte'
+  import TerminalRoster from './TerminalRoster.svelte'
   import { config } from '../../lib/config'
   import { issues } from '../../stores/issues.svelte'
   import { knownProjectKeys } from '../../lib/terminal/issue-links'
@@ -388,6 +387,27 @@
   function onStatusActivate(): void {
     sendTerminalData?.(new Uint8Array([13]))
   }
+
+  /*
+   * GDK-1835: the roster can be rendered in the app sidebar, outside this
+   * component, so what it needs cannot be a local closure any more. The pane
+   * is still the only thing that can do either job — it owns the driver —
+   * so it publishes them rather than the roster reaching in. Cleared on
+   * destroy: a roster outliving the pane must render a dead verb disabled,
+   * not call into a torn-down driver.
+   */
+  $effect(() => {
+    terminalChrome.restartable = statusRestartable
+  })
+  $effect(() => {
+    terminalChrome.newSession = () => newSession?.()
+    terminalChrome.restart = onStatusActivate
+    return () => {
+      terminalChrome.newSession = null
+      terminalChrome.restart = null
+      terminalChrome.restartable = false
+    }
+  })
 </script>
 
 <aside
@@ -404,62 +424,14 @@
   data-attached={attached ? 'true' : 'false'}
   data-overlay={overlay ? 'true' : undefined}
 >
-  <!--
-    The roster column (GDK-1355). It replaces the one chrome row GDK-1199
-    folded the dock's verbs into: with the dock a quarter-tall band across
-    the whole window, a row across the top spent the band's scarce height
-    and left most of its width empty. The column is as wide as the app
-    sidebar above it, so the dock's one vertical rule continues the
-    sidebar's edge and the window reads as two columns — navigation on the
-    left, content on the right — under one horizontal seam. Header: the
-    terminal mark and the close verb (the pane swallows every keystroke on
-    purpose, so the key that closes it cannot be the only way out). Then
-    the rows, then the new-shell row where a list's trailing action goes —
-    after the last row, not pinned to the floor, so one shell is a list of
-    one and a verb rather than a row and a hole. The "TERMINAL" label is
-    still gone (GDK-1199): the rows say what this is.
-  -->
-  <div
-    class="terminal-roster flex flex-none flex-col border-r border-border-strong bg-bg-panel"
-    style:width={overlay ? `${TERMINAL_OVERLAY_ROSTER_PX}px` : undefined}
-    data-testid="terminal-chrome"
-  >
-    <div class="flex h-7 flex-none items-center pr-2 pl-4">
-      <Icon name="terminal" size={13} class="flex-none text-text-muted" />
-      <span class="flex-1"></span>
-      <button
-        type="button"
-        class="flex h-6 w-6 flex-none items-center justify-center rounded text-text-muted hover:bg-bg-hover hover:text-text-primary"
-        aria-label={t('terminal.close')}
-        title="{t('terminal.close')} ({t('terminal.shortcut')})"
-        data-testid="terminal-close"
-        onclick={() => terminalChrome.toggle()}
-      >
-        <Icon name="x" size={14} />
-      </button>
-    </div>
-    <div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-2 pb-1">
-      <TerminalStrip offerStart={statusRestartable} onstart={onStatusActivate} />
-      <!-- Hidden only while the strip is showing its own start row (no
-           sessions, restart on offer): that row is already the one verb
-           worth having there, and two plus rows would ask the same question
-           twice. With sessions still listed and the shown one exited, this
-           stays — the status line restarts *that* shell, this makes another. -->
-      {#if !(statusRestartable && terminalSessions.list.length === 0)}
-        <button
-          type="button"
-          class="flex h-7 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-left text-body text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
-          aria-label={t('terminal.strip.new')}
-          title={t('terminal.strip.new')}
-          data-testid="terminal-new"
-          onclick={() => newSession?.()}
-        >
-          <Icon name="plus" size={12} class="flex-none" />
-          <span class="truncate">{t('terminal.strip.new')}</span>
-        </button>
-      {/if}
-    </div>
-  </div>
+  <!-- The roster (GDK-1355, GDK-1835). Its rows, its new-shell verb and the
+       two chrome verbs live in TerminalRoster, because in the full-screen
+       shape they are rendered in the app sidebar instead of here. Here it is
+       the dock's left column; when this pane is the sheet, the sidebar is
+       already on screen to its left and carries them. -->
+  {#if !overlay}
+    <TerminalRoster variant="dock" />
+  {/if}
   <div class="flex min-h-0 min-w-0 flex-1 flex-col">
   <div
     class="relative min-h-0 min-w-0 flex-1 overflow-hidden"

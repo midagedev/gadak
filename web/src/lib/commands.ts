@@ -133,6 +133,7 @@ export type KeyCommand =
   | { type: 'ignore' }
   | { type: 'toggle-palette' }
   | { type: 'toggle-terminal' }
+  | { type: 'terminal-toggle-shape' }
   | { type: 'terminal-prev-session' }
   | { type: 'terminal-next-session' }
   | { type: 'terminal-focus-strip' }
@@ -482,6 +483,28 @@ export const COMMANDS: readonly CommandDef[] = [
       labelKey: 'palette.actionTerminal',
     },
     help: { group: 'global', kbd: 'Ctrl+`', labelKey: 'shortcuts.terminal', sort: 15 },
+  },
+  /*
+   * GDK-1835: which shape the terminal takes belongs to the reader, not to
+   * the window width. No chord — the VT claims every Ctrl code but the
+   * backquote family (`isAppChord`), so a key for this needs its own
+   * measurement round; the roster header's control and this row are the two
+   * doors until then. Palette-only commands still declare a phase and a
+   * scope: the row is offered whenever the pane is up.
+   */
+  {
+    id: 'terminal-toggle-shape',
+    phase: 'always',
+    scope: 'always',
+    chords: [],
+    dispatch: () => ({ type: 'terminal-toggle-shape' }),
+    palette: {
+      id: 'a:terminal-shape',
+      kind: 'always',
+      sort: 126,
+      testid: 'palette-action-terminal-shape',
+      labelKey: 'palette.actionTerminalShape',
+    },
   },
   {
     id: 'close-shortcuts',

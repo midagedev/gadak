@@ -1728,6 +1728,11 @@ export const settings = {
     ko: '터미널',
     ja: 'ターミナル',
   },
+  'palette.actionTerminalShape': {
+    en: 'Terminal: fill the window or dock it',
+    ko: '터미널: 창 전체 / 아래 도크 전환',
+    ja: 'ターミナル: ウィンドウ全体 / 下部ドック切り替え',
+  },
   'palette.actionFeed': {
     en: 'Open feed',
     ko: '피드 열기',

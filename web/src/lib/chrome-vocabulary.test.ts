@@ -53,7 +53,10 @@ describe('window seams vs in-surface dividers (GDK-1093 C-3)', () => {
   const SEAMS: [string, string][] = [
     ['components/terminal/TerminalPane.svelte', 'border-l'],
     ['components/terminal/TerminalPane.svelte', 'border-t border-border-strong'],
-    ['components/terminal/TerminalPane.svelte', 'terminal-roster'],
+    // GDK-1835 moved the roster into its own component so the sidebar can
+    // render it too; the seam it draws in the dock is unchanged, so this row
+    // follows the markup rather than relaxing.
+    ['components/terminal/TerminalRoster.svelte', 'terminal-roster'],
     ['components/shell/Sidebar.svelte', 'issue-sidebar'],
     ['components/shell/LoadingShell.svelte', 'issue-sidebar'],
     ['components/shell/RightPanel.svelte', 'border-border-strong'],

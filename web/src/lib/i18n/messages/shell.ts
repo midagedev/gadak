@@ -206,6 +206,19 @@ export const shell = {
     ko: '터미널 닫기',
     ja: 'ターミナルを閉じる',
   },
+  /* The shape control names the shape it moves to, not the one you are in
+     (GDK-1835) — a toggle labelled with its current state reads as a status
+     line and is pressed by mistake. */
+  'terminal.shape.full': {
+    en: 'Fill the window',
+    ko: '창 전체로',
+    ja: 'ウィンドウ全体へ',
+  },
+  'terminal.shape.dock': {
+    en: 'Back to the bottom',
+    ko: '아래로 되돌리기',
+    ja: '下に戻す',
+  },
   // The resize grip has its own name so a screen reader does not read it as a
   // second "Terminal" — the region already carries terminal.title (GDK-948).
   'terminal.resize': {
