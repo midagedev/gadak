@@ -48,6 +48,7 @@ carryover-v0.15
 census
 census-p0
 census-p1
+changelog
 ci
 cli
 community

@@ -2551,15 +2551,92 @@ ok "site/public/llms.txt carries the install commands, both MCP hosts, the Store
 # them. FAIL-first 2026-09-09: Unreleased carried 26 bullets, v0.17.0 twelve
 # themes, and the three files disagreed on the count. Runs on all three
 # editions so the structure stays one history.
-python3 - <<'PY46' || fail "changelog theme contract broken (see above)"
+#
+# GDK-1808 (2026-09-12): counting bold heads and `- ` prefixes was the wrong
+# axis. The event log came back as *unbolded continuation* paragraphs — read
+# their first sentences vertically and they are a bullet list ("Three sync
+# corrections." / "Three things on the phone side." / "Five pieces of
+# infrastructure…") — and the check stayed green on 54 paragraphs, 13,373
+# words and 348 key citations in Unreleased. Three assertions were added:
+#   · total paragraphs per section, continuations included (the shape rule);
+#   · no paragraph appears twice inside one section (an editing accident that
+#     had shipped: check 27 compares key *sets* and is blind to duplication,
+#     and the reference-tail generator reads a repeated citation as normal);
+#   · English section words, which is what closes the third disguise — eight
+#     paragraphs of 1,670 words each satisfies a paragraph cap alone.
+# They live here rather than in a sibling check because this script exits at
+# the first failure: a check numbered after this one would report nothing
+# until this one is green, and the duplicate is exactly the thing that has
+# to be visible in the same red run.
+# FAIL-first 2026-09-12 (this tree, before the rewrite): Unreleased is 54
+# paragraphs in all three editions; the duplicate pair is 51/53 in en and ko
+# and 35/37 in ja; the English section is 13,373 words. All shipped sections
+# pass all three.
+python3 - <<'PY46' || fail "changelog section shape broken (see above)"
 import re, sys
-bad = []
-for f in ("CHANGELOG.md", "CHANGELOG.ko.md", "CHANGELOG.ja.md"):
-    s = open(f, encoding="utf-8").read()
+
+# Caps are the measured shipped history, not taste.
+#
+# PARA_CAP: the largest release ever shipped in *any* edition is ko v0.19.0 at
+# 8 paragraphs (3 theme heads + 5 continuations; en and ja tell the same
+# release in 7). Counting only bold heads let 54 through. 8 also matches the
+# shape the contract describes — at most three themes, each allowed to run on
+# — so a section that needs a ninth paragraph is asking for a fourth theme.
+PARA_CAP = 8
+# WORDS_CAP: English only. `str.split()` counts spaces, and Japanese has few:
+# the same Unreleased section is 13,373 "words" in en and 3,124 in ja, so one
+# threshold cannot serve all three. The editions are the same history (checks
+# 27 and 53 pin that), so the English number catches the bloat for all of
+# them. Largest shipped English section, measured 2026-09-12, is v0.20.0 at
+# 830 words (the failure message prints the live value).
+#
+# The cap has two terms, because a flat number punishes a large release
+# rather than an uncompressed one (lead, 2026-09-12, rewriting 0.22 from
+# 13,373 words to 3,741). WORDS_FLOOR is ~3x the largest shipped section, so
+# every release that has ever shipped stays green on the floor alone.
+# WORDS_PER_KEY scales it with the work the section actually carries: a
+# release citing 322 keys legitimately needs more prose than one citing 45,
+# and words-per-key is the axis that separates a compressed narrative from an
+# event log. 15 is tighter than the tightest shipped precedent — v0.20.0 is
+# 830/45 = 18.4 — so this is a stricter rule per unit of work, not a looser
+# one. It is deliberately NOT set to whatever the 0.22 rewrite happened to
+# measure: a first pass at 12 landed the rewrite at 3,972 of a 3,972 cap,
+# which is a threshold fitted to one draft rather than a contract, and would
+# have made every later sentence a prose-surgery exercise.
+#
+# FAIL-first, measured against the pre-rewrite tree: 13,373 words at 322 keys
+# is 2.8x the derived cap, and the "glue the event log into eight
+# mega-paragraphs" evasion (6,007 words, 129 keys) is 2.3x the floor.
+WORDS_FLOOR = 2600
+WORDS_PER_KEY = 15
+
+
+def sections(path):
+    """(head, body, paragraphs) per release, reference definitions removed.
+
+    Any `[label]: url` line is a tail the renderer never shows, not prose —
+    stripping only `[GDK-nnn]:` would let one `[issuetap]: …` definition eat a
+    paragraph slot out of PARA_CAP, invisibly. Measured 2026-09-12: all 766
+    definitions in each edition are GDK keys, so widening costs nothing today.
+    """
+    s = open(path, encoding="utf-8").read()
     for sec in re.split(r"^(?=## )", s, flags=re.M)[1:]:
         head = sec.split("\n", 1)[0].strip()
-        body = re.sub(r"^\[GDK-\d+\]:.*$", "", sec[len(head):], flags=re.M)
-        paras = [p for p in re.split(r"\n\s*\n", body) if p.strip()]
+        body = re.sub(r"^\[[^\]]+\]:.*$", "", sec[len(head):], flags=re.M)
+        yield head, body, [p for p in re.split(r"\n\s*\n", body) if p.strip()]
+
+
+# The biggest English release actually shipped, read at run time rather than
+# quoted: a message that hardcodes today's record is wrong the moment the next
+# release beats it, and this is a file whose whole job is catching stale facts.
+en_max = max(
+    ((len(b.split()), h.lstrip("# ").split(" — ")[0]) for h, b, _ in sections("CHANGELOG.md") if h != "## Unreleased"),
+    default=(0, "none"),
+)
+
+bad = []
+for f in ("CHANGELOG.md", "CHANGELOG.ko.md", "CHANGELOG.ja.md"):
+    for head, body, paras in sections(f):
         themes = sum(1 for p in paras if re.match(r"\s*\*\*", p))
         bullets = [l for l in body.splitlines() if l.startswith("- ")]
         if bullets:
@@ -2568,11 +2645,44 @@ for f in ("CHANGELOG.md", "CHANGELOG.ko.md", "CHANGELOG.ja.md"):
             bad.append(f"{f} {head!r}: {themes} themes (max 3)")
         if themes == 0 and paras and head != "## Unreleased":
             bad.append(f"{f} {head!r}: no bold-led theme paragraph")
+        if len(paras) > PARA_CAP:
+            bad.append(
+                f"{f} {head!r}: {len(paras)} paragraphs (cap {PARA_CAP}) — "
+                f"{themes} bold-led, {len(paras) - themes} continuation; "
+                f"continuations count too, and the cap is the largest release "
+                f"ever shipped (ko v0.19.0, 3 themes + 5 continuations)"
+            )
+        # Byte-identical prose twice in one section is an editing accident, not
+        # a style call. Normalise whitespace so a rewrap is not a difference;
+        # report 1-based indices, because that is how a section reads.
+        seen = {}
+        for i, p in enumerate(paras, 1):
+            key = " ".join(p.split())
+            if key in seen:
+                bad.append(
+                    f"{f} {head!r}: paragraphs {seen[key]} and {i} are the same "
+                    f"text ({len(key.split())} words) — {key[:80]}…"
+                )
+            else:
+                seen[key] = i
+        if f == "CHANGELOG.md":
+            words = len(body.split())
+            n_keys = len(set(re.findall(r"GDK-\d+", body)))
+            cap = max(WORDS_FLOOR, WORDS_PER_KEY * n_keys)
+            if words > cap:
+                bad.append(
+                    f"{f} {head!r}: {words} words (cap {cap} = max({WORDS_FLOOR}, "
+                    f"{WORDS_PER_KEY} x {n_keys} keys); the largest release "
+                    f"shipped so far is {en_max[1]} at {en_max[0]} words) — a "
+                    f"paragraph cap alone is satisfiable by concatenation, so "
+                    f"the words are counted too. English edition only: CJK word "
+                    f"counts are not comparable."
+                )
 for b in bad:
     print("  " + b)
 sys.exit(1 if bad else 0)
 PY46
-ok "every changelog release is at most three theme paragraphs, no bullets, in all three editions"
+ok "every changelog release is at most three themes and eight paragraphs, no bullets, no paragraph told twice, in all three editions"
 
 
 # ── 47. the fact ledger's contract strings are in the files it names (GDK-1602) ──
