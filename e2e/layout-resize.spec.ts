@@ -217,9 +217,40 @@ test.describe('the terminal dock grip', () => {
     await drainTerminalSessions(page)
   })
 
+  /*
+   * Opening the dock is two steps, not one, and the second is the reason CI
+   * went red where macOS was green (run 34664828627, 2/2 including the retry).
+   *
+   * A live pane takes the keyboard: TerminalPane's `onAttached` calls
+   * `renderer.focus()`, so the caret lands in xterm's helper textarea. From
+   * there the VT owns Ctrl chords — renderer.ts `isAppChord` lets exactly the
+   * Backquote family through and nothing else, by design, because Ctrl+K is
+   * the shell's kill-line. Playwright's `ControlOrMeta` then hides the split:
+   * it is Meta on macOS, which xterm has no binding for and which bubbles to
+   * the app, and Control on Linux, which xterm consumes. Measured on this
+   * machine with the dock focused: Control+k -> 0 palette rows, Meta+k -> 1.
+   *
+   * So these tests leave the VT first, with the chord the product ships for
+   * it (terminal-focus-strip, Ctrl+Shift+` — "leave the VT without closing
+   * the pane"). Waiting for `data-attached` before pressing it is not
+   * belt-and-braces: `onAttached` fires after the socket is live, so an
+   * escape sent earlier would be undone by the focus() that follows it.
+   */
   async function openDock(page: Page): Promise<void> {
     await page.keyboard.press('Control+Backquote')
-    await expect(page.getByTestId('terminal-pane')).toBeVisible()
+    const pane = page.getByTestId('terminal-pane')
+    await expect(pane).toBeVisible()
+    await expect(pane).toHaveAttribute('data-attached', 'true')
+    await page.keyboard.press('Control+Shift+Backquote')
+    // Out of the VT, not out of the pane: terminal-focus-strip parks the
+    // caret on the active tab, which lives inside TerminalPane. What matters
+    // is that xterm's helper textarea no longer holds it, because that is the
+    // element whose key handler claims Ctrl chords.
+    await expect
+      .poll(() =>
+        page.evaluate(() => Boolean(document.activeElement?.closest('.xterm'))),
+      )
+      .toBe(false)
   }
 
   async function dockHeight(page: Page): Promise<number> {
@@ -266,7 +297,15 @@ test.describe('the terminal dock grip', () => {
   test('the palette row leaves the keyboard on the grip', async ({ page }) => {
     await gotoApp(page)
     await openDock(page)
-    await page.keyboard.press('ControlOrMeta+k')
+    // Control, not ControlOrMeta: the chord registry matches `mod` as
+    // metaKey || ctrlKey on every platform (commands.ts), so Control is the
+    // real chord here too — and it is the one CI sends, which keeps this
+    // assertion honest on the machine it is written on.
+    await page.keyboard.press('Control+k')
+    // Assert the palette opened before asking for a row in it. Without this
+    // a swallowed chord reports as "element(s) not found", which names the
+    // row and not the cause — that is exactly how this failure read.
+    await expect(page.getByRole('dialog', { name: 'Command palette' })).toBeVisible()
     const row = page.getByTestId('palette-action-resize-terminal')
     await expect(row).toBeVisible()
     await row.click()

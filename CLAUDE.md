@@ -146,6 +146,17 @@ hard-won 목록)와 `AGENTS.md`(기여 계약)·`docs/MIRROR.md`(스키마·SQL 
   로컬 397 전부 초록인 채 CI에서만 죽었고, 원인은 접힌 줄을 읽는 방식·BEL
   판정·xterm 링크 캐시 셋이었다. 버퍼를 읽을 때는 스펙마다 `readTerm`을 다시
   쓰지 말고 `e2e/helpers.ts`의 것을 쓴다(접힘의 단일 소유자).
+- **도크를 연 스펙이 `ControlOrMeta+<키>`를 누르면 Linux 에서만 죽는다**
+  (2026-09-12, 런 34664828627). 살아 있는 pane 은 키보드를 가져간다
+  (`onAttached` 가 `renderer.focus()`) 그리고 VT 는 Backquote 계열을 뺀 모든
+  Ctrl 코드를 자기 것으로 쓴다(`isAppChord`) — Ctrl+K 는 셸의 kill-line 이니
+  그게 맞다. 함정은 철자다: `ControlOrMeta` 는 macOS 에서 Meta(통과)이고
+  러너에서 Control(xterm 이 먹음)이라, 작성한 기계에서만 초록이다. 실측:
+  도크에 포커스를 준 채 Control+k → 팔레트 행 0, Meta+k → 1. 나가는 길은
+  제품이 이미 가진 코드다 — `Ctrl+Shift+\``(`terminal-focus-strip`, "닫지 않고
+  VT 를 떠난다"), 단 pane 이 `data-attached` 를 말한 **뒤에** 눌러야 한다
+  (`onAttached` 가 그 전의 탈출을 되돌린다). 재는 것은
+  `e2e/terminal-chord-escape.unit.ts`.
 - 게이트 단언 완화는 ①귀속 주석 ②정당한 파생 ③FAIL-first 증거 셋 모두
   있을 때만.
 - **`web/src/app.css` 의 `@theme` 토큰(색·모션·간격)을 건드렸으면 `npm run theme-check`
