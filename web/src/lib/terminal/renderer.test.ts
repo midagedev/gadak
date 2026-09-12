@@ -13,11 +13,9 @@ import {
   TERMINAL_SCROLLBACK_FALLBACK,
 } from './session'
 import {
-  TERMINAL_MIN_WIDTH_PX,
-  TERMINAL_SPLIT_WITH_DETAIL_MIN_PX,
+  TERMINAL_OVERLAY_MAX_PX,
   terminalIsNarrow,
 } from './layout'
-import { VIEWPORT_DOCKED_MIN_PX } from '../viewport-regime'
 import { COMMANDS } from '../commands'
 
 describe('UTF-8 stream decoder', () => {
@@ -163,33 +161,38 @@ describe('defaultPrevented is read by origin, not by command', () => {
 describe('overlay thresholds', () => {
   /*
    * 2026-08-25 — GDK-864 (lead, entry-point/layout pass). Two reasons the
-   * split becomes an overlay, and neither number is invented: 899 is the
-   * pane's own breakpoint, and the upper one is
+   * pane became an overlay, and neither number was invented: 899 is the
+   * pane's own breakpoint, and the upper one was
    * VIEWPORT_DOCKED_MIN_PX + the pane's min-width — the width at which
-   * sidebar, list, detail and terminal can no longer all stand at their
-   * documented minimums. FAIL-first: before this rule, 1100px with the detail
-   * panel docked kept the split, and the list was left 70px of a 390px track
-   * because the pane's min-width beat the percentage cap.
+   * sidebar, list, detail and terminal could no longer all stand at their
+   * documented minimums, because the pane was a column in that row.
+   *
+   * 2026-09-12 — GDK-1833 (lead, pre-0.22 audit). The second reason is gone,
+   * not relaxed: GDK-1352 moved the pane out of that row on 2026-09-02
+   * (`.terminal-dock { grid-column: 1 / -1; grid-row: 2 }`), so it spends no
+   * horizontal pixels and cannot squeeze the list. The premise stopped being
+   * true; the rule did not follow. FAIL-first for the removal is
+   * `e2e/terminal-dock-detail.spec.ts`, red on the source before this edit at
+   * all three of 1100 / 1200 / 1419 px, and the widths the old rule protected
+   * were measured there without it: at 1100 the list holds 390 and the detail
+   * panel 437, their exact floors, with no horizontal overflow.
    */
-  test('a small viewport is an overlay whatever the detail panel is doing', () => {
-    expect(terminalIsNarrow(820, false)).toBe(true)
-    expect(terminalIsNarrow(820, true)).toBe(true)
+  test('a small viewport is an overlay', () => {
+    expect(terminalIsNarrow(820)).toBe(true)
+    expect(terminalIsNarrow(TERMINAL_OVERLAY_MAX_PX)).toBe(true)
   })
 
-  test('with no docked detail panel a wide-enough viewport stays a split', () => {
-    expect(terminalIsNarrow(900, false)).toBe(false)
-    expect(terminalIsNarrow(1100, false)).toBe(false)
-    expect(terminalIsNarrow(1440, false)).toBe(false)
+  test('above the narrow step the pane is the dock band, at every width', () => {
+    expect(terminalIsNarrow(900)).toBe(false)
+    expect(terminalIsNarrow(1100)).toBe(false)
+    expect(terminalIsNarrow(1440)).toBe(false)
   })
 
-  test('a docked detail panel raises the floor to the four minimums', () => {
-    expect(TERMINAL_SPLIT_WITH_DETAIL_MIN_PX).toBe(
-      VIEWPORT_DOCKED_MIN_PX + TERMINAL_MIN_WIDTH_PX,
-    )
-    expect(terminalIsNarrow(TERMINAL_SPLIT_WITH_DETAIL_MIN_PX - 1, true)).toBe(true)
-    expect(terminalIsNarrow(TERMINAL_SPLIT_WITH_DETAIL_MIN_PX, true)).toBe(false)
-    // The 1100px case that used to leave the list 70px.
-    expect(terminalIsNarrow(1100, true)).toBe(true)
+  test('a docked detail panel no longer raises the floor (GDK-1833)', () => {
+    // The band is grid-row 2 under all three columns, so the four surfaces
+    // never compete for one row. Every width in the band the old rule
+    // flipped — 1100 through 1419 — stays the dock.
+    for (const px of [1100, 1200, 1419]) expect(terminalIsNarrow(px)).toBe(false)
   })
 })
 

@@ -6,7 +6,7 @@
  * import time, which a plain .test.ts cannot evaluate.
  */
 
-import { LAYOUT_NARROW_MAX_PX, VIEWPORT_DOCKED_MIN_PX } from '../viewport-regime'
+import { LAYOUT_NARROW_MAX_PX } from '../viewport-regime'
 
 /*
  * GDK-1194 (2026-08-30): the split is horizontal — a dock across the bottom
@@ -52,10 +52,15 @@ export function dockMaxHeight(innerHeight: number): number {
 export const TERMINAL_OVERLAY_ROSTER_PX = 160
 
 /*
- * Still the pane's minimum *width*, and still the number the narrow rule
- * below is derived from: an overlay pane covers the content track, so the
- * width at which it can no longer coexist with a docked detail panel is
- * unchanged by the dock.
+ * The pane's minimum *width*, and nothing else since GDK-1833 (2026-09-12).
+ * It used to be the number a second narrow rule was derived from, kept
+ * through GDK-1352 on the reasoning that "an overlay pane covers the content
+ * track, so the width at which it can no longer coexist with a docked detail
+ * panel is unchanged by the dock". That sentence measures the overlay's
+ * geometry; the question it was answering is whether the *dock* can coexist
+ * with a docked detail panel, and since GDK-1352 the dock is
+ * `grid-column: 1 / -1; grid-row: 2` — a band under all three columns that
+ * spends zero horizontal pixels. See terminalIsNarrow below.
  */
 export const TERMINAL_MIN_WIDTH_PX = 320
 /*
@@ -67,29 +72,37 @@ export const TERMINAL_MIN_WIDTH_PX = 320
  */
 export const TERMINAL_OVERLAY_MAX_PX = LAYOUT_NARROW_MAX_PX
 
-/*
- * The width below which a split cannot coexist with a docked detail panel,
- * derived rather than chosen: VIEWPORT_DOCKED_MIN_PX is already the floor
- * where sidebar + list + detail fit at their minimums (viewport-regime.ts
- * owns those three numbers), and the terminal wants one more minimum beside
- * them.
- *
- * Without this the four surfaces do fit — on paper. `.issue-layout.detail-open`
- * gives the main track `minmax(--layout-list-min, 1fr)`, so at 1100px the
- * track is exactly the list's 390px floor; the pane's own 320px min-width
- * then wins over any percentage cap and the list is left with 70px. A list
- * 70px wide is not a list. Above this floor the CSS cap keeps the list at
- * its minimum on its own; below it, the terminal stops being a split and
- * becomes the overlay it already knows how to be — no third mode.
- */
-export const TERMINAL_SPLIT_WITH_DETAIL_MIN_PX =
-  VIEWPORT_DOCKED_MIN_PX + TERMINAL_MIN_WIDTH_PX
-
 /**
- * Overlay instead of split, for either of two reasons. Pure so a test can
- * ask it every combination without a window.
+ * Overlay instead of dock, for one reason: the window is narrower than the
+ * layout's narrow step.
+ *
+ * There was a second reason until GDK-1833 (2026-09-12) — a docked detail
+ * panel under VIEWPORT_DOCKED_MIN_PX + TERMINAL_MIN_WIDTH_PX (1420) — and it
+ * was right for the layout it was written against on 2026-08-25, when the
+ * pane was a column beside the list: `.issue-layout.detail-open` gives the
+ * main track `minmax(--layout-list-min, 1fr)`, so at 1100px the track is
+ * exactly the list's 390px floor, the pane's own 320px min-width then won
+ * over any percentage cap, and the list was left with 70px. A list 70px wide
+ * is not a list.
+ *
+ * GDK-1352 (2026-09-02) moved the pane out of that row: the dock is
+ * `grid-column: 1 / -1; grid-row: 2`, a band under the sidebar, the list and
+ * the detail panel alike, and it spends its budget in height, not width. The
+ * rule outlived its premise and kept flipping a perfectly-fitting dock into a
+ * sheet the moment an issue was opened — between 1100 (below which the detail
+ * panel is modal and the clause never fired) and 1419, which is where a
+ * laptop browser sits. Measured at 1100×860 with the pane open and an issue
+ * opened: the list is 390 and the detail panel 437, their exact floors, and
+ * `documentElement.scrollWidth` equals `innerWidth` — the three numbers the
+ * old rule was protecting hold without it.
+ *
+ * Two surfaces had already paid for the premise rather than questioning it:
+ * `e2e/issue-command.spec.ts` forces a 1600px viewport because the sheet
+ * covered the ▶ it needed to click, and `e2e/demo/roundtrip.config.ts` had to
+ * clear 1420 because at 1100 "beat 2 could not be in one frame at all".
+ *
+ * Pure so a test can ask it every combination without a window.
  */
-export function terminalIsNarrow(viewportPx: number, detailDocked: boolean): boolean {
-  if (viewportPx <= TERMINAL_OVERLAY_MAX_PX) return true
-  return detailDocked && viewportPx < TERMINAL_SPLIT_WITH_DETAIL_MIN_PX
+export function terminalIsNarrow(viewportPx: number): boolean {
+  return viewportPx <= TERMINAL_OVERLAY_MAX_PX
 }

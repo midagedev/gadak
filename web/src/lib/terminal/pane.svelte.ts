@@ -18,7 +18,6 @@ import {
   TERMINAL_HEIGHT_KEY,
   TERMINAL_MIN_HEIGHT_PX,
   TERMINAL_OVERLAY_MAX_PX,
-  TERMINAL_SPLIT_WITH_DETAIL_MIN_PX,
   terminalIsNarrow,
   dockDefaultHeight,
   dockMaxHeight,
@@ -51,33 +50,20 @@ function maxHeight(): number {
 
 class TerminalChrome {
   open = $state(false)
-  /** Overlay rather than split — see terminalIsNarrow for the two reasons. */
+  /** Overlay sheet rather than the dock band — see terminalIsNarrow. */
   narrow = $state(false)
   /** 0 means "use 40% of the window on next read". */
   #heightPx = $state(0)
-  /** A docked detail panel is the fourth surface competing for the row. */
-  #detailDocked = $state(false)
 
   constructor() {
     if (typeof window === 'undefined') return
-    this.narrow = terminalIsNarrow(window.innerWidth, false)
+    this.narrow = terminalIsNarrow(window.innerWidth)
     this.#heightPx = readStoredHeight()
-  }
-
-  /**
-   * App.svelte tells the pane when the detail panel is docked beside it. The
-   * pane cannot read that itself: whether the panel is docked or overlaid is
-   * the viewport regime's call, and there is one owner of that question.
-   */
-  setDetailDocked(docked: boolean): void {
-    if (this.#detailDocked === docked) return
-    this.#detailDocked = docked
-    this.#applyNarrow()
   }
 
   #applyNarrow(): void {
     if (typeof window === 'undefined') return
-    this.narrow = terminalIsNarrow(window.innerWidth, this.#detailDocked)
+    this.narrow = terminalIsNarrow(window.innerWidth)
   }
 
   get heightPx(): number {
@@ -158,15 +144,12 @@ class TerminalChrome {
    */
   start(): () => void {
     if (typeof window === 'undefined') return () => {}
-    const queries = [
-      window.matchMedia(`(max-width: ${TERMINAL_OVERLAY_MAX_PX}px)`),
-      window.matchMedia(`(max-width: ${TERMINAL_SPLIT_WITH_DETAIL_MIN_PX - 1}px)`),
-    ]
+    const mq = window.matchMedia(`(max-width: ${TERMINAL_OVERLAY_MAX_PX}px)`)
     const apply = () => this.#applyNarrow()
-    for (const mq of queries) mq.addEventListener('change', apply)
+    mq.addEventListener('change', apply)
     apply()
     return () => {
-      for (const mq of queries) mq.removeEventListener('change', apply)
+      mq.removeEventListener('change', apply)
     }
   }
 }

@@ -633,17 +633,6 @@
    */
   const overlayModal = $derived(isOverlayModal(viewport.regime, panelOpen))
 
-  /*
-   * The terminal is the fourth surface wanting a share of this row, and it is
-   * the one that can be asked to step aside. Whether the detail panel is
-   * docked or overlaid belongs to the viewport regime, so the pane is told
-   * rather than left to work it out — one owner for that question
-   * (viewport-regime.ts), one consumer here.
-   */
-  $effect(() => {
-    terminalChrome.setDetailDocked(panelOpen && viewport.regime === 'docked')
-  })
-
   /* GDK-1585: the overlay chrome is declarative now. `overlayModal` goes to
    * the frames as props — Sidebar/MainColumn `inert`, RightPanel `modal`
    * (role, aria-modal, focus trap) — where a post-render walk used to reach

@@ -24,11 +24,12 @@ import { defineConfig, devices } from '@playwright/test'
  * are 288px each (BoardColumn.svelte — not tokenised), the pane is 400, and
  * the sidebar is narrowed to its own shipped 208px value: 208 + 400 + 864 =
  * 1472 exactly. A pixel less and the Done column — where the film ends — is
- * off frame. It also clears TERMINAL_SPLIT_WITH_DETAIL_MIN_PX (1420 =
- * VIEWPORT_DOCKED_MIN_PX 1100 + TERMINAL_MIN_WIDTH_PX 320, layout.ts), below
- * which the pane stops being a split and covers the detail panel whole —
- * measured at 1100, where beat 2 (the ▶ and the shell it lands in) could not
- * be in one frame at all.
+ * off frame. It used to also have to clear 1420, below which a docked detail
+ * panel turned the pane into a sheet that covered the panel whole — measured
+ * at 1100, where beat 2 (the ▶ and the shell it lands in) could not be in one
+ * frame at all. GDK-1833 removed that clause on 2026-09-12 (the dock is
+ * grid-row 2 and spends no horizontal pixels), so the board's own 1472 is the
+ * only floor left.
  *
  * No webServer block, same as hero-desk.config.ts: record-roundtrip.sh owns the
  * serve, because the PTY inherits an environment Playwright cannot express.

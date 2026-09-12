@@ -43,14 +43,17 @@ const BARRIER = 'GDK1162SETTLED'
 
 test.describe('command blocks in an issue body', () => {
   /*
-   * Wide enough that the pane is a split rather than an overlay. Below
-   * TERMINAL_SPLIT_WITH_DETAIL_MIN_PX a detail panel and an open pane cannot
-   * share the row, so the pane covers the body — and an overlay that sits on
-   * top of the ▶ makes the button unclickable, which is a layout fact, not a
-   * fact about this feature. (Measured at the 1280 default: every click
-   * retried against "xterm-screen intercepts pointer events".) The narrow
-   * case is real, and it is the one where the pane is *closed* when ▶ is
-   * pressed — which is what the third test below walks.
+   * Wide enough that the pane is the dock band rather than the overlay sheet.
+   * A sheet sits on top of the ▶ and makes the button unclickable, which is a
+   * layout fact, not a fact about this feature. (Measured at the 1280
+   * default, back when a docked detail panel under 1420 forced the sheet:
+   * every click retried against "xterm-screen intercepts pointer events".)
+   * GDK-1833 removed that clause on 2026-09-12 — the dock is grid-row 2 and
+   * never competed for the row — so 1280 would do now; 1600 is kept because
+   * it is what this suite's expectations were measured at, and re-measuring
+   * them is not this change. The narrow case is still real below 900px, and
+   * it is the one where the pane is *closed* when ▶ is pressed — which is
+   * what the third test below walks.
    */
   test.use({ viewport: { width: 1600, height: 900 } })
 

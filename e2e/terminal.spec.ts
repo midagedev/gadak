@@ -546,16 +546,22 @@ test.describe('terminal shots', () => {
   })
 
   /*
-   * 2026-08-25 — GDK-864 (lead). Four surfaces want this row: sidebar, list,
-   * terminal, detail panel. Below the sum of their minimums the split stops
-   * being a split. FAIL-first, measured: with the rule disabled the pane
-   * stayed a split and this assertion read `Expected: "true", Received: ""` —
-   * a 1100px row where the pane's 320px min-width beat the percentage cap and
-   * the list was left 70px of its own 390px floor.
+   * 2026-08-25 — GDK-864 (lead). Four surfaces wanted this row: sidebar,
+   * list, terminal, detail panel, and below the sum of their minimums the
+   * split stopped being a split. That was measured, and it was true of the
+   * layout it was measured on: the pane was a column in that row, so at
+   * 1100px its 320px min-width beat the percentage cap and the list was left
+   * 70px of its own 390px floor.
+   *
+   * 2026-09-12 — GDK-1833 (lead, pre-0.22 audit). GDK-1352 had moved the pane
+   * out of that row on 2026-09-02 (`grid-column: 1 / -1; grid-row: 2`, a band
+   * under all three columns), so the four surfaces stopped competing and the
+   * rule kept firing on a premise that was gone. This case now pins the
+   * opposite, which is the shipped behaviour; the widths the old rule
+   * protected are measured in `e2e/terminal-dock-detail.spec.ts`, and that
+   * spec is red on the source with the old clause restored.
    */
-  test('a docked detail panel pushes the terminal to overlay when the row is too narrow', async ({
-    page,
-  }) => {
+  test('a docked detail panel leaves the terminal in the dock (GDK-1833)', async ({ page }) => {
     await page.setViewportSize({ width: 1100, height: 900 })
     await boot(page)
     await openPane(page)
@@ -563,7 +569,7 @@ test.describe('terminal shots', () => {
     // Open an issue: the detail panel docks at 1100px (VIEWPORT_DOCKED_MIN_PX).
     await page.locator('[data-testid="issue-list-scroller"] [role="button"]').first().click()
     await expect(page.getByTestId('issue-detail-panel')).toBeVisible({ timeout: 15_000 })
-    await expect(page.getByTestId('terminal-pane')).toHaveAttribute('data-overlay', 'true')
+    await expect(page.getByTestId('terminal-pane')).not.toHaveAttribute('data-overlay', 'true')
   })
 
   /*

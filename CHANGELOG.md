@@ -300,7 +300,12 @@ regime: the sidebar's narrow width had been redeclared in five places under a
 squeezed the list into what was left; the step sits at 899 and the terminal
 overlay shares the boundary ([GDK-1369], [GDK-1091]), while the shell's height
 falls through `100vh`, `100dvh`, `100svh` so an in-app tab bar no longer eats
-the bottom row ([GDK-54]). The list reads at every width it is given: the
+the bottom row ([GDK-54]). 899 is now the only width that decides the
+terminal's shape: the dock also became that sheet whenever a detail panel was
+open under 1420 pixels, a floor derived when the pane was a column in the
+list's own row and left standing when the pane moved to a band underneath, so
+opening an issue on a laptop covered the list the terminal was there to drive
+([GDK-1833]). The list reads at every width it is given: the
 furniture on the right takes its fixed widths first, so a window 30% narrower
 used to cost the title 60% of its width and clip mid-verb at 1000px — the
 strip is now priced against a width at which a title is still a title, 222px
@@ -2164,3 +2169,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1816]: https://gadak.dev/backlog/#/?ks=GDK-1816
 [GDK-1817]: https://gadak.dev/backlog/#/?ks=GDK-1817
 [GDK-1826]: https://gadak.dev/backlog/#/?ks=GDK-1826
+[GDK-1833]: https://gadak.dev/backlog/#/?ks=GDK-1833
