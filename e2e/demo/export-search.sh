@@ -97,7 +97,7 @@ fi
 # locale variant would ship with no poster at all, or with the English one
 # still sitting under it — nothing in the repo would have said so. First
 # settled frame (-ss 0.2, ec39ea3a).
-ffmpeg -y -v error -ss 0.2 -i "$MP4" -frames:v 1 "$POSTER"
+bash "$ROOT/e2e/demo/poster.sh" --video "$MP4" --out "$POSTER"
 
 echo "export-search: wrote $GIF ($(size_bytes) bytes)"
 echo "export-search: wrote $MP4 ($(wc -c <"$MP4" | tr -d ' ') bytes)"

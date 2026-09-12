@@ -160,7 +160,8 @@ ls -lh "$OUT_DIR/$OUT_NAME"
 # summons the pane, so its first frame shows neither the shell nor the board
 # (both 2026-09-07 posters were the palette over a blurred list). The last
 # frame is the payoff: the view the agent produced, the pane under it.
-ffmpeg -y -v error -sseof -0.3 -i "$OUT_DIR/$OUT_NAME" -frames:v 1 "$OUT_DIR/$POSTER_NAME"
+bash "$ROOT/e2e/demo/poster.sh" --tail --start -0.3 \
+  --video "$OUT_DIR/$OUT_NAME" --out "$OUT_DIR/$POSTER_NAME"
 
 # GIF for the README, from the *cut* mp4 so it carries the same pacing.
 # Width is the README's render width at 2x: the hero sits at 900 (→ 1200 is

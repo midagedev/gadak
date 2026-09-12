@@ -157,7 +157,11 @@ describe('relativeTime (en catalog, pinned clock)', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-15T12:00:00.000Z'))
     expect(relativeTime(null)).toBe('')
-    expect(relativeTime('2026-08-15T11:59:30.000Z')).toBe('just now')
+    // 'now', not 'just now': the compact style has its own key since
+    // 2026-09-12 (time.justNowCompact). One key served both styles and the
+    // Japanese phrase たった今 wrapped to two lines in a list column priced
+    // for "2d" — the long style below still says the whole phrase.
+    expect(relativeTime('2026-08-15T11:59:30.000Z')).toBe('now')
     expect(relativeTime('2026-08-15T11:57:00.000Z')).toBe('3m')
     expect(relativeTime('2026-08-15T10:00:00.000Z')).toBe('2h')
     expect(relativeTime('2026-08-13T12:00:00.000Z')).toBe('2d')

@@ -116,9 +116,10 @@ fi
 # The poster, cut from the mp4 this run just wrote. It used to be an ad-hoc
 # ffmpeg line in MEDIA.md that a person ran from memory, which is how a
 # locale variant would ship with no poster at all, or with the English one
-# still sitting under it — nothing in the repo would have said so. First
-# settled frame (-ss 0.2, ec39ea3a); the clip is already head-trimmed above,
-# so 0.2s in is the settled list, not the boot skeleton.
-ffmpeg -y -v error -ss 0.2 -i "$MP4" -frames:v 1 "$POSTER"
+# still sitting under it — nothing in the repo would have said so. The frame
+# is now chosen by measurement rather than by the clock (poster.sh): -ss 0.2
+# was measured on an English take, and the ko and ja takes are still blank
+# there — both shipped a near-white poster on 2026-09-12.
+bash "$ROOT/e2e/demo/poster.sh" --video "$MP4" --out "$POSTER"
 
 ls -lh "$GIF" "$MP4" "$POSTER"

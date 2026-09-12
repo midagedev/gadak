@@ -364,20 +364,25 @@ export const settings = {
     ko: '신원 없음 — 이 serve는 {tracker} 트래커라서 {issues}가 {view}로 열립니다.',
     ja: 'アイデンティティなし — この serve は{tracker}トラッカーなので、{issues}は{view}で開きます。',
   },
+  // One Japanese word for "built-in" across the app: 内蔵 carries a hardware
+  // sense and sat one screen away from palette.viewBuiltin's 組み込み, so a
+  // single view showed the same English word translated two ways (measured
+  // on the ja hero frames, 2026-09-12). 組み込み is the software reading, and
+  // every 内蔵 in the ja catalogs moved to it in the same pass.
   'settings.workspaceBuiltIn': {
     en: 'Built-in',
     ko: '내장',
-    ja: '内蔵',
+    ja: '組み込み',
   },
   'settings.workspaceBuiltInHint': {
     en: "Your issues live in the built-in tracker, running here. Their only copy is this computer's tracker data file, not gadak.db — back that file up.",
     ko: '이슈는 여기서 도는 내장 트래커에 있습니다. 유일한 사본은 이 컴퓨터의 트래커 데이터 파일이며, 백업 대상은 gadak.db가 아니라 그 파일입니다.',
-    ja: '課題はここで動いている内蔵トラッカーにあります。唯一のコピーはこのコンピュータのトラッカーデータファイルであり、gadak.db ではありません — そのファイルをバックアップしてください。',
+    ja: '課題はここで動いている組み込みトラッカーにあります。唯一のコピーはこのコンピュータのトラッカーデータファイルであり、gadak.db ではありません — そのファイルをバックアップしてください。',
   },
   'settings.builtInHow': {
     en: 'Create a built-in tracker workspace',
     ko: '내장 트래커 워크스페이스 만들기',
-    ja: '内蔵トラッカーのワークスペースを作る',
+    ja: '組み込みトラッカーのワークスペースを作る',
   },
   'settings.runtimeProfile': {
     en: 'Workspace',
@@ -403,7 +408,7 @@ export const settings = {
   'settings.runtimeOrigin': {
     en: 'Built-in tracker',
     ko: '내장 트래커',
-    ja: '内蔵トラッカー',
+    ja: '組み込みトラッカー',
   },
   'settings.runtimeOriginNote': {
     en: 'The record, not a copy — this is what a backup saves.',
@@ -986,7 +991,7 @@ export const settings = {
   'settings.workspacesIntro': {
     en: 'Each workspace is its own local copy, served at /w/<name>/. Creating one seeds a built-in tracker; removing one deletes this machine’s copy of it.',
     ko: '각 워크스페이스는 자체 로컬 사본을 가지며 /w/<name>/ 으로 서빙됩니다. 만들면 내장 트래커가 시드되고, 지우면 이 머신의 사본이 삭제됩니다.',
-    ja: '各ワークスペースは独自のローカルコピーを持ち、/w/<name>/ で serve されます。作成すると内蔵トラッカーがシードされ、削除するとこのマシンのコピーが消えます。',
+    ja: '各ワークスペースは独自のローカルコピーを持ち、/w/<name>/ で serve されます。作成すると組み込みトラッカーがシードされ、削除するとこのマシンのコピーが消えます。',
   },
   'settings.workspacesLoading': {
     en: 'Loading workspaces…',
@@ -1051,7 +1056,7 @@ export const settings = {
   'settings.workspacesModeBuiltIn': {
     en: 'New, built-in tracker',
     ko: '새 워크스페이스 (내장 트래커)',
-    ja: '新規（内蔵トラッカー）',
+    ja: '新規（組み込みトラッカー）',
   },
   'settings.workspacesModePaired': {
     en: 'Register remote',
@@ -1523,7 +1528,7 @@ export const settings = {
   },
   'palette.placeholder': {
     en: 'Jump to an issue, or search everything…',
-    ko: '이슈로 이동, 또는 전체 검색…',
+    ko: '이슈로 이동하거나 전체 검색…',
     ja: '課題へジャンプ、またはすべてを検索…',
   },
   'palette.sectionUnified': {
@@ -1901,10 +1906,14 @@ export const settings = {
   },
   // At rest: the verdict and the age together, so neither surface has to be
   // read alongside the other to mean anything.
+  // 보관 reads as "archived" and the sentence is a state, not a verb; ja was
+  // the bare verb where the line reports a condition. Measured on the hero
+  // frames 2026-09-12. "이 컴퓨터" is the noun the rest of the ko catalog
+  // already uses for this machine.
   'sync.settledLocalWhen': {
     en: 'Saved on this machine · {when}',
-    ko: '이 기계에 보관 · {when}',
-    ja: 'この端末に保存 · {when}',
+    ko: '이 컴퓨터에 저장됨 · {when}',
+    ja: 'この端末に保存済み · {when}',
   },
   'sync.settledOk': {
     en: 'Synced {when}',
@@ -2033,7 +2042,7 @@ export const settings = {
   'sync.freshLocalTitle': {
     en: 'Mirror refreshed from the built-in tracker {when}. Click to sync now.',
     ko: '내장 트래커에서 {when} 갱신한 캐시입니다. 클릭하면 지금 동기화합니다.',
-    ja: '内蔵トラッカーから {when} 更新したキャッシュです。クリックで今すぐ同期します。',
+    ja: '組み込みトラッカーから {when} 更新したキャッシュです。クリックで今すぐ同期します。',
   },
   'sync.staleTitle': {
     en: 'Mirror is behind — last successful sync {when}. Click to sync now.',

@@ -121,10 +121,12 @@ export const list = {
     ko: '제외',
     ja: '以外',
   },
+  // 件 counts matters, not keys, and "{n} keys" put the number first because
+  // English does; Japanese puts the counter after the noun (2026-09-12).
   'filter.chipKeys': {
     en: '{n} keys',
     ko: '키 {n}개',
-    ja: '{n}件のキー',
+    ja: 'キー{n}件',
   },
   // CLI KeyLimitMessage (internal/jql/keys.go:21) + shown count (GDK-35).
   'filter.keysCapped': {

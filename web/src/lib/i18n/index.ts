@@ -195,7 +195,8 @@ function formatRelativeParts(
   parts: RelativeParts,
   style: RelativeStyle = 'compact',
 ): string {
-  if (parts.kind === 'just_now') return t('time.justNow')
+  if (parts.kind === 'just_now')
+    return t(style === 'long' ? 'time.justNow' : 'time.justNowCompact')
   const n = parts.n ?? 0
   const unit = parts.unit ?? 'minute'
   if (style === 'long' && unit === 'day' && n === 1) return t('time.yesterday')

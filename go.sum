@@ -20,6 +20,8 @@ github.com/mattn/go-runewidth v0.0.19 h1:v++JhqYnZuu5jSKrk9RbgF5v4CGUjqRfBm05byF
 github.com/mattn/go-runewidth v0.0.19/go.mod h1:XBkDxAl56ILZc9knddidhrOlY5R/pDhgLpndooCuJAs=
 github.com/midagedev/issuetap v0.0.0-20260911063337-b2a2614dd570 h1:JkJDOcPHHpcH6R113mTSAHo2mjmqciowWbUGVuqJjzo=
 github.com/midagedev/issuetap v0.0.0-20260911063337-b2a2614dd570/go.mod h1:VI3sqskL2eqVH88g5jS9hAHTWPF8SJocH69p2/xh5Z0=
+github.com/midagedev/issuetap v0.0.0-20260912124129-47d9e7107aa4 h1:xYyJTK/3fRvHsc9/NdNTWK0FxnW8ee/kelRPzG0P4ik=
+github.com/midagedev/issuetap v0.0.0-20260912124129-47d9e7107aa4/go.mod h1:VI3sqskL2eqVH88g5jS9hAHTWPF8SJocH69p2/xh5Z0=
 github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOFAw7w=
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=

@@ -326,7 +326,19 @@ hears a slider with a live value, and the target is hand-sized rather than
 now reads a registry that can see all three of them, where its axis list had
 named only the two that already did ([GDK-1815]); and the list column
 gained a width of its own, `ui.tokens.layout.list`
-([GDK-769]). Twenty-one sites spelling the same four utilities became one
+([GDK-769]). Reading the Korean and Japanese clips frame by
+frame before cutting them found what copy review had not: `Backlog` and
+`Selected for Development` stood in English one line above 진행 중, because
+the built-in tracker's translated catalogs spelled every status id but those
+two; the compact relative time shared its key with the long one, so たった今
+wrapped to two lines in a column priced for `2d`; the same English word was
+`内蔵` on one screen and `組み込み` on the next; and the sidebar's Documents
+section held a row called Documents in all three languages ([GDK-1837]). The
+posters went the same way — the still a reader meets before pressing play was
+cut at a timestamp measured once on an English take, and both localized clips
+had been shipping a blank one; the frame is now chosen by looking for ink in
+it, and an export that cannot find any refuses ([GDK-1836]). Twenty-one sites
+spelling the same four utilities became one
 `.section-label` recipe, and Korean and Japanese keep their case ([GDK-141]);
 the QA teal became a `--color-status-qa` token from the avatar family
 ([GDK-160]); the palette keeps its icon rail even for rows without one
@@ -2175,3 +2187,5 @@ priority sorting keyed on `priority_rank`.
 [GDK-1826]: https://gadak.dev/backlog/#/?ks=GDK-1826
 [GDK-1833]: https://gadak.dev/backlog/#/?ks=GDK-1833
 [GDK-1835]: https://gadak.dev/backlog/#/?ks=GDK-1835
+[GDK-1836]: https://gadak.dev/backlog/#/?ks=GDK-1836
+[GDK-1837]: https://gadak.dev/backlog/#/?ks=GDK-1837

@@ -438,10 +438,14 @@ export const shell = {
     ko: '{space} · 문서 {n}건',
     ja: '{space} · ドキュメント {n}件',
   },
+  // Not "Documents": that is the section this row sits inside, and a section
+  // whose only child repeats its name reads as a broken tree in all three
+  // languages (2026-09-12 recording review). The row is the all-up view, the
+  // one beside "Spaces".
   'sidebar.docsAll': {
-    en: 'Documents',
-    ko: '문서',
-    ja: 'ドキュメント',
+    en: 'All documents',
+    ko: '문서 전체',
+    ja: 'ドキュメント全体',
   },
   'sidebar.docsAllTitle': {
     en: 'Documents you viewed, what changed, and who wrote it',
@@ -597,10 +601,14 @@ export const shell = {
     ko: '내 일',
     ja: '自分の仕事',
   },
+  // "Team flow" names the stance in English; the ko and ja renderings of it
+  // were noun phrases carried across rather than the words a PM uses for the
+  // queues that are not theirs (2026-09-12 ja/ko recording review). The pair
+  // is with sidebar.stanceMine above: mine, and the team's.
   'sidebar.stanceTeam': {
     en: 'Team flow',
-    ko: '팀의 흐름',
-    ja: 'チームの流れ',
+    ko: '팀 전체',
+    ja: 'チーム全体',
   },
   'view.allOpen.name': {
     en: 'All open',
@@ -615,7 +623,7 @@ export const shell = {
   'view.unassignedNew.name': {
     en: 'Unassigned new',
     ko: '미할당 신규',
-    ja: '未割り当ての新規',
+    ja: '未担当の新規',
   },
   'view.unassignedNew.hint': {
     en: 'New with no assignee',

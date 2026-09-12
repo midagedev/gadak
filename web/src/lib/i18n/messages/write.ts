@@ -874,7 +874,7 @@ export const write = {
   'onboarding.builtInBlocked': {
     en: 'This workspace holds {n} issues or documents that originated here, in the built-in tracker. They exist only here — no Jira site has a copy. Converting this workspace deletes them from this local copy.',
     ko: '이 워크스페이스에는 내장 트래커에서 만들어진 이슈 또는 문서가 {n}개 있습니다. 여기에만 존재하며 어떤 Jira 사이트에도 사본이 없습니다. 이 워크스페이스를 전환하면 이 로컬 사본에서 그것들이 삭제됩니다.',
-    ja: 'このワークスペースには内蔵トラッカーで作られた課題またはドキュメントが {n}件あります。ここにしか存在せず、どの Jira サイトにもコピーはありません。このワークスペースを変換すると、それらはこのローカルコピーから削除されます。',
+    ja: 'このワークスペースには組み込みトラッカーで作られた課題またはドキュメントが {n}件あります。ここにしか存在せず、どの Jira サイトにもコピーはありません。このワークスペースを変換すると、それらはこのローカルコピーから削除されます。',
   },
   'onboarding.builtInPersist': {
     en: 'Tracker data file: {path}',
@@ -901,12 +901,12 @@ export const write = {
   'onboarding.builtInIntro': {
     en: 'No account? The built-in tracker keeps issues on this machine — one click, and you start here.',
     ko: '계정이 없나요? 내장 트래커가 이 머신에 이슈를 보관합니다 — 클릭 한 번으로 여기서 시작합니다.',
-    ja: 'アカウント不要 — 内蔵トラッカーが課題をこのマシンに保持します。クリックひとつでここから始められます。',
+    ja: 'アカウント不要 — 組み込みトラッカーが課題をこのマシンに保持します。クリックひとつでここから始められます。',
   },
   'onboarding.builtInStart': {
     en: 'Start with the built-in tracker',
     ko: '내장 트래커로 시작',
-    ja: '内蔵トラッカーで始める',
+    ja: '組み込みトラッカーで始める',
   },
   // 409 workspace_connected: the server names the same fact handleConnect's
   // refusals do — origin switch is a new workspace, not a settings edit.
@@ -934,7 +934,7 @@ export const write = {
   'onboarding.sourceBuiltin': {
     en: 'Built-in tracker',
     ko: '내장 트래커',
-    ja: '内蔵トラッカー',
+    ja: '組み込みトラッカー',
   },
   'onboarding.sourceBuiltinAux': {
     en: 'no account, starts here',

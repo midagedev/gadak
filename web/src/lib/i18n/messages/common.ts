@@ -262,6 +262,15 @@ export const common = {
     ko: '방금',
     ja: 'たった今',
   },
+  // The compact style sits in a list column priced for "2d" and "3h", and
+  // one key served both styles: on the ja hero frames of 2026-09-12 たった今
+  // wrapped to two lines in a column where every other row was one. The
+  // long style keeps its full phrase; compact gets a word that fits.
+  'time.justNowCompact': {
+    en: 'now',
+    ko: '방금',
+    ja: '今',
+  },
   'time.yesterday': {
     en: 'yesterday',
     ko: '어제',

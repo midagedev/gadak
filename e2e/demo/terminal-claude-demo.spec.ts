@@ -144,7 +144,12 @@ async function ask(page: Page, prompt: string): Promise<void> {
 const PROMPTS: Record<Locale, { activity: string; dashboard: string }> = {
   en: {
     activity: "Show me Dana Whitfield's issues that moved recently",
-    dashboard: 'Make a dashboard of issue label ratios and open it',
+    // "ratios" alone read as a *count* chart three takes out of three
+    // (2026-09-12: "12 labels · 640 issues", no percent sign anywhere), the
+    // same way Korean 비율 did on 2026-09-08 — so the English line now pins
+    // the unit the way the Korean one does. The contract below is what
+    // caught it; the prompt is what was ambiguous.
+    dashboard: 'Make a dashboard of issue label ratios as percentages and open it',
   },
   ko: {
     activity: 'Dana Whitfield이 담당한 이슈 중에 최근에 움직인 것 보여줘',
@@ -156,7 +161,9 @@ const PROMPTS: Record<Locale, { activity: string; dashboard: string }> = {
   },
   ja: {
     activity: 'Dana Whitfield が担当している課題のうち、最近動いたものを見せて',
-    dashboard: '課題ラベルの比率をダッシュボードにして開いて',
+    // Pinned by parity with en and ko rather than by its own measurement:
+    // 比率 is as loose as 비율, and a rejected live take costs three rounds.
+    dashboard: '課題ラベルの比率をパーセントでダッシュボードにして開いて',
   },
 }
 const ASK_ACTIVITY = PROMPTS[LOCALE].activity

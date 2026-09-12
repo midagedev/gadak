@@ -1057,7 +1057,7 @@ export const detail = {
   'retro.noSprintsHint': {
     en: 'Sprint columns need a board with sprints — a Jira Software board, a Linear cycle, or a sprint in the built-in tracker.',
     ko: '스프린트 열을 그리려면 스프린트가 있는 보드가 필요합니다. Jira Software 보드, Linear 사이클, 또는 내장 트래커의 스프린트.',
-    ja: 'スプリントの列には、スプリントを持つボードが要ります。Jira Software のボード、Linear のサイクル、または内蔵トラッカーのスプリントです。',
+    ja: 'スプリントの列には、スプリントを持つボードが要ります。Jira Software のボード、Linear のサイクル、または組み込みトラッカーのスプリントです。',
   },
   'retro.pickBoard': {
     en: 'Several boards have sprints — pick one',

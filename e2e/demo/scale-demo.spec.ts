@@ -192,15 +192,22 @@ test.describe('scale demo', () => {
     await beat(page, 900)
 
     // 2) Priority = High — the menu's facet counts are now computed over
-    // the NMB-excluded slice, and picking High narrows again. This fixture
-    // carries no priority ids (a pre-GDK-1491 scrub), so the facet value is
-    // the display name and the translation is what the row is keyed by.
+    // the NMB-excluded slice, and picking High narrows again. The row is
+    // keyed by the priority *id*, never the display name: buildFacets keys
+    // on `priority_id || priority` (web/src/stores/filters.svelte.ts), so a
+    // fixture that carries ids keys on them. This spec used to key on the
+    // translated name with a comment saying the fixture carried no ids —
+    // true when it was written, false since the GDK-1491 regeneration put
+    // them back, and all three locales died here on 2026-09-12 with the
+    // menu open and 高 4,194 legible in the snapshot. The name is what the
+    // frame has to show, so it stays — as an assertion on the row's text.
+    const HIGH_ID = '2'
     const HIGH = fixtureString('catalog:priority:High')
     await page.getByTestId('filter-add').click()
     await page.getByTestId('filter-axis-priority').click()
     const menuH = page.locator('.anim-enter').first()
     await expect(menuH).toBeVisible()
-    const high = valueRow(menuH, HIGH)
+    const high = valueRow(menuH, HIGH_ID)
     await expect(high).toBeVisible()
     // What the frame shows, in this take's language.
     await expect(high).toContainText(HIGH)

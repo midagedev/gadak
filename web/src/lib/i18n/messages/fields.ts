@@ -519,10 +519,12 @@ export const fields = {
     ko: '에픽',
     ja: 'エピック',
   },
+  // 内訳 is the itemization of an amount; the control groups rows, and the
+  // word Jira's own Japanese uses for it is グループ化 (2026-09-12 review).
   'group.breakdown': {
     en: 'Breakdown',
     ko: '구분',
-    ja: '内訳',
+    ja: 'グループ化',
   },
   'group.openEpic': {
     en: 'Open epic issue',
