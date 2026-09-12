@@ -16,9 +16,10 @@
  * would be a vocabulary rename wearing a gate's clothes, and renames of that
  * shape are what swallow wire contracts.
  *
- * en only: ko and ja are the lead's to write (project CLAUDE.md — Korean and
- * Japanese prose is not delegated). They still carry 미러/ミラー and are
- * listed in this round's report.
+ * en only for the onboarding keys: ko and ja are the lead's to write (project
+ * CLAUDE.md — Korean and Japanese prose is not delegated). The GDK-1817 block
+ * at the bottom is the one place this file does measure them, because that is
+ * the one place the lead has since written.
  *
  * FAIL-first, on the strings before this round:
  *   write.projectNotMirrored  "…not in this mirror. Pick a mirrored project…"
@@ -69,5 +70,52 @@ describe('GDK-1323 onboarding says cache, not mirror', () => {
     expect(MIRROR_WORD.test(en), 'GDK-1323 marks the freshness wording a separate matter').toBe(
       true,
     )
+  })
+})
+
+/*
+ * GDK-1817 (audit pass 3, axis 6 A12): the chip's ko and ja, which the block
+ * above deliberately left alone and which nothing measured.
+ *
+ * GDK-1286 moved the Sources tab beside this chip to 캐시 / キャッシュ, so the
+ * settings window was showing a person two words for one thing — and the
+ * English exclusion above said nothing about it, because the English word
+ * stays by the same 2026-09-08 decision. A rule written for one language is
+ * not a rule for the other two; this is the half that was missing.
+ *
+ * FAIL-first, on the strings before this round: sync.freshLabel ko '미러 신선도'
+ * / ja 'ミラーの鮮度', and 미러/ミラー in freshTitle, freshLocalTitle,
+ * staleTitle and neverTitle — five keys, ten values, all red.
+ */
+const CHIP_KEYS = [
+  'sync.freshLabel',
+  'sync.freshTitle',
+  'sync.freshLocalTitle',
+  'sync.staleTitle',
+  'sync.neverTitle',
+] as const
+
+/** The word the prose editions dropped: 미러 (ko) and ミラー (ja). */
+const MIRROR_LOANWORD = /미러|ミラー/
+
+describe('GDK-1817 the freshness chip says cache in ko and ja', () => {
+  test.each(CHIP_KEYS)('%s carries no mirror loanword in ko or ja', (key) => {
+    const row = (messages as Record<string, Record<string, string>>)[key]
+    const offenders = (['ko', 'ja'] as const)
+      .filter((locale) => MIRROR_LOANWORD.test(row[locale]))
+      .map((locale) => `${locale}: "${row[locale]}"`)
+    expect(
+      offenders,
+      `${key}: the Sources tab on this same screen says 캐시 / キャッシュ (GDK-1286); ` +
+        'one screen, one word for the local copy. English keeps `mirror` by the ' +
+        'same 2026-09-08 decision — only ko and ja moved.',
+    ).toEqual([])
+  })
+
+  // The noun is actually there, so the rule is not satisfied by deleting it.
+  test.each(CHIP_KEYS)('%s names the cache in ko and ja', (key) => {
+    const row = (messages as Record<string, Record<string, string>>)[key]
+    expect(row.ko).toMatch(/캐시/)
+    expect(row.ja).toMatch(/キャッシュ/)
   })
 })

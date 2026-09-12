@@ -2006,26 +2006,34 @@ export const settings = {
     ko: '마지막 확인 {when}',
     ja: '最終確認 {when}',
   },
-  // The freshness chip's own vocabulary (mirror ↔ tracker leg).
+  /*
+   * The freshness chip's own vocabulary (local copy ↔ tracker leg). GDK-1817:
+   * ko and ja say 캐시 / キャッシュ here, the word the 2026-09-08 decision
+   * settled on for prose a person reads — the Sources tab beside this chip
+   * had already moved (GDK-1286) and one screen was carrying two words for
+   * one thing. English keeps `mirror` by the same decision, and so do
+   * docs/MIRROR.md, the identifiers and the CLI. Measured by
+   * onboarding-vocabulary.test.ts.
+   */
   'sync.freshLabel': {
     en: 'Mirror freshness',
-    ko: '미러 신선도',
-    ja: 'ミラーの鮮度',
+    ko: '캐시 신선도',
+    ja: 'キャッシュの鮮度',
   },
   'sync.freshTitle': {
     en: 'Mirror pulled from {tracker} {when}. Click to sync now.',
-    ko: '{when} {tracker}에서 가져온 미러입니다. 클릭하면 지금 동기화합니다.',
-    ja: '{tracker} からミラーを {when} 取得しました。クリックで今すぐ同期します。',
+    ko: '{when} {tracker}에서 가져온 캐시입니다. 클릭하면 지금 동기화합니다.',
+    ja: '{tracker} から {when} 取得したキャッシュです。クリックで今すぐ同期します。',
   },
   'sync.freshLocalTitle': {
     en: 'Mirror refreshed from the built-in tracker {when}. Click to sync now.',
-    ko: '내장 트래커에서 미러를 {when} 갱신했습니다. 클릭하면 지금 동기화합니다.',
-    ja: '内蔵トラッカーからミラーを {when} 更新しました。クリックで今すぐ同期します。',
+    ko: '내장 트래커에서 {when} 갱신한 캐시입니다. 클릭하면 지금 동기화합니다.',
+    ja: '内蔵トラッカーから {when} 更新したキャッシュです。クリックで今すぐ同期します。',
   },
   'sync.staleTitle': {
     en: 'Mirror is behind — last successful sync {when}. Click to sync now.',
-    ko: '미러가 지연됐습니다 — 마지막 성공 동기화 {when}. 클릭하면 지금 동기화합니다.',
-    ja: 'ミラーが遅れています — 最後の成功同期は {when}。クリックで今すぐ同期します。',
+    ko: '캐시가 뒤처졌습니다 — 마지막 성공 동기화 {when}. 클릭하면 지금 동기화합니다.',
+    ja: 'キャッシュが遅れています — 最後の成功同期は {when}。クリックで今すぐ同期します。',
   },
   'sync.failedTitle': {
     en: 'Last sync failed: {message}\nClick to retry.',
@@ -2034,8 +2042,8 @@ export const settings = {
   },
   'sync.neverTitle': {
     en: 'The mirror has never synced. Click to sync now.',
-    ko: '미러가 아직 한 번도 동기화되지 않았습니다. 클릭하면 지금 동기화합니다.',
-    ja: 'ミラーはまだ一度も同期していません。クリックで今すぐ同期します。',
+    ko: '아직 한 번도 동기화하지 않은 캐시입니다. 클릭하면 지금 동기화합니다.',
+    ja: 'まだ一度も同期していないキャッシュです。クリックで今すぐ同期します。',
   },
   'sync.tokenExpiring': {
     en: 'Token expires in {n} days',

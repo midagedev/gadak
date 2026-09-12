@@ -329,7 +329,9 @@ fallback's premise is scoped to the build it was measured on ([GDK-1114]),
 with the scoped-token hint on a 401 already there ([GDK-73]). The settings
 window stopped saying "mirror" to the person reading it ([GDK-1286],
 [GDK-1285], [GDK-1629], [GDK-1268], [GDK-1494]) and onboarding calls the local
-copy a cache throughout ([GDK-1323]); personal history became something you
+copy a cache throughout ([GDK-1323]) — in Korean and Japanese the freshness
+chip beside it says so too, where it had been the one thing on that screen
+still using the other word ([GDK-1817]); personal history became something you
 can see and clear ([GDK-106], [GDK-1752], [GDK-957], [GDK-1183]). On the
 phone, the controls live in the catalog rather than the markup ([GDK-1150]),
 the detail header gained a share button ([GDK-877], [GDK-1136]), the terminal
@@ -2150,3 +2152,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1814]: https://gadak.dev/backlog/#/?ks=GDK-1814
 [GDK-1815]: https://gadak.dev/backlog/#/?ks=GDK-1815
 [GDK-1816]: https://gadak.dev/backlog/#/?ks=GDK-1816
+[GDK-1817]: https://gadak.dev/backlog/#/?ks=GDK-1817
