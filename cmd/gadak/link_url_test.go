@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -164,5 +165,128 @@ func TestLinkURLNonPRIsARemoteLinkNotAPR(t *testing.T) {
 	}
 	if strings.Contains(issue, "Linked PRs") {
 		t.Fatalf("a non-PR URL must not light up the PR section:\n%s", issue)
+	}
+}
+
+// GDK-1816 — the two front doors over the one remote-link write.
+//
+// `gadak link KEY <url>` and `gadak ref KEY <url>` both reach addRemoteLink.
+// Before this round they were not equivalent: --dry-run existed on link only,
+// --title on link only, --as on ref only. The two tests below are the
+// recurrence gate — a capability that lands on one door and not the other is
+// red here rather than discovered by a person typing the other spelling.
+
+// remoteLinkDoorOptions reads the option names a verb's --help advertises.
+// The help Options block is rendered straight off the verb's FlagSet
+// (optionLines/VisitAll), so this reads the flag set itself, not prose.
+func remoteLinkDoorOptions(t *testing.T, verb string, run func([]string) error) map[string]bool {
+	t.Helper()
+	out, err := capture(t, func() error { return run([]string{"--help"}) })
+	if err != nil {
+		t.Fatalf("%s --help: %v\n%s", verb, err, out)
+	}
+	opts := map[string]bool{}
+	for _, line := range strings.Split(out, "\n") {
+		if !strings.HasPrefix(line, "  --") {
+			continue
+		}
+		name := strings.TrimPrefix(strings.TrimSpace(line), "--")
+		if i := strings.IndexAny(name, " \t"); i >= 0 {
+			name = name[:i]
+		}
+		opts[name] = true
+	}
+	if len(opts) == 0 {
+		t.Fatalf("%s --help listed no options:\n%s", verb, out)
+	}
+	return opts
+}
+
+// TestRemoteLinkDoorsOfferTheSameOptions: link and ref are one write with two
+// spellings, so their option sets may differ only by the grammar each door
+// owns — --type is link's issue-link half, --list/--rm are ref's read and
+// delete halves. Everything else must be on both doors.
+func TestRemoteLinkDoorsOfferTheSameOptions(t *testing.T) {
+	linkOnly := map[string]bool{"type": true}
+	refOnly := map[string]bool{"list": true, "rm": true}
+
+	linkOpts := remoteLinkDoorOptions(t, "link", cmdLink)
+	refOpts := remoteLinkDoorOptions(t, "ref", cmdRef)
+
+	for name := range linkOpts {
+		if linkOnly[name] || refOpts[name] {
+			continue
+		}
+		t.Errorf("gadak link offers --%s and gadak ref does not — the same remote-link write must be callable the same way through both doors", name)
+	}
+	for name := range refOpts {
+		if refOnly[name] || linkOpts[name] {
+			continue
+		}
+		t.Errorf("gadak ref offers --%s and gadak link does not — the same remote-link write must be callable the same way through both doors", name)
+	}
+	// The ones the audit found missing, named so a regression reads plainly.
+	for _, want := range []string{"title", "as", "dry-run", "json"} {
+		if !linkOpts[want] {
+			t.Errorf("gadak link --help does not offer --%s", want)
+		}
+		if !refOpts[want] {
+			t.Errorf("gadak ref --help does not offer --%s", want)
+		}
+	}
+}
+
+// TestRemoteLinkDoorsPlanTheSameWrite: given the same options, the plan the
+// two doors print is identical apart from the verb naming the door the person
+// typed. That is what makes --dry-run answer "are these two commands the same
+// write?" — the answer is the JSON, not the source.
+func TestRemoteLinkDoorsPlanTheSameWrite(t *testing.T) {
+	newBuiltinWorkspace(t, "plan")
+	mine := createIssue(t, "the issue")
+
+	plan := func(verb string, run func([]string) error, args []string) map[string]any {
+		t.Helper()
+		out, err := capture(t, func() error { return run(args) })
+		if err != nil {
+			t.Fatalf("%s --dry-run: %v\n%s", verb, err, out)
+		}
+		var body map[string]any
+		if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &body); err != nil {
+			t.Fatalf("%s plan %q: %v", verb, out, err)
+		}
+		if body["verb"] != verb {
+			t.Errorf("%s plan named verb %v", verb, body["verb"])
+		}
+		if body["key"] != mine {
+			t.Errorf("%s plan named key %v, want %s", verb, body["key"], mine)
+		}
+		req, ok := body["request"].(map[string]any)
+		if !ok {
+			t.Fatalf("%s plan carries no request: %v", verb, body)
+		}
+		return req
+	}
+
+	url := "https://github.com/midagedev/gadak/pull/77"
+	linkReq := plan("link", cmdLink, []string{mine, url, "--title", "Fix login", "--as", "blocked by", "--dry-run"})
+	refReq := plan("ref", cmdRef, []string{mine, url, "--title", "Fix login", "--as", "blocked by", "--dry-run"})
+
+	// Logged so `go test -v` answers the question this gate exists for
+	// without anyone re-deriving it from the source.
+	t.Logf("link plans %v", linkReq)
+	t.Logf(" ref plans %v", refReq)
+	if fmt.Sprint(linkReq) != fmt.Sprint(refReq) {
+		t.Fatalf("the two doors plan different writes:\n link: %v\n  ref: %v", linkReq, refReq)
+	}
+	// And both carry the chosen title *and* the chosen relationship — the
+	// pair addRemoteLink always supported and neither door could pass.
+	if linkReq["title"] != "Fix login" || linkReq["relationship"] != "blocked by" {
+		t.Fatalf("--title and --as did not both reach the write: %v", linkReq)
+	}
+
+	// Neither plan wrote anything.
+	listed, err := capture(t, func() error { return cmdRef([]string{mine, "--list", "--json"}) })
+	if err != nil || !strings.Contains(listed, `"refs":[]`) {
+		t.Fatalf("a dry run wrote something: %v\n%s", err, listed)
 	}
 }

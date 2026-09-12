@@ -25,9 +25,9 @@ import (
 	"github.com/midagedev/gadak/internal/store"
 )
 
-const refUsage = "usage: gadak ref <KEY> <workspace>/<TARGET-KEY>|<url> [--as <relationship>] [--json]\n" +
+const refUsage = "usage: gadak ref <KEY> <workspace>/<TARGET-KEY>|<url> [--as <relationship>] [--title T] [--json] [--dry-run]\n" +
 	"       gadak ref <KEY> --list [--json]\n" +
-	"       gadak ref <KEY> --rm <id>"
+	"       gadak ref <KEY> --rm <id> [--json] [--dry-run]"
 
 // The pointer grammar — gadak://<workspace>/<KEY>, its parser, its
 // hydration read — is owned by internal/reflink (GDK-1316); this file is
@@ -36,9 +36,11 @@ const refUsage = "usage: gadak ref <KEY> <workspace>/<TARGET-KEY>|<url> [--as <r
 func cmdRef(args []string) error {
 	fs := newFlagSet("ref")
 	as := fs.String("as", "", "relationship phrase stored with the pointer (default: relates to)")
+	title := fs.String("title", "", "remote link title (default: the hydrated target, or the URL itself)")
 	list := fs.Bool("list", false, "list this issue's references")
 	rm := fs.String("rm", "", "remove the reference with this id (from --list)")
 	asJSON := fs.Bool("json", false, "emit JSON")
+	dryRun := fs.Bool("dry-run", false, "print the request this write would send and exit; nothing reaches the origin")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("ref", fs))
 		return nil
@@ -63,9 +65,9 @@ func cmdRef(args []string) error {
 		if len(rest) != 0 {
 			return usageError("ref", refUsage)
 		}
-		return refRemove(key, *rm, *asJSON)
+		return foldDryRun(removeRemoteLink("ref rm", key, *rm, "", *asJSON, *dryRun))
 	case len(rest) == 1:
-		return refAdd(key, rest[0], *as, *asJSON)
+		return foldDryRun(addRemoteLink("ref", key, rest[0], strings.TrimSpace(*title), *as, *asJSON, *dryRun))
 	default:
 		return usageError("ref", refUsage)
 	}
@@ -97,18 +99,17 @@ func parseRefTarget(token string) (url, workspace, targetKey string, err error) 
 	return reflink.Compose(ws, k), ws, k, nil
 }
 
-func refAdd(key, target, relationship string, asJSON bool) error {
-	return addRemoteLink("ref", key, target, "", relationship, asJSON, false)
-}
-
-// addRemoteLink is the one remote-link write path (GDK-530): `gadak ref`
-// points at another workspace's issue or a URL, `gadak link KEY <url>` is
-// the URL-spelled front door, and both mint the same origin row through the
-// same write-through session. verb names the door the person typed (the
-// dry-run plan and JSON carry it). titleOverride is `link --title`; empty
-// keeps the target's own default — the hydrated pointer, or the URL itself.
-// dryRun plans without a session: the request is fully typed, there is
-// nothing to resolve from the origin first.
+// addRemoteLink is the one remote-link write path (GDK-530, GDK-1816):
+// `gadak ref` points at another workspace's issue or a URL, `gadak link KEY
+// <url>` is the URL-spelled front door, and both mint the same origin row
+// through the same write-through session. Every option lives here, on the
+// owner, so that neither door can grow a capability the other lacks — the
+// doors are argument shuffling and nothing else (the parity gate in
+// link_url_test.go holds them to it). verb names the door the person typed
+// (the dry-run plan and the ledger row carry it). titleOverride is --title;
+// empty keeps the target's own default — the hydrated pointer, or the URL
+// itself. relationship is --as. dryRun plans without a session: the request
+// is fully typed, there is nothing to resolve from the origin first.
 func addRemoteLink(verb, key, target, titleOverride, relationship string, asJSON, dryRun bool) error {
 	url, ws, targetKey, err := parseRefTarget(target)
 	if err != nil {
@@ -169,21 +170,79 @@ func addRemoteLink(verb, key, target, titleOverride, relationship string, asJSON
 	})
 }
 
-func refRemove(key, id string, asJSON bool) error {
+// removeRemoteLink is the one remote-link delete path (GDK-1816) — the
+// inverse of addRemoteLink, with the same two-doors-one-owner shape. `gadak
+// ref KEY --rm <id>` names the id `--list` printed; `gadak unlink KEY <url>`
+// names the URL the person typed and the id is resolved here, so the verb
+// that made a remote link unmakes it.
+//
+// The resolution reads the *origin*, not the mirror: the mirror is a
+// discardable cache, and on a paired workspace its remote-link rows refresh
+// only when ref/link writes ([^21] in docs/SUPPORT_MATRIX.md) — an id taken
+// from there can name a row the origin no longer has. Same reasoning as
+// cmdUnlink's live issue-link lookup.
+func removeRemoteLink(verb, key, id, target string, asJSON, dryRun bool) error {
 	return withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
 		rl, err := origin.AsRemoteLinker(cfg, c)
 		if err != nil {
 			return err
 		}
+		plan := map[string]any{}
+		if id == "" {
+			links, err := rl.RemoteLinks(ctx, key)
+			if err != nil {
+				return refOriginTooOld(cfg, err)
+			}
+			match, err := matchRemoteLinkByURL(key, target, links)
+			if err != nil {
+				return err
+			}
+			id = match.ID
+			plan["url"], plan["title"] = match.URL, match.Title
+		}
+		if dryRun {
+			// The split sits after the lookup, so the plan names the exact
+			// delete the origin would receive — and a URL that matches
+			// nothing, or two rows, refuses here exactly as the write would.
+			plan["link_id"] = id
+			if err := emitDryRun(verb, plan, key); err != nil {
+				return err
+			}
+			return errDryRun
+		}
 		if err := rl.DeleteRemoteLink(ctx, key, id); err != nil {
 			return refOriginTooOld(cfg, err)
 		}
-		recordAgentWrite(ctx, db, key, "ref rm")
+		recordAgentWrite(ctx, db, key, verb)
 		if err := refreshRefs(ctx, cfg, db, rl, key); err != nil {
 			return err
 		}
 		return emitAfterWrite(ctx, cfg, db, src, key, asJSON, map[string]any{"removed": id})
 	})
+}
+
+// matchRemoteLinkByURL picks the one link on key whose URL is the one typed.
+// Ambiguity refuses rather than guessing which of two to delete: a remote
+// link minted without a global id is a fresh row every time, so the same URL
+// can legitimately sit on an issue twice and only the person knows which one
+// to take out.
+func matchRemoteLinkByURL(key, target string, links []origin.RemoteLink) (origin.RemoteLink, error) {
+	want := strings.TrimSpace(target)
+	var hits []origin.RemoteLink
+	for _, l := range links {
+		if l.URL == want || (l.GlobalID != "" && l.GlobalID == want) {
+			hits = append(hits, l)
+		}
+	}
+	switch {
+	case len(hits) == 0:
+		return origin.RemoteLink{}, fmt.Errorf("%s has no link to %s — `gadak ref %s --list` prints what is there", key, want, key)
+	case len(hits) > 1:
+		return origin.RemoteLink{}, fmt.Errorf("%d links on %s point at %s — remove one by id: `gadak ref %s --list`, then `gadak ref %s --rm <id>`", len(hits), key, want, key, key)
+	case hits[0].ID == "":
+		return origin.RemoteLink{}, fmt.Errorf("the origin's link from %s to %s carries no id — cannot delete it over this origin", key, want)
+	}
+	return hits[0], nil
 }
 
 // refOriginTooOld turns the origin's raw 501 into the sentence that names

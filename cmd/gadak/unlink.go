@@ -13,13 +13,22 @@ import (
 	syncer "github.com/midagedev/gadak/internal/sync"
 )
 
-const unlinkUsage = "usage: gadak unlink <A> <B> --type <name|inward|outward|id> [--json] [--dry-run]"
+const unlinkUsage = "usage: gadak unlink <A> <B> --type <name|inward|outward|id> [--json] [--dry-run]\n" +
+	"       gadak unlink <KEY> <url> [--json] [--dry-run]"
 
-// cmdUnlink removes the link `gadak link A B --type t` would have created —
-// the one displayed on A as "A <t> B" (GDK-1205). The mirror's links rows
-// carry no link id on purpose, so the id is fetched live from A's projection
-// and handed to DELETE /issueLink/{id}; on built-in that id is issuetap's
-// synthetic one, which both projections agree on.
+// cmdUnlink removes what `gadak link` created, in both of link's grammars —
+// the verb that made it unmakes it (GDK-1816). `unlink A B --type t` takes
+// out the issue link displayed on A as "A <t> B" (GDK-1205); `unlink KEY
+// <url>` takes out the remote link `link KEY <url>` minted, dispatched on
+// "://" exactly as link dispatches, and delegates to the one remote-link
+// delete path (removeRemoteLink in ref.go) — `gadak ref KEY --rm <id>` is
+// the same delete named by id instead.
+//
+// Either way the id is fetched live rather than read from the mirror: the
+// mirror's links rows carry no link id on purpose, and its remote-link rows
+// can be behind the origin. The issue-link id goes to DELETE
+// /issueLink/{id}; on built-in that id is issuetap's synthetic one, which
+// both projections agree on.
 func cmdUnlink(args []string) error {
 	fs := newFlagSet("unlink")
 	typ := fs.String("type", "", "link type name, inward or outward description, or id")
@@ -32,6 +41,18 @@ func cmdUnlink(args []string) error {
 	pos, err := parseAround(fs, args)
 	if err != nil {
 		return err
+	}
+	// The URL form, the inverse of link.go's dispatch: a second positional
+	// carrying a scheme is a remote link, never an issue key.
+	if len(pos) == 2 && strings.Contains(pos[1], "://") {
+		if strings.TrimSpace(*typ) != "" {
+			return usageError("unlink", "usage: gadak unlink: --type names an issue-link type for `unlink <A> <B>`; a URL target is a remote link — drop --type")
+		}
+		key := fields.CanonicalKey(pos[0])
+		if key == "" {
+			return usageError("unlink", unlinkUsage)
+		}
+		return foldDryRun(removeRemoteLink("unlink", key, "", pos[1], *asJSON, *dryRun))
 	}
 	if len(pos) != 2 || strings.TrimSpace(*typ) == "" {
 		return usageError("unlink", unlinkUsage)

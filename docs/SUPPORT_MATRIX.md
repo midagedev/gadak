@@ -82,7 +82,7 @@ Markers:
 | **Write** · parent set / clear | ✅[^76] | ✅[^76] | —[^77] | ✅[^78] |
 | **Write** · attachment upload | ✅[^79] | ✅[^119] | ✅[^80] | ✅[^113] |
 | **Write** · link / unlink issues | ✅[^81] | ✅[^132] | —[^18] | ✅[^82] |
-| **Write** · remote link — `link KEY <url> --title` / `ref` | —[^20] | —[^20] | —[^20] | ◐[^21] |
+| **Write** · remote link — `link KEY <url> --title --as` / `ref` / `unlink KEY <url>` | —[^20] | —[^20] | —[^20] | ◐[^21] |
 | **Write** · wiki write — page create / edit / comment | ✅[^83] | —[^126] | —[^45] | ✅[^84] |
 | **Write** · `claim` | ◐[^85] | ◐[^133] | —[^86] | ✅[^87] |
 | **Write** · worklog (`gadak api --write`) | ✅[^88] | ✅[^88] | —[^89] | —[^90] |
@@ -186,12 +186,13 @@ Markers:
 [^19]: Link-type catalog and both-direction elements
     (`issuetap/docs/COMPATIBILITY.md:59`, `:75`).
 
-[^20]: `ref` and `link KEY <url>` need an origin that stores remote links
+[^20]: `ref`, `link KEY <url>` and `unlink KEY <url>` need an origin that
+    stores remote links
     where gadak can read them back; every non-Built-in origin is refused
     (`internal/origin/writer.go:117`, `:186`).
 
-[^21]: Works embedded and paired (`cmd/gadak/link.go:120`,
-    `cmd/gadak/ref.go:172`, `internal/jira/remotelink.go:51`); the sync pass
+[^21]: Works embedded and paired (`cmd/gadak/link.go:130`,
+    `cmd/gadak/ref.go:184`, `internal/jira/remotelink.go:51`); the sync pass
     refreshes the mirror only when the origin is embedded — on a paired
     workspace the rows update when `ref`/`link` writes, not on sync
     (`internal/origin/writer.go:216`). A remote link whose URL is a GitHub

@@ -14,12 +14,13 @@ import (
 )
 
 const linkUsage = "usage: gadak link <A> <B> --type <name|inward|outward|id> [--json] [--dry-run]\n" +
-	"       gadak link <KEY> <url> [--title T] [--json] [--dry-run]"
+	"       gadak link <KEY> <url> [--title T] [--as <relationship>] [--json] [--dry-run]"
 
 func cmdLink(args []string) error {
 	fs := newFlagSet("link")
 	typ := fs.String("type", "", "link type name, inward or outward description, or id")
 	title := fs.String("title", "", "remote link title when the target is a URL (default: the URL itself)")
+	as := fs.String("as", "", "relationship phrase when the target is a URL (default: relates to)")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	dryRun := fs.Bool("dry-run", false, "print the link type id and sides this write would send and exit; nothing reaches the origin")
 	if wantsHelp(args) {
@@ -37,9 +38,15 @@ func cmdLink(args []string) error {
 	// grammars do not mix.
 	if len(pos) == 2 && strings.Contains(pos[1], "://") {
 		if strings.TrimSpace(*typ) != "" {
-			return usageError("link", "usage: gadak link: --type names an issue-link type for `link <A> <B>`; a URL target is a remote link — pass --title, not --type")
+			return usageError("link", "usage: gadak link: --type names an issue-link type for `link <A> <B>`; a URL target is a remote link — pass --title or --as, not --type")
 		}
-		return foldDryRun(linkRemoteURL(pos[0], pos[1], strings.TrimSpace(*title), *asJSON, *dryRun))
+		return foldDryRun(linkRemoteURL(pos[0], pos[1], strings.TrimSpace(*title), *as, *asJSON, *dryRun))
+	}
+	// The mirror of the refusal above (GDK-1816): --title and --as are the
+	// remote-link vocabulary. Accepting them here and dropping them silently
+	// is how one spelling of a write quietly does less than the other.
+	if strings.TrimSpace(*title) != "" || strings.TrimSpace(*as) != "" {
+		return usageError("link", "usage: gadak link: --title and --as describe a remote link for `link <KEY> <url>`; an issue link is named by --type")
 	}
 	if len(pos) != 2 || strings.TrimSpace(*typ) == "" {
 		return usageError("link", linkUsage)
@@ -113,15 +120,17 @@ func cmdLink(args []string) error {
 	}))
 }
 
-// linkRemoteURL is `gadak link KEY <url> [--title]` (GDK-530): a remote
-// issue link — the origin-native home for a commit/PR URL — written through
-// the same core `gadak ref` writes with (addRemoteLink). One write path,
-// two front doors; a PR-shaped URL then rides the linked_prs derivation
-// (internal/server ListLinkedPRs) like a Linear URL attachment does.
-func linkRemoteURL(keyRaw, target, title string, asJSON, dryRun bool) error {
+// linkRemoteURL is `gadak link KEY <url> [--title] [--as]` (GDK-530): a
+// remote issue link — the origin-native home for a commit/PR URL — written
+// through the same core `gadak ref` writes with (addRemoteLink). One write
+// path, two front doors, and this one is a spelling of the other: every
+// option goes to the owner, none is interpreted here. A PR-shaped URL then
+// rides the linked_prs derivation (internal/server ListLinkedPRs) like a
+// Linear URL attachment does. `gadak unlink KEY <url>` is the inverse.
+func linkRemoteURL(keyRaw, target, title, relationship string, asJSON, dryRun bool) error {
 	key := fields.CanonicalKey(keyRaw)
 	if key == "" {
 		return usageError("link", linkUsage)
 	}
-	return addRemoteLink("link", key, target, title, "", asJSON, dryRun)
+	return addRemoteLink("link", key, target, title, relationship, asJSON, dryRun)
 }
