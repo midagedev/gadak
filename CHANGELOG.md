@@ -354,7 +354,27 @@ themselves started there too: four exporters cut their head at a constant, and
 measuring the first inked frame per take put it at 2.56s, 2.60s and 2.72s for
 the three languages against a 2.4 that was right for none of them, while the
 terminal's 2.2 had been cutting away the whole two-second beat the clip opens
-on ([GDK-1838]). Twenty-one sites
+on ([GDK-1838]). A fifth constant from that same take set where the camera pulls
+back out, and the landing loops these clips, so all three languages snapped at
+the loop point — Japanese ended a fifth of the way through the movement with the
+sidebar sliced down its middle, Korean never reached the cue and ended zoomed,
+and only English happened not to look broken doing it; the pull-out is now
+counted back from the end of the take, and an export whose last frames are still
+moving refuses ([GDK-1841]). Reading the frames also found the recording aiming
+at one row while another was picked: the pointer keeps wherever the last click
+left it, and the exclude affordance is drawn on hover, so a beat that never
+hovered held ⊘ over Highest for six tenths of a second and then checked High
+([GDK-1842]). The frame a crop keeps is the other half of this: framing the
+search palette meant cropping past the sidebar, but the palette begins 47 pixels
+before the sidebar ends, so the offset that finally excluded the sidebar took
+those pixels off the palette instead and cut every key in a clip whose subject is
+finding things — `NMB-74` read `IB-74`, and in Korean the query someone had typed
+read `시 방편`. There is no offset that holds both; the clip ships the frame that
+was recorded, and an export that is not the size of its take refuses
+([GDK-1839]). The view-settings menu scrolled as one piece, so an 80vh cap landed
+inside a column row at the window heights a laptop actually has — the catalog
+scrolls on its own now and stops on a row boundary, the rule a dashboard list
+already followed ([GDK-1840], [GDK-1745]). Twenty-one sites
 spelling the same four utilities became one
 `.section-label` recipe, and Korean and Japanese keep their case ([GDK-141]);
 the QA teal became a `--color-status-qa` token from the avatar family
@@ -2209,3 +2229,6 @@ priority sorting keyed on `priority_rank`.
 [GDK-1837]: https://gadak.dev/backlog/#/?ks=GDK-1837
 [GDK-1838]: https://gadak.dev/backlog/#/?ks=GDK-1838
 [GDK-1839]: https://gadak.dev/backlog/#/?ks=GDK-1839
+[GDK-1840]: https://gadak.dev/backlog/#/?ks=GDK-1840
+[GDK-1841]: https://gadak.dev/backlog/#/?ks=GDK-1841
+[GDK-1842]: https://gadak.dev/backlog/#/?ks=GDK-1842

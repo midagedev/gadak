@@ -211,6 +211,13 @@ test.describe('scale demo', () => {
     await expect(high).toBeVisible()
     // What the frame shows, in this take's language.
     await expect(high).toContainText(HIGH)
+    // Hover the row this beat is about before holding on it. The pointer keeps
+    // wherever the last click left it, and the exclude affordance is drawn on
+    // hover only (FilterBar.svelte `group-hover/vrow:opacity-100`) — so without
+    // this the ⊘ sat on Highest for the whole beat while High was the value
+    // that got picked, and the frame showed the pointer aiming at one row and
+    // the result landing on another (vision round, 2026-09-12).
+    await high.hover()
     await beat(page, 600)
     await high.click()
     await page.keyboard.press('Escape')
@@ -231,6 +238,10 @@ test.describe('scale demo', () => {
     const progressOption = valueRow(menu, IN_PROGRESS_STATUS_ID)
     await expect(progressOption).toBeVisible()
     await expect(progressOption).toContainText(fixtureString(`catalog:status:${IN_PROGRESS_STATUS_ID}`))
+    // Same reason as the priority beat above. This one happened to look clean,
+    // which is exactly why it gets the line too: it was clean by where the
+    // previous click left the pointer, not by anything this spec asked for.
+    await progressOption.hover()
     await beat(page, 600)
     await progressOption.click()
     await page.keyboard.press('Escape')

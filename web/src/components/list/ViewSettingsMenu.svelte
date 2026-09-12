@@ -280,11 +280,21 @@
           {t('columns.defaults')}
         </button>
       </div>
+      <!-- GDK-1745's rule, on this menu: the wall's height belongs to the panel.
+           The popover used to carry `max-h-[80vh]` and scroll as one piece, so
+           at a 640px-tall window the cap landed at 512px — inside the ninth
+           column row, which the web demo published with its checkbox and its
+           glyphs cut through the middle and no scrollbar or fade to say there
+           was more (vision round, 2026-09-12). The catalog scrolls on its own
+           now and stops on a row boundary: rows are `h-7` (28px, declared
+           rather than emergent so the arithmetic below cannot drift) and the
+           box holds eight of them exactly. -->
+      <div class="max-h-[224px] overflow-y-auto overscroll-contain">
       {#each catalog as col (col.key)}
         <button
           type="button"
           data-testid={`column-toggle-${col.key}`}
-          class="flex min-h-control-sm w-full items-center gap-2 rounded px-2 py-1 text-left text-body transition-colors hover:bg-bg-hover"
+          class="flex h-7 w-full items-center gap-2 rounded px-2 text-left text-body transition-colors hover:bg-bg-hover"
           onclick={() => filters.toggleColumn(col.key)}
           aria-pressed={active.has(col.key)}
         >
@@ -302,6 +312,7 @@
           </span>
         </button>
       {/each}
+      </div>
       {/if}
 
     </div>

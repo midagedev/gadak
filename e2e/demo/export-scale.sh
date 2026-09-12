@@ -70,7 +70,18 @@ echo "export-scale: head trim ${TRIM_HEAD}s (first frame with ink at or after 2.
 # push-in to the counts band (chips + breakdown) for the narrowing beats,
 # and back to full frame before the loop point. Times are seconds on the
 # trimmed clip; the beat map was measured on the 2026-08-23 take — re-map
-# if the spec's pacing changes. Source pacing is untouched (the rejected
+# if the spec's pacing changes.
+#
+# The pull-out is the exception: it is derived, not measured. As a constant
+# (15.9, from that same English take) it was wrong for two of the three
+# languages, because the spec's pacing is not the same length in each —
+# en ran 16.68s and settled with 0.04s to spare, ja ran 16.48s and the clip
+# ended 0.22s into a 0.8s transition with the sidebar sliced down the middle,
+# and ko ran 15.80s and never pulled out at all, ending zoomed. The landing
+# autoplays this on a loop, so all three popped at the loop point; only en
+# did not look broken doing it (measured 2026-09-12). The pull-out now ends
+# where the clip does, so every language ends at rest and the loop is clean.
+# Source pacing is untouched (the rejected
 # approach re-timed the recording; this one only moves the crop). Holds are
 # constant expressions, so they are mathematically static — measured
 # consecutive-frame meandiff ≈0.005 in holds, monotonic ≈13→11 across a
@@ -79,7 +90,12 @@ ZT='(in/25)'
 ZEA="(clip((${ZT}-1.2)/0.8,0,1)*clip((${ZT}-1.2)/0.8,0,1)*(3-2*clip((${ZT}-1.2)/0.8,0,1)))"
 ZEB="(clip((${ZT}-5.5)/0.8,0,1)*clip((${ZT}-5.5)/0.8,0,1)*(3-2*clip((${ZT}-5.5)/0.8,0,1)))"
 ZEC="(clip((${ZT}-8.6)/0.8,0,1)*clip((${ZT}-8.6)/0.8,0,1)*(3-2*clip((${ZT}-8.6)/0.8,0,1)))"
-ZED="(clip((${ZT}-15.9)/0.8,0,1)*clip((${ZT}-15.9)/0.8,0,1)*(3-2*clip((${ZT}-15.9)/0.8,0,1)))"
+# Where the pull-out starts: 0.8s of transition plus 0.2s at rest, counted
+# back from the end of the trimmed clip.
+SRC_DUR="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$WEBM")"
+PULLOUT="$(python3 -c "print(f'{max(9.4, $SRC_DUR - $TRIM_HEAD - 1.0):.2f}')")"
+echo "export-scale: pull-out at ${PULLOUT}s (clip runs $(python3 -c "print(f'{$SRC_DUR - $TRIM_HEAD:.2f}')")s after the head trim)"
+ZED="(clip((${ZT}-${PULLOUT})/0.8,0,1)*clip((${ZT}-${PULLOUT})/0.8,0,1)*(3-2*clip((${ZT}-${PULLOUT})/0.8,0,1)))"
 ZOOM="1+0.35021*${ZEA}-0.35021*${ZEB}+0.28*${ZEC}-0.28*${ZED}"
 ZX="300*${ZEA}-300*${ZEB}+280*${ZEC}-280*${ZED}"
 ZY="48*${ZEA}-48*${ZEB}"
@@ -129,5 +145,29 @@ fi
 # was measured on an English take, and the ko and ja takes are still blank
 # there — both shipped a near-white poster on 2026-09-12.
 bash "$ROOT/e2e/demo/poster.sh" --video "$MP4" --out "$POSTER"
+
+# The clip has to end at rest. A clip cut mid-transition still plays, still
+# ends on the right content, and still passes every check that reads the last
+# frame's pixels -- what is wrong with it only appears at the loop point, when
+# a half-panned frame snaps back to the settled one. So the camera is measured
+# rather than trusted: the last two frames of the mp4 must be the same frame.
+# FAIL-first 2026-09-12 -- with the 15.9 constant restored, the ja take (which
+# runs 16.48s) exited 6 at a mean frame difference of 12.7157 against the 1.0
+# threshold; derived, the same take settles well inside it.
+END_T="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$MP4")"
+CMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/gadak-scale-tail.XXXXXX")"
+ffmpeg -v error -y -ss "$(python3 -c "print(f'{$END_T - 0.20:.3f}')")" -i "$MP4" -frames:v 1 "$CMP_DIR/a.png"
+ffmpeg -v error -y -ss "$(python3 -c "print(f'{$END_T - 0.05:.3f}')")" -i "$MP4" -frames:v 1 "$CMP_DIR/b.png"
+TAIL_DIFF="$(ffmpeg -v error -i "$CMP_DIR/a.png" -i "$CMP_DIR/b.png" \
+  -filter_complex "blend=all_mode=difference,signalstats,metadata=print:file=-" -f null - 2>/dev/null \
+  | awk -F= '/YAVG/{print $2; exit}')"
+rm -rf "$CMP_DIR"
+if [[ -z "$TAIL_DIFF" ]] || python3 -c "import sys; sys.exit(0 if float('$TAIL_DIFF') > 1.0 else 1)"; then
+  echo "export-scale: last 0.15s still moving (mean frame difference $TAIL_DIFF, want <= 1.0)." >&2
+  echo "  The camera pull-out has not finished when the clip ends, so the landing's autoplay loop" >&2
+  echo "  snaps from a half-panned frame back to the settled one. See the beat-map note above." >&2
+  exit 6
+fi
+echo "export-scale: tail at rest (mean frame difference $TAIL_DIFF)"
 
 ls -lh "$GIF" "$MP4" "$POSTER"
