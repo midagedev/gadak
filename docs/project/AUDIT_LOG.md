@@ -6,8 +6,94 @@ the record it produces, so a reader can answer "was this version audited,
 and what came out of it?" without the session that ran it.
 
 A cycle's section carries four things: the base SHA the census measured, the
-thirteen axes with a verdict each (an axis nobody ran says so and why), the
+fourteen axes with a verdict each (an axis nobody ran says so and why), the
 baseline numbers against the previous cycle, and where the findings went.
+
+## v0.22 cycle, third pass — base `4e57a273..b6352471`, 2026-09-12
+
+The second pass closed at `4e57a273` and **50 commits · 261 files ·
++17,651 / −1,460** landed after it with no audit at all, carrying one schema
+migration (`schemaV51`), three new MCP tools and a new origin write verb.
+This pass is a delta audit of that range, not a fourteen-axis re-run — the
+precedent is GDK-980. Parent issue: GDK-1801.
+
+The user asked three questions and this pass exists to answer them: **did
+these commits damage the narrative, hurt the UX, or lower code quality?**
+
+Mid-pass the scope was widened on the user's instruction: the delta names the
+neighbourhoods, and inside a neighbourhood the whole thing is read, including
+code the delta never touched. The finding class promoted to the top of every
+round's ranking — *code that should have been unified with what already
+existed and was placed beside it instead* — is what that widening was for,
+and it produced the four highest-value findings of the pass.
+
+| # | axis | verdict |
+|---|---|---|
+| 1·2·4 | Go · Svelte · Simplify | **ran** — quality did not fall (mean cyclomatic 6.37 → 6.34 over 9,407 more lines, ≥60 functions 5 → 5, fan-out 24 → 24, 0 cycles, 0 new dependencies) but the delta is additive: 53 files added, 0 deleted, 448 non-test Go lines removed against 3,735 added. 12 findings, the top four all unification (GDK-1810, GDK-1815, GDK-1811, GDK-1812). 0 defects |
+| 3 | App shells | **not run** — `git diff --stat 4e57a273..b6352471 -- desktop mobile/src-tauri` is empty |
+| 5 | Test pyramid | **not run** — outside the three questions asked; the rounds' own gates covered what they touched |
+| 6 | UX consistency | **ran** — 17 findings. The delta did not regress the UX; it raised the bar on one surface and left the one beside it, which is what makes the terminal dock's 4px keyboard-dead grip read as a different author (GDK-1815, GDK-1816). 1 defect (GDK-1804) |
+| 7 | Agent surface | **ran** — 224 raw gap rows triaged to 10 findings and 3 defects by opening the code. The MCP enum class came back clean, measured by dumping what the server returns rather than reading the descriptions. All three defects are SKILL.md saying something false (GDK-1803); findings GDK-1813, GDK-1814 |
+| 8 | Changelog | **ran, by the lead** — narrative judgment is not delegated. Unreleased was 54 paragraphs / 13,373 words / 348 citations of 322 distinct keys, against a largest-ever-shipped section of 834 words; rewritten to 3 themes + 4 continuations in three editions, **zero keys lost in any edition** and no number added (GDK-1809). One paragraph was shipped twice in all three editions (GDK-1802) |
+| 9 | CI cost | **not re-run** — recorded only that HEAD is green (`b6352471`, CI and Hosted demo both success) |
+| 10 | Leverage residue | **deferred** — belongs immediately before the tag |
+| 11 | i18n completeness | **re-measured** — 1,459 catalog keys (1,430 at second-pass close); byte-equal without an allowlist entry 0; stale allowlist entries 0; English literals outside `t()` 0; missing locale values 0 |
+| 12 | Fact ledger | **re-measured** — 30 values over 73 copy surfaces; **18 unguarded values with copies** (17 at second-pass close). Reading list for the next cycle |
+| 13 | Invariants | **ran** — swept whole-tree per the widening: 35 Go HTTP call sites, 61 URL literals, 28 frontend fetches, 15 server-side store writes and all 48 mutating routes classified, zero exceptions, **zero re-introduction of the removed update check**. Four of five invariants pass; the fifth is defect GDK-1806. Three guard-weakness findings (GDK-1818, GDK-1819, GDK-1820) |
+| 14 | Schema | **ran** — `schemaV51` answered against all seven questions on a 624 MB / 7,177-issue copy of a real mirror, plus `localSchemaV10`/`V11` which the spec had missed. Defect GDK-1805. The one two-file-commit migration is `schemaV26`, not v29 as the runbook said |
+
+**Six defects, all opened Highest and all fixed in this pass**: GDK-1802
+(paragraph shipped twice), GDK-1803 (SKILL.md × 3), GDK-1804 (`--field`
+silent drop), GDK-1805 (`blocked_hours = 0` as a false claim), GDK-1806
+(refused dev open migrates `local.db`), GDK-1807 (clear leaves two tables).
+
+**Findings**: GDK-1808 through GDK-1820, sub-issues of GDK-1801. Nine landed
+in this pass; GDK-1817, GDK-1818, GDK-1819, GDK-1820 remain open.
+
+`audit-rejected` ledger: still empty — nothing was rejected this pass.
+
+### Measures
+
+| measure | second-pass close (`4e57a273`) | this pass (`b6352471`) |
+|---|---|---|
+| mean non-test cyclomatic | 6.37 over 2,771 functions | 6.34 over 2,803 |
+| functions at cyclomatic ≥ 60 · ≥ 69 | 5 · 3 | 5 · 3 |
+| `internal/server` fan-out · import cycles | 24 · 0 | 24 · 0 |
+| staticcheck cross-platform findings | 0 | 0 |
+| catalog keys · byte-equal without allowlist | 1,430 · 0 | 1,459 · 0 |
+| fact values with copies and no guard | 17 | 18 |
+| CHANGELOG Unreleased (en): paragraphs · words · keys | 54 · 13,373 · 322 | **7 · 3,958 · 331** (0 lost, 9 added by this pass's own fixes) |
+
+### What this cycle taught
+
+- **A gate can be green and measuring the wrong axis, and that is worse than
+  a red one.** Two axes found the same shape independently: `doc-checks` #46
+  counted bullets while the event log came back as unbolded paragraphs, and
+  `palette-coverage.test.ts` read its axis list off a registry that did not
+  contain the one axis with no keyboard door. Both gates would have stayed
+  green forever. When a guard is written at the same time as the thing it
+  guards, ask what it cannot see.
+- **A delta-only audit misses the highest-value findings.** The first three
+  rounds were specced to the delta and the user corrected it mid-round. Code
+  that should have been unified with what already existed is invisible to a
+  delta reader (it looks like clean new code) and invisible to a whole-tree
+  reader (nothing changed recently); only a reader holding both halves sees
+  it. Four of the top findings are that class.
+- **Narrative judgment does not delegate, and the map does.** The axis-7
+  round built the mechanical map — keys per paragraph, sentences carrying
+  three or more keys, stand-alone test per key — and the lead read the map
+  and decided. Asking a delegate for the verdict produces sentences that are
+  not there.
+- **A sack grows.** The third theme's head was "Elsewhere: …" — the word for
+  everything unclassified — and it held 288 of 322 keys. The lead added a
+  sentence to it the same day, without noticing. A theme needs a test that
+  can reject a key.
+- **A threshold fitted to one draft is not a contract.** The word cap was
+  first set at 12 words per key — 3,972 for this section — and the draft in
+  hand measured 3,958, fourteen words under a cap derived from itself. That
+  is a number chosen to pass, not a contract. It is 15 now, from the
+  tightest shipped precedent (18.4), which leaves the section 944 words of
+  headroom instead of 14.
 
 ## v0.22 cycle, second pass — base `4c076f72`, census 2026-09-11, closed at `4e57a273`
 
