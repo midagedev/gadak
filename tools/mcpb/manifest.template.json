@@ -1,0 +1,49 @@
+{
+  "manifest_version": "0.3",
+  "name": "gadak",
+  "display_name": "gadak",
+  "version": "@VERSION@",
+  "description": "Ask a local SQLite mirror of your Jira and Confluence: SQL, full-text search, issue detail.",
+  "long_description": "gadak keeps Jira and Confluence in one local SQLite file and answers from it, so queries do not touch the network or the rate limit. This extension lets Claude read that mirror: read-only SQL, full-text search across issues, comments and wiki pages, and full issue detail. It never writes to Jira or the mirror.\n\n**It needs a mirror first.** Install gadak (`brew install --cask midagedev/tap/gadak` on macOS, or a binary from GitHub Releases), then run `gadak init` and `gadak sync` once. With no Atlassian account, `gadak init --local` starts the built-in tracker instead. The binary bundled here is not added to your PATH.",
+  "author": {
+    "name": "midagedev",
+    "url": "https://github.com/midagedev"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/midagedev/gadak"
+  },
+  "homepage": "https://gadak.dev",
+  "documentation": "https://github.com/midagedev/gadak/blob/main/docs/MCP.md",
+  "support": "https://github.com/midagedev/gadak/issues",
+  "icon": "icon.png",
+  "server": {
+    "type": "binary",
+    "entry_point": "server/gadak",
+    "mcp_config": {
+      "command": "${__dirname}/server/gadak",
+      "args": ["--workspace", "${user_config.workspace}", "mcp"],
+      "platform_overrides": {
+        "win32": {
+          "command": "${__dirname}/server/gadak.exe",
+          "args": ["--workspace", "${user_config.workspace}", "mcp"]
+        }
+      }
+    }
+  },
+  "tools": [],
+  "keywords": ["jira", "confluence", "sqlite", "offline", "local-first"],
+  "license": "Apache-2.0",
+  "user_config": {
+    "workspace": {
+      "type": "string",
+      "title": "Workspace",
+      "description": "The gadak workspace to read. \"default\" is the one gadak init creates.",
+      "default": "default",
+      "required": false
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "win32"]
+  }
+}

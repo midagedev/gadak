@@ -193,6 +193,29 @@ Any MCP host that can spawn a stdio server:
 Protocol version spoken: `2025-03-26`. If the client requests another version,
 gadak answers with its own version and does not reject the session.
 
+## Claude Desktop extension (.mcpb)
+
+Each GitHub release carries `gadak-<version>.mcpb`, a Claude Desktop extension.
+It bundles that release's gadak binary (a universal binary for macOS, the x64
+exe for Windows) and runs `gadak --workspace <workspace> mcp`. Installing it
+gives Claude Desktop the tools below without editing
+`claude_desktop_config.json`. The bundled binary is not added to your `PATH`.
+
+The extension reads a mirror but does not create one. Install gadak and run
+`gadak init && gadak sync` once first, or `gadak init --local` for the built-in
+tracker.
+
+It has one setting, **Workspace**. The default value, `default`, is the root
+workspace `gadak init` creates. For a named workspace, enter the name you
+pass to `--workspace`.
+
+Keep the extension and your installed gadak on the same release. Both open
+the same mirror, and a newer binary migrates it to its own schema, which an
+older gadak cannot read.
+
+The bundle is built from the release archives by `tools/mcpb/build.sh`; see
+`tools/mcpb/README.md`.
+
 ## Raycast
 
 Raycast (1.98+) speaks MCP over stdio but exposes **no config file**: its manual

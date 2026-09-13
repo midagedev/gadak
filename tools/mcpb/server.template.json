@@ -1,0 +1,23 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.midagedev/gadak",
+  "title": "gadak",
+  "description": "Ask a local SQLite mirror of your Jira and Confluence: SQL, full-text search, issue detail.",
+  "version": "@VERSION@",
+  "websiteUrl": "https://gadak.dev",
+  "repository": {
+    "url": "https://github.com/midagedev/gadak",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/midagedev/gadak/releases/download/@TAG@/gadak-@VERSION@.mcpb",
+      "version": "@VERSION@",
+      "fileSha256": "@SHA256@",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
