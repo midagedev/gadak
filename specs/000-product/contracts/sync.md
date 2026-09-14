@@ -77,6 +77,16 @@ Jira does not report deletions in a search result, so absence has to be proven.
 Reconcile is a separate pass because it is the only operation whose cost scales
 with total issue count rather than change volume.
 
+Confluence uses the same absence proof at page-ID level. A full wiki pass
+reuses its unfiltered, per-space page listings; a scheduled reconcile scans
+page IDs without fetching unchanged bodies. Only after the complete listing
+for a resolvable space succeeds does sync check mirrored pages absent from
+that listing. It confirms each candidate through direct page GET, then
+deletes it only if the local row has not changed since the listing began.
+This includes the last page in an otherwise empty space.
+An ordinary incremental CQL window cannot prove a deletion. Space-scope
+pruning still removes pages when a space leaves the configured scope.
+
 ## Saved filters
 
 After a successful Jira issue pass, sync lists the account's owned and starred

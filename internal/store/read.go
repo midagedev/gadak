@@ -932,11 +932,13 @@ type PageDetail struct {
 }
 
 // PageStamp is the mirror's record of one page's upstream identity: the
-// source's version number and the lastModified the row was written from.
-// Both together, never the number alone — a rollback can reuse a number.
+// source's version number and lastModified, plus this mirror's synced_at.
+// The latter guards a reconcile against concurrent writes after its listing.
+// Version and lastModified stay paired because a rollback can reuse a number.
 type PageStamp struct {
 	Version   int
 	UpdatedAt string
+	SyncedAt  string
 }
 
 // PageStamps returns the version stamp of every mirrored page in one space,
@@ -954,14 +956,14 @@ func (db *DB) PageStamps(ctx context.Context, sourceID, spaceKey string) (map[st
 		return out, nil
 	}
 	err := each(ctx, db.sql, `
-		SELECT COALESCE(it.external_id, ''), COALESCE(p.version, 0), COALESCE(it.updated_at, '')
+			SELECT COALESCE(it.external_id, ''), COALESCE(p.version, 0), COALESCE(it.updated_at, ''), COALESCE(it.synced_at, '')
 		FROM pages p
 		JOIN items it ON it.id = p.item_id
 		WHERE it.source_id = ? AND it.kind = 'page' AND p.space_key = ?`,
 		func(rows *sql.Rows) error {
 			var id string
 			var st PageStamp
-			if err := rows.Scan(&id, &st.Version, &st.UpdatedAt); err != nil {
+			if err := rows.Scan(&id, &st.Version, &st.UpdatedAt, &st.SyncedAt); err != nil {
 				return err
 			}
 			if id == "" {

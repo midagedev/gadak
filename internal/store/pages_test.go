@@ -4,7 +4,44 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 )
+
+func TestDeletePagesIfUnchangedSkipsConcurrentRefresh(t *testing.T) {
+	db := openTemp(t)
+	seedPagesWithIssues(t, db)
+	ctx := context.Background()
+	before, err := db.PageStamps(ctx, "confluence", "ENG")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(before) != 2 {
+		t.Fatalf("before = %v, want two pages", before)
+	}
+	// A write can alter the mirror without changing Confluence's version or
+	// lastModified. synced_at must still protect that row from stale deletion.
+	time.Sleep(2 * time.Millisecond)
+	if _, err := db.UpsertPages(ctx, []PageRecord{{
+		Item: Item{ID: "confluence:100", SourceID: "confluence", Kind: "page", ExternalID: "100", Key: "100", Title: "Refreshed", CreatedAt: ago(2), UpdatedAt: ago(1)},
+		Page: Page{SpaceKey: "ENG", Version: 3, Status: "current", BodyADF: json.RawMessage(`{"type":"doc","version":1,"content":[]}`)},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	deleted, err := db.DeletePagesIfUnchanged(ctx, "confluence", before)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if deleted != 1 {
+		t.Fatalf("deleted = %d, want only unchanged page 200", deleted)
+	}
+	pages, err := db.PageLites(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pages) != 1 || pages[0].Key != "100" {
+		t.Fatalf("pages = %+v, want refreshed page 100", pages)
+	}
+}
 
 // seedPagesWithIssues puts one issue and two pages (one Korean title) so Search
 // can prove kind split, prefix match, and PageDetail in one fixture.

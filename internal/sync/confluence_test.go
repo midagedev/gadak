@@ -44,6 +44,16 @@ type confFixture struct {
 	// failIfCQLContains, when non-empty, makes serveSearch return 400 for a
 	// matching CQL (not 500: atlhttp would retry).
 	failIfCQLContains string
+	// omitSearchIDs simulates a successful but malformed page listing. A
+	// reconcile must never treat those rows as proof that all pages vanished.
+	omitSearchIDs bool
+	// emptySearchEnvelope simulates a 200 response that carries no results list.
+	emptySearchEnvelope bool
+	// omitListedPageID models a search pagination hole while direct GET works.
+	omitListedPageID string
+	// afterSearch runs after a page result set is fixed, before it reaches the
+	// client. It models a concurrent write through another sync process.
+	afterSearch func()
 	// refuseAttachments makes every child/attachment listing answer 501 the
 	// issuetap way (no endpoint) — the degrade GDK-1541 has to survive.
 	refuseAttachments atomic.Bool
@@ -196,6 +206,10 @@ func (f *confFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (f *confFixture) serveSearch(w http.ResponseWriter, r *http.Request) {
 	cql := r.URL.Query().Get("cql")
 	f.searches = append(f.searches, cql)
+	if f.emptySearchEnvelope {
+		_, _ = w.Write([]byte(`{}`))
+		return
+	}
 	if f.failIfCQLContains != "" && strings.Contains(cql, f.failIfCQLContains) {
 		http.Error(w, "injected search failure", http.StatusBadRequest)
 		return
@@ -204,7 +218,7 @@ func (f *confFixture) serveSearch(w http.ResponseWriter, r *http.Request) {
 		f.serveCommentSearch(w, cql)
 		return
 	}
-	var results []map[string]any
+	results := make([]map[string]any, 0)
 	// Collect and sort by When ascending.
 	ids := make([]string, 0, len(f.pages))
 	for id := range f.pages {
@@ -221,17 +235,29 @@ func (f *confFixture) serveSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, id := range ids {
 		p := f.pages[id]
+		if id == f.omitListedPageID {
+			continue
+		}
 		if !cqlMatch(cql, p) {
 			continue
 		}
+		id := p.ID
+		if f.omitSearchIDs {
+			id = ""
+		}
 		results = append(results, map[string]any{
-			"id": p.ID, "type": "page", "status": "current", "title": p.Title,
+			"id": id, "type": "page", "status": "current", "title": p.Title,
 			"space": map[string]any{"key": p.Space, "name": f.spaceName(p.Space)},
 			"version": map[string]any{
 				"number": p.Version, "when": p.When,
 				"by": map[string]any{"accountId": "acc-1", "displayName": "Ada Example"},
 			},
 		})
+	}
+	if f.afterSearch != nil {
+		hook := f.afterSearch
+		f.afterSearch = nil
+		hook()
 	}
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"results": results,
@@ -1248,8 +1274,8 @@ func TestConfluenceRunFlushesAPIUsage(t *testing.T) {
 	}
 }
 
-// TestConfluenceSyncRunKindReconcileSuffix: space prune is the Confluence
-// reconcile, so SupportsReconcile=true — full stamps "full+reconcile".
+// TestConfluenceSyncRunKindReconcileSuffix: a full pass compares page IDs as
+// well as pruning out-of-scope spaces, so it records "full+reconcile".
 func TestConfluenceSyncRunKindReconcileSuffix(t *testing.T) {
 	f := newConfFixture(t)
 	client := f.start()
@@ -1730,6 +1756,344 @@ func TestConfluenceSyncPrunesOutOfScopeSpaces(t *testing.T) {
 	}
 }
 
+func TestConfluenceFullSyncDeletesPageGoneFromSameSpace(t *testing.T) {
+	f := newConfFixture(t)
+	client := f.start()
+	db := newMirror(t)
+	ctx := context.Background()
+	cfg := confCfg([]string{"AAA"})
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	delete(f.pages, "1002")
+	f.mu.Unlock()
+	res, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Deleted != 1 {
+		t.Fatalf("deleted = %d, want 1", res.Deleted)
+	}
+	pages, err := db.PageLites(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pages) != 1 || pages[0].Key != "1001" {
+		t.Fatalf("pages after deletion = %+v, want only 1001", pages)
+	}
+	gone, err := db.DeletedKeysSince(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(gone) != 1 || gone[0] != "1002" {
+		t.Fatalf("deletion tombstones = %v, want [1002]", gone)
+	}
+}
+
+func TestConfluenceScheduledReconcileConfirmsOnlyMissingPage(t *testing.T) {
+	f := newConfFixture(t)
+	client := f.start()
+	db := newMirror(t)
+	ctx := context.Background()
+	cfg := confCfg([]string{"AAA"})
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	delete(f.pages, "1002")
+	f.mu.Unlock()
+	f.resetCounters()
+	if res, err := RunConfluence(ctx, cfg, db.DB, Options{ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	} else if res.Deleted != 0 {
+		t.Fatalf("ordinary incremental deleted %d pages, want 0", res.Deleted)
+	}
+	res, err := RunConfluence(ctx, cfg, db.DB, Options{Reconcile: true, ConfluenceClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Deleted != 1 {
+		t.Fatalf("reconcile deleted %d pages, want 1", res.Deleted)
+	}
+	if got := f.bodyFetches(); len(got) != 1 || got[0] != "1002" {
+		t.Fatalf("reconcile should confirm only the missing candidate, got body requests %v", got)
+	}
+}
+
+func TestConfluenceFullSyncDeletesLastPageInSpace(t *testing.T) {
+	f := newConfFixture(t)
+	f.pages = map[string]*confPage{"1001": f.pages["1001"]}
+	client := f.start()
+	db := newMirror(t)
+	ctx := context.Background()
+	cfg := confCfg([]string{"AAA"})
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	delete(f.pages, "1001")
+	f.mu.Unlock()
+	res, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Deleted != 1 {
+		t.Fatalf("deleted = %d, want 1 last page", res.Deleted)
+	}
+	pages, err := db.PageLites(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pages) != 0 {
+		t.Fatalf("empty upstream space left mirrored pages: %+v", pages)
+	}
+}
+
+func TestConfluenceReconcileKeepsPagesInUnresolvedConfiguredSpace(t *testing.T) {
+	f := newConfFixture(t)
+	client := f.start()
+	db := newMirror(t)
+	ctx := context.Background()
+	cfg := confCfg([]string{"AAA", "LOC"})
+	if _, err := RunConfluence(ctx, confCfg([]string{"AAA"}), db.DB, Options{Full: true, ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.UpsertPages(ctx, []store.PageRecord{{
+		Item: store.Item{ID: "confluence:3001", SourceID: ConfluenceSourceID, Kind: "page", ExternalID: "3001", Key: "3001", Title: "Previously visible", CreatedAt: "2026-01-01T00:00:00Z", UpdatedAt: "2026-01-01T00:00:00Z"},
+		Page: store.Page{SpaceKey: "LOC", Version: 1, Status: "current", BodyADF: json.RawMessage(`{"type":"doc","version":1,"content":[]}`)},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := RunConfluence(ctx, cfg, db.DB, Options{Reconcile: true, ConfluenceClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Deleted != 0 {
+		t.Fatalf("unresolved LOC space caused %d deletions", res.Deleted)
+	}
+	pages, err := db.PageLites(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, p := range pages {
+		found = found || p.Key == "3001"
+	}
+	if !found {
+		t.Fatal("previously visible LOC page was deleted although the configured space did not resolve")
+	}
+}
+
+func TestConfluenceMalformedListingCannotDeleteMirroredPages(t *testing.T) {
+	f := newConfFixture(t)
+	client := f.start()
+	db := newMirror(t)
+	ctx := context.Background()
+	cfg := confCfg([]string{"AAA"})
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	f.omitSearchIDs = true
+	f.mu.Unlock()
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client}); err == nil {
+		t.Fatal("expected malformed listing to fail instead of deleting pages")
+	}
+	pages, err := db.PageLites(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pages) != 2 {
+		t.Fatalf("malformed listing left %d pages, want both existing pages", len(pages))
+	}
+}
+
+func TestConfluenceMissingResultsEnvelopeCannotDeleteMirroredPages(t *testing.T) {
+	f := newConfFixture(t)
+	client := f.start()
+	db := newMirror(t)
+	ctx := context.Background()
+	cfg := confCfg([]string{"AAA"})
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	f.emptySearchEnvelope = true
+	f.mu.Unlock()
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client}); err == nil {
+		t.Fatal("expected response without results to fail instead of deleting pages")
+	}
+	pages, err := db.PageLites(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pages) != 2 {
+		t.Fatalf("malformed envelope left %d pages, want both existing pages", len(pages))
+	}
+}
+
+func TestConfluenceReconcileKeepsPageWrittenAfterListing(t *testing.T) {
+	f := newConfFixture(t)
+	client := f.start()
+	db := newMirror(t)
+	ctx := context.Background()
+	cfg := confCfg([]string{"AAA"})
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	f.afterSearch = func() {
+		f.pages["3001"] = &confPage{ID: "3001", Space: "AAA", Title: "New page", Version: 1,
+			When: "2026-08-03T10:00:00.000Z", BodyADF: confADF("new body")}
+		if _, err := db.UpsertPages(ctx, []store.PageRecord{{
+			Item: store.Item{ID: "confluence:3001", SourceID: ConfluenceSourceID, Kind: "page", ExternalID: "3001", Key: "3001", Title: "New page", CreatedAt: "2026-08-03T10:00:00.000Z", UpdatedAt: "2026-08-03T10:00:00.000Z"},
+			Page: store.Page{SpaceKey: "AAA", Version: 1, Status: "current", BodyADF: json.RawMessage(`{"type":"doc","version":1,"content":[]}`)},
+		}}); err != nil {
+			t.Error(err)
+		}
+	}
+	f.mu.Unlock()
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	pages, err := db.PageLites(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pages) != 3 {
+		t.Fatalf("concurrent new page was deleted after listing: %+v", pages)
+	}
+}
+
+func TestConfluenceFullSyncDeletesPageGoneBetweenListingAndFetch(t *testing.T) {
+	f := newConfFixture(t)
+	client := f.start()
+	db := newMirror(t)
+	ctx := context.Background()
+	cfg := confCfg([]string{"AAA"})
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	f.afterSearch = func() { delete(f.pages, "1002") }
+	f.mu.Unlock()
+	res, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Deleted != 1 {
+		t.Fatalf("page gone between listing and body fetch: deleted=%d, want 1", res.Deleted)
+	}
+}
+
+func TestConfluenceReconcileDeletesPageMovedOutsideScope(t *testing.T) {
+	f := newConfFixture(t)
+	client := f.start()
+	db := newMirror(t)
+	ctx := context.Background()
+	cfg := confCfg([]string{"AAA"})
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	f.pages["1002"].Space = "CCC"
+	f.mu.Unlock()
+	res, err := RunConfluence(ctx, cfg, db.DB, Options{Reconcile: true, ConfluenceClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Deleted != 1 {
+		t.Fatalf("page moved out of AAA: deleted=%d, want 1", res.Deleted)
+	}
+}
+
+func TestConfluenceReconcileKeepsPageOmittedBySearchPagination(t *testing.T) {
+	f := newConfFixture(t)
+	client := f.start()
+	db := newMirror(t)
+	ctx := context.Background()
+	cfg := confCfg([]string{"AAA"})
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	f.omitListedPageID = "1002"
+	f.mu.Unlock()
+	res, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Deleted != 0 {
+		t.Fatalf("search omitted a still-current page: deleted=%d, want 0", res.Deleted)
+	}
+	pages, err := db.PageLites(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pages) != 2 {
+		t.Fatalf("pagination omission removed a live page: %+v", pages)
+	}
+}
+
+func TestConfluenceReconcileFailureKeepsPages(t *testing.T) {
+	f := newConfFixture(t)
+	client := f.start()
+	db := newMirror(t)
+	ctx := context.Background()
+	cfg := confCfg([]string{"AAA"})
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	delete(f.pages, "1002")
+	f.failIfCQLContains = "type=page order by lastmodified asc"
+	f.mu.Unlock()
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Reconcile: true, ConfluenceClient: client}); err == nil {
+		t.Fatal("expected unfiltered reconcile search to fail")
+	}
+	pages, err := db.PageLites(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pages) != 2 {
+		t.Fatalf("failed reconcile left %d pages, want unchanged mirror", len(pages))
+	}
+}
+
+func TestConfluenceReconcileDeletesFromCorrectSpaceInChunk(t *testing.T) {
+	f := newConfFixture(t)
+	client := f.start()
+	db := newMirror(t)
+	ctx := context.Background()
+	cfg := confCfg([]string{"AAA", "BBB"})
+	if _, err := RunConfluence(ctx, cfg, db.DB, Options{Full: true, ConfluenceClient: client}); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	delete(f.pages, "2001")
+	f.mu.Unlock()
+	res, err := RunConfluence(ctx, cfg, db.DB, Options{Reconcile: true, ConfluenceClient: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Deleted != 1 {
+		t.Fatalf("deleted = %d, want BBB's page only", res.Deleted)
+	}
+	pages, err := db.PageLites(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pages) != 2 {
+		t.Fatalf("pages = %+v, want both AAA pages", pages)
+	}
+	for _, p := range pages {
+		if p.SpaceKey != "AAA" {
+			t.Fatalf("wrong space survived reconcile: %+v", pages)
+		}
+	}
+}
+
 // confADF wraps text in a one-paragraph ADF document, the same shape
 // newConfFixture builds for its own pages.
 func confADF(text string) string {
@@ -2073,6 +2437,13 @@ func TestConfluenceMemorySpaceJoinsScopeAndKeepsPages(t *testing.T) {
 		ID: "9001", Space: "MEM", Title: "note from a session",
 		Version: 1, When: "2026-08-20T10:00:00.000Z",
 		BodyADF: confADF("remember the deploy window"),
+	}
+	// The row seeded below represents a page already created in the origin.
+	// A full reconcile must retain it because the origin still lists it.
+	f.pages["m1"] = &confPage{
+		ID: "m1", Space: "MEM", Title: "seed m1",
+		Version: 1, When: "2026-01-01T00:00:00.000Z",
+		BodyADF: confADF("seed"),
 	}
 	client := f.start()
 	db := newMirror(t)

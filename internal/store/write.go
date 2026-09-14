@@ -1054,6 +1054,22 @@ func writeFTS(tx *sql.Tx, rowid int64, title, body, comments, labelsJSON string)
 // DeleteItems removes items whose keys have left the source's scope and records
 // a tombstone so `delta` can report the deletion to a client that missed it.
 func (db *DB) DeleteItems(ctx context.Context, sourceID string, keys []string) (int, error) {
+	return db.deleteItems(ctx, sourceID, keys, nil)
+}
+
+// DeletePagesIfUnchanged removes pages only while they still match the
+// pre-listing mirror snapshot. A concurrent page refresh or create must win
+// over a reconcile whose origin listing predates that write.
+func (db *DB) DeletePagesIfUnchanged(ctx context.Context, sourceID string, stamps map[string]PageStamp) (int, error) {
+	keys := make([]string, 0, len(stamps))
+	for key := range stamps {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return db.deleteItems(ctx, sourceID, keys, stamps)
+}
+
+func (db *DB) deleteItems(ctx context.Context, sourceID string, keys []string, guards map[string]PageStamp) (int, error) {
 	if len(keys) == 0 {
 		return 0, nil
 	}
@@ -1067,7 +1083,19 @@ func (db *DB) DeleteItems(ctx context.Context, sourceID string, keys []string) (
 		for _, key := range keys {
 			var id string
 			var rowid int64
-			err := tx.QueryRow(`SELECT id, rowid FROM items WHERE source_id = ? AND key = ?`, sourceID, key).Scan(&id, &rowid)
+			var err error
+			if guards == nil {
+				err = tx.QueryRow(`SELECT id, rowid FROM items WHERE source_id = ? AND key = ?`, sourceID, key).Scan(&id, &rowid)
+			} else {
+				var got PageStamp
+				err = tx.QueryRow(`SELECT it.id, it.rowid, COALESCE(p.version, 0), COALESCE(it.updated_at, ''), COALESCE(it.synced_at, '')
+					FROM items it JOIN pages p ON p.item_id = it.id
+					WHERE it.source_id = ? AND it.key = ?`, sourceID, key).
+					Scan(&id, &rowid, &got.Version, &got.UpdatedAt, &got.SyncedAt)
+				if err == nil && got != guards[key] {
+					continue
+				}
+			}
 			if errors.Is(err, sql.ErrNoRows) {
 				continue
 			}

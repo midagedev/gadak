@@ -37,7 +37,8 @@ const pageBatchSize = 50
 // failed history fetch is logged and does not fail the pass. Every
 // successful pass prunes pages whose space is outside the current
 // config/listing scope; memory.space always joins that scope (GDK-1079,
-// joinMemorySpace).
+// joinMemorySpace). Full and scheduled reconcile passes also compare complete
+// page listings with the mirror and delete pages gone within a kept space.
 //
 // Incremental floors are per-space (spaces.watermark), but the queries are
 // chunked: many spaces share one type=page and one type=comment CQL round
@@ -188,7 +189,7 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 		}
 	}
 
-	spaces, err := resolveSpaceScope(ctx, c, cfg, db, opts)
+	spaces, verifiedSpaces, err := resolveSpaceScope(ctx, c, cfg, db, opts)
 	if err != nil {
 		return err
 	}
@@ -206,6 +207,11 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 	}
 
 	var maxUTC, maxRaw string
+	// A page can be declared absent only after its space's unfiltered listing
+	// completed. Keep those listings until every fetch/search in the pass has
+	// succeeded; a partial run must not turn absence into a tombstone.
+	fullyListed := map[string]map[string]bool{}
+	beforeListings := map[string]map[string]store.PageStamp{}
 	// The first-sync heartbeat (GDK-1677), same contract as the issue pass.
 	heartbeat := &progressHeartbeat{db: db, sourceID: ConfluenceSourceID}
 	// batchSpaces: path ② (config listed spaces) collects names from page hits;
@@ -313,9 +319,10 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 			// the tallies and every commit still see one writer.
 			emit := func(i int, pf pageFetch) error {
 				if pf.gone {
-					// Deleted or view-restricted between the listing and the fetch —
-					// routine on a busy site; the next successful prune removes any
-					// stale mirror row that has left scope.
+					// Deleted or view-restricted between the listing and the fetch.
+					// A full listing excludes this ID from seen; candidate verification
+					// below decides whether its old mirror row can be deleted now.
+					cp.gone[kept[i].ID] = true
 					opts.logf("confluence: skip %s (gone: %v)", kept[i].ID, pf.goneErr)
 					return nil
 				}
@@ -349,10 +356,32 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 	// body, so there is no comments-only pass.
 	syncBackfill := func(key string) error {
 		cp := newChunkPass(map[string]*pageFetchGate{key: nil})
+		if verifiedSpaces[key] {
+			before, err := db.PageStamps(ctx, ConfluenceSourceID, key)
+			if err != nil {
+				return err
+			}
+			beforeListings[key] = before
+		}
 		cql := fmt.Sprintf(`space=%s AND type=page order by lastmodified asc`, cqlSpace(key))
 		before := res.PageBodies
-		if err := c.SearchPages(ctx, cql, processHits(cp)); err != nil {
+		seen := map[string]bool{}
+		if err := c.SearchPages(ctx, cql, func(hits []confluence.Page) error {
+			for _, hit := range hits {
+				if hit.ID == "" || (hit.Space.Key != "" && hit.Space.Key != key) {
+					return fmt.Errorf("confluence: invalid page listing for space %s (page %q, space %q)", key, hit.ID, hit.Space.Key)
+				}
+				seen[hit.ID] = true
+			}
+			return processHits(cp)(hits)
+		}); err != nil {
 			return record(ctx, cfg, db, ConfluenceSourceID, err)
+		}
+		for id := range cp.gone {
+			delete(seen, id)
+		}
+		if verifiedSpaces[key] {
+			fullyListed[key] = seen
 		}
 		opts.logf("confluence: space %s floor=full-backfill fetched=%d", key, res.PageBodies-before)
 		if cp.maxRaw == "" {
@@ -452,6 +481,59 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 			}
 		}
 	}
+	// A scheduled reconcile reads page IDs, not bodies. Full/backfill spaces
+	// already paid for a complete listing above and need no second request.
+	if opts.Reconcile && !res.Full {
+		var scan []string
+		for _, key := range spaces {
+			if verifiedSpaces[key] && fullyListed[key] == nil {
+				scan = append(scan, key)
+			}
+		}
+		for _, chunk := range chunkConfluenceSpaces(scan, nil) {
+			seen := map[string]map[string]bool{}
+			for _, key := range chunk.keys {
+				seen[key] = map[string]bool{}
+				before, err := db.PageStamps(ctx, ConfluenceSourceID, key)
+				if err != nil {
+					return err
+				}
+				beforeListings[key] = before
+			}
+			cql := fmt.Sprintf(`%s AND type=page order by lastmodified asc`, cqlSpaceSet(chunk.keys))
+			if err := c.SearchPages(ctx, cql, func(hits []confluence.Page) error {
+				for _, hit := range hits {
+					key := hit.Space.Key
+					if key == "" && len(chunk.keys) == 1 {
+						key = chunk.keys[0]
+					}
+					if seen[key] == nil {
+						return fmt.Errorf("confluence: page %s has space %q outside reconcile scope", hit.ID, key)
+					}
+					if hit.ID == "" {
+						return fmt.Errorf("confluence: page listing in space %s has no id", key)
+					}
+					seen[key][hit.ID] = true
+				}
+				return nil
+			}); err != nil {
+				return record(ctx, cfg, db, ConfluenceSourceID, err)
+			}
+			for key, ids := range seen {
+				fullyListed[key] = ids
+			}
+		}
+	}
+	if len(fullyListed) > 0 {
+		deleted, err := deleteAbsentConfluencePages(ctx, c, db, spaces, fullyListed, beforeListings)
+		if err != nil {
+			return record(ctx, cfg, db, ConfluenceSourceID, err)
+		}
+		res.Deleted += deleted
+		if deleted > 0 {
+			opts.logf("confluence: reconciled %d deleted pages", deleted)
+		}
+	}
 
 	pruned, err := db.PruneConfluenceSpaces(ctx, ConfluenceSourceID, spaces)
 	if err != nil {
@@ -502,14 +584,15 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 // Errors come back exactly as the inline code returned them: origin failures
 // and the fatal scope error already went through record (last_error
 // written, watermark untouched), store failures are bare.
-func resolveSpaceScope(ctx context.Context, c *confluence.Client, cfg *config.Config, db *store.DB, opts Options) ([]string, error) {
+func resolveSpaceScope(ctx context.Context, c *confluence.Client, cfg *config.Config, db *store.DB, opts Options) ([]string, map[string]bool, error) {
 	spaces := cfg.Confluence.Spaces
+	verified := map[string]bool{}
 	var configured, resolved int
 	var missing []string
 	if len(spaces) == 0 {
 		listed, err := c.Spaces(ctx)
 		if err != nil {
-			return nil, record(ctx, cfg, db, ConfluenceSourceID, err)
+			return nil, nil, record(ctx, cfg, db, ConfluenceSourceID, err)
 		}
 		// Path ①: empty config → Spaces() listing carries key/name/type/homepage.
 		var spaceRows []store.SpaceRow
@@ -535,9 +618,10 @@ func resolveSpaceScope(ctx context.Context, c *confluence.Client, cfg *config.Co
 			}
 			spaceRows = append(spaceRows, row)
 			spaces = append(spaces, s.Key)
+			verified[s.Key] = true
 		}
 		if err := db.UpsertSpaces(ctx, ConfluenceSourceID, spaceRows); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	} else {
 		// Path ②: config lists spaces explicitly — no Spaces() listing, so
@@ -554,13 +638,14 @@ func resolveSpaceScope(ctx context.Context, c *confluence.Client, cfg *config.Co
 				// A bad/restricted key is skippable; a rejected credential is
 				// not — continuing would 401 again on SearchPages.
 				if IsRejectedCredential(err) {
-					return nil, record(ctx, cfg, db, ConfluenceSourceID, err)
+					return nil, nil, record(ctx, cfg, db, ConfluenceSourceID, err)
 				}
 				opts.logf("confluence: space %s: %v", key, err)
 				missing = append(missing, key)
 				continue
 			}
 			resolved++
+			verified[key] = true
 			row := store.SpaceRow{Key: s.Key, Name: s.Name, Kind: s.Type}
 			if row.Key == "" {
 				row.Key = key
@@ -571,7 +656,7 @@ func resolveSpaceScope(ctx context.Context, c *confluence.Client, cfg *config.Co
 			spaceRows = append(spaceRows, row)
 		}
 		if err := db.UpsertSpaces(ctx, ConfluenceSourceID, spaceRows); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	// GDK-1079: memory.space joins the pass's scope whichever path built it,
@@ -579,11 +664,12 @@ func resolveSpaceScope(ctx context.Context, c *confluence.Client, cfg *config.Co
 	// dropped by a filter that exists to drop exactly those.
 	spaces, joined, err := joinMemorySpace(ctx, c, cfg, opts, spaces)
 	if err != nil {
-		return nil, record(ctx, cfg, db, ConfluenceSourceID, err)
+		return nil, nil, record(ctx, cfg, db, ConfluenceSourceID, err)
 	}
 	if joined != nil {
+		verified[joined.Key] = true
 		if err := db.UpsertSpaces(ctx, ConfluenceSourceID, []store.SpaceRow{*joined}); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	if len(missing) > 0 {
@@ -599,12 +685,46 @@ func resolveSpaceScope(ctx context.Context, c *confluence.Client, cfg *config.Co
 			opts.logf("%s — those keys mirror nothing", head)
 		} else {
 			opts.logf(`%s — no page mirrored; run `+"`"+`gadak config set confluence.spaces "[]"`+"`"+` to mirror every space the origin has`, head)
-			return nil, record(ctx, cfg, db, ConfluenceSourceID, fmt.Errorf(
+			return nil, nil, record(ctx, cfg, db, ConfluenceSourceID, fmt.Errorf(
 				`sync: %d of %d configured confluence spaces exist upstream (%s) — no page mirrored; run: gadak config set confluence.spaces "[]"`,
 				resolved, configured, strings.Join(missing, ", ")))
 		}
 	}
-	return spaces, nil
+	return spaces, verified, nil
+}
+
+// deleteAbsentConfluencePages compares only spaces whose complete, unfiltered
+// page listing succeeded. It considers only rows present before that listing,
+// confirms each missing candidate by direct GET (search pagination may omit a
+// live page), then conditionally deletes unchanged rows with delta tombstones.
+func deleteAbsentConfluencePages(ctx context.Context, c *confluence.Client, db *store.DB, scope []string, seen map[string]map[string]bool, before map[string]map[string]store.PageStamp) (int, error) {
+	guards := map[string]store.PageStamp{}
+	kept := map[string]bool{}
+	for _, space := range scope {
+		kept[space] = true
+	}
+	spaces := make([]string, 0, len(seen))
+	for space := range seen {
+		spaces = append(spaces, space)
+	}
+	sort.Strings(spaces)
+	for _, space := range spaces {
+		for id, stamp := range before[space] {
+			if !seen[space][id] {
+				page, err := c.Page(ctx, id)
+				if err != nil && !errors.Is(err, confluence.ErrNotFound) {
+					return 0, err
+				}
+				// Search pagination can omit a still-current page under concurrent
+				// edits. A direct read must confirm it really left the live set.
+				if err == nil && (page.Status == "" || page.Status == "current") && (page.Space.Key == "" || kept[page.Space.Key]) {
+					continue
+				}
+				guards[id] = stamp
+			}
+		}
+	}
+	return db.DeletePagesIfUnchanged(ctx, ConfluenceSourceID, guards)
 }
 
 // joinMemorySpace appends cfg.MemorySpace() to the pass's scope keys when it
@@ -740,10 +860,11 @@ type chunkPass struct {
 	// comments — by construction version-less, so the reason tally names them
 	// comment-container instead of miscounting them as unversioned hits.
 	containers map[string]struct{}
+	gone       map[string]bool
 }
 
 func newChunkPass(gates map[string]*pageFetchGate) *chunkPass {
-	return &chunkPass{gates: gates, bodies: map[string]int{}, reasons: map[string]int{}, containers: map[string]struct{}{}}
+	return &chunkPass{gates: gates, bodies: map[string]int{}, reasons: map[string]int{}, containers: map[string]struct{}{}, gone: map[string]bool{}}
 }
 
 func formatReasons(m map[string]int) string {

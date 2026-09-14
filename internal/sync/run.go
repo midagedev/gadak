@@ -143,10 +143,9 @@ type usageTaker interface {
 // whose usage counters are flushed on every exit path. pass owns watermark
 // accumulation, RecordSync, and any source-specific work (reconcile, discovery).
 //
-// SupportsReconcile controls the +reconcile kind suffix. Jira sets true (full
-// and opts.Reconcile both trigger reconcile). Confluence sets true once space
-// prune ships; the flag is the kind label only — each source still owns its
-// reconcile body.
+// SupportsReconcile controls the +reconcile kind suffix. Jira and Confluence
+// set true: full and opts.Reconcile run each source's key-level reconcile.
+// Every Confluence pass also prunes spaces outside its configured scope.
 func runSource(
 	ctx context.Context,
 	cfg *config.Config,

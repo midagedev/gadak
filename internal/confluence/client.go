@@ -338,7 +338,7 @@ func (c *Client) SearchPages(ctx context.Context, cql string, fn func([]Page) er
 		apiPath, url.QueryEscape(cql))
 	for path != "" {
 		var page struct {
-			Results []Page `json:"results"`
+			Results *[]Page `json:"results"`
 			Links   struct {
 				Next string `json:"next"`
 			} `json:"_links"`
@@ -346,8 +346,11 @@ func (c *Client) SearchPages(ctx context.Context, cql string, fn func([]Page) er
 		if err := c.do(ctx, http.MethodGet, path, nil, &page); err != nil {
 			return err
 		}
-		if len(page.Results) > 0 {
-			if err := fn(page.Results); err != nil {
+		if page.Results == nil {
+			return fmt.Errorf("confluence: content search response has no results list")
+		}
+		if len(*page.Results) > 0 {
+			if err := fn(*page.Results); err != nil {
 				return err
 			}
 		}
