@@ -482,10 +482,15 @@ func TestDesktopWorkspaceRoutes(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("render: %d %s", rec.Code, rec.Body.String())
 		}
+		// [GDK-1898, 2026-09-15] The render policy ends with the sandbox
+		// directive (internal/server/dashboardCSP, its single owner), so the
+		// document is opaque-origin even opened top-level. Red against this
+		// pin before the change; the desktop mux must carry the header whole.
 		want := "default-src 'none'; " +
 			"script-src 'unsafe-inline' http://127.0.0.1/api/v1/dashboards/vendor/; " +
 			"style-src 'unsafe-inline' http://127.0.0.1/api/v1/dashboards/vendor/; " +
-			"img-src data:"
+			"img-src data:; " +
+			"sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox"
 		if got := rec.Header().Get("Content-Security-Policy"); got != want {
 			t.Fatalf("CSP through desktop mux =\n%s\nwant\n%s", got, want)
 		}

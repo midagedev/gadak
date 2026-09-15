@@ -707,19 +707,20 @@ func isHTMLMediaType(mimeType string) bool {
 	return media == "text/html"
 }
 
-// artifactCSP is the artifact route's whole policy: the frame
-// contract's CSP — dashboardCSP with no libs widening, so inline-only
-// script/style and data: images, exactly what an agent-authored page needs —
-// plus the sandbox directive. In a response header (unlike the iframe
-// attribute the dashboard frame carries) sandbox is what makes the document
-// opaque-origin *even opened top-level*: a pasted artifact URL would
-// otherwise run same-origin on the gadak origin, where it could read
-// localStorage. The grants mirror the frame attribute — allow-scripts,
-// allow-popups, allow-popups-to-escape-sandbox — so the document behaves the
-// same wherever it is opened. dashboardCSP itself stays untouched: the
-// dashboard route's exposure is another round's, and its pins are byte-exact.
+// artifactCSP is the artifact route's whole policy, and since GDK-1898 it
+// is exactly dashboardCSP with no libs widening: inline-only script/style
+// and data: images — what an agent-authored page needs — plus the sandbox
+// directive, which dashboardCSP itself now owns. In a response header
+// (unlike the iframe attribute the dashboard frame carries) sandbox is what
+// makes the document opaque-origin *even opened top-level*: a pasted
+// artifact URL would otherwise run same-origin on the gadak origin, where
+// it could read localStorage. Because the grants live in the one owner,
+// identical token for token to the frame attribute, the document behaves
+// the same wherever it is opened — and this route must not append a second
+// copy: a duplicated sandbox directive is ignored by the browser, silently
+// dropping the grants.
 func artifactCSP(vendorSrc string) string {
-	return dashboardCSP(vendorSrc, "") + "; sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox"
+	return dashboardCSP(vendorSrc, "")
 }
 
 // artifactPolicy sets the artifact response's invariant headers — everything

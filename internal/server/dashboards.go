@@ -20,13 +20,14 @@ import (
 // store; config interpretation (validation, execution) is internal/dashboards;
 // these handlers are only the HTTP shape.
 
-// dashboardCSP is the render response's whole network policy. It is what
-// makes agent-written HTML safe to serve: no origins, no fetches, inline
-// script/style only (the document is hand-authored, not bundled), and
-// data: images (inline SVG/charts). In the desktop shell the browser guard's
-// Origin check cannot see dashboards (desktop strips Origin on /api/ before
-// this server runs), so this header is the only network-blocking layer
-// there — no host may ever be added to it beyond the request's own.
+// dashboardCSP is the render response's whole policy — the network contract
+// plus the sandbox directive. It is what makes agent-written HTML safe to
+// serve: no origins, no fetches, inline script/style only (the document is
+// hand-authored, not bundled), and data: images (inline SVG/charts). In the
+// desktop shell the browser guard's Origin check cannot see dashboards
+// (desktop strips Origin on /api/ before this server runs), so this header
+// is the only network-blocking layer there — no host may ever be added to
+// it beyond the request's own.
 //
 // [GDK-792] vendorSrc is the one sanctioned widening: a path-scoped source
 // for the embedded vendor libraries, so a dashboard can chart with uPlot or
@@ -41,6 +42,20 @@ import (
 // byte — least privilege is the default, and the existing exact-match
 // assertion pins it. Style stays vendor-only: a lib is JavaScript served as
 // application/javascript, and nosniff already refuses to load it as CSS.
+//
+// [GDK-1898] The policy ends with the sandbox directive, and this function
+// is its single owner (the artifact route composes from here too, appending
+// nothing). The frame attribute in
+// web/src/components/dashboard/DashboardView.svelte only covers the in-app
+// framing; the URL is on the gadak origin, so opened top-level — pasted
+// into the address bar, "open frame in new tab" — the document would
+// otherwise run same-origin and read localStorage, where the web keeps its
+// tokens. A header sandbox follows the document wherever it is opened and
+// intersects with the frame attribute when both are present, which is why
+// the grant list must stay identical, token for token, to that attribute:
+// fewer flags would break the sanctioned external-link popups inside the
+// wall, more would widen it. No allow-same-origin, ever — that one flag
+// re-couples the document to the origin's storage and undoes the point.
 func dashboardCSP(vendorSrc, libsSrc string) string {
 	scriptSrc, styleSrc := "'unsafe-inline'", "'unsafe-inline'"
 	if vendorSrc != "" {
@@ -50,7 +65,8 @@ func dashboardCSP(vendorSrc, libsSrc string) string {
 	if libsSrc != "" {
 		scriptSrc += " " + libsSrc
 	}
-	return "default-src 'none'; script-src " + scriptSrc + "; style-src " + styleSrc + "; img-src data:"
+	return "default-src 'none'; script-src " + scriptSrc + "; style-src " + styleSrc + "; img-src data:" +
+		"; sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox"
 }
 
 // vendorCSPSource turns a request Host into the vendor path's CSP source
@@ -287,6 +303,9 @@ func (s *server) handleRenderDashboard(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Security-Policy", dashboardCSP(vendorCSPSource(r.Host, r.TLS != nil), libsSrc))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "no-store")
+	// no-referrer, same as the artifact route (artifactPolicy): a link out
+	// of the wall must not name the serve as its referrer.
+	w.Header().Set("Referrer-Policy", "no-referrer")
 	w.Write([]byte(injectLibScripts(cfg.HTML, cfg.Libs)))
 }
 

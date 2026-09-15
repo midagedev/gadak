@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { type APIRequestContext, type Page } from '@playwright/test'
 import { expect, test } from './helpers'
 import { DEBUG_ATTRS_KEY } from '../web/src/lib/debug-attrs'
-import { attachConsoleErrors, e2eHomeDir, gotoApp } from './helpers'
+import { apiURL, attachConsoleErrors, e2eHomeDir, gotoApp } from './helpers'
 
 /*
  * Agent dashboards, web host half (GDK-782/793; vendor GDK-792; libs
@@ -508,6 +508,26 @@ window.addEventListener('message', function (ev) {
     `requests reached a socket: ${received.join(', ')} (CSP refused them only in-frame)`,
   ).toEqual([])
   sink.close()
+})
+
+/*
+ * GDK-1898: the render response's own CSP carries the sandbox directive, so
+ * the document is opaque-origin *wherever* it is opened. In the app the
+ * frame attribute already sandboxes it; the URL is still on the gadak
+ * origin, so a top-level open — pasted into the address bar, "open frame in
+ * new tab" — used to run same-origin, where localStorage holds the web's
+ * tokens. The probe reads storage from the document itself: same-origin
+ * answers 'readable', an opaque origin throws and lands in the catch.
+ */
+test('GDK-1898: the render document opened top-level cannot read storage', async ({ page }) => {
+  const saved = await saveDash(
+    page.request,
+    `${PREFIX} ${RUN} toplevel`,
+    `<!doctype html><html><body><script>try{localStorage.getItem('gdk1898');document.body.dataset.ls='readable'}catch(e){document.body.dataset.ls='blocked'}</script></body></html>`,
+    {},
+  )
+  await page.goto(apiURL(`/api/v1/dashboards/${saved.id}/render/`))
+  expect(await page.evaluate(() => document.body.dataset.ls)).toBe('blocked')
 })
 
 /*

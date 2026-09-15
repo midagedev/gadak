@@ -27,13 +27,16 @@ an external link open a new tab (see [residual channels](#residual-channels-read
 and nothing else — no `allow-same-origin`, so the document's origin is
 *opaque*: it cannot read gadak's cookies, storage, or DOM. The response
 carries a CSP that closes the network to everything except inline
-script/style, `data:` images, and the vendored chart library:
+script/style, `data:` images, and the vendored chart library, and repeats the
+frame's sandbox as a directive of its own — so the document stays
+opaque-origin even when its URL is opened outside the frame:
 
 ```
 default-src 'none';
 script-src 'unsafe-inline' http://127.0.0.1:7877/api/v1/dashboards/vendor/;
 style-src  'unsafe-inline' http://127.0.0.1:7877/api/v1/dashboards/vendor/;
-img-src data:
+img-src data:;
+sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox
 ```
 
 (The vendor source names the actual host the dashboard was served from; the
@@ -277,7 +280,13 @@ this document:
    around the frame cannot be moved. And whatever opens still cannot read
    anything of gadak's — a self-navigated document lands back in the same
    opaque origin with the same empty hands, and a popup starts at the
-   target's origin knowing nothing about this one.
+   target's origin knowing nothing about this one. The render response
+   itself carries the sandbox directive (GDK-1898), not just the frame
+   attribute, so the same holds for a top-level open: the URL lives on the
+   gadak origin, and pasting it into the address bar — or "open frame in
+   new tab" — used to be the one way to run the document same-origin,
+   where localStorage keeps the web's tokens. Wherever it is opened now
+   the origin is opaque, and storage throws instead of answering.
 2. **DNS prefetching.** `<link rel="dns-prefetch">` / `rel="preconnect"`
    hints are not governed by CSP; the browser may resolve the named host.
    That reveals a hostname can exist, nothing more.

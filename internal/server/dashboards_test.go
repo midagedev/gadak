@@ -242,8 +242,32 @@ func TestDashboardRenderCSP(t *testing.T) {
 	if !strings.Contains(csp, "style-src 'unsafe-inline' "+wantSrc+";") {
 		t.Errorf("style-src vendor source missing: %q", csp)
 	}
-	if !strings.HasSuffix(csp, "img-src data:") {
+	if !strings.Contains(csp, "; img-src data:;") {
 		t.Errorf("img-src changed: %q", csp)
+	}
+	// [GDK-1898, 2026-09-15] The policy itself now ends with the sandbox
+	// directive, so a render URL opened top-level (pasted into the address
+	// bar, "open frame in new tab") is opaque-origin there too instead of
+	// same-origin with the app whose tokens sit in localStorage. The grants
+	// are identical, token for token, to the frame attribute in
+	// web/src/components/dashboard/DashboardView.svelte: a header sandbox
+	// intersects with the attribute — fewer flags would break the sanctioned
+	// external-link popups, more would widen the wall. Exactly one directive,
+	// because a duplicated sandbox is ignored by the browser and this one's
+	// grants would silently not apply. FAIL-first: red against the
+	// unmodified handler (no sandbox in the header, no Referrer-Policy).
+	if !strings.HasSuffix(csp, "; sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox") {
+		t.Errorf("CSP lost the sandbox directive: %q", csp)
+	}
+	// Count the directive, not the substring: allow-popups-to-escape-sandbox
+	// itself contains "sandbox", so a plain substring count reads 2 even on a
+	// correct single-directive policy (observed red on exactly that before
+	// the count was shaped this way).
+	if n := strings.Count(csp, "; sandbox "); n != 1 {
+		t.Errorf("CSP carries %d sandbox directives, want exactly 1: %q", n, csp)
+	}
+	if got := rec.Header().Get("Referrer-Policy"); got != "no-referrer" {
+		t.Errorf("Referrer-Policy = %q, want no-referrer", got)
 	}
 	// No host beyond the request's own appears anywhere in the policy: every
 	// scheme://host[:port] token must be the vendor source above. This is the
@@ -271,7 +295,16 @@ func TestDashboardRenderCSP(t *testing.T) {
 	if got := vendorCSPSource("localhost", true); got != "https://localhost"+dashVendorPath {
 		t.Errorf("tls vendor source = %q", got)
 	}
-	if got := dashboardCSP("", ""); got != `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:` {
+	// [GDK-1898, 2026-09-15] The constant now ends with the sandbox
+	// directive: opened top-level (address bar, "open frame in new tab") the
+	// render document used to run same-origin on the gadak origin, where
+	// localStorage holds the web's tokens. The grants are identical, token
+	// for token, to the frame attribute in
+	// web/src/components/dashboard/DashboardView.svelte (a header sandbox
+	// intersects with the attribute — fewer flags would break the sanctioned
+	// popups, more would widen the wall). FAIL-first: observed red against
+	// the pre-1898 constant, which stopped at img-src data:.
+	if got := dashboardCSP("", ""); got != `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox` {
 		t.Errorf("fail-closed CSP drifted: %q", got)
 	}
 }

@@ -619,6 +619,16 @@ func assertArtifactHeaders(t *testing.T, rec *httptest.ResponseRecorder) {
 	if !strings.Contains(csp, "sandbox allow-scripts") {
 		t.Errorf("CSP lost the sandbox directive: %q", csp)
 	}
+	// [GDK-1898] One owner: the directive now comes from dashboardCSP
+	// itself, and this route no longer appends its own copy — a second
+	// sandbox token would be ignored by the browser, silently dropping the
+	// grants this route depends on. Count the directive ("; sandbox "), not
+	// the substring: allow-popups-to-escape-sandbox contains "sandbox", so a
+	// substring count reads 2 even on this correct policy (measured red
+	// against a single-directive CSP before the count was shaped this way).
+	if n := strings.Count(csp, "; sandbox "); n != 1 {
+		t.Errorf("CSP carries %d sandbox directives, want exactly 1: %q", n, csp)
+	}
 	if got := rec.Header().Get("Referrer-Policy"); got != "no-referrer" {
 		t.Errorf("Referrer-Policy = %q, want no-referrer", got)
 	}
