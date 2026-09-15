@@ -28,15 +28,13 @@ import {
   unavailableAllowsRestart,
 } from './session'
 import { shell } from '../i18n/messages/shell'
+import { stripComments } from '../source-scan'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PANE = join(HERE, '../../components/terminal/TerminalPane.svelte')
 
 function paneSrc(): string {
-  return readFileSync(PANE, 'utf8')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/^\s*\/\/.*$/gm, '')
+  return stripComments(readFileSync(PANE, 'utf8'))
 }
 
 afterEach(() => {

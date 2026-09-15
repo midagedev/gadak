@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
+import { blankBlockComments } from './source-scan'
 import {
   LAYOUT_DETAIL_MIN_PX,
   LAYOUT_LIST_MIN_PX,
@@ -51,7 +52,7 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 
 const CSS_TEXT = readFileSync(join(HERE, '../app.css'), 'utf8')
 /** app.css with comments blanked in place — offsets and line structure preserved, so the line numbers the assertions quote are real. */
-const CSS_CODE = CSS_TEXT.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '))
+const CSS_CODE = blankBlockComments(CSS_TEXT)
 
 function lineOf(idx: number): number {
   return CSS_CODE.slice(0, idx).split('\n').length
