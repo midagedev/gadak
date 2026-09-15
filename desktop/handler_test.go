@@ -483,7 +483,7 @@ func TestDesktopWorkspaceRoutes(t *testing.T) {
 			t.Fatalf("render: %d %s", rec.Code, rec.Body.String())
 		}
 		// [GDK-1898, 2026-09-15] The render policy ends with the sandbox
-		// directive (internal/server/dashboardCSP, its single owner), so the
+		// directive (dashboardCSP in internal/server/dashboards.go, its single owner), so the
 		// document is opaque-origin even opened top-level. Red against this
 		// pin before the change; the desktop mux must carry the header whole.
 		want := "default-src 'none'; " +
