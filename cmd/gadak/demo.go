@@ -153,6 +153,7 @@ func cmdDemo(args []string) error {
 	static := fs.String("static", "dist/app", "directory holding the built web UI")
 	dbPath := fs.String("db", "examples/demo.db", "snapshot to serve")
 	noOpen := fs.Bool("no-open", false, "do not open the browser after the server starts")
+	writable := fs.Bool("writable", false, "serve the snapshot as a workspace on the built-in tracker, so comments, transitions and attachments actually write (GDK-1959)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -169,8 +170,9 @@ func cmdDemo(args []string) error {
 	}
 	// The identity the retro resume row needs (GDK-1729); see demoUserEmail.
 	demoCfgMap := map[string]any{"projects": []string{"NMB", "NMA", "NMS"}, "email": demoUserEmail}
-	if id := demoAccountID(filepath.Join(home, "gadak.db")); id != "" {
-		demoCfgMap["account_id"] = id
+	demoAccount := demoAccountID(filepath.Join(home, "gadak.db"))
+	if demoAccount != "" {
+		demoCfgMap["account_id"] = demoAccount
 	}
 	demoCfg, err := json.Marshal(demoCfgMap)
 	if err != nil {
@@ -184,8 +186,10 @@ func cmdDemo(args []string) error {
 	// Attachment bytes cannot be proxied without a credential, so the snapshot
 	// ships them and they are imported into the cache: the demo shows real
 	// screenshots and inline comment images with no Jira account at all.
+	haveAttachmentBytes := true
 	if err := importDemoAttachments(filepath.Dir(*dbPath), home); err != nil {
 		log.Printf("demo: attachment bytes unavailable (%v) — images will not render", err)
+		haveAttachmentBytes = false
 	}
 	// The snapshot ages on the shelf, and a demo that opens with "Sync delayed"
 	// reads as a defect rather than as the freshness guard it is. This is a
@@ -195,6 +199,28 @@ func cmdDemo(args []string) error {
 	}
 	log.Printf("demo mirror in %s (deleted on exit)", home)
 	defer os.RemoveAll(home)
+	// --writable is the whole difference between the two demos: the same
+	// snapshot, the same home, served as a built-in-tracker workspace
+	// instead of a credential-less connected one (cmd/gadak/demo_writable.go).
+	if *writable {
+		if err := makeDemoWritable(home, haveAttachmentBytes, demoAccount); err != nil {
+			return err
+		}
+		dbPath, err := config.DBPathFor(writableDemoWorkspace)
+		if err != nil {
+			return err
+		}
+		// A workspace that exists but mirrored nothing serves an empty list,
+		// which reads as a broken product rather than as a failed step.
+		n, err := demoIssueCount(dbPath)
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return fmt.Errorf("the writable demo mirrored no issues from the snapshot — serving it would show an empty product")
+		}
+		log.Printf("demo: writable origin holds %d issues", n)
+	}
 	serveArgs := []string{"--addr", *addr, "--static", *static}
 	if *noOpen {
 		serveArgs = append(serveArgs, "--no-open")

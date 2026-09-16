@@ -236,10 +236,11 @@ var helps = map[string]cmdHelp{
 		seeAlso: []string{"gadak status", "gadak version"},
 	},
 	"demo": {
-		summary: "serve the bundled snapshot; no Jira account needed",
-		usage:   "gadak demo [options]",
+		summary: "serve the bundled snapshot; no Jira account needed. --writable serves it as a workspace on the built-in tracker instead, so comments, transitions and attachments actually write",
+		usage:   "gadak demo [--writable] [options]",
 		examples: []string{
 			"gadak demo",
+			"gadak demo --writable",
 			"gadak demo --addr 127.0.0.1:7879 --no-open",
 			"gadak demo --db examples/demo.db",
 		},
