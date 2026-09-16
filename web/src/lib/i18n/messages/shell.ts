@@ -434,7 +434,7 @@ export const shell = {
     ja: 'このダッシュボードを読み込めませんでした。Esc または戻る矢印で一覧に戻り、もう一度開いてください。',
   },
   'sidebar.docsSpaceTitle': {
-    en: '{space} · {n} documents',
+    en: '{space} · {n} document|{space} · {n} documents',
     ko: '{space} · 문서 {n}건',
     ja: '{space} · ドキュメント {n}件',
   },
@@ -537,7 +537,7 @@ export const shell = {
     ja: '{changed}件変更 · {deleted}件削除',
   },
   'sidebar.issueCount': {
-    en: '{n} issues',
+    en: '{n} issue|{n} issues',
     ko: '{n}건',
     ja: '{n}件',
   },
@@ -1004,7 +1004,7 @@ export const shell = {
     ja: '添付にはサーバーが必要です — デモでは利用できません。',
   },
   'app.demoEditCount': {
-    en: '{n} local edit(s), not saved',
+    en: '{n} local edit, not saved|{n} local edits, not saved',
     ko: '로컬 수정 {n}건 · 저장되지 않음',
     ja: 'ローカル編集 {n}件 · 未保存',
   },
@@ -1278,7 +1278,7 @@ export const shell = {
     ja: 'キャッシュ',
   },
   'app.mirrorIssues': {
-    en: '{n} issues',
+    en: '{n} issue|{n} issues',
     ko: '이슈 {n}건',
     ja: '課題 {n}件',
   },

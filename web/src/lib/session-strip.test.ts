@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { en, ja, ko } from './i18n/catalog'
+import { t } from './i18n'
 import { SESSION_GAP_MS, changedSince, relatchBoundary, stripLabel, viewKeys } from './session-strip'
 import { KEYS_CAP } from './view-config'
 import type { IssueLite } from './types'
@@ -131,30 +132,30 @@ describe('viewKeys', () => {
 })
 
 describe('stripLabel', () => {
-  /** The runtime's t with the en table and {param} interpolation it uses. */
-  const tEn = (key: keyof typeof en, params?: Record<string, string | number>): string =>
-    (en[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? ''))
+  // The runtime's own t — its locale defaults to en in tests, and a local
+  // re-implementation of it drifted the moment t() learned plural forms
+  // (GDK-1947): the stub kept the bar where the runtime picks a form.
 
   test('order is since · changed · mine; mine only when identified and > 0', () => {
     const d = { keys: ['STD-1', 'STD-2'], mine: 1 }
-    expect(stripLabel(d, '2h ago', tEn, null)).toBe('Since last session 2h ago · 2 issues changed')
-    expect(stripLabel(d, '2h ago', tEn, { accountId: 'a', email: null })).toBe(
+    expect(stripLabel(d, '2h ago', t, null)).toBe('Since last session 2h ago · 2 issues changed')
+    expect(stripLabel(d, '2h ago', t, { accountId: 'a', email: null })).toBe(
       'Since last session 2h ago · 2 issues changed · 1 of them assigned here',
     )
     // Identified but none of the changes are mine → the mine part stays out.
-    expect(stripLabel({ keys: ['STD-1'], mine: 0 }, '2h ago', tEn, { accountId: 'a', email: null })).toBe(
+    expect(stripLabel({ keys: ['STD-1'], mine: 0 }, '2h ago', t, { accountId: 'a', email: null })).toBe(
       'Since last session 2h ago · 1 issue changed',
     )
   })
 
-  test('singular has its own key', () => {
-    expect(stripLabel({ keys: ['STD-1'], mine: 0 }, '1d ago', tEn, null)).toBe(
+  test('the singular is the catalog’s, not a second key', () => {
+    expect(stripLabel({ keys: ['STD-1'], mine: 0 }, '1d ago', t, null)).toBe(
       'Since last session 1d ago · 1 issue changed',
     )
   })
 
   test('the subject stays the issues — no second person in any locale', () => {
-    const keys = ['list.sessionSince', 'list.sessionChanged', 'list.sessionChangedOne', 'list.sessionMine'] as const
+    const keys = ['list.sessionSince', 'list.sessionChanged', 'list.sessionMine'] as const
     for (const key of keys) {
       expect(en[key]).not.toMatch(/\byou\b|\byour\b/i)
       expect(ko[key]).not.toContain('당신')
@@ -165,10 +166,15 @@ describe('stripLabel', () => {
   test('en/ko/ja carry the same placeholder multiset', () => {
     const tokenRe = /\{[^{}]+\}/g
     const tokens = (s: string): string[] => [...(s.match(tokenRe) ?? [])].sort()
-    const keys = ['list.sessionSince', 'list.sessionChanged', 'list.sessionChangedOne', 'list.sessionMine'] as const
+    const keys = ['list.sessionSince', 'list.sessionChanged', 'list.sessionMine'] as const
     for (const key of keys) {
-      expect(tokens(ko[key]).join('\0'), `ko.${key}`).toBe(tokens(en[key]).join('\0'))
-      expect(tokens(ja[key]).join('\0'), `ja.${key}`).toBe(tokens(en[key]).join('\0'))
+      // A dual-form en value (GDK-1947) carries each placeholder once per
+      // segment; ko/ja, having no plural rule, carry it once. Each segment
+      // must match them — same contract as before the fold, per form.
+      for (const segment of en[key].split('|')) {
+        expect(tokens(ko[key]).join('\0'), `ko.${key}`).toBe(tokens(segment).join('\0'))
+        expect(tokens(ja[key]).join('\0'), `ja.${key}`).toBe(tokens(segment).join('\0'))
+      }
     }
   })
 })

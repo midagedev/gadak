@@ -81,7 +81,29 @@ export function collator(): Intl.Collator {
 
 export type MessageParams = Record<string, string | number>
 
+/** Plural rules per locale tag, built once — t() consults them on every
+ *  counting row, so they must not be constructed per call. */
+const pluralRulesCache = new Map<string, Intl.PluralRules>()
+function pluralRules(): Intl.PluralRules {
+  const tag = localeTag()
+  let rules = pluralRulesCache.get(tag)
+  if (!rules) {
+    rules = new Intl.PluralRules(tag)
+    pluralRulesCache.set(tag, rules)
+  }
+  return rules
+}
+
 /** Translate a catalog key; `{name}` placeholders replaced from params.
+ *
+ *  A value may carry both plural forms as `|`-separated segments, singular
+ *  first (`{n} comment|{n} comments`, GDK-1947). The choice is the
+ *  catalog's, not the call site's: a numeric `n` asks the locale's plural
+ *  rule for the form — 'one' takes the first segment, every other category
+ *  the last. ko/ja carry no bar (no plural rule to feed one), so the
+ *  mechanism asks nothing of them. A string `n` — the GDK-1560
+ *  identity-number hatch — and a call with no params at all both take the
+ *  last form: the bar never reaches the screen either way.
  *
  *  A number param is grouped for the locale (GDK-1560). Doing it here rather
  *  than at the eighteen `t(key, { n: someCount })` call sites is the point:
@@ -92,6 +114,12 @@ export type MessageParams = Record<string, string | number>
 export function t(key: MessageKey, params?: MessageParams): string {
   const table = catalogs[current] ?? en
   let s: string = table[key] ?? en[key] ?? String(key)
+  if (s.includes('|')) {
+    const n = params?.n
+    const one = typeof n === 'number' && pluralRules().select(n) === 'one'
+    const segments = s.split('|')
+    s = one ? segments[0] : segments[segments.length - 1]
+  }
   if (params) {
     for (const [k, v] of Object.entries(params)) {
       s = s.replaceAll(`{${k}}`, typeof v === 'number' ? formatNumber(v) : String(v))

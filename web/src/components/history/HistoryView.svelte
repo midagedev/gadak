@@ -380,7 +380,7 @@
             </span>
             <span class="flex min-w-0 items-center gap-2 text-micro text-text-muted">
               {#if entry.resultCount != null}
-                <span>{t('history.searchResults', { n: formatNumber(entry.resultCount) })}</span>
+                <span>{t('history.searchResults', { n: entry.resultCount })}</span>
               {/if}
               {#if entry.openedKey}
                 <span data-testid="history-search-opened">

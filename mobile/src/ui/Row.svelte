@@ -28,8 +28,9 @@
   const meta = $derived(
     [
       showAssignee && issue.assignee ? issue.assignee : null,
-      // The desk's sentence (GDK-1935): the catalog's {n} comments has no
-      // singular by design — "1 comment" folding away with it is correct.
+      // The desk's sentence (GDK-1935) folds this count away; this row keeps
+      // it, and since GDK-1947 the catalog owns the singular — n=1 reads
+      // "1 comment".
       issue.comment_count > 0 ? t('list.commentCount', { n: issue.comment_count }) : null,
     ].filter(Boolean) as string[],
   )

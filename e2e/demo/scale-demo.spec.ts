@@ -75,9 +75,15 @@ const valueRow = (menu: ReturnType<Page['locator']>, value: string) =>
 /** In Progress in this fixture. The id is the wire; the name is translated. */
 const IN_PROGRESS_STATUS_ID = '3'
 
-/** A count string from the catalog, with {n} opened up to the scaled number. */
+/** A count string from the catalog, with {n} opened up to the scaled number.
+ * A dual-form value (GDK-1947) renders as one of its `|`-separated forms;
+ * escape each form on its own and accept either, so the `|` never has to be
+ * a literal in the pattern. */
 function countText(key: 'sidebar.issueCount', n: string): RegExp {
-  return new RegExp(literal(t[key]).replace('\\{n\\}', n).replace(/ /g, '\\s+'))
+  const forms = t[key]
+    .split('|')
+    .map((form) => literal(form).replace('\\{n\\}', n).replace(/ /g, '\\s+'))
+  return new RegExp(`(?:${forms.join('|')})`)
 }
 
 /**

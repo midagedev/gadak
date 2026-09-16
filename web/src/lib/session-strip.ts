@@ -96,9 +96,8 @@ export function viewKeys(keys: readonly string[]): { keys: string[]; capped: boo
 /**
  * The one line: "Since last session 3d ago · 12 issues changed · 2 of them
  * assigned here". The mine part rides only when the identity resolved and at
- * least one change is mine (G5: quiet until there is a reason). Singular
- * forms are their own keys — the i18n runtime has no plural infrastructure
- * (resumeLabel's rule).
+ * least one change is mine (G5: quiet until there is a reason). The singular
+ * is the catalog's to choose (GDK-1947, resumeLabel's rule).
  */
 export function stripLabel(
   delta: SessionDelta,
@@ -108,7 +107,7 @@ export function stripLabel(
 ): string {
   const parts = [t('list.sessionSince', { ago: sinceAgo })]
   const n = delta.keys.length
-  parts.push(t(n === 1 ? 'list.sessionChangedOne' : 'list.sessionChanged', { n }))
+  parts.push(t('list.sessionChanged', { n }))
   if (me && delta.mine > 0) parts.push(t('list.sessionMine', { k: delta.mine }))
   return parts.join(' · ')
 }

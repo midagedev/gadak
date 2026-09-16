@@ -182,7 +182,7 @@
           data-testid="confluence-turn-on"
         >
           {draft.spaces.length
-            ? t('settings.confluenceTurnOnCount', { n: String(draft.spaces.length) })
+            ? t('settings.confluenceTurnOnCount', { n: draft.spaces.length })
             : turnOnArmed
               ? t('settings.confluenceTurnOnAllConfirm')
               : t('settings.confluenceTurnOnAll')}

@@ -128,7 +128,7 @@ export const list = {
   // 件 counts matters, not keys, and "{n} keys" put the number first because
   // English does; Japanese puts the counter after the noun (2026-09-12).
   'filter.chipKeys': {
-    en: '{n} keys',
+    en: '{n} key|{n} keys',
     ko: '키 {n}개',
     ja: 'キー{n}件',
   },
@@ -289,12 +289,12 @@ export const list = {
   },
   /* ── List ── */
   'list.countIssues': {
-    en: '{n} issues',
+    en: '{n} issue|{n} issues',
     ko: '{n}건',
     ja: '{n}件',
   },
   'list.bodyMatchCount': {
-    en: '{n} body matches · “{q}”',
+    en: '{n} body match · “{q}”|{n} body matches · “{q}”',
     ko: '본문 일치 {n}건 · ‘{q}’',
     ja: '本文一致 {n}件 · 「{q}」',
   },
@@ -422,7 +422,7 @@ export const list = {
     ja: 'ほか {n}件',
   },
   'list.commentCount': {
-    en: '{n} comments',
+    en: '{n} comment|{n} comments',
     ko: '코멘트 {n}개',
     ja: 'コメント {n}件',
   },
@@ -437,7 +437,7 @@ export const list = {
     ja: '再オープン {n}回 · {reason}',
   },
   'list.staleDays': {
-    en: '{n} days in this status',
+    en: '{n} day in this status|{n} days in this status',
     ko: '이 상태로 {n}일째',
     ja: 'このステータスで {n}日',
   },
@@ -451,14 +451,9 @@ export const list = {
     ja: '前回のセッション以降 {ago}',
   },
   'list.sessionChanged': {
-    en: '{n} issues changed',
+    en: '{n} issue changed|{n} issues changed',
     ko: '이슈 {n}건 변경',
     ja: '{n}件の課題が変更',
-  },
-  'list.sessionChangedOne': {
-    en: '1 issue changed',
-    ko: '이슈 1건 변경',
-    ja: '1件の課題が変更',
   },
   // "그중 이 계정 배정 6건" stacked three nouns with no particle between them
   // and called the reader "this account" (Korean review, 2026-09-12). The
@@ -475,19 +470,19 @@ export const list = {
   // line, and how many issues a percentile stands on is part of the basis —
   // second literature round, 2026-09-06).
   'list.staleDaysLearned': {
-    en: '{n} days in this status — longer than 85% of the {s} issues finished in the last 90 days ({p} days)',
+    en: '{n} day in this status — longer than 85% of the {s} issues finished in the last 90 days ({p} days)|{n} days in this status — longer than 85% of the {s} issues finished in the last 90 days ({p} days)',
     ko: '이 상태로 {n}일째 — 최근 90일간 완료된 {s}건의 85%보다 깁니다 ({p}일)',
     ja: 'このステータスで {n}日 — 直近90日に完了した {s}件の85%より長くかかっています ({p}日)',
   },
   // The started-clock twins (2026-09-07): when the mirror knows when work
   // started (started_at), the age is work item age, and the title says so.
   'list.staleDaysStarted': {
-    en: '{n} days since work started',
+    en: '{n} day since work started|{n} days since work started',
     ko: '착수 후 {n}일째',
     ja: '着手から {n}日',
   },
   'list.staleDaysStartedLearned': {
-    en: '{n} days since work started — longer than 85% of the {s} issues finished in the last 90 days ({p} days)',
+    en: '{n} day since work started — longer than 85% of the {s} issues finished in the last 90 days ({p} days)|{n} days since work started — longer than 85% of the {s} issues finished in the last 90 days ({p} days)',
     ko: '착수 후 {n}일째 — 최근 90일간 완료된 {s}건의 85%보다 깁니다 ({p}일)',
     ja: '着手から {n}日 — 直近90日に完了した {s}件の85%より長くかかっています ({p}日)',
   },
@@ -626,7 +621,7 @@ export const list = {
     ja: 'コメント内',
   },
   'list.docMatchCount': {
-    en: '{n} documents · “{q}”',
+    en: '{n} document · “{q}”|{n} documents · “{q}”',
     ko: '문서 {n}건 · ‘{q}’',
     ja: 'ドキュメント {n}件 · 「{q}」',
   },
@@ -772,7 +767,7 @@ export const list = {
   // the abbreviation is a Korean office idiom that neither English nor
   // Japanese readers parse, and the strip has room for the words.
   'board.sprintDaysLeft': {
-    en: '{n} days left',
+    en: '{n} day left|{n} days left',
     ko: '{n}일 남음',
     ja: '残り {n} 日',
   },
@@ -787,7 +782,7 @@ export const list = {
     ja: '本日終了',
   },
   'board.sprintEndedAgo': {
-    en: 'ended {n} days ago',
+    en: 'ended {n} day ago|ended {n} days ago',
     ko: '{n}일 전 종료',
     ja: '{n} 日前に終了',
   },
@@ -873,7 +868,7 @@ export const list = {
   // The carry-over mark on a card and a row (GDK-1711). It counts sprint
   // boundaries crossed, so "2" means the issue is in its third sprint.
   'board.carriedOver': {
-    en: 'Carried over from {n} sprints',
+    en: 'Carried over from {n} sprint|Carried over from {n} sprints',
     ko: '스프린트 {n}개에서 이월',
     ja: '{n} スプリントから持ち越し',
   },

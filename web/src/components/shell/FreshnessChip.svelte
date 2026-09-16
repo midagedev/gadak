@@ -45,7 +45,6 @@
     if (!issues.mirrorBusy && token?.state === 'expiring') {
       const n = token.days_left
       if (n === 0) return t('sync.tokenExpiringToday')
-      if (n === 1) return t('sync.tokenExpiringOne')
       if (n != null) return t('sync.tokenExpiring', { n })
     }
     // One wording for the mirror on this chip. A pass the background loop

@@ -118,7 +118,7 @@ export const personal = {
   },
   // GDK-1590: the feed day header's total (title beside the bare number).
   'feed.dayTotal': {
-    en: '{n} events',
+    en: '{n} event|{n} events',
     ko: '활동 {n}건',
     ja: '活動 {n}件',
   },

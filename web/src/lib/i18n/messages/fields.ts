@@ -425,7 +425,7 @@ export const fields = {
     ja: '{a}/{b} PR マージ済み',
   },
   'deploy.prMergedCount': {
-    en: '{n} PRs merged',
+    en: '{n} PR merged|{n} PRs merged',
     ko: '{n} PR 머지',
     ja: '{n} PR マージ済み',
   },
@@ -497,12 +497,19 @@ export const fields = {
   },
   // The control is called グループ化; its off row called itself a section,
   // which is a second word for the same thing and reads as a translation of
-  // "No sections" (2026-09-12). It now says what it does to the control it
-  // sits in.
+  // "No sections" (2026-09-12). Naming the control instead was right in the
+  // menu and wrong beside it: the release take shows the chip as
+  // `グループ化 グループ化しない`, the same word twice
+  // (docs/media/sprint-retro-hero.ja.mp4, last beat — 2026-09-16 review).
+  // `なし` is what the sibling row two entries up already says, it reads as
+  // the control's own value in the chip, and the menu heading above it
+  // still supplies the noun. English and Korean pair their own words
+  // without repeating (`Breakdown No sections`, `구분 섹션 없음`) and are
+  // unchanged.
   'group.sectionNone': {
     en: 'No sections',
     ko: '섹션 없음',
-    ja: 'グループ化しない',
+    ja: 'なし',
   },
   // Breakdown axes that are fields (status_category, status, assignee,
   // priority, type …) have no key of their own: BreakdownBar labels them

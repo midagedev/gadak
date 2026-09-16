@@ -142,7 +142,7 @@ export const settings = {
     ja: 'ドキュメントは課題と一緒に同期されます。',
   },
   'settings.confluenceTurnOnCount': {
-    en: 'Turn on for {n} spaces',
+    en: 'Turn on for {n} space|Turn on for {n} spaces',
     ko: '{n}개 스페이스로 켜기',
     ja: '{n}件のスペースでオン',
   },
@@ -220,14 +220,9 @@ export const settings = {
   // whenever the origin could not answer — the picker says nothing rather
   // than "0" or "unknown".
   'settings.scopePageCount': {
-    en: '{n} pages',
+    en: '{n} page|{n} pages',
     ko: '{n} 페이지',
     ja: '{n}ページ',
-  },
-  'settings.scopePageCountOne': {
-    en: '1 page',
-    ko: '1 페이지',
-    ja: '1ページ',
   },
   'settings.scopeRemove': {
     en: 'Remove {name}',
@@ -421,7 +416,7 @@ export const settings = {
     ja: '添付ファイル',
   },
   'settings.runtimeAttachmentsCount': {
-    en: '{n} attachments in {files} files',
+    en: '{n} attachment in {files} files|{n} attachments in {files} files',
     ko: '첨부 {n}건, 파일 {files}개',
     ja: '添付 {n}件・ファイル {files}件',
   },
@@ -446,12 +441,12 @@ export const settings = {
     ja: '行',
   },
   'settings.runtimeIssues': {
-    en: '{n} issues',
+    en: '{n} issue|{n} issues',
     ko: '이슈 {n}건',
     ja: '課題 {n}件',
   },
   'settings.runtimeComments': {
-    en: '{n} comments',
+    en: '{n} comment|{n} comments',
     ko: '코멘트 {n}개',
     ja: 'コメント {n}件',
   },
@@ -1653,12 +1648,13 @@ export const settings = {
     ko: 'Jira 필터',
     ja: 'Jira フィルター',
   },
-  // What a saved view opens, from its own config (GDK-191). One filter is the
-  // common case for a saved view, so these two carry a singular of their own
-  // rather than shipping "1 filters" on a row people read every day. Projects
-  // only ever collapse to a count at three or more.
+  // What a saved view opens, from its own config (GDK-191). The plural keys
+  // carry their own singular (GDK-1947), but the two *One keys stay: their ja
+  // is a word order the plural key cannot produce (キー 1件, not 1件のキー),
+  // and the call site picks them at exactly n=1 for that reason. Projects
+  // only ever collapse to a count at three or more, so it has no twin.
   'palette.viewProjects': {
-    en: '{n} projects',
+    en: '{n} project|{n} projects',
     ko: '프로젝트 {n}개',
     ja: '{n}件のプロジェクト',
   },
@@ -1668,7 +1664,7 @@ export const settings = {
     ja: 'キー 1件',
   },
   'palette.viewKeys': {
-    en: '{n} keys',
+    en: '{n} key|{n} keys',
     ko: '키 {n}개',
     ja: '{n}件のキー',
   },
@@ -1678,7 +1674,7 @@ export const settings = {
     ja: 'フィルター 1件',
   },
   'palette.viewFilters': {
-    en: '{n} filters',
+    en: '{n} filter|{n} filters',
     ko: '필터 {n}개',
     ja: '{n}件のフィルター',
   },
@@ -2064,14 +2060,9 @@ export const settings = {
     ja: 'まだ一度も同期していないキャッシュです。クリックで今すぐ同期します。',
   },
   'sync.tokenExpiring': {
-    en: 'Token expires in {n} days',
+    en: 'Token expires in {n} day|Token expires in {n} days',
     ko: '토큰이 {n}일 후 만료',
     ja: 'トークンは {n} 日後に期限切れ',
-  },
-  'sync.tokenExpiringOne': {
-    en: 'Token expires in 1 day',
-    ko: '토큰이 1일 후 만료',
-    ja: 'トークンは 1 日後に期限切れ',
   },
   'sync.tokenExpiringToday': {
     en: 'Token expires today',

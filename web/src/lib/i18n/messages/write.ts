@@ -736,7 +736,7 @@ export const write = {
     ja: 'プロジェクトを一覧できませんでした: {message}',
   },
   'onboarding.projectsTruncated': {
-    en: 'Showing the first {n} projects; add any others in settings.',
+    en: 'Showing the first {n} project; add any others in settings.|Showing the first {n} projects; add any others in settings.',
     ko: '앞쪽 {n}개만 표시했습니다. 나머지는 설정에서 추가하세요.',
     ja: '先頭 {n}件のプロジェクトを表示しています。残りは設定で追加してください。',
   },
@@ -786,7 +786,7 @@ export const write = {
     ja: '開始中…',
   },
   'onboarding.syncDone': {
-    en: 'Cached {n} issues.',
+    en: 'Cached {n} issue.|Cached {n} issues.',
     ko: '{n}건 받았습니다.',
     ja: '{n}件を取り込みました。',
   },
@@ -889,7 +889,7 @@ export const write = {
   // GDK-247: PUT onboarding/connect/ 409 standalone_data_present. Facts match
   // cmd/gadak/init.go's ReplaceRefusedError sentence (via workspace.RefuseReplace).
   'onboarding.builtInBlocked': {
-    en: 'This workspace holds {n} issues or documents that originated here, in the built-in tracker. They exist only here — no Jira site has a copy. Converting this workspace deletes them from this local copy.',
+    en: 'This workspace holds {n} issue or document that originated here, in the built-in tracker. They exist only here — no Jira site has a copy. Converting this workspace deletes them from this local copy.|This workspace holds {n} issues or documents that originated here, in the built-in tracker. They exist only here — no Jira site has a copy. Converting this workspace deletes them from this local copy.',
     ko: '이 워크스페이스에는 내장 트래커에서 만들어진 이슈 또는 문서가 {n}개 있습니다. 여기에만 존재하며 어떤 Jira 사이트에도 사본이 없습니다. 이 워크스페이스를 전환하면 이 로컬 사본에서 그것들이 삭제됩니다.',
     ja: 'このワークスペースには組み込みトラッカーで作られた課題またはドキュメントが {n}件あります。ここにしか存在せず、どの Jira サイトにもコピーはありません。このワークスペースを変換すると、それらはこのローカルコピーから削除されます。',
   },

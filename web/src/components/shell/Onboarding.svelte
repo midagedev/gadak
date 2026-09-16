@@ -674,7 +674,7 @@
           </ul>
           {#if truncated}
             <p class="text-micro text-text-muted">
-              {t('onboarding.projectsTruncated', { n: formatNumber(projects.length) })}
+              {t('onboarding.projectsTruncated', { n: projects.length })}
             </p>
           {/if}
         {/if}
@@ -712,7 +712,7 @@
       <div class="mt-5 flex flex-col gap-4" data-testid="onboarding-agent">
         <div class="flex flex-col gap-1.5">
           <p class="text-body text-text-primary" data-testid="onboarding-sync-done">
-            {t('onboarding.syncDone', { n: formatNumber(fetched) })}
+            {t('onboarding.syncDone', { n: fetched })}
           </p>
           <p class="text-micro text-text-muted">{t('onboarding.agentWhy')}</p>
         </div>

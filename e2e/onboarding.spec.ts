@@ -273,7 +273,7 @@ test.describe('first-run onboarding', () => {
     // resync (the store's own visibilitychange path) lands rows in the pool
     // while the wizard keeps the pane. The sidebar count is hidden during
     // hold (GDK-299 F7) so we wait on the resync itself, not on a
-    // contradictory "1 issues" next to "Cached 519".
+    // contradictory "1 issue" next to "Cached 519".
     const resync = page.waitForResponse(
       (res) => /\/api\/v1\/issues\/(bootstrap|delta)\//.test(res.url()) && res.ok(),
     )

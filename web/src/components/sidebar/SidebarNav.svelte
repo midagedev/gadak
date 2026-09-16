@@ -550,7 +550,7 @@
        the wizard's own fetched count (GDK-299 F7). -->
   {#if !onboarding.needsOnboarding}
   <div class="flex-none px-3 pb-1.5 pt-0.5 text-micro text-text-muted">
-    {t('sidebar.issueCount', { n: formatNumber(issues.pool.size) })}
+    {t('sidebar.issueCount', { n: issues.pool.size })}
     <span class="ml-1">·</span>
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div

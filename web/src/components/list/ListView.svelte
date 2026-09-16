@@ -4,7 +4,7 @@
    *  Server body-search hits merge above the local list as a "N body matches"
    *  section (plan §5.2).
    */
-  import { t, formatNumber, relativeTime, absTime } from '../../lib/i18n'
+  import { t, relativeTime, absTime } from '../../lib/i18n'
   import { highlightSegments } from '../../lib/format'
   import Marks from '../ui/Marks.svelte'
   import { matchEvidence } from '../../lib/search-match'
@@ -132,7 +132,7 @@
         <div class="ml-auto flex items-center gap-2">
           <div class="desktop-no-drag"><FreshnessChip /></div>
           <span data-testid="list-count" class="flex-none text-micro tabular-nums text-text-muted">
-            {t('list.countIssues', { n: formatNumber(visibleCount) })}
+            {t('list.countIssues', { n: visibleCount })}
           </span>
         </div>
       {:else}
@@ -148,7 +148,7 @@
         <div class="ml-auto flex items-center gap-2">
           <FreshnessChip />
           <span data-testid="list-count" class="flex-none text-micro tabular-nums text-text-muted">
-            {t('list.countIssues', { n: formatNumber(visibleCount) })}
+            {t('list.countIssues', { n: visibleCount })}
           </span>
         </div>
       {/if}
@@ -178,7 +178,7 @@
       testid="search-docs"
       count={docHits.length}
       label={t('list.docMatchCount', {
-        n: formatNumber(docHits.length),
+        n: docHits.length,
         q: filters.serverMatchQuery,
       })}
     >
@@ -225,7 +225,7 @@
     <SearchSection
       count={extra.length}
       label={t('list.bodyMatchCount', {
-        n: formatNumber(extra.length),
+        n: extra.length,
         q: filters.serverMatchQuery,
       })}
     >

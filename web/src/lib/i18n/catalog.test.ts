@@ -317,16 +317,23 @@ describe('catalog contracts', () => {
     const tokens = (s: string): string[] => [...(s.match(tokenRe) ?? [])].sort()
     const failures: string[] = []
     for (const key of Object.keys(en) as (keyof typeof en)[]) {
-      const want = tokens(en[key])
-      for (const [locale, table] of [
-        ['ko', ko],
-        ['ja', ja],
-      ] as const) {
-        const got = tokens(table[key])
-        if (got.join('\0') !== want.join('\0')) {
-          failures.push(
-            `${locale}.${key}: en=${JSON.stringify(want)} ${locale}=${JSON.stringify(got)}`,
-          )
+      // A dual-form en value (GDK-1947) carries each placeholder once per
+      // segment; ko/ja, having no plural rule, carry it once for the whole
+      // value. Each segment is compared separately, so a plural form cannot
+      // drop, rename, invent, or repeat a placeholder any more than a whole
+      // value could.
+      for (const segment of en[key].split('|')) {
+        const want = tokens(segment)
+        for (const [locale, table] of [
+          ['ko', ko],
+          ['ja', ja],
+        ] as const) {
+          const got = tokens(table[key])
+          if (got.join('\0') !== want.join('\0')) {
+            failures.push(
+              `${locale}.${key}: en=${JSON.stringify(want)} ${locale}=${JSON.stringify(got)}`,
+            )
+          }
         }
       }
     }
@@ -749,7 +756,12 @@ describe('GDK-1588 toast copy ends the same way in every locale', () => {
       for (const [locale, table] of [['en', en], ['ko', ko], ['ja', ja]] as const) {
         const text = (table as Record<string, string>)[key]
         if (text === undefined) continue // catalog completeness is another test's job
-        if (!TERMINAL.test(text)) failures.push(`${locale} ${key}=${JSON.stringify(text)}`)
+        // A dual-form value (GDK-1947) must end terminated in every form —
+        // the bar would otherwise hide a bare singular behind a terminated
+        // plural.
+        for (const segment of text.split('|')) {
+          if (!TERMINAL.test(segment)) failures.push(`${locale} ${key}=${JSON.stringify(segment)}`)
+        }
       }
     }
     expect(failures, failures.join('\n')).toEqual([])

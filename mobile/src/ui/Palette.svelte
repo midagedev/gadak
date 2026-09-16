@@ -203,8 +203,11 @@
       {/if}
       {#if blocked}
         <!-- A blocked scope can never be the current one — the row that
-             would select it is disabled — so it carries no `on` branch. -->
-        <DeskRow label={scope.name} />
+             would select it is disabled — so it carries no `on` branch.
+             Lifted into this list, the row wears the list's inset: the
+             `.desk` wrapper supplies the other 8px of the sheet's 16
+             (GDK-1948; SprintLine's idiom). -->
+        <div class="desk"><DeskRow label={scope.name} /></div>
       {:else}
         <button
           class="palette-row"
@@ -228,7 +231,7 @@
       <!-- Making and editing a view is the desk's form: filters, JQL,
            columns, sort, save. The catalog's own word for that surface, at
            the end of the views it would produce. -->
-      <DeskRow label={t('view.settings')} testid="desk-row-views" />
+      <div class="desk"><DeskRow label={t('view.settings')} testid="desk-row-views" /></div>
     {/if}
   {/each}
 
@@ -260,7 +263,7 @@
        item of whichever section came before it (vision verdict, GDK-902
        2026-09-15). -->
   <p class="palette-section">{t('sidebar.dashboards')}</p>
-  <DeskRow label={t('sidebar.dashboards')} testid="desk-row-dashboards" />
+  <div class="desk"><DeskRow label={t('sidebar.dashboards')} testid="desk-row-dashboards" /></div>
 
   {#if recents.length > 0}
     <p class="palette-section">{t('personal.recent')}</p>
@@ -283,7 +286,7 @@
     <p class="palette-section">{t('palette.sectionViews')}</p>
     {#each scopeHits as scope (scope.id)}
       {#if scope.unsupported.length > 0}
-        <DeskRow label={scope.name} />
+        <div class="desk"><DeskRow label={scope.name} /></div>
       {:else}
         <button
           class="palette-row"
@@ -421,6 +424,13 @@
   }
   .palette-row:active {
     background: var(--color-bg-hover);
+  }
+  /* A DeskRow lifted into this list wears the list's inset (GDK-1948): the
+     sheet's rows carry 16px of side padding where the row's own sheet values
+     carry 8 (DeskRow.svelte, GDK-1704), so the wrapper makes up the other
+     8 — the same wrapper SprintLine and PageDetail give the row. */
+  .desk {
+    padding: 0 8px;
   }
   .palette-row.on .name {
     font-weight: 600;

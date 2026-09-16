@@ -480,15 +480,18 @@ import type { SettingsTab } from '../../lib/settings-tabs'
     if (projects.length && projects.length <= 2) {
       parts.push(projects.join(', '))
     } else if (projects.length) {
-      parts.push(t('palette.viewProjects', { n: formatNumber(projects.length) }))
+      parts.push(t('palette.viewProjects', { n: projects.length }))
     }
+    // The *One twins are ja's word order (キー 1件), which the plural keys
+    // cannot say — see their entries in messages/settings.ts. The plural
+    // keys carry their own en singular (GDK-1947).
     const keys = (f.keys ?? []).length
     if (keys) {
-      parts.push(keys === 1 ? t('palette.viewKeyOne') : t('palette.viewKeys', { n: formatNumber(keys) }))
+      parts.push(keys === 1 ? t('palette.viewKeyOne') : t('palette.viewKeys', { n: keys }))
     }
     const axes = filterAxisCount(f)
     if (axes) {
-      parts.push(axes === 1 ? t('palette.viewFilterOne') : t('palette.viewFilters', { n: formatNumber(axes) }))
+      parts.push(axes === 1 ? t('palette.viewFilterOne') : t('palette.viewFilters', { n: axes }))
     }
     return parts.join(' · ')
   }

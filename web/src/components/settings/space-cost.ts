@@ -14,6 +14,7 @@ import { t } from '../../lib/i18n'
 export function pageCountLabel(count: number | undefined | null): string | null {
   if (count === undefined || count === null) return null
   if (!Number.isFinite(count) || count < 0) return null
-  // t() groups numeric params for the locale (GDK-1560), so no formatting here.
-  return count === 1 ? t('settings.scopePageCountOne') : t('settings.scopePageCount', { n: count })
+  // t() groups numeric params for the locale (GDK-1560) and picks the plural
+  // form from a numeric n (GDK-1947), so no formatting or counting here.
+  return t('settings.scopePageCount', { n: count })
 }

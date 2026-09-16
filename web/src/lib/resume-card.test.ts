@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { en } from './i18n/catalog'
+import { t } from './i18n'
 import {
   pickSince,
   resumeDelta,
@@ -137,24 +138,24 @@ describe('resumeLabel', () => {
     ...over,
   })
 
-  /** The runtime's t with the en table and {param} interpolation it uses. */
-  const tEn = (key: keyof typeof en, params?: Record<string, string | number>): string =>
-    (en[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? ''))
+  // The runtime's own t — its locale defaults to en in tests, and a local
+  // re-implementation of it drifted the moment t() learned plural forms
+  // (GDK-1947): the stub kept the bar where the runtime picks a form.
 
   test('zero parts are omitted; order is since · status · comments · assignee · other', () => {
-    const all = resumeLabel(delta({ statusChanges: 2, comments: 1, assigneeChanged: true, other: 3 }), '3d ago', tEn)
+    const all = resumeLabel(delta({ statusChanges: 2, comments: 1, assigneeChanged: true, other: 3 }), '3d ago', t)
     expect(all).toBe('Since last opened 3d ago · 2 status changes · 1 new comment · assignee changed · 3 other changes')
     expect(all.indexOf('3d ago')).toBeLessThan(all.indexOf('status change')) // C5 ② order
-    expect(resumeLabel(delta({ comments: 1 }), '2h ago', tEn)).toBe('Since last opened 2h ago · 1 new comment')
-    expect(resumeLabel(delta({}), '5m ago', tEn)).toBe('Since last opened 5m ago')
+    expect(resumeLabel(delta({ comments: 1 }), '2h ago', t)).toBe('Since last opened 2h ago · 1 new comment')
+    expect(resumeLabel(delta({}), '5m ago', t)).toBe('Since last opened 5m ago')
   })
 
-  test('singular has its own key; the subject stays the issue', () => {
-    expect(resumeLabel(delta({ statusChanges: 1 }), '1d ago', tEn)).toBe('Since last opened 1d ago · 1 status change')
-    const line = resumeLabel(delta({ other: 1 }), '1d ago', tEn)
+  test('the singular is the catalog’s; the subject stays the issue', () => {
+    expect(resumeLabel(delta({ statusChanges: 1 }), '1d ago', t)).toBe('Since last opened 1d ago · 1 status change')
+    const line = resumeLabel(delta({ other: 1 }), '1d ago', t)
     expect(line.endsWith('1 other change')).toBe(true)
     // C3: no second person anywhere in the rendered parts.
-    const whole = resumeLabel(delta({ statusChanges: 1, comments: 1, assigneeChanged: true, other: 1 }), '1d ago', tEn)
+    const whole = resumeLabel(delta({ statusChanges: 1, comments: 1, assigneeChanged: true, other: 1 }), '1d ago', t)
     expect(whole).not.toMatch(/\byou\b|\byour\b/i)
     expect(en['detail.resume.sinceOpened']).toBe('Since last opened {ago}')
   })

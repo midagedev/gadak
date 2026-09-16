@@ -115,22 +115,12 @@ export const detail = {
     ja: '最終閲覧 {ago}',
   },
   'detail.resume.statusChanges': {
-    en: '{n} status changes',
-    ko: '상태 변경 {n}건',
-    ja: 'ステータス変更 {n}件',
-  },
-  'detail.resume.statusChangeOne': {
-    en: '{n} status change',
+    en: '{n} status change|{n} status changes',
     ko: '상태 변경 {n}건',
     ja: 'ステータス変更 {n}件',
   },
   'detail.resume.newComments': {
-    en: '{n} new comments',
-    ko: '새 코멘트 {n}건',
-    ja: '新着コメント {n}件',
-  },
-  'detail.resume.newCommentOne': {
-    en: '{n} new comment',
+    en: '{n} new comment|{n} new comments',
     ko: '새 코멘트 {n}건',
     ja: '新着コメント {n}件',
   },
@@ -140,12 +130,7 @@ export const detail = {
     ja: '担当者変更',
   },
   'detail.resume.otherChanges': {
-    en: '{n} other changes',
-    ko: '기타 변경 {n}건',
-    ja: 'その他の変更 {n}件',
-  },
-  'detail.resume.otherChangeOne': {
-    en: '{n} other change',
+    en: '{n} other change|{n} other changes',
     ko: '기타 변경 {n}건',
     ja: 'その他の変更 {n}件',
   },
@@ -723,7 +708,7 @@ export const detail = {
   },
   /* How many documents sit under a collapsed branch of the tree. */
   'docs.treeChildCount': {
-    en: '{n} documents under this one',
+    en: '{n} document under this one|{n} documents under this one',
     ko: '이 아래 문서 {n}개',
     ja: '配下 {n}件のドキュメント',
   },
@@ -774,7 +759,7 @@ export const detail = {
     ja: 'それ以前',
   },
   'history.visitCount': {
-    en: '{n} times',
+    en: '{n} time|{n} times',
     ko: '{n}회',
     ja: '{n}回',
   },
@@ -829,7 +814,7 @@ export const detail = {
     ja: 'さらに読み込む',
   },
   'history.searchResults': {
-    en: '{n} results',
+    en: '{n} result|{n} results',
     ko: '결과 {n}개',
     ja: '{n}件の結果',
   },
@@ -941,7 +926,7 @@ export const detail = {
     ja: '{path} を QA ダッシュボードで開く',
   },
   'qa.linkedTc': {
-    en: '{n} linked TCs',
+    en: '{n} linked TC|{n} linked TCs',
     ko: '연결 TC {n}개',
     ja: 'リンクされた TC {n}件',
   },

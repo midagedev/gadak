@@ -64,7 +64,7 @@ test.describe('IME composition (GDK-169)', () => {
     const input = searchInput(page)
     await input.click()
     await input.fill(SEED)
-    await expect(page.getByTestId('list-count')).toHaveText('1 issues')
+    await expect(page.getByTestId('list-count')).toHaveText('1 issue')
     await expect(page.getByText('No issues match', { exact: true })).toHaveCount(0)
     const seedCount = await page.getByTestId('list-count').textContent()
 

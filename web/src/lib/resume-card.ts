@@ -98,32 +98,20 @@ export function resumeDelta(
 /**
  * The one line: "Since last opened 3d ago · 2 status changes · 1 new comment
  * · assignee changed". Zero parts are omitted, not rendered as 0 (G5: quiet
- * until there is a reason); `other` is last as the catch-all. Singular forms
- * are their own keys — the i18n runtime has no plural infrastructure.
+ * until there is a reason); `other` is last as the catch-all. The singular is
+ * the catalog's to choose (GDK-1947) — these helpers just hand it the count.
  */
 export function resumeLabel(delta: ResumeDelta, sinceAgo: string, t: TranslateFn): string {
   const parts = [t('detail.resume.sinceOpened', { ago: sinceAgo })]
   if (delta.statusChanges > 0) {
-    parts.push(
-      t(delta.statusChanges === 1 ? 'detail.resume.statusChangeOne' : 'detail.resume.statusChanges', {
-        n: delta.statusChanges,
-      }),
-    )
+    parts.push(t('detail.resume.statusChanges', { n: delta.statusChanges }))
   }
   if (delta.comments > 0) {
-    parts.push(
-      t(delta.comments === 1 ? 'detail.resume.newCommentOne' : 'detail.resume.newComments', {
-        n: delta.comments,
-      }),
-    )
+    parts.push(t('detail.resume.newComments', { n: delta.comments }))
   }
   if (delta.assigneeChanged) parts.push(t('detail.resume.assigneeChanged'))
   if (delta.other > 0) {
-    parts.push(
-      t(delta.other === 1 ? 'detail.resume.otherChangeOne' : 'detail.resume.otherChanges', {
-        n: delta.other,
-      }),
-    )
+    parts.push(t('detail.resume.otherChanges', { n: delta.other }))
   }
   return parts.join(' · ')
 }
