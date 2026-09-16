@@ -200,7 +200,14 @@ const jsonLd = JSON.stringify({
         {section === 'phone' && (
           <>
             <Thread label={t.phone.label} />
-            <section class="phone">
+            {/* The one anchor on this page, and it earns it: the READMEs show
+                a GIF of the clip's writing half, because GitHub's markdown
+                renderer drops <video> entirely (measured 2026-09-16 against
+                its own /markdown endpoint: the tag renders as an empty
+                paragraph, and an mp4 in an <img> is a broken image). A reader
+                who wants the whole take needs somewhere to go, and this is
+                it. Renaming it breaks three published links. */}
+            <section class="phone" id="phone">
               <h2>
                 {t.phone.heading}
                 <span class="badge">{t.phone.badge}</span>

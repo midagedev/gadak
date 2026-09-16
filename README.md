@@ -209,7 +209,7 @@ and the app says so where the control would be.
   <img src="docs/media/phone.gif" alt="The phone writing: an issue open on its Fields block and attachments, the status moved to In Progress, a comment typed, a photo attached, and both landing in the thread" width="260">
 </p>
 
-<p align="center"><sub>The writing half of one take. Nothing here is staged — the demo snapshot is served as a tracker of its own, so every write lands.</sub></p>
+<p align="center"><sub>The writing half of one take — <a href="https://gadak.dev/#phone">the whole clip plays on the site</a>, because GitHub's markdown drops a <code>&lt;video&gt;</code>. Nothing here is staged: the demo snapshot is served as a tracker of its own, so every write lands.</sub></p>
 
 **Beta, and that is the whole status.** Builds go to TestFlight for internal
 testers, and there is no public download. An App Store listing waits on a way
