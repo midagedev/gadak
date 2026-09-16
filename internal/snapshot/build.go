@@ -50,8 +50,10 @@ func migratedCopy(path string) (string, func(), error) {
 
 func buildInto(tmp string, opts Options) (rotationStats, error) {
 	var rot rotationStats
-	// Fresh schema via the same migration path as a live mirror.
-	sdb, err := store.Open(tmp)
+	// Fresh schema via the same migration path as a live mirror — opened as
+	// an artifact (GDK-1934): tmp sits in the output directory, where a
+	// stray local.db must not be adopted and no local.db may be sired.
+	sdb, err := store.OpenArtifact(tmp)
 	if err != nil {
 		return rot, err
 	}
@@ -71,7 +73,7 @@ func buildInto(tmp string, opts Options) (rotationStats, error) {
 	}
 	defer src.Close()
 
-	dst, err := openSQLite(tmp, false)
+	dst, err := openArtifactSQLite(tmp, false)
 	if err != nil {
 		return rot, err
 	}

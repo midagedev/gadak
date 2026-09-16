@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -70,32 +68,22 @@ func expectedSchema() (schemaSnapshot, error) {
 	return expectedSchemaSnap, expectedSchemaErr
 }
 
-// buildExpectedSchema opens an in-memory SQLite, ATTACHes a throwaway
-// local.db so migrate() can pass personalStateCopyVersion, and runs the
-// same migrate() used by Open. Migration SQL is not copied.
+// buildExpectedSchema opens an in-memory SQLite flagged as an artifact
+// (ArtifactDSNParam), so every connection the pool opens gets the hook's
+// in-memory `local` (attachMemoryLocal) and migrate() can pass both
+// copy-migration probes, and runs the same migrate() used by Open.
+// Migration SQL is not copied.
 func buildExpectedSchema() (schemaSnapshot, error) {
-	sqlDB, err := sql.Open("sqlite", ":memory:")
+	// file::memory: (not a bare ":memory:") so the driver hook's DSN parsing
+	// sees the artifact flag; the URI form is a private in-memory database
+	// either way.
+	sqlDB, err := sql.Open("sqlite", "file::memory:?"+ArtifactDSNParam+"=1")
 	if err != nil {
 		return schemaSnapshot{}, err
 	}
 	defer sqlDB.Close()
 	// :memory: is per-connection; the pool must not hand out a second empty db.
 	sqlDB.SetMaxOpenConns(1)
-
-	dir, err := os.MkdirTemp("", "gadak-schema-audit-")
-	if err != nil {
-		return schemaSnapshot{}, err
-	}
-	defer os.RemoveAll(dir)
-
-	placeholder := filepath.Join(dir, "gadak.db")
-	if err := EnsureLocal(placeholder); err != nil {
-		return schemaSnapshot{}, err
-	}
-	attach := "ATTACH DATABASE " + sqliteAttachLiteral(LocalPath(placeholder), "rw") + " AS local"
-	if _, err := sqlDB.Exec(attach); err != nil {
-		return schemaSnapshot{}, err
-	}
 
 	db := &DB{sql: sqlDB, path: ":memory:"}
 	if err := db.migrate(); err != nil {

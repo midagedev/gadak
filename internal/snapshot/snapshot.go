@@ -212,7 +212,9 @@ func Build(opts Options) (Result, error) {
 	// own spread rows here (store.BackfillFlow, the v43 migration hook), so
 	// the shipped flow columns always agree with the timestamps the snapshot
 	// actually carries. open_blockers rides the same call's full sweep.
-	sdb, err := store.Open(tmp)
+	// Opened as an artifact, like every handle below (GDK-1934): this is the
+	// build's own temp file, and the directory may hold a stranger's local.db.
+	sdb, err := store.OpenArtifact(tmp)
 	if err != nil {
 		return zero, err
 	}
@@ -226,7 +228,7 @@ func Build(opts Options) (Result, error) {
 
 	// Credential scan before publish. The same handle reads back the flow
 	// distribution the spread just produced (GDK-1739) — see flowStats.
-	scanDB, err := openSQLite(tmp, false)
+	scanDB, err := openArtifactSQLite(tmp, false)
 	if err != nil {
 		return zero, err
 	}
@@ -285,7 +287,9 @@ type counts struct {
 
 func countMain(path string) (counts, error) {
 	var c counts
-	db, err := openSQLite(path, true)
+	// The published artifact, in whatever directory the caller chose — an
+	// artifact open, so a local.db beside it is not ours to adopt.
+	db, err := openArtifactSQLite(path, true)
 	if err != nil {
 		return c, err
 	}
@@ -411,7 +415,22 @@ type pageRow struct {
 	events                       eventPlacement
 }
 
+// openSQLite opens a workspace-style raw handle: the driver hook may ATTACH
+// a sibling local.db — correct for the scratch source copy migratedCopy just
+// created in a temp dir of our own.
 func openSQLite(path string, readOnly bool) (*sql.DB, error) {
+	return openSQLiteKind(path, readOnly, false)
+}
+
+// openArtifactSQLite is openSQLite for the file being built or published
+// (GDK-1934): the DSN carries store.ArtifactDSNParam, so the hook gives the
+// connection an in-memory `local` instead of adopting — or creating — a
+// local.db beside the output.
+func openArtifactSQLite(path string, readOnly bool) (*sql.DB, error) {
+	return openSQLiteKind(path, readOnly, true)
+}
+
+func openSQLiteKind(path string, readOnly, artifact bool) (*sql.DB, error) {
 	mode := "rwc"
 	if readOnly {
 		mode = "ro"
@@ -422,6 +441,9 @@ func openSQLite(path string, readOnly bool) (*sql.DB, error) {
 	// at SQLite's default for the same reason — it is part of what ships.
 	dsn := "file:" + path + "?mode=" + mode +
 		"&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)"
+	if artifact {
+		dsn += "&" + store.ArtifactDSNParam + "=1"
+	}
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err

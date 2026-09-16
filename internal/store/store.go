@@ -204,6 +204,22 @@ func defaultOpenOptions() OpenOptions {
 // OpenWith is Open with an explicit open policy. Everything else — directory
 // and file modes, local.db handling, the too-new refusal — is exactly Open's.
 func OpenWith(path string, opts OpenOptions) (*DB, error) {
+	return open(path, opts, false)
+}
+
+// OpenArtifact opens a file this process is building as a standalone,
+// shareable artifact — the snapshot pipeline's temp and published files
+// (GDK-1934). Such an open never adopts, migrates or creates a local.db
+// beside the file: connections get a private in-memory `local` instead
+// (attachMemoryLocal), so the artifact's schema is decided by this build
+// alone, not by whatever local.db sits in the output directory. The open
+// policy is the process default, exactly like Open — an artifact build must
+// not silently flip the dev-lockout decision either way.
+func OpenArtifact(path string) (*DB, error) {
+	return open(path, defaultOpenOptions(), true)
+}
+
+func open(path string, opts OpenOptions, artifact bool) (*DB, error) {
 	if dir := filepath.Dir(path); dir != "" && dir != "." {
 		if err := fsperm.EnsurePrivateDir(dir); err != nil {
 			if errors.Is(err, fsperm.ErrChmod) {
@@ -214,20 +230,26 @@ func OpenWith(path string, opts OpenOptions) (*DB, error) {
 		}
 	}
 	dsn := mirrorDSN(path)
+	if artifact {
+		dsn += "&" + ArtifactDSNParam + "=1"
+	}
 	sqlDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
-	// Personal history is a sibling file (local.db), ATTACHed as `local` by
-	// attachLocalHook on every connection. Create/migrate it first so the hook
-	// finds the file; a failure here must not refuse the mirror. The open
-	// policy travels with it — a refused open must leave both of the
-	// workspace's versioned files where the release left them (GDK-1806), and
-	// EnsureLocal cannot read that from the path.
-	if err := EnsureLocalWith(path, opts); err != nil {
-		log.Printf("store: local.db: %v", err)
-	}
 	db := &DB{sql: sqlDB, path: path}
+	if !artifact {
+		// Personal history is a sibling file (local.db), ATTACHed as `local`
+		// by attachLocalHook on every connection. Create/migrate it first so
+		// the hook finds the file; a failure here must not refuse the mirror.
+		// The open policy travels with it — a refused open must leave both of
+		// the workspace's versioned files where the release left them
+		// (GDK-1806), and EnsureLocal cannot read that from the path.
+		// An artifact owns no sibling local.db: there is nothing to ensure.
+		if err := EnsureLocalWith(path, opts); err != nil {
+			log.Printf("store: local.db: %v", err)
+		}
+	}
 	if err := db.enforceForwardPolicy(opts); err != nil {
 		sqlDB.Close()
 		return nil, err
@@ -247,7 +269,11 @@ func OpenWith(path string, opts OpenOptions) (*DB, error) {
 	// when they exist. SQLite mints new sidecars with the main file's mode, so
 	// 0600 on the DB is enough for later writes; we still chmod any that exist.
 	secureDBFiles(path)
-	secureDBFiles(LocalPath(path))
+	if !artifact {
+		// And the sibling local.db — which an artifact open never touched:
+		// beside an output path it may be a stranger's file, or not exist.
+		secureDBFiles(LocalPath(path))
+	}
 	return db, nil
 }
 

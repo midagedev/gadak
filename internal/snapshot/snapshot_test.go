@@ -55,13 +55,19 @@ func TestPersonalDataDropped(t *testing.T) {
 	}
 	db := openRO(t, out)
 	defer db.Close()
-	for _, table := range []string{"saved_views", "watches", "favorites", "feed_reads", "source_queries"} {
+	// The v38-dropped personal tables are absent outright: schemaV38 removed
+	// them from the mirror schema, and an artifact owns no local.db beside it
+	// (GDK-1934) — the unqualified SELECTs this loop used to issue only
+	// answered because the build sired an empty local.db next to the output
+	// and name resolution fell through to it. Re-authored with the fix; the
+	// old form passed pre-fix only through that sire.
+	for _, table := range []string{"saved_views", "watches", "favorites", "feed_reads"} {
 		var n int
-		if err := db.QueryRow(`SELECT COUNT(*) FROM ` + table).Scan(&n); err != nil {
+		if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, table).Scan(&n); err != nil {
 			t.Fatalf("%s: %v", table, err)
 		}
 		if n != 0 {
-			t.Errorf("%s count = %d, want 0", table, n)
+			t.Errorf("%s exists in the artifact, want absent (personal state is not mirror schema)", table)
 		}
 	}
 	var watermark, lastErr, firstSync sql.NullString
@@ -103,7 +109,9 @@ func TestPersonalDataDropped(t *testing.T) {
 	// Personal tables must not carry rows; deleted_items / enrichments also empty.
 	// api_usage is this machine's own Jira call volume — operational data that
 	// has no business travelling to whoever receives the snapshot.
-	for _, table := range []string{"deleted_items", "enrichments", "api_usage"} {
+	// source_queries is origin data (Jira saved filters) but per-source
+	// personal in shape; the copy never carries it.
+	for _, table := range []string{"deleted_items", "enrichments", "api_usage", "source_queries"} {
 		var n int
 		if err := db.QueryRow(`SELECT COUNT(*) FROM ` + table).Scan(&n); err != nil {
 			t.Fatalf("%s: %v", table, err)
@@ -111,6 +119,110 @@ func TestPersonalDataDropped(t *testing.T) {
 		if n != 0 {
 			t.Errorf("%s count = %d, want 0", table, n)
 		}
+	}
+}
+
+// TestSnapshotSchemaNotDecidedBySiblingLocalDB is the GDK-1934 recurrence
+// gate. Build writes <out>.tmp-<pid> into the output directory, and every
+// driver connection touching that directory used to ATTACH whatever local.db
+// sat there (attachLocalHook adopts any existing sibling); with a behind one
+// in place — schema 7: saved_views present, api_usage absent — the
+// copy-migration probes held the artifact one below this build's head, and a
+// "successful" snapshot shipped short (user_version 52 where 53 was wanted).
+//
+// The stray must also survive the build untouched, and a build into a clean
+// directory must not create a local.db beside its output — that is where the
+// strays came from. The workspace side of the same mechanism — a mirror DOES
+// attach its sibling local.db and DOES take the hold — is pinned where it
+// lives: TestOpenWithRefuseForwardReopensMirrorItHeldBelowHead and
+// TestCopyMigrationWaitsForLocal / TestAPIUsageCopyWaitsForLocal in
+// internal/store. This test must not duplicate those.
+func TestSnapshotSchemaNotDecidedBySiblingLocalDB(t *testing.T) {
+	// This build's head, measured the way TestPersonalDataDropped measures it.
+	fresh, err := store.Open(filepath.Join(t.TempDir(), "level.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := fresh.SchemaVersion()
+	_ = fresh.Close()
+
+	src := seedSource(t, seedOpts{})
+	outDir := t.TempDir()
+	// A local.db one era behind: schema 7. The faithful V1..V7 walk is
+	// localAt's, in internal/store (forward_migration_test.go); the probes
+	// this fixture has to satisfy read local.sqlite_master table names only,
+	// so the four tables the v26 copy writes into plus the version stamp
+	// reproduce the shape without copying the DDL across packages. All four
+	// matter: with only saved_views the v26 probe passes but the copy itself
+	// fails on local.watches and the build errors — the field defect was
+	// quieter, a build that succeeds one version short.
+	behind := filepath.Join(outDir, "local.db")
+	raw, err := sql.Open("sqlite", "file:"+behind)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ddl := range []string{
+		`CREATE TABLE saved_views (
+		  id TEXT PRIMARY KEY, name TEXT NOT NULL, config TEXT NOT NULL,
+		  created_at TEXT, updated_at TEXT)`,
+		`CREATE TABLE watches (key TEXT PRIMARY KEY, created_at TEXT)`,
+		`CREATE TABLE favorites (key TEXT PRIMARY KEY, created_at TEXT)`,
+		`CREATE TABLE feed_reads (event_id TEXT PRIMARY KEY, read_at TEXT NOT NULL)`,
+	} {
+		if _, err := raw.Exec(ddl); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := raw.Exec(`PRAGMA user_version = 7`); err != nil {
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// The field condition: a dev build leaves a behind local.db behind
+	// (RefuseForward), which is what keeps the stray around for the next
+	// snapshot to trip over — under MigrateForward, EnsureLocal would heal
+	// it to head and hide the defect. Restored to the zero value: no test in
+	// this package touches the process default (and none run in parallel),
+	// so OpenOptions{} is what surrounds this test.
+	store.SetDefaultOpenOptions(store.OpenOptions{ForwardMigration: store.RefuseForward, BuildVersion: "0.0.0-dev"})
+	t.Cleanup(func() { store.SetDefaultOpenOptions(store.OpenOptions{}) })
+
+	now := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
+	res, err := Build(Options{From: src, Out: filepath.Join(outDir, "probe.db"), Seed: 1, Now: now})
+	if err != nil {
+		t.Fatalf("Build with a behind local.db in the output directory: %v", err)
+	}
+	artifact := openRO(t, res.Path)
+	defer artifact.Close()
+	var got int
+	if err := artifact.QueryRow(`PRAGMA user_version`).Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("artifact user_version = %d, want %d (this build's head): a local.db beside the output decided the snapshot's schema", got, want)
+	}
+	// The stray is adopted by nothing: same version it came in with.
+	stray := openRO(t, behind)
+	defer stray.Close()
+	var uv int
+	if err := stray.QueryRow(`PRAGMA user_version`).Scan(&uv); err != nil {
+		t.Fatal(err)
+	}
+	if uv != 7 {
+		t.Errorf("stray local.db user_version = %d, want 7 (the build must not migrate someone else's file)", uv)
+	}
+
+	// The other half of the defect: a build into a clean directory must not
+	// create a local.db beside its output — that is the provenance of the
+	// strays this gate opens with.
+	clean := t.TempDir()
+	if _, err := Build(Options{From: src, Out: filepath.Join(clean, "snap.db"), Seed: 1, Now: now}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(clean, "local.db")); err == nil {
+		t.Error("snapshot build created a local.db beside its output; an artifact owns no sibling personal-history file")
 	}
 }
 
@@ -319,8 +431,21 @@ func TestDocumentsPreserved(t *testing.T) {
 		t.Error("expected FTS hit for page comment word 'pagecomment'")
 	}
 
-	// Personal scrub still holds when documents are present.
-	for _, table := range []string{"saved_views", "watches", "favorites", "feed_reads", "deleted_items", "enrichments", "api_usage", "source_queries"} {
+	// Personal scrub still holds when documents are present. Same shape as
+	// TestPersonalDataDropped post-GDK-1934: the v38-dropped four are absent
+	// from the artifact's own schema (the old count queries answered through
+	// the local.db the build used to sire beside its output), the rest must
+	// carry no rows.
+	for _, table := range []string{"saved_views", "watches", "favorites", "feed_reads"} {
+		var n int
+		if err := dst.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, table).Scan(&n); err != nil {
+			t.Fatalf("%s: %v", table, err)
+		}
+		if n != 0 {
+			t.Errorf("%s exists in the artifact, want absent", table)
+		}
+	}
+	for _, table := range []string{"deleted_items", "enrichments", "api_usage", "source_queries"} {
 		var n int
 		if err := dst.QueryRow(`SELECT COUNT(*) FROM ` + table).Scan(&n); err != nil {
 			t.Fatalf("%s: %v", table, err)

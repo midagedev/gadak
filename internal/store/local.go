@@ -29,6 +29,16 @@ import (
 // Never sent to Jira, never copied by snapshot (a separate file, not a table).
 const localDBFile = "local.db"
 
+// ArtifactDSNParam is the DSN query parameter that marks an open as a
+// standalone artifact — a database this process is building to hand to
+// someone else, not a workspace mirror. Append `&gadak_artifact=1` to a raw
+// driver DSN (OpenArtifact sets it for store-level opens); attachLocalHook
+// reads it and gives the connection a private in-memory `local` instead of
+// adopting whatever local.db sits beside the file (GDK-1934). Both the
+// modernc driver and SQLite core ignore query parameters they do not know,
+// so the flag rides the DSN with no side effects elsewhere.
+const ArtifactDSNParam = "gadak_artifact"
+
 // localRetention is how long raw visit/search events are kept. Counts older
 // than this window are not rolled up — derive from whatever is still here.
 const localRetention = 180 * 24 * time.Hour
@@ -308,9 +318,17 @@ func LocalPath(mirrorPath string) string {
 }
 
 func attachLocalHook(conn sqlite.ExecQuerierContext, dsn string) error {
-	path, ro, ok := parseSQLiteFileDSN(dsn)
+	path, ro, artifact, ok := parseSQLiteFileDSN(dsn)
 	if !ok {
 		return nil
+	}
+	if artifact {
+		// This open said what it is (ArtifactDSNParam): a standalone
+		// artifact, not a workspace mirror. The branch is here, in the
+		// single ATTACH owner, rather than in any caller — every path that
+		// opens an artifact file (store-level, raw driver DSN, in-memory
+		// audit db) gets the same answer without each knowing the others.
+		return attachMemoryLocal(conn)
 	}
 	if filepath.Base(path) == localDBFile {
 		return nil
@@ -356,6 +374,95 @@ func attachLocalHook(conn sqlite.ExecQuerierContext, dsn string) error {
 	// `select * from my_open`: gadak sql, MCP gadak_query, store.Open.
 	createIdentityViews(conn)
 	return nil
+}
+
+// attachMemoryLocal is the artifact branch of the single ATTACH owner. The
+// open flagged itself (ArtifactDSNParam) as a standalone artifact — a
+// snapshot temp or published file, the schema audit's memory db — so it must
+// not adopt a local.db it did not create, and must not create one either:
+// besides adopting a stranger's schema, the old behavior sired the strays
+// this defends against (every snapshot into a clean directory left a
+// local.db beside the output). The connection still needs a `local` schema,
+// because the copy migrations (schemaV26, schemaV53) write into local.* on
+// their way to head; a private in-memory local, built from the same
+// localMigrations slice (retargeted onto the attached schema by
+// qualifyLocalSQL), answers it: the probes always find their tables, the
+// copies always have somewhere to not-land, and no file beside the artifact
+// is read, locked, migrated or created. Personal history is the one thing an
+// artifact must not carry, and an empty memory database is exactly that.
+// Failures are logged and skipped, the file branch's bias; on an empty
+// memory database none is expected.
+func attachMemoryLocal(conn sqlite.ExecQuerierContext) error {
+	ctx := context.Background()
+	if _, err := conn.ExecContext(ctx, "ATTACH DATABASE ':memory:' AS local", []driver.NamedValue{}); err != nil {
+		// Re-ATTACH of a name this connection already has is reuse (the hook
+		// can run twice on one *conn) — the file branch's classification.
+		if schemaAttached(conn, "local") {
+			localAttachReuses.Add(1)
+			createIdentityViews(conn)
+			return nil
+		}
+		log.Printf("store: ATTACH memory local: %v", err)
+		return nil
+	}
+	for _, m := range localMigrations {
+		if _, err := conn.ExecContext(ctx, qualifyLocalSQL(m), []driver.NamedValue{}); err != nil {
+			log.Printf("store: memory local migration: %v", err)
+			return nil
+		}
+	}
+	// Stamp the level the file path would carry, so anything reading
+	// local.user_version sees the same contract. The one Go hook in the
+	// local walk (V10 backfillSessionsTx) derives from visits an existing
+	// file already holds — a no-op on the empty database every artifact
+	// starts from. If a future local migration needs real work on empty
+	// input, this walk must grow it.
+	if _, err := conn.ExecContext(ctx, fmt.Sprintf("PRAGMA local.user_version = %d", len(localMigrations)), []driver.NamedValue{}); err != nil {
+		log.Printf("store: memory local user_version: %v", err)
+		return nil
+	}
+	// The file branch's trailing step: the identity views join local.me,
+	// which exists from here on.
+	createIdentityViews(conn)
+	return nil
+}
+
+// qualifyLocalPatterns are the statement-introducing keywords of
+// qualifyLocalSQL's rewrite, precompiled because the rewrite runs on every
+// connection an artifact open pools.
+var qualifyLocalPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)(\bCREATE\s+TABLE\s+)(\w+)`),
+	regexp.MustCompile(`(?i)(\bCREATE\s+UNIQUE\s+INDEX\s+)(\w+)`),
+	regexp.MustCompile(`(?i)(\bCREATE\s+INDEX\s+)(\w+)`),
+	regexp.MustCompile(`(?i)(\bALTER\s+TABLE\s+)(\w+)`),
+	regexp.MustCompile(`(?i)(\bINSERT\s+INTO\s+)(\w+)`),
+}
+
+// qualifyLocalSQL rewrites localMigrations text so it creates in the attached
+// schema `local` instead of main. localMigrations is written for
+// migrateLocal, where local.db is the connection's MAIN database; the same
+// text on an artifact connection (main = the file being built) would create
+// the tables there instead. The rewrite covers the statement shapes
+// localMigrations uses:
+//
+//	CREATE TABLE x (               -> CREATE TABLE local.x (
+//	CREATE [UNIQUE] INDEX i ON t ( -> CREATE [UNIQUE] INDEX local.i ON t (
+//	ALTER TABLE x ADD ...          -> ALTER TABLE local.x ADD ...
+//	INSERT INTO x ...              -> INSERT INTO local.x ...
+//
+// CREATE INDEX keeps its table unqualified on purpose: SQLite resolves the
+// indexed table in the index's own schema first — verified with a
+// same-named table in both main and local, where the index lands in local
+// and binds local.visits — and the grammar rejects a qualified table there.
+// A shape the rewrite does not recognize passes through and then fails or
+// lands in main, where TestMemoryLocalMatchesFileLocal turns it red: a
+// future local migration needing a new shape fails loudly here, not quietly
+// inside an artifact build.
+func qualifyLocalSQL(stmt string) string {
+	for _, re := range qualifyLocalPatterns {
+		stmt = re.ReplaceAllString(stmt, "${1}local.${2}")
+	}
+	return stmt
 }
 
 // localAttachReuses counts silent re-ATTACHes of schema `local` — how many
@@ -456,28 +563,35 @@ func schemaNameEqual(v driver.Value, name string) bool {
 	return strings.EqualFold(s, name)
 }
 
-// parseSQLiteFileDSN extracts the filesystem path and mode=ro from a modernc
-// DSN of the form file:<path>[?k=v&...]. In-memory and empty DSNs are skipped.
-func parseSQLiteFileDSN(dsn string) (path string, readOnly bool, ok bool) {
+// parseSQLiteFileDSN extracts the filesystem path, mode=ro and the
+// ArtifactDSNParam flag from a modernc DSN of the form file:<path>[?k=v&...].
+// In-memory and empty DSNs are skipped, except an in-memory DSN carrying the
+// artifact flag: it has no sibling to adopt but still wants the in-memory
+// local (the schema audit opens one).
+func parseSQLiteFileDSN(dsn string) (path string, readOnly, artifact bool, ok bool) {
 	s := strings.TrimPrefix(dsn, "file:")
 	if s == dsn {
 		// Not a file: URI (":memory:" etc.).
-		return "", false, false
+		return "", false, false, false
 	}
-	if s == ":memory:" || strings.HasPrefix(s, ":memory:?") {
-		return "", false, false
+	path, query, _ := strings.Cut(s, "?")
+	q, qerr := url.ParseQuery(query)
+	if qerr == nil && q.Get("mode") == "ro" {
+		readOnly = true
 	}
-	path, query, found := strings.Cut(s, "?")
-	if path == "" {
-		return "", false, false
+	if qerr == nil && q.Get(ArtifactDSNParam) == "1" {
+		artifact = true
 	}
-	if found {
-		q, err := url.ParseQuery(query)
-		if err == nil && q.Get("mode") == "ro" {
-			readOnly = true
+	if path == ":memory:" {
+		if artifact {
+			return "", false, true, true
 		}
+		return "", false, false, false
 	}
-	return path, readOnly, true
+	if path == "" {
+		return "", false, false, false
+	}
+	return path, readOnly, artifact, true
 }
 
 // sqliteAttachLiteral is a file: URI quoted for ATTACH, with mode=ro|rw.

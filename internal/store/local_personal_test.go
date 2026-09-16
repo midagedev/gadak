@@ -4,8 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 	"strconv"
 	"testing"
 )
@@ -492,5 +495,101 @@ func TestCopyMigrationWaitsForLocal(t *testing.T) {
 	}
 	if len(views) != 1 || views[0].Name != "Mine" {
 		t.Errorf("SavedViews after local recovered = %+v, want [Mine]: the held copy must now have run", views)
+	}
+}
+
+// TestMemoryLocalMatchesFileLocal pins attachMemoryLocal's schema to
+// migrateLocal's. The memory local artifact opens get is built by rewriting
+// the same localMigrations slice onto the attached schema (qualifyLocalSQL),
+// so the two must agree on tables, columns, indexes and the user_version
+// stamp. A future local migration whose shape the rewrite does not recognize
+// lands in main or fails the attach — this is where that turns red, before
+// any snapshot ships a wrong-schema artifact (GDK-1934).
+func TestMemoryLocalMatchesFileLocal(t *testing.T) {
+	// File side: a real local.db through the production path.
+	dir := t.TempDir()
+	mirror := filepath.Join(dir, "gadak.db")
+	if err := EnsureLocal(mirror); err != nil {
+		t.Fatal(err)
+	}
+	fileDB, err := sql.Open("sqlite", "file:"+LocalPath(mirror)+"?mode=ro")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fileDB.Close()
+
+	// Memory side: an in-memory main carrying the artifact flag, so the
+	// connection hook builds the memory local on its one pooled connection.
+	memDB, err := sql.Open("sqlite", "file::memory:?"+ArtifactDSNParam+"=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer memDB.Close()
+	memDB.SetMaxOpenConns(1)
+	if err := memDB.Ping(); err != nil {
+		t.Fatal(err)
+	}
+
+	// The rewrite must not leak into main: an artifact's main database is
+	// the file being built, and finding local tables there would corrupt it.
+	var mainTables int
+	if err := memDB.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'`).Scan(&mainTables); err != nil {
+		t.Fatal(err)
+	}
+	if mainTables != 0 {
+		t.Fatalf("memory local leaked %d tables into main, want 0", mainTables)
+	}
+
+	schemaOf := func(db *sql.DB, prefix string) (tables map[string]string, cols map[string][]string, uv int) {
+		tables = map[string]string{}
+		cols = map[string][]string{}
+		rows, err := db.Query(`SELECT type, name FROM ` + prefix + `sqlite_master WHERE name NOT LIKE 'sqlite_%'`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var typ, name string
+			if err := rows.Scan(&typ, &name); err != nil {
+				t.Fatal(err)
+			}
+			tables[name] = typ
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+		for name := range tables {
+			crows, err := db.Query(`SELECT name FROM `+prefix+`pragma_table_info(?)`, name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var names []string
+			for crows.Next() {
+				var cn string
+				if err := crows.Scan(&cn); err != nil {
+					t.Fatal(err)
+				}
+				names = append(names, cn)
+			}
+			crows.Close()
+			sort.Strings(names)
+			cols[name] = names
+		}
+		if err := db.QueryRow(`PRAGMA ` + prefix + `user_version`).Scan(&uv); err != nil {
+			t.Fatal(err)
+		}
+		return tables, cols, uv
+	}
+
+	fileTables, fileCols, fileUV := schemaOf(fileDB, "")
+	memTables, memCols, memUV := schemaOf(memDB, "local.")
+	if !maps.Equal(fileTables, memTables) {
+		t.Errorf("memory local objects = %v, want file local's %v", memTables, fileTables)
+	}
+	if !maps.EqualFunc(fileCols, memCols, slices.Equal) {
+		t.Errorf("memory local columns = %v, want file local's %v", memCols, fileCols)
+	}
+	if memUV != fileUV || memUV != len(localMigrations) {
+		t.Errorf("memory local user_version = %d, want %d (file side %d)", memUV, len(localMigrations), fileUV)
 	}
 }
