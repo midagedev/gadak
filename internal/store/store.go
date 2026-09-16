@@ -110,8 +110,13 @@ type OpenOptions struct {
 type SchemaForwardRefusedError struct {
 	Path         string // the mirror file
 	Have         int    // schema version found in the file
-	Head         int    // schema version this build would migrate to
+	Head         int    // schema version this build would migrate this file to, holds applied
 	BuildVersion string // the dev build's own version string
+	// FullHead is len(migrations) at refusal time. Greater than Head exactly
+	// when a localCopyMigrations hold lowered the target below the build's
+	// own head, and then the message says so: a "writes 52" with no word
+	// about the hold reads like this build's head is 52 (GDK-1933).
+	FullHead int
 }
 
 func (e *SchemaForwardRefusedError) Error() string {
@@ -119,10 +124,14 @@ func (e *SchemaForwardRefusedError) Error() string {
 	if bv == "" {
 		bv = "unversioned"
 	}
-	return fmt.Sprintf("%s: this is a dev build (%s); the mirror is at schema %d, this build writes %d. "+
+	hold := ""
+	if e.FullHead > e.Head {
+		hold = fmt.Sprintf(" (this build's head is %d — the copy migration is waiting on the local database)", e.FullHead)
+	}
+	return fmt.Sprintf("%s: this is a dev build (%s); the mirror is at schema %d, this build writes %d%s. "+
 		"Migrating it forward would lock the installed release out of this workspace. "+
 		"Either set GADAK_DEV_MIGRATE=1 and re-run to migrate it anyway, or work on a copy: %s",
-		e.Path, bv, e.Have, e.Head, e.copyHint())
+		e.Path, bv, e.Have, e.Head, hold, e.copyHint())
 }
 
 // copyHint is the "work on a copy" recipe, derived from the mirror's layout
@@ -281,12 +290,17 @@ func (db *DB) Query(query string, args ...any) (*sql.Rows, error) {
 func (db *DB) SchemaVersion() int { return db.schemaVersion }
 
 // enforceForwardPolicy is the dev-lockout gate, applied before migrate(): under
-// RefuseForward, a mirror behind this build is not migrated but refused —
-// one open from a dev checkout must not decide a schema bump for a file an
-// installed release still reads. Two exceptions keep dev builds usable: a
-// brand-new file never belonged to a release (created at head, as Open
-// always did), and GADAK_DEV_MIGRATE=1 is the explicit operator override,
-// logged so the migration leaves a trail on stderr.
+// RefuseForward, a mirror this open would move forward is not migrated but
+// refused — one open from a dev checkout must not decide a schema bump for a
+// file an installed release still reads. "Would move" is targetVersion's
+// answer, the same single owner migrate() applies (GDK-1933): a file this
+// build holds one version short of head is not moved by opening it, so there
+// is no bump to decide and nothing a release could be locked out of — the
+// first shape this gate refused was a mirror the refusing build had itself
+// just written. Two exceptions keep dev builds usable: a brand-new file never
+// belonged to a release (created at head, as Open always did), and
+// GADAK_DEV_MIGRATE=1 is the explicit operator override, logged so the
+// migration leaves a trail on stderr.
 func (db *DB) enforceForwardPolicy(opts OpenOptions) error {
 	if opts.ForwardMigration != RefuseForward {
 		return nil
@@ -296,18 +310,24 @@ func (db *DB) enforceForwardPolicy(opts OpenOptions) error {
 	if err := db.sql.QueryRowContext(ctx, "PRAGMA user_version").Scan(&have); err != nil {
 		return err
 	}
-	head := len(migrations)
-	if have >= head {
+	if have >= len(migrations) {
 		// Up to date, or ahead — migrate() owns the too-new error unchanged.
+		return nil
+	}
+	want := db.targetVersion(ctx, have)
+	if have >= want {
+		// This open would apply nothing (at want, or held there by an
+		// earlier open of any build), so the refusal's premise — that
+		// migrating would lock a release out — does not hold.
 		return nil
 	}
 	if have == 0 && db.emptyMirror(ctx) {
 		return nil
 	}
 	if os.Getenv("GADAK_DEV_MIGRATE") != "1" {
-		return &SchemaForwardRefusedError{Path: db.path, Have: have, Head: head, BuildVersion: opts.BuildVersion}
+		return &SchemaForwardRefusedError{Path: db.path, Have: have, Head: want, FullHead: len(migrations), BuildVersion: opts.BuildVersion}
 	}
-	log.Printf("store: migrating %s %d→%d under GADAK_DEV_MIGRATE", db.path, have, head)
+	log.Printf("store: migrating %s %d→%d under GADAK_DEV_MIGRATE", db.path, have, want)
 	return nil
 }
 
@@ -337,30 +357,54 @@ var localCopyMigrations = []struct {
 	{apiUsageCopyVersion, (*DB).localAPIUsageReady},
 }
 
+// targetVersion is the single owner of "what schema version would this open
+// take this file to": len(migrations), lowered by every applicable
+// localCopyMigrations hold. migrate() applies it, and enforceForwardPolicy
+// refuses on it (GDK-1933) — the two decisions must agree, or a build ends
+// up refusing to re-open the very file it just held below head.
+//
+// A copy migration writes into local.* in the same transaction that advances
+// user_version. When local.db cannot be attached or migrated, Open's contract
+// still holds — a local.db failure "must not refuse the mirror" (see Open) —
+// so each copy waits instead of failing: stay a version below it, and
+// user_version still gates the copy onto the next Open once local answers.
+// Nothing is lost in the gap; the mirror-side tables keep the rows because
+// the copy migrations deliberately do not drop them.
+func (db *DB) targetVersion(ctx context.Context, have int) int {
+	want := len(migrations)
+	for _, m := range localCopyMigrations {
+		if want >= m.version && have < m.version && !m.ready(db, ctx) {
+			want = m.version - 1
+		}
+	}
+	return want
+}
+
 func (db *DB) migrate() error {
 	ctx := context.Background()
 	var have int
 	if err := db.sql.QueryRowContext(ctx, "PRAGMA user_version").Scan(&have); err != nil {
 		return err
 	}
-	want := len(migrations)
-	if have > want {
-		return &SchemaTooNewError{Path: db.path, Have: have, Supported: want}
+	if have > len(migrations) {
+		return &SchemaTooNewError{Path: db.path, Have: have, Supported: len(migrations)}
 	}
-	// A copy migration writes into local.* in the same transaction that
-	// advances user_version. When local.db cannot be attached or migrated,
-	// Open's contract still holds — a local.db failure "must not refuse the
-	// mirror" (see Open) — so each copy waits instead of failing: stay a
-	// version below it, and user_version still gates the copy onto the next
-	// Open once local answers. Nothing is lost in the gap; the mirror-side
-	// tables keep the rows because the copy migrations deliberately do not
-	// drop them.
-	for _, m := range localCopyMigrations {
-		if want >= m.version && have < m.version && !m.ready(db, ctx) {
-			want = m.version - 1
-		}
-	}
+	want := db.targetVersion(ctx, have)
 	db.schemaVersion = want
+	// The hold is invisible in the file: user_version 52 could have come from
+	// any build, and finding which one meant bisecting by directory
+	// (GDK-1933). One line when this open writes below head because of a
+	// hold. want+1 names the held copy: a hold only ever sets want to some
+	// entry's version-1, and once one sticks the higher entries' want >=
+	// version guard is false, so exactly one entry is the holder. Files
+	// already resting at `want` print nothing: the hold re-derives on every
+	// open, and a line per open of a held mirror is noise on a normal dev
+	// session, the same measurement that made the local.db notices
+	// once-per-path (GDK-596).
+	if have < want && want < len(migrations) {
+		log.Printf("store: %s: schema stops at %d, below this build's head %d — copy migration %d is waiting on the local database (attached and migrated for the copy); it runs on a later open",
+			db.path, want, len(migrations), want+1)
+	}
 	if have == want {
 		return nil
 	}

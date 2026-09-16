@@ -196,11 +196,16 @@ func TestOpenWithRefuseForwardLeavesReleaseLocalDBAlone(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	// The release's shape: both files one level behind this build. local.db
-	// first — attachLocalHook creates one at head on any open of a gadak.db
-	// that has none, mirrorAt's included.
+	// The release's shape: a mirror genuinely behind what this build would
+	// apply (44, with local.db one level behind so the v53 hold puts the
+	// target at apiUsageCopyVersion-1, not head), and a local.db the same
+	// open must not migrate. "One level behind" on the mirror no longer
+	// refuses since GDK-1933 — a file resting at this build's held target is
+	// not moved by opening it — so a refusal test needs the wider gap.
+	// local.db first: attachLocalHook creates one at head on any open of a
+	// gadak.db that has none, mirrorAt's included.
 	localAt(t, path, len(localMigrations)-1)
-	mirrorAt(t, path, len(migrations)-1)
+	mirrorAt(t, path, 44)
 	// A release leaves its mirror in WAL (mirrorDSN). Put the file in that
 	// shape before the byte snapshot, or the comparison measures SQLite's
 	// journal-mode conversion on first open instead of this policy.
@@ -220,8 +225,20 @@ func TestOpenWithRefuseForwardLeavesReleaseLocalDBAlone(t *testing.T) {
 	if !errors.As(err, &refused) {
 		t.Fatalf("error is %T (%v), want *SchemaForwardRefusedError", err, err)
 	}
+	// The refusal with a hold in effect (GDK-1933): Head is the held target
+	// this build would actually write, and the message says why that is not
+	// the build's head — the mirror is waiting on the local database.
+	if refused.Head != apiUsageCopyVersion-1 {
+		t.Errorf("Head = %d, want %d (the held target, not len(migrations))", refused.Head, apiUsageCopyVersion-1)
+	}
+	if refused.FullHead != len(migrations) {
+		t.Errorf("FullHead = %d, want %d", refused.FullHead, len(migrations))
+	}
+	if msg := refused.Error(); !strings.Contains(msg, "waiting on the local database") {
+		t.Errorf("refusal under a hold must say the mirror is waiting on the local database:\n%s", msg)
+	}
 
-	if got, want := userVersion(t, path), len(migrations)-1; got != want {
+	if got, want := userVersion(t, path), 44; got != want {
 		t.Errorf("mirror user_version = %d after a refused open, want %d", got, want)
 	}
 	if got, want := localUserVersion(t, path), len(localMigrations)-1; got != want {
@@ -502,6 +519,85 @@ func TestGADAKDevMigrateOverridesRefusal(t *testing.T) {
 	want := "store: migrating " + path + " 44→" + strconv.Itoa(len(migrations)) + " under GADAK_DEV_MIGRATE"
 	if !strings.Contains(buf.String(), want) {
 		t.Errorf("stderr log missing %q; got:\n%s", want, buf.String())
+	}
+}
+
+// TestOpenWithRefuseForwardReopensMirrorItHeldBelowHead is GDK-1933: the
+// first open of a brand-new mirror under the dev policy holds the file one
+// version below apiUsageCopyVersion when local.db is not ready for the copy
+// (the incident's local side: a local.db the same dev policy keeps at an
+// older level), and the second open of that same file was then refused by
+// the build that wrote it — enforceForwardPolicy compared against
+// len(migrations) instead of against what this build would actually apply.
+// The policy must refuse only when opening the file would move it.
+func TestOpenWithRefuseForwardReopensMirrorItHeldBelowHead(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "gadak.db")
+	// Schema 7 carries saved_views (the v26 probe answers ready) but not
+	// api_usage (the v53 probe does not) — the incident's exact local shape.
+	localAt(t, path, 7)
+
+	// First open: the dev build writes the mirror at the held level, and the
+	// hold says so on stderr.
+	var first bytes.Buffer
+	orig := log.Writer()
+	log.SetOutput(&first)
+	db, err := OpenWith(path, refuserOptions(path))
+	log.SetOutput(orig)
+	if err != nil {
+		t.Fatalf("first open: %v", err)
+	}
+	if got, want := db.SchemaVersion(), apiUsageCopyVersion-1; got != want {
+		t.Fatalf("first open schema version = %d, want %d (held below the copy)", got, want)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if want := fmt.Sprintf("copy migration %d is waiting on the local database", apiUsageCopyVersion); !strings.Contains(first.String(), want) {
+		t.Errorf("first open stderr missing the hold line %q; got:\n%s", want, first.String())
+	}
+
+	// Second open of the file this build just wrote — the defect's own shape.
+	var second bytes.Buffer
+	log.SetOutput(&second)
+	db2, err := OpenWith(path, refuserOptions(path))
+	log.SetOutput(orig)
+	if err != nil {
+		t.Fatalf("re-opening the mirror this dev build wrote: %v", err)
+	}
+	if got, want := db2.SchemaVersion(), apiUsageCopyVersion-1; got != want {
+		t.Fatalf("second open schema version = %d, want %d", got, want)
+	}
+	// Seed the frozen mirror-side counters so the later copy has something to
+	// carry: the hold must be a hold, not a silent skip of v53.
+	if _, err := db2.sql.Exec(`INSERT INTO api_usage (day, requests, throttled, server_errors, retries, wait_ms)
+		VALUES ('2026-09-15', 60, 2, 0, 1, 300)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db2.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(second.String(), "waiting on the local database") {
+		t.Errorf("second open re-logged the hold — an already-held file must stay quiet:\n%s", second.String())
+	}
+
+	// Once local answers, the copy still runs and takes the file to head.
+	if err := EnsureLocalWith(path, OpenOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	db3, err := OpenWith(path, OpenOptions{ForwardMigration: MigrateForward})
+	if err != nil {
+		t.Fatalf("open after local recovered: %v", err)
+	}
+	defer db3.Close()
+	if got := db3.SchemaVersion(); got != len(migrations) {
+		t.Fatalf("schema version after local recovered = %d, want %d (the held copy must run)", got, len(migrations))
+	}
+	days, err := db3.APIUsage(context.Background(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(days) != 1 || days[0].Day != "2026-09-15" || days[0].Requests != 60 {
+		t.Errorf("api_usage after local recovered = %+v, want the seeded 2026-09-15/60 — v53 must not be silently skipped", days)
 	}
 }
 
