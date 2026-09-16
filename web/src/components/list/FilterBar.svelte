@@ -159,7 +159,17 @@
       title={t('filter.remove')}
       class:order-last={chip.kind === 'range'}
     >
-      <span class="truncate {chip.kind === 'range' ? 'max-w-[220px]' : 'max-w-[180px]'}"
+      <!-- GDK-1939: the cap is the text's own measure, not a device pixel.
+           max-w-[180px] read as `スプリントの状態: 進行中のスプ…` in the ja
+           retro recording — the three locales' labels measure en 133px,
+           ko 149px, ja 194px at 1280 (e2e/label-fit.spec.ts), so the pixel
+           cap sat between ko and ja and cut exactly one locale. 20em is the
+           old range-chip cap (220px at the chip's micro size): range chips
+           keep their geometry, value chips gain the headroom Japanese
+           needs, and the cap scales with the font instead of a recording's
+           device pixels. The bar wraps (flex-wrap): a wider chip takes a
+           line, not the bar's edge. -->
+      <span class="truncate max-w-[20em]"
         >{#if chip.negParts}{chip.negParts[0]}<span class="font-semibold">{chip.negParts[1]}</span
           >{chip.negParts[2]}{:else}{chip.label}{/if}</span
       >

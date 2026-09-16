@@ -298,6 +298,14 @@
 <style>
   .head {
     display: flex;
+    /* GDK-1936 (measured at 402px, all-open scope): the ja row's natural
+       width is ~423px against 370px of line, and the shrinkable stamp paid
+       for the overflow by folding its text while the name took the
+       ellipsis (すべて…, scrollWidth 177 > 124). Wrapping the row moves only
+       the overflowing locale's stamp to the header's second line — line 1
+       without it is 357px, so the name keeps its full width; en (348px) and
+       ko (352px) never reach the break and stay single-line as they were. */
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
     /* The heading is a 44pt control now, so the padding that used to carry
@@ -343,6 +351,13 @@
     flex: 1 1 auto;
   }
   .fresh {
+    /* GDK-1936: the stamp is never the element that folds. One breath
+       (nowrap), no width traded for the heading's (flex:none — its old
+       default shrink is what bent the text into two lines), and it keeps
+       its right-edge stance on whichever line it lands. */
+    flex: none;
+    white-space: nowrap;
+    margin-left: auto;
     align-self: center;
     display: flex;
     align-items: center;

@@ -3,4 +3,4 @@
  * records the measured history (the 34 KB Detail.svelte truncation). This
  * re-export keeps the six importers' relative paths stable.
  */
-export { stripComments } from '../../../web/src/lib/source-scan'
+export { blankBlockComments, stripComments } from '../../../web/src/lib/source-scan'

@@ -38,7 +38,11 @@ const CEILINGS: Record<string, { lines: number; state: number }> = {
   'Shell.svelte': { lines: 1611, state: 18 },
   'Settings.svelte': { lines: 765, state: 14 },
   'PageDetail.svelte': { lines: 522, state: 8 },
-  'Issues.svelte': { lines: 482, state: 3 },
+  // Raised 2026-09-16 for GDK-1936: the header row learned to wrap under
+  // overflow (4 CSS declarations) and the comments that justify them carry
+  // the measured before/after numbers. 482→497, all of it comment plus
+  // contract — no new state, no new markup.
+  'Issues.svelte': { lines: 497, state: 3 },
   // Measured 2026-09-16 at birth (GDK-1827): the sprint list is the first
   // screen with no local state at all — every row is derived from the store.
   'Sprints.svelte': { lines: 262, state: 0 },

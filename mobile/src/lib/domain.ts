@@ -281,7 +281,11 @@ export function groupByPriority(sorted: IssueLite[]): ListSection[] {
     if (last && last.rank === rank) {
       last.issues.push(issue)
     } else {
-      sections.push({ label: issue.priority ?? 'No priority', rank, issues: [issue] })
+      // The desk's word, not the phone's (GDK-1945): Issues.svelte renders
+      // this label raw, so an English literal here puts an English header
+      // over translated rows. list.priorityNone is what the desk's own
+      // priority picker and icon already say.
+      sections.push({ label: issue.priority ?? t('list.priorityNone'), rank, issues: [issue] })
     }
   }
   return sections

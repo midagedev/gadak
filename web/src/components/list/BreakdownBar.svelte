@@ -81,12 +81,18 @@
   // left every label a one-letter sliver — the dot and count survived, the
   // name did not, and a legend without names is not a summary. ~130px is a
   // chip with a readable label; what does not fit folds into "+N more".
-  // ponytail: a budget, not a measurement — labels still ellipsize when the
-  // share runs short; measure real chip widths if the budget proves wrong.
+  // GDK-1938: labels have a floor now (see the chip below), so the budget
+  // must also reserve the fold marker's own width — a floored chip can no
+  // longer shrink to make room for "+N more", and without the reserve the
+  // pair could push the strip into scrolling, which is the GDK-1057 cut.
+  // 72px covers the widest locale's marker ("ほか 12件") plus its gap.
   const CHIP_BUDGET_PX = 130
+  const MORE_RESERVE_PX = 72
   let stripWidth = $state(0)
   const maxChips = $derived(
-    stripWidth > 0 ? Math.max(1, Math.min(6, Math.floor(stripWidth / CHIP_BUDGET_PX))) : 6,
+    stripWidth > 0
+      ? Math.max(1, Math.min(6, Math.floor((stripWidth - MORE_RESERVE_PX) / CHIP_BUDGET_PX)))
+      : 6,
   )
   const shownGroups = $derived(rankedGroups.slice(0, maxChips))
   const hiddenGroupCount = $derived(Math.max(0, rankedGroups.length - shownGroups.length))
@@ -218,7 +224,17 @@
             {#if glyph}
               <Icon name={glyph} size={12} />
             {/if}
-            <span class="min-w-0 max-w-36 truncate">{group.label || t('common.all')}</span>
+            <!-- GDK-1938: flexbox shares shrink out in proportion to each
+                 item's base size, so every chip loses a similar fraction of
+                 itself — and a short chip's fraction comes almost entirely
+                 out of its label, the dot and count being flex-none.
+                 Measured at 1280 (epic axis): "No epic" fell 40→24px ("No…")
+                 while its 138-165px neighbours kept 104-121px. The shortest
+                 name is the one most worth keeping whole, so the label keeps
+                 a 7em floor (ja エピックなし = 6em is the widest none-word;
+                 7em leaves font-stack margin) — long data names above the
+                 floor still ellipsize per GDK-1057. -->
+            <span class="min-w-[7em] max-w-36 truncate">{group.label || t('common.all')}</span>
             <span class="flex-none font-mono text-micro text-text-muted">{formatNumber(group.counts.total)}</span>
           </button>
         {/each}
