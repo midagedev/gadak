@@ -85,5 +85,25 @@ func VerifyMirror(ctx context.Context, db *sql.DB, st *Stats) ([]VerifyRow, erro
 			VerifyRow{Metric: "pages", Source: st.Pages, Migrated: pages},
 			VerifyRow{Metric: "page comments", Source: st.PageComments, Migrated: pageComments})
 	}
+
+	// The sprint pass's axes (GDK-1961). The membership row's source side
+	// subtracts the two differences that are reported, not lost: the close
+	// sweep (the Agile API dictates a closed sprint holds done issues only)
+	// and orphaned references (a sprint id with no sprints row has nothing
+	// to create from). A remaining gap is news, not arithmetic.
+	if st.Sprints > 0 || st.SprintIssues > 0 {
+		var sprints, sprintIssues int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sprints`).Scan(&sprints); err != nil {
+			return nil, err
+		}
+		if err := db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM issues_full WHERE project_key IN (`+marks+`) AND sprint_id IS NOT NULL`,
+			args...).Scan(&sprintIssues); err != nil {
+			return nil, err
+		}
+		out = append(out,
+			VerifyRow{Metric: "sprints", Source: st.Sprints, Migrated: sprints},
+			VerifyRow{Metric: "sprint issues", Source: st.SprintIssues - st.SprintSwept - st.SprintOrphans, Migrated: sprintIssues})
+	}
 	return out, nil
 }

@@ -525,7 +525,12 @@ Markers:
     which must not exist yet (`cmd/gadak/migrate.go:93`). The fixture's
     `descriptionAdf` / `bodyAdf` slots are stored verbatim when they parse
     as a document; a body without one is wrapped as a single paragraph
-    (`issuetap/internal/store/store.go`, `fixtureBody`; GDK-1382).
+    (`issuetap/internal/store/store.go`, `fixtureBody`; GDK-1382). Sprints
+    do not fit the seed document, so they travel after it through the
+    destination's Agile write API — boards, names, goals, dates and
+    membership (`internal/migrate/sprints.go`; GDK-1961). A closed sprint
+    holds done issues only, so closing sweeps the rest to the backlog and
+    the report counts the sweep.
 
 [^96]: All three surfaces run against the mirror; the MCP tools expose no
     write verb on any origin (`internal/mcp/tools.go:25`) — `gadak_ui_set`

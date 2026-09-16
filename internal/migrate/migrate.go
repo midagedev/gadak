@@ -234,10 +234,34 @@ type Stats struct {
 	DroppedParents     []string
 	DroppedPageParents int
 
-	// Not migrated (the fixture has no slot, or out of scope).
+	// Not migrated: the export document has no slot for these. The built-in
+	// destination itself can take both — dev links through its dev-status
+	// route, custom fields on issue create — so the gap is this export's,
+	// and the report says so.
 	DevLinks     int
 	CustomIssues int
+
+	// Sprinted issues, the source side of the verify table's membership row
+	// (GDK-1961). Sprints themselves travel after the seed through the
+	// Agile write API — the fields below are that pass's honest half.
 	SprintIssues int
+	// Sprints is how many sprints the migrated issues reference (the verify
+	// table's sprints row source side); SprintsCreated is what the pass
+	// actually created on the target.
+	Sprints        int
+	SprintsCreated int
+	// SprintSwept counts the not-done members of closed sprints that the
+	// Agile API's close sweep moves to the backlog on the target — a closed
+	// sprint holds done issues only, a rule of the destination itself.
+	SprintSwept int
+	// SprintOrphans counts issues referencing sprints the mirror's sprints
+	// table no longer lists.
+	SprintOrphans int
+	// SprintStuck names sprints whose state could not travel, with the
+	// reason; SprintErrors carries per-sprint write failures — the pass
+	// continues past them.
+	SprintStuck  []string
+	SprintErrors []string
 
 	// Attachment byte pass.
 	AttachInlined int

@@ -195,6 +195,12 @@ func cmdMigrate(args []string) error {
 	if err != nil {
 		return err
 	}
+	// GDK-1961: sprints do not fit the seed document, so the sprint graph
+	// travels after it — through the Agile write API on the origin, then one
+	// incremental refill that re-mirrors what the pass wrote. Runs before
+	// origin.Close so the persist file this command leaves behind is the one
+	// with the sprints in it.
+	migrateSprints(ctx, target, tcfg, srcDB, stats)
 	if err := origin.Close(); err != nil {
 		return fmt.Errorf("flush origin persist: %w", err)
 	}
@@ -408,10 +414,16 @@ func printMigrateReport(w *os.File, target, from, locale string, st *migrate.Sta
 		fmt.Fprintf(w, "formatting carried as ADF: code blocks %d, tables %d, inline media %d (an image resolves by filename against its migrated attachment)\n",
 			st.FmtCodeBlock, st.FmtTable, st.FmtMedia)
 	}
-	if st.DevLinks > 0 || st.CustomIssues > 0 || st.SprintIssues > 0 {
-		fmt.Fprintf(w, "not migrated: dev links %d, issues with custom fields %d, issues with sprints %d\n",
-			st.DevLinks, st.CustomIssues, st.SprintIssues)
+	// GDK-1961 split this line's honesty in two: sprints travel now (the
+	// Agile pass above), and what stays behind must say whose gap it is.
+	// Both remaining kinds are the export's — the destination itself takes
+	// dev links (its dev-status route) and custom fields (issue create) —
+	// so the sentence names the export, not the tracker.
+	if st.DevLinks > 0 || st.CustomIssues > 0 {
+		fmt.Fprintf(w, "not migrated: dev links %d, issues with custom fields %d (the export document carries neither; the destination can take both)\n",
+			st.DevLinks, st.CustomIssues)
 	}
+	printSprintNotes(w, st)
 	if st.DroppedLinks > 0 {
 		fmt.Fprintf(w, "links to issues outside the migrated set: %d dropped\n", st.DroppedLinks)
 	}
