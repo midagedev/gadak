@@ -15,7 +15,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'svelte/compiler'
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { SETTINGS_TABS } from '../../lib/settings-tabs'
 import { isVisibleSettingsTab, visibleSettingsTabs } from '../../lib/integrations'
 
@@ -117,7 +117,11 @@ function parseComponent(path: string, filename: string) {
   walkTemplate(ast.fragment, (n) => {
     if (n.type === 'RegularElement') elements.push(n)
   })
-  return { source, elements, script: ast.instance?.content.body ?? [] }
+  const ifBlocks: AnyNode[] = []
+  walkTemplate(ast.fragment, (n) => {
+    if (n.type === 'IfBlock') ifBlocks.push(n)
+  })
+  return { source, elements, ifBlocks, script: ast.instance?.content.body ?? [] }
 }
 
 /** The `$state(...)` call behind `let <name>`, or undefined if <name> is not rune state. */
@@ -167,9 +171,16 @@ describe('GDK-1047 devices tab render contract', () => {
   const { source: src, elements, script } = parseComponent(DEVICES_TAB, 'DevicesTab.svelte')
 
   test('the QR is an <img> fed by the server data URI, not a client-side renderer', () => {
+    // GDK-1966: the phone-open card adds a second <img> (its QR is fetched
+    // from the serve route, not client-encoded), so "the only img in the
+    // tab" stopped pinning the pairing QR — it is pinned by its own testid
+    // now. FAIL-first confirmed on the pre-GDK-1966 source: this count
+    // reads 1.
     const images = elements.filter((e) => e.name === 'img')
-    expect(images, 'the QR must render as a plain <img>').toHaveLength(1)
-    expect(expressionAttribute(images[0], 'src')).toBe('minted.qr_png')
+    expect(images, 'the tab renders the pairing QR and the phone QR').toHaveLength(2)
+    const pairing = images.find((e) => staticAttribute(e, 'data-testid') === 'devices-qr')
+    expect(pairing, 'the pairing QR keeps its devices-qr testid').toBeDefined()
+    expect(expressionAttribute(pairing as AnyNode, 'src')).toBe('minted.qr_png')
     // No new npm dependency: nothing imports a QR library.
     expect(src).not.toMatch(/from '[^']*qr/i)
     expect(src).not.toMatch(/import\s+qrcode/)
@@ -291,6 +302,105 @@ describe('GDK-1047 devices copy is complete in every locale', () => {
     const tab = src.match(/'settings\.tabDevices':\s*\{[\s\S]*?\},/)?.[0] ?? ''
     for (const block of [...blocks, tab]) {
       expect(block, `${block.slice(0, 40)}… misses a locale`).toMatch(/en:/)
+      expect(block).toMatch(/ko:/)
+      expect(block).toMatch(/ja:/)
+    }
+  })
+})
+
+/*
+ * GDK-1966: the "Open on your phone" card. Same node-environment story as
+ * above — the render contract is asserted on the AST, and the data contract
+ * (`phone_urls` in config.json) is driven through loadConfig with fetch
+ * stubbed, the seam config.test.ts already uses.
+ */
+describe('GDK-1966 phone-open card', () => {
+  const { source: src, elements, ifBlocks } = parseComponent(DEVICES_TAB, 'DevicesTab.svelte')
+
+  async function loadConfigWith(body: unknown, ok = true) {
+    vi.resetModules()
+    // runtimeBase() reads window.location.pathname; the unit project runs in node.
+    vi.stubGlobal('window', { location: { pathname: '/' } })
+    vi.stubGlobal('fetch', async () =>
+      ok
+        ? new Response(JSON.stringify(body), { status: 200 })
+        : new Response('missing', { status: 404 }),
+    )
+    const mod = await import('../../lib/config')
+    await mod.loadConfig()
+    return mod
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  /** Source text of an AST node (modern parse carries start/end offsets). */
+  function nodeText(node: AnyNode | undefined): string {
+    if (!node || typeof node.start !== 'number' || typeof node.end !== 'number') return ''
+    return src.slice(node.start, node.end)
+  }
+
+  test('two urls: first carries the QR and selectable text, the rest a plain list', async () => {
+    // Config side: the wire array arrives intact under the parsed name.
+    const urls = ['https://phone-a.example.ts.net/m/', 'https://phone-b.example.ts.net:7777/m/']
+    const mod = await loadConfigWith({ phone_urls: urls })
+    expect(mod.config().phoneUrls).toEqual(urls)
+
+    // Render side: the card, the QR fetched from the serve route (GDK-1966
+    // — the encoder that used to live in the component is gone; the serve
+    // mints the PNG over phone_urls[0]), the first url as text with the
+    // tab's copy affordance, and exactly the remaining urls under it.
+    const card = elements.find((e) => staticAttribute(e, 'data-testid') === 'phone-open')
+    expect(card, 'the card carries data-testid="phone-open"').toBeDefined()
+    const qr = elements.find((e) => staticAttribute(e, 'data-testid') === 'phone-open-qr')
+    expect(qr?.name).toBe('img')
+    expect(staticAttribute(qr as AnyNode, 'src')).toBe('/phone-qr.png?i=0')
+    expect(src).toMatch(/data-testid="phone-open-url"[^>]*>\{phoneUrls\[0\]\}/s)
+    expect(src).toMatch(/copyText\(phoneUrls\[0\]\)/)
+    expect(src).toMatch(/\{#each phoneUrls\.slice\(1\) as/)
+  })
+
+  test('empty list: the none sentence replaces the body and no QR is drawn', async () => {
+    const mod = await loadConfigWith({ phone_urls: [] })
+    expect(mod.config().phoneUrls).toEqual([])
+
+    // The empty branch renders the none sentence… (`test` is the modern
+    // AST's name for an IfBlock's condition.)
+    const emptyIf = ifBlocks.find((n) => nodeText((n.test ?? n.expression) as AnyNode) === 'phoneUrls.length === 0')
+    expect(emptyIf, 'the card branches on phoneUrls.length === 0').toBeDefined()
+    expect(nodeText(emptyIf as AnyNode)).toMatch(/settings\.phoneOpen\.none/)
+    // …with no <img> inside it, and the QR/URL sit in the other branch.
+    const emptyEls: string[] = []
+    walkTemplate((emptyIf as AnyNode).consequent, (n) => {
+      if (n.type === 'RegularElement') emptyEls.push(String(n.name))
+    })
+    expect(emptyEls, 'the empty branch draws no QR').not.toContain('img')
+    const fullEls: string[] = []
+    walkTemplate((emptyIf as AnyNode).alternate, (n) => {
+      if (n.type === 'RegularElement') fullEls.push(String(n.name))
+    })
+    expect(fullEls).toContain('img')
+    expect(nodeText(emptyIf as AnyNode)).toMatch(/settings\.phoneOpen\.body/)
+  })
+
+  test('absent phone_urls key reads the same as empty', async () => {
+    // An older serve sends nothing — DEFAULTS' empty list must survive the
+    // merge rather than read `undefined` and throw on .length.
+    const mod = await loadConfigWith({})
+    expect(mod.config().phoneUrls).toEqual([])
+    // Garbage is not guessed into urls either.
+    const garbage = await loadConfigWith({ phone_urls: 'https://phone-a.example.ts.net/m/' })
+    expect(garbage.config().phoneUrls).toEqual([])
+  })
+
+  test('phoneOpen copy exists in the catalog with all three locales', () => {
+    const catalog = readFileSync(join(MESSAGES, 'settings.ts'), 'utf8')
+    const keys = ['settings.phoneOpen.title', 'settings.phoneOpen.body', 'settings.phoneOpen.none']
+    for (const key of keys) {
+      const block = catalog.match(new RegExp(`'${key.replace(/\./g, '\\.')}':\\s*\\{[\\s\\S]*?\\},`))?.[0]
+      expect(block, `${key} missing from the catalog`).toBeDefined()
+      expect(block, `${key} misses a locale`).toMatch(/en:/)
       expect(block).toMatch(/ko:/)
       expect(block).toMatch(/ja:/)
     }

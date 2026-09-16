@@ -194,6 +194,16 @@ token authenticates, and there are exactly three of those:
   told `{"t":"dropped","reason":"token_revoked"}` and the shell's whole
   process group is signalled.
 
+A serve can also be pointed at a DNS name on purpose (GDK-1966): the
+repeatable `--public-url` flag, `serve.publicUrls` in config, and the
+machine's Tailscale MagicDNS name (probed best-effort at startup) form a
+host allowlist that widens the rebinding guard for exactly those names —
+reaching a listed name is the credential, the tailnet being the audience
+(`internal/server/host_policy.go`). Viewer identity headers
+(`Tailscale-User-Login`/`-Name`) are trusted only when the connection
+arrives from loopback — i.e. from a `tailscale serve` proxy on the same
+machine — and are read nowhere else (`internal/server/viewer.go`).
+
 Each surface takes only its own scope: `gadak pairing mint --scope origin`
 (the default) rides the passthrough and is refused on the mirror REST;
 `--scope serve` opens the mirror REST and is refused on the passthrough

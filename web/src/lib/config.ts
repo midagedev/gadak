@@ -71,6 +71,12 @@ export interface GadakConfig {
   qaDashboardUrl: string
   /** Project keys the mirror covers. Drives built-in view presets. */
   projects: string[]
+  /**
+   * Addresses a phone can open this serve on (GDK-1966) — the tailnet URLs
+   * the server is bound to, wire key `phone_urls`. Empty (or absent on an
+   * older serve) means loopback-only: no other device has anything to scan.
+   */
+  phoneUrls: string[]
   /** Group key -> display label, for the optional team taxonomy. */
   groupLabels: Record<string, string>
   /** Group key -> hex color, for avatar rings. */
@@ -293,6 +299,7 @@ const DEFAULTS: GadakConfig = {
   jiraBaseUrl: '',
   qaDashboardUrl: '',
   projects: [],
+  phoneUrls: [],
   groupLabels: {},
   groupColors: {},
   productByGroup: {},
@@ -346,6 +353,16 @@ function parseWindowChrome(raw: unknown): WindowChrome | undefined {
     return raw
   }
   return undefined
+}
+
+/**
+ * `phone_urls` wire array → the phone-open card's list (GDK-1966). Absent
+ * (an older serve) and anything but an array of strings read as empty —
+ * never guessed, the same rule the axes around it follow.
+ */
+function parsePhoneUrls(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return raw.filter((u): u is string => typeof u === 'string')
 }
 
 /**
@@ -640,6 +657,7 @@ export async function loadConfig(): Promise<GadakConfig> {
         transport: parseTransport(raw.transport),
         originWritable: raw.originWritable === true,
         capabilities: parseCapabilities(raw, raw.originWritable === true),
+        phoneUrls: parsePhoneUrls((raw as { phone_urls?: unknown }).phone_urls),
       }
     }
   } catch {

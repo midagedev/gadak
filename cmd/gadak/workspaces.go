@@ -2,11 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"io/fs"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/pairflow"
 	"github.com/midagedev/gadak/internal/server"
 	"github.com/midagedev/gadak/internal/skillinstall"
 	"github.com/midagedev/gadak/internal/workspace"
@@ -70,10 +73,22 @@ func healthzDoc() map[string]any {
 	}
 }
 
+// serveSites is what cmdServe passes the mux beyond the primary API
+// handler (GDK-1966): the live host policy getter (both guard layers must
+// read one owner — GDK-443's rule), the embedded phone bundle getter, and
+// the /m/ address list /config.json carries. The zero value is the
+// pre-GDK-1966 tree: no policy (every DNS Host refused, as before) and no
+// phone bundle (/m/ answers 503 naming the fix).
+type serveSites struct {
+	hosts     func() *server.HostPolicy
+	phoneUI   func() (fs.FS, bool)
+	phoneURLs []string
+}
+
 // buildServeMux wires the serve HTTP tree: primary API + SPA, workspace mounts,
 // and the workspace list. Extracted so tests can exercise routing without a
 // real listener or flag parse.
-func buildServeMux(primaryAPI http.Handler, spa http.Handler, reg *workspace.Registry) http.Handler {
+func buildServeMux(primaryAPI http.Handler, spa http.Handler, reg *workspace.Registry, sites serveSites) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -86,7 +101,7 @@ func buildServeMux(primaryAPI http.Handler, spa http.Handler, reg *workspace.Reg
 			http.Error(w, `{"error":"config_unreadable"}`, http.StatusInternalServerError)
 			return
 		}
-		doc, err := server.WebConfig(cur)
+		doc, err := server.WebConfigPhone(cur, sites.phoneURLs)
 		if err != nil {
 			http.Error(w, `{"error":"config_unreadable"}`, http.StatusInternalServerError)
 			return
@@ -94,6 +109,33 @@ func buildServeMux(primaryAPI http.Handler, spa http.Handler, reg *workspace.Reg
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = w.Write(doc)
+	})
+	// The phone address as a QR (GDK-1966): the Devices tab draws the first
+	// phone_urls entry for a camera. Rendered here by the same encoder the
+	// pairing offer uses (pairflow.QRPNG) so the tree has one QR owner; the
+	// index is the config.json position, so the two never disagree.
+	mux.HandleFunc("GET /phone-qr.png", func(w http.ResponseWriter, r *http.Request) {
+		i := 0
+		if q := r.URL.Query().Get("i"); q != "" {
+			n, err := strconv.Atoi(q)
+			if err != nil || n < 0 {
+				http.Error(w, `{"error":"bad_index"}`, http.StatusBadRequest)
+				return
+			}
+			i = n
+		}
+		if i >= len(sites.phoneURLs) {
+			http.Error(w, `{"error":"no_phone_url"}`, http.StatusNotFound)
+			return
+		}
+		png, err := pairflow.QRPNG(sites.phoneURLs[i])
+		if err != nil {
+			http.Error(w, `{"error":"qr_failed"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = w.Write(png)
 	})
 	// More specific than /api/ so the list is not swallowed by the primary handler.
 	mux.HandleFunc("GET /api/v1/workspaces", workspace.ListHandler())
@@ -107,6 +149,14 @@ func buildServeMux(primaryAPI http.Handler, spa http.Handler, reg *workspace.Reg
 	mux.HandleFunc("POST /api/v1/workspaces/{$}", workspace.CreateHandler())
 	mux.HandleFunc("DELETE /api/v1/workspaces/{name}", workspace.RemoveHandler(reg))
 	mux.Handle("/api/", primaryAPI)
+	// The phone bundle (GDK-1966): its own mount, never the SPA's
+	// catch-all. A getter that reports no bundle answers 503 with the fix
+	// as the hint; a nil getter (zero serveSites) is that same answer.
+	phoneUI := sites.phoneUI
+	if phoneUI == nil {
+		phoneUI = func() (fs.FS, bool) { return nil, false }
+	}
+	mux.Handle("/m/", server.PhoneUIHandler(phoneUI))
 	if reg != nil {
 		mux.HandleFunc("/w/", reg.Handler(spa, version))
 	}
@@ -127,5 +177,5 @@ func buildServeMux(primaryAPI http.Handler, spa http.Handler, reg *workspace.Reg
 			server.PairedOriginHostExempt(dirFn), server.PairedMirrorHostExempt(dirFn),
 		},
 		Origin: []func(*http.Request) bool{server.PairedAppOriginExempt(dirFn)},
-	})
+	}, sites.hosts)
 }

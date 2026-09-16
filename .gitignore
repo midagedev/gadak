@@ -3,11 +3,15 @@ node_modules/
 vendor/
 
 # Build outputs. dist/app/.placeholder stays tracked so `go build` works
-# before the first `npm run build` (embed.go needs the directory to exist).
+# before the first `npm run build` (embed.go needs the directory to exist);
+# dist/phone/.placeholder is the same rule for the phone bundle (`make phone`).
 dist/*
 !dist/app
 dist/app/*
 !dist/app/.placeholder
+!dist/phone
+dist/phone/*
+!dist/phone/.placeholder
 bin/
 # A stray `go build` in the repo root drops a binary named after the module.
 /gadak

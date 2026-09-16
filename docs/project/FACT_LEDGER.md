@@ -144,9 +144,9 @@ gadak init --projects ENG,PROD --spaces ENG
 ```
 
 - **What keeps the mirror fresh**: `gadak serve` runs the incremental sync
-  loop by default when a credential is configured (`cmd/gadak/serve.go:264`;
+  loop by default when a credential is configured (`cmd/gadak/serve.go:305`;
   `--no-sync` opts out). The default interval is **60 seconds**
-  (`internal/config/config.go:400`, `DefaultSyncIntervalSec`; floor 15 s;
+  (`internal/config/config.go:423`, `DefaultSyncIntervalSec`; floor 15 s;
   `syncIntervalSec` in Settings → Sync or `gadak config`), plus an **hourly
   reconcile pass** that proves absence: an issue the account can no longer
   see, or that was deleted, is removed from the mirror on the next reconcile
@@ -268,7 +268,7 @@ gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
 - Writes (`create`, `edit`, `comment`, `transition`, `claim`, `link`, and the
   wiki `page` verbs) go through the origin before the mirror refreshes.
 - **Attribution — say exactly this much and no more** (`internal/origin/trailer.go`,
-  `internal/origin/transport.go:50`): on the **built-in tracker** the agent is
+  `internal/origin/transport.go:94`): on the **built-in tracker** the agent is
   recorded as the write's author. On **Jira Cloud and Linear** the identity
   travels inside the body as one trailing line — `— via gadak · Claude Code
   (claude:…)` — on **three shapes only**: a comment, a transition's comment when
@@ -344,7 +344,7 @@ first question (review round 2026-09-08). Confluence Server has no client
   `~/.gadak/profiles/<name>/config.json`) — **the same path on every OS**
   (`%USERPROFILE%\.gadak` on Windows); there is **no OS keychain** on the
   desktop (the phone app is the only Keychain user). It is written atomically
-  with mode `0600` (`internal/atomicfile`, `internal/config/config.go:871`) in a
+  with mode `0600` (`internal/atomicfile`, `internal/config/config.go:894`) in a
   `0700` directory, and sent only as the `Authorization` header to the reader's
   own site — the transport rejects any other host
   (`internal/atlhttp/transport.go:173`). Gates: `docs/PROMISES.md` promise 2

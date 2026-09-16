@@ -55,6 +55,18 @@ the current status above the choices, and the priority group header and the
 two terminal-pairing refusals speak the phone's language instead of English
 ([GDK-1964], [GDK-1965], [GDK-1945]).
 
+And the phone is a browser on the tailnet: a serve bound to a Tailscale
+address now answers its own MagicDNS name and any `--public-url` it is given,
+where it used to refuse every DNS name, and it carries the phone bundle at
+`/m/` — so a phone on the tailnet opens `https://<node>.<tailnet>.ts.net/m/`
+in Safari and has the whole app: no store build, no pairing, because reaching
+the address is the credential the admin console already granted the device.
+Behind `tailscale serve` the person's Tailscale login rides each request and
+their writes are attributed to them; reached directly, the serve stays the
+single-user surface it was. The desktop's Devices tab shows that address as a
+QR beside the pairing offers, which stay for other machines' `gadak`
+([GDK-1966]).
+
 **What the cache holds, and what it counts, answer to the origin.** A wiki page removed at the
 origin used to stay in the local cache for as long as its space did. A full
 wiki sync now compares each space's page listing with the cache, and the hourly
@@ -1712,3 +1724,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1962]: https://gadak.dev/backlog/#/?ks=GDK-1962
 [GDK-1964]: https://gadak.dev/backlog/#/?ks=GDK-1964
 [GDK-1965]: https://gadak.dev/backlog/#/?ks=GDK-1965
+[GDK-1966]: https://gadak.dev/backlog/#/?ks=GDK-1966

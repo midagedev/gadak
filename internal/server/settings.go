@@ -116,6 +116,12 @@ type webConfigDoc struct {
 	// already-open tab with no reload. Empty only when the serving process
 	// has no directory to stat.
 	ConfigVersion string `json:"configVersion,omitempty"`
+	// PhoneURLs is where this machine's serve can be opened as the phone
+	// UI (GDK-1966): each --public-url origin plus the dialable listen
+	// address, every one ending /m/. Assembled at serve start by
+	// PhoneURLs; always carried ([] when the serve is loopback-only) so a
+	// web build that predates the field binds without guards.
+	PhoneURLs []string `json:"phone_urls"`
 }
 
 // uiDoc is the ui slice of config.json. Vars is palette → cssVar → hex with

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -75,6 +76,35 @@ func validateMemorySpace(s string) (string, error) {
 		return "", fmt.Errorf("memory.space must be one space key (got %q)", s)
 	}
 	return s, nil
+}
+
+// ValidatePublicURLs is the serve.publicUrls / --public-url rule (GDK-1966):
+// every entry is an http(s) origin — scheme://host[:port], no path, query, or
+// fragment. A name on the finished list is one the rebinding guard steps
+// aside for, so a sloppy entry must refuse here rather than silently widen
+// nothing (bare host) or answer for more than was meant (a path is not a
+// name). A trailing slash alone is tolerated and normalized away; duplicates
+// by host (case-insensitively) collapse — the second one admits nothing new.
+func ValidatePublicURLs(urls []string) ([]string, error) {
+	if urls == nil {
+		return []string{}, nil
+	}
+	out := make([]string, 0, len(urls))
+	seen := map[string]bool{}
+	for _, raw := range urls {
+		u, err := url.Parse(strings.TrimSpace(raw))
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" ||
+			(u.Path != "" && u.Path != "/") || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+			return nil, fmt.Errorf("serve.publicUrls entries must be http(s) origins like https://gadak.example.com (got %q)", raw)
+		}
+		host := strings.ToLower(u.Host)
+		if seen[host] {
+			continue
+		}
+		seen[host] = true
+		out = append(out, u.Scheme+"://"+host)
+	}
+	return out, nil
 }
 
 // The retro session-gap bounds mirror retro.MinSessionGap / MaxSessionGap.
@@ -825,6 +855,22 @@ func buildSettings() []Setting {
 			func(c *Config) string { return c.Locale },
 			validateLocale,
 			func(c *Config, v string) error { c.Locale = v; return nil },
+		),
+		stringsSetting("serve.publicUrls", "serve",
+			"http(s) origins whose DNS name this machine's serve answers (--public-url "+
+				"shape, repeatable; the machine's own Tailscale MagicDNS name is detected at "+
+				"serve start and needs no entry). Each name widens the rebinding guard for "+
+				"that one Host only",
+			func(c *Config) []string { return sliceOrEmpty(c.ServePublicURLs()) },
+			ValidatePublicURLs,
+			func(c *Config, v []string) error {
+				if len(v) == 0 {
+					c.Serve = nil
+					return nil
+				}
+				c.Serve = &ServeConfig{PublicURLs: v}
+				return nil
+			},
 		),
 		boolSetting("frozen", "frozen",
 			"freeze this workspace: no request leaves for the origin — pulls and "+

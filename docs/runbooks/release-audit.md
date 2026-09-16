@@ -96,7 +96,7 @@ questions stay the ones Go asks:
 Numbers that are findings on sight: a non-test function at cyclomatic ≥ 30
 (the threshold the v0.22 baseline puts seven functions over 69 above), a
 production file over 1,500 lines with more than 30 commits, a `dupl` pair
-inside one file (`internal/config/settings.go:988-1054` self-clones was the
+inside one file (`internal/config/settings.go:1034-1100` self-clones was the
 v0.22 example). A number is where the reading starts, not the verdict — a
 `switch` over a wire enum is legitimately wide.
 

@@ -35,9 +35,13 @@ type GuardExempts struct {
 // GuardBrowser wraps next so Host/Origin checks run before any route.
 // Mount this on the top-level serve mux so routes registered outside Handler
 // (/config.json, /healthz, /api/v1/workspaces, /w/) cannot skip the guard.
-func GuardBrowser(next http.Handler, ex GuardExempts) http.Handler {
+//
+// hosts, when non-nil, is the DNS-name allowlist the Host check also admits
+// (GDK-1966) — read per request so a policy installed after construction
+// takes effect. Nil keeps the pre-policy surface: every DNS name refused.
+func GuardBrowser(next http.Handler, ex GuardExempts, hosts func() *HostPolicy) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !browserGuard(w, r, ex) {
+		if !browserGuard(w, r, ex, hosts) {
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -64,8 +68,8 @@ func GuardBrowser(next http.Handler, ex GuardExempts) http.Handler {
 // and cannot be told to omit — is the only thing standing between a hostile
 // tab and whatever the socket speaks. Written before the first socket exists
 // (the v0.18 terminal pane, GDK-855) rather than after.
-func browserGuard(w http.ResponseWriter, r *http.Request, ex GuardExempts) bool {
-	if !allowedHost(r.Host) && !anyExempt(ex.Host, r) {
+func browserGuard(w http.ResponseWriter, r *http.Request, ex GuardExempts, hosts func() *HostPolicy) bool {
+	if !allowedHost(r.Host, hosts) && !anyExempt(ex.Host, r) {
 		log.Printf("server: forbidden host %q on %s %s", r.Host, r.Method, r.URL.Path)
 		fail(w, http.StatusForbidden, "forbidden_host")
 		return false
@@ -120,7 +124,13 @@ func stateChanging(method string) bool {
 
 // allowedHost reports whether r.Host is a safe target for this loopback API.
 // Empty Host is tolerated (HTTP/1.0, many test harnesses).
-func allowedHost(hostport string) bool {
+//
+// Beyond the loopback/IP-literal rules, a DNS name the host policy carries
+// is admitted (GDK-1966): reaching a name this serve was deliberately
+// pointed at is the credential. hosts is the live policy getter, nil or
+// nil-valued meaning "no policy" — the guard then refuses every DNS name,
+// exactly as before the policy existed.
+func allowedHost(hostport string, hosts func() *HostPolicy) bool {
 	if hostport == "" {
 		return true
 	}
@@ -134,7 +144,15 @@ func allowedHost(hostport string) bool {
 	}
 	// Any IP literal is intentional (loopback or --allow-remote LAN). Rebinding
 	// needs a DNS name, so accepting IPs does not reopen that attack.
-	return net.ParseIP(host) != nil
+	if net.ParseIP(host) != nil {
+		return true
+	}
+	if hosts != nil {
+		if p := hosts(); p.Allows(lower) {
+			return true
+		}
+	}
+	return false
 }
 
 // allowedOrigin is true when Origin is absent or matches r.Host exactly.

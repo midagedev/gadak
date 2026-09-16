@@ -2,6 +2,7 @@ package origin
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,6 +38,43 @@ type handlerTransport struct {
 	actorName string
 }
 
+// viewerActorKey is the context key for the per-request viewer actor
+// (GDK-1966). The value is a viewerActorPair because contexts carry one
+// value per key and the name rides with the slug.
+type viewerActorCtxKey struct{}
+
+type viewerActorPair struct {
+	slug string
+	name string
+}
+
+// WithViewerActor carries a loopback-proxied viewer's identity as this
+// context's acting identity: the server package derives it from headers it
+// trusts (viewer.go) and handlerTransport stamps it over the session actor
+// for the requests riding this context — one person's write attributed to
+// that person, not to whatever agent the process was started as. Only the
+// embedded transport honors it: a paired serve forwards requests this
+// process did not witness the peer of, and its own session actor is the
+// truth there.
+func WithViewerActor(ctx context.Context, slug, name string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, viewerActorCtxKey{}, viewerActorPair{slug: slug, name: name})
+}
+
+// viewerActorFrom reads the override, reporting false when the context
+// carries none (or carries an empty slug — no identity, no stamp).
+func viewerActorFrom(ctx context.Context) (string, string, bool) {
+	if ctx == nil {
+		return "", "", false
+	}
+	if v, ok := ctx.Value(viewerActorCtxKey{}).(viewerActorPair); ok && v.slug != "" {
+		return v.slug, v.name, true
+	}
+	return "", "", false
+}
+
 func (t *handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if t == nil || t.h == nil {
 		return nil, errors.New("origin: nil handler transport")
@@ -44,12 +82,18 @@ func (t *handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	if req == nil {
 		return nil, errors.New("origin: nil request")
 	}
-	if t.actor != "" {
+	actor, actorName := t.actor, t.actorName
+	// The viewer override (GDK-1966) wins for this one request; an empty
+	// override is no override, and falls back to the session actor.
+	if slug, name, ok := viewerActorFrom(req.Context()); ok {
+		actor, actorName = slug, name
+	}
+	if actor != "" {
 		// The request never leaves the process, and the jira client builds
 		// one request per call, so stamping in place cannot race a reuse.
-		req.Header.Set("X-Issuetap-Actor", t.actor)
-		if t.actorName != "" {
-			req.Header.Set("X-Issuetap-Actor-Name", t.actorName)
+		req.Header.Set("X-Issuetap-Actor", actor)
+		if actorName != "" {
+			req.Header.Set("X-Issuetap-Actor-Name", actorName)
 		}
 	}
 	return serveStreaming(t.h, req), nil

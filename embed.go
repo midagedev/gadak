@@ -15,6 +15,9 @@ import (
 //go:embed all:dist/app
 var distFS embed.FS
 
+//go:embed all:dist/phone
+var phoneFS embed.FS
+
 //go:embed skills/gadak/SKILL.md
 var skillMarkdown []byte
 
@@ -22,6 +25,22 @@ var skillMarkdown []byte
 // false when the binary was built without a web build (placeholder only).
 func WebUI() (fs.FS, bool) {
 	sub, err := fs.Sub(distFS, "dist/app")
+	if err != nil {
+		return nil, false
+	}
+	if _, err := fs.Stat(sub, "index.html"); err != nil {
+		return sub, false
+	}
+	return sub, true
+}
+
+// PhoneUI returns the embedded phone bundle (GDK-1966) rooted at the
+// phone directory. ok is false when the binary was built without
+// `make phone` (placeholder only) — serve then answers /m/ with a 503
+// naming that fix. `make phone` must stay the only writer of index.html
+// here (vite --emptyOutDir), for the same reason as the web bundle above.
+func PhoneUI() (fs.FS, bool) {
+	sub, err := fs.Sub(phoneFS, "dist/phone")
 	if err != nil {
 		return nil, false
 	}

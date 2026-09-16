@@ -17,8 +17,10 @@
   import { TERMINAL_FONT_SIZES } from '../lib/termprefs'
   import { relTime, hasIdentity, offerExpiry } from '../lib/domain'
   import { decodeOffer, OfferError, OfferScopeError } from '../lib/offer'
-  import { ApiError, errorMessage } from '../lib/api'
+  import { ApiError, errorMessage, request } from '../lib/api'
+  import { runtimeMode } from '../lib/runtime'
   import { getActiveHostId, listHosts, type KnownHost } from '../lib/hosts'
+  import type { ViewerDoc } from '../lib/types'
   // The one version string this screen may print. tauri.conf.json owns the
   // version (the TestFlight script reads and bumps it there), so the footer
   // cannot drift from the shipping build again (GDK-1788). A JSON import, not
@@ -77,13 +79,34 @@
     }
   }
 
+  /* ── hosted connection (GDK-1966) ──
+     Who the serve says is reading, when the page arrived through
+     tailscale serve. A missing route (a serve older than viewer/) or a
+     failed probe reads exactly like a direct connection: the no-viewer
+     sentence, never error chrome on an optional fact. */
+  let viewer = $state<ViewerDoc | null>(null)
+  $effect(() => {
+    if (!app.hosted) return
+    let alive = true
+    void request<ViewerDoc>('viewer/')
+      .then((res) => {
+        if (alive && res.body) viewer = res.body
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  })
+
   /* ── host roster (GDK-1097 B2) ──
      Every host this phone paired with, one active. A row tap switches;
      the active row is a no-op. Forgetting an inactive row is the same
      two-step arm as Unpair (UX_PRINCIPLES §7). The list is re-read after
-     each action below — roster rows change only through this screen. */
-  let roster = $state<KnownHost[]>(listHosts())
-  let activeId = $state<string | null>(getActiveHostId())
+     each action below — roster rows change only through this screen.
+     Hosted (GDK-1966) never reads it — the read half of "never touch
+     pairing storage in hosted mode"; the section is hidden anyway. */
+  let roster = $state<KnownHost[]>(app.hosted ? [] : listHosts())
+  let activeId = $state<string | null>(app.hosted ? null : getActiveHostId())
   let repairHintId = $state<string | null>(null)
   let removeArmedId = $state<string | null>(null)
   let removeArmTimer: ReturnType<typeof setTimeout> | null = null
@@ -175,7 +198,10 @@
   }
 
   // Same scan block as PairGate.svelte — do not re-derive the plugin call.
+  // Hosted is unreachable at the entry itself (GDK-1966): hidden button,
+  // unimported camera plugin.
   async function scanAddHost() {
+    if (runtimeMode() !== 'tauri') return
     addError = null
     try {
       const { scan: scanQR, Format, cancel } = await import('@tauri-apps/plugin-barcode-scanner')
@@ -243,7 +269,9 @@
   }
 
   // Same scan block as PairGate.svelte — do not re-derive the plugin call.
+  // Same hosted unreachability as scanAddHost above (GDK-1966).
   async function scanTerminal() {
+    if (runtimeMode() !== 'tauri') return
     termError = null
     try {
       const { scan: scanQR, Format, cancel } = await import('@tauri-apps/plugin-barcode-scanner')
@@ -301,7 +329,27 @@
         <button class="unpair" onclick={exitDemo}>{t('app.demoExit')}</button>
       </section>
     {:else if app.meta}
-      {#if roster.length === 0}
+      {#if app.hosted}
+        <!-- The hosted connection (GDK-1966): this page IS the serve's own
+             bundle, opened in the browser over the tailnet — no roster, no
+             offers, nothing to unpair. The question the roster answers
+             ("what am I paired to?") is answered by the address bar. -->
+        <section data-testid="hosted-connection">
+          <h3>{t('settings.hostedTitle')}</h3>
+          <p class="big mono">{location.host}</p>
+          {#if viewer?.source === 'tailscale'}
+            <p class="sub">
+              {t('settings.hostedViewer', {
+                name: viewer.name || viewer.login || '',
+                login: viewer.login || '',
+              })}
+            </p>
+          {:else}
+            <p class="sub">{t('settings.hostedNoViewer')}</p>
+          {/if}
+        </section>
+      {/if}
+      {#if roster.length === 0 && !app.hosted}
         <!-- No roster yet (a pre-GDK-1097 pairing): the paired server is
              its own block. With a roster the active row *is* this block,
              and the screen said "This Mac (dev)" twice in a row (review
@@ -324,7 +372,11 @@
         <h3>{t('sidebar.terminal')}</h3>
         {#if app.terminal}
           <p class="big">{app.terminal.label || host(app.terminal.endpoint)}</p>
-          <p class="sub mono">{host(app.terminal.endpoint)}</p>
+          <!-- Hosted (GDK-1966): the label above already IS the page host —
+               the RAM offer is labelled by location.host. -->
+          {#if !app.hosted}
+            <p class="sub mono">{host(app.terminal.endpoint)}</p>
+          {/if}
           <!-- The first real terminal option (GDK-901): the grid's size.
                Four buttons, the numbers themselves in the mono face — a
                number is not copy (§3.6). The label is the desk's catalog
@@ -351,9 +403,12 @@
               >
             {/each}
           </div>
-          <button class="unpair-shell" class:armed={termArmed} onclick={onUnpairTerminal}>
-            {termArmed ? t('app.unpairConfirm') : t('app.unpairShell')}
-          </button>
+          <!-- Hosted (GDK-1966): the offer is RAM-only — nothing to unpair. -->
+          {#if !app.hosted}
+            <button class="unpair-shell" class:armed={termArmed} onclick={onUnpairTerminal}>
+              {termArmed ? t('app.unpairConfirm') : t('app.unpairShell')}
+            </button>
+          {/if}
         {:else}
           <label class="lbl" for="term-offer">{t('app.terminalOffer')}</label>
           <textarea
@@ -388,7 +443,9 @@
       </section>
 
       <!-- Host roster (GDK-1097 B2): switch with a tap, forget an inactive
-           row through the two-step arm. -->
+           row through the two-step arm. Hidden on a hosted page (GDK-1966):
+           there is no roster to switch and no offer to add with. -->
+      {#if !app.hosted}
       <section>
         <h3>{t('app.hosts.title')}</h3>
         {#if offerExpiry(app.meta.expires_at)}
@@ -452,6 +509,7 @@
           </button>
         {/if}
       </section>
+      {/if}
 
       <section>
         <h3>{t('app.mirrorSection')}</h3>
@@ -497,12 +555,16 @@
         {/if}
       </section>
 
-      <section>
-        <button class="unpair" class:armed onclick={onUnpair}>
-          {armed ? t('app.unpairConfirm') : t('app.unpairPhone')}
-        </button>
-        <p class="sub center">{t('app.unpairWarn')}</p>
-      </section>
+      {#if !app.hosted}
+        <!-- Hidden on a hosted page (GDK-1966): nothing was paired, so
+             there is nothing to unpair and nothing to warn about. -->
+        <section>
+          <button class="unpair" class:armed onclick={onUnpair}>
+            {armed ? t('app.unpairConfirm') : t('app.unpairPhone')}
+          </button>
+          <p class="sub center">{t('app.unpairWarn')}</p>
+        </section>
+      {/if}
     {/if}
 
     <p class="ver">gadak mobile {tauriConf.version}</p>

@@ -123,9 +123,32 @@ Two checks that look like failures and are not:
 
 - `curl http://127.0.0.1:7777/` **on the host** returning 200 says nothing
   about remote reach — try from the device.
-- Opening the serve's address in a browser from the device gives 403. That is
-  the host guard doing its job: the pairing token is the credential, and the
-  web UI is not one of the token-gated surfaces.
+- Opening the serve's address in a browser from the device works only under
+  the name the serve was pointed at: the guard admits this machine's
+  MagicDNS name and any `--public-url` name on purpose, and refuses every
+  other DNS name as before. A 403 here means the wrong name, not a broken
+  setup.
+
+## Phone: open it in the browser
+
+The phone needs no pairing and no app build. Install Tailscale on it (that
+membership is the credential), then open:
+
+- `https://<host>.<tailnet>.ts.net/m/` — the `tailscale serve` variant
+  (step 4). `/m/` is the phone UI; `/` is the desktop web UI.
+- `http://<tailnet-ip>:7777/m/` — the `--allow-remote` variant (step 3).
+
+The serve admits exactly the names it was pointed at: the MagicDNS name it
+found at startup, plus any `--public-url` origin passed to `serve` or stored
+as `serve.publicUrls`. The pairing in steps 5–6 is for other `gadak`
+machines, not the phone's browser.
+
+Who the phone is: `tailscale serve` proxies from the host's own loopback and
+stamps `Tailscale-User-Login`/`-Name` headers it verified itself; the serve
+reads those (and only those — the same headers from any other peer are just
+headers), `GET /api/v1/viewer/` reports the person, and writes on the
+built-in tracker attribute to them. If `/m/` answers 503, the binary was
+built without the phone bundle — `make phone` from a source checkout.
 
 ## Afterwards
 

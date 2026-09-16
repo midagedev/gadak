@@ -91,6 +91,9 @@ export function watchIgnored(env: NodeJS.ProcessEnv = process.env): string[] {
 export default defineConfig({
   plugins: [svelte(), tailwindcss()],
   clearScreen: false,
+  // The /m/ bundle (GDK-1966) is this app built with a mounted base; unset
+  // means the default '/' (dev server, tauri build) — nothing else changes.
+  base: process.env.GADAK_PHONE_BASE ?? '/',
   server: {
     port: 5180,
     strictPort: true,

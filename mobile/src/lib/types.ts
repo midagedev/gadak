@@ -268,6 +268,19 @@ export interface PairMeta {
 export type CredentialDoc = Pick<WebJiraCredential, 'configured'>
 
 /**
+ * GET `viewer/` (GDK-1966) — who the serve says is reading, when the page
+ * arrived through tailscale serve. `login`/`name` are that Tailscale
+ * account's; `none` covers every other arrival (a direct connection, a
+ * serve older than the route, a probe that never answered) and all three
+ * read the same on the screen: the no-viewer sentence.
+ */
+export interface ViewerDoc {
+  login: string | null
+  name: string | null
+  source: 'tailscale' | 'none'
+}
+
+/**
  * One row of the visit ledger (GDK-875) — GET
  * `issues/history/visited/?kind=issue` answers `{items, truncated}`, one row
  * per key at its newest visit, newest first (the serve folds and caps the

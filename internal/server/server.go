@@ -54,6 +54,12 @@ const (
 	apiBase  = "/api/v1/issues/"
 	authBase = "/api/v1/auth/"
 	dashBase = "/api/v1/dashboards/"
+	// viewerBase is the viewer-identity read (GDK-1966): who the loopback
+	// proxy attests is asking. Deliberately outside apiBase/authBase/
+	// dashBase so the mirror gate's serve-scope ladder does not apply — the
+	// route answers identity, not authority, and says "none" rather than
+	// demanding anything.
+	viewerBase = "/api/v1/viewer/"
 )
 
 type server struct {
@@ -142,6 +148,21 @@ type server struct {
 	termMu        sync.Mutex
 	termMgr       *term.Manager
 	termWatchOnce sync.Once
+
+	// hostPolicy is the DNS-name allowlist this serve answers by (GDK-1966).
+	// Installed once by cmd/gadak at serve start (Handler.SetHostPolicy)
+	// after probing --public-url, serve.publicUrls, and the Tailscale
+	// MagicDNS name; nil until then, which every guard reads as "refuse
+	// every DNS name" — the pre-policy surface. Read per request through
+	// hostPolicyFn by both guard layers and the mirror gate.
+	hostPolicy atomic.Pointer[HostPolicy]
+}
+
+// hostPolicyFn is the live policy getter the guards consult. A closure over
+// the server (not a method value on Handler) so the top-level mux's outer
+// guard and this Handler's inner one share one owner.
+func (s *server) hostPolicyFn() func() *HostPolicy {
+	return func() *HostPolicy { return s.hostPolicy.Load() }
 }
 
 // Handler is the HTTP API. It implements
@@ -164,8 +185,24 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// route this serve predates names it. Same spot as the markers above
 	// so gate rejections carry it too.
 	w.Header().Set("X-Gadak-Version", Version)
+	// A trusted viewer becomes this request's acting identity (GDK-1966):
+	// loopback-proxied headers attest the person, the origin transport's
+	// context override carries the slug. Unchanged request when nobody is
+	// attested — the loopback surface stays byte-identical (decision 0003).
+	r = h.s.withViewerActor(r)
 	h.guarded.ServeHTTP(w, r)
 }
+
+// SetHostPolicy installs the DNS-name allowlist (GDK-1966). cmd/gadak builds
+// it at serve start and passes it here; until that call the pointer is nil
+// and every DNS Host keeps the pre-policy forbidden_host. No effect on any
+// other rule — loopback, *.localhost, and IP literals never needed a policy.
+func (h *Handler) SetHostPolicy(p *HostPolicy) { h.s.hostPolicy.Store(p) }
+
+// HostPolicyFn is the guard's live view of this handler's policy, for the
+// top-level serve mux's outer GuardBrowser (GDK-443: both layers must admit
+// the same hosts, or the stricter one wins silently).
+func (h *Handler) HostPolicyFn() func() *HostPolicy { return h.s.hostPolicyFn() }
 
 // New returns the API handler. Mount it at "/api/" — the patterns below carry
 // their full paths, so nothing strips a prefix.
@@ -317,6 +354,9 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	mux.HandleFunc("GET "+apiBase+"pages/{key}/attachments/{id}/content/{$}", s.handlePageAttachment)
 	mux.HandleFunc("GET "+apiBase+"pages/{key}/attachments/{id}/artifact/{$}", s.handlePageArtifact)
 	mux.HandleFunc("GET "+authBase+"me/{$}", s.handleMe)
+	// Viewer identity (GDK-1966): the loopback proxy's attested person.
+	// Read-only, says "none" when nothing is attested.
+	mux.HandleFunc("GET "+viewerBase+"{$}", s.handleViewer)
 
 	// Write-through (T4). Everything below calls Jira and then re-reads the issue.
 	mux.HandleFunc("GET "+apiBase+"credential/{$}", s.handleGetCredential)
@@ -384,14 +424,15 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 		return ""
 	}
 	// The mirror gate sits inside the guard: the guard vouches for the Host
-	// (exemptions only where a later gate authenticates), the gate vouches
-	// for the token (GDK-797).
+	// (exemptions only where a later gate authenticates; policy names where
+	// the allowlist vouches, GDK-1966), the gate vouches for the token
+	// (GDK-797).
 	h.guarded = GuardBrowser(s.mirrorGate(mux), GuardExempts{
 		Host: []func(*http.Request) bool{
 			PairedOriginHostExempt(dirFn), PairedMirrorHostExempt(dirFn), PairedTerminalHostExempt(dirFn),
 		},
 		Origin: []func(*http.Request) bool{PairedAppOriginExempt(dirFn)},
-	})
+	}, s.hostPolicyFn())
 	if testRegisterHandler != nil {
 		testRegisterHandler(h)
 	}
@@ -490,13 +531,29 @@ func (h *Handler) snapshotSync() progressResponse {
 // WebConfig renders the config document the UI fetches before mount
 // (`GadakConfig` in web/src/lib/config.ts). Credentials never appear in it.
 func WebConfig(cfg *config.Config) ([]byte, error) {
-	return WebConfigBase(cfg, "")
+	return webConfigJSON(cfg, "", nil)
 }
 
 // WebConfigBase is WebConfig with APIBase/AuthBase prefixed (e.g. "/w/work" for
 // a workspace mount). prefix has no trailing slash; empty means root bases.
 func WebConfigBase(cfg *config.Config, prefix string) ([]byte, error) {
+	return webConfigJSON(cfg, prefix, nil)
+}
+
+// WebConfigPhone is WebConfig with the phone bundle's addresses (GDK-1966):
+// the /m/ URLs a phone can open, built by PhoneURLs at serve start. The
+// serve's own /config.json uses this; a workspace mount has no phone bundle
+// and keeps WebConfigBase.
+func WebConfigPhone(cfg *config.Config, phoneURLs []string) ([]byte, error) {
+	return webConfigJSON(cfg, "", phoneURLs)
+}
+
+// webConfigJSON is the one marshal path for the config document: prefix for
+// a workspace mount's bases, phoneURLs for the phone address list ([] when
+// none, so the key is always present and never null).
+func webConfigJSON(cfg *config.Config, prefix string, phoneURLs []string) ([]byte, error) {
 	doc := webConfig(cfg)
+	doc.PhoneURLs = strs(phoneURLs)
 	if prefix != "" {
 		doc.APIBase = prefix + apiBase
 		doc.AuthBase = prefix + authBase

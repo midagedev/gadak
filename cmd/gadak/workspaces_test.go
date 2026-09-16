@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/server"
 	"github.com/midagedev/gadak/internal/skillinstall"
@@ -67,7 +68,11 @@ func testServeMux(t *testing.T) (http.Handler, *workspace.Registry) {
 	})
 	reg := workspace.New()
 	t.Cleanup(func() { reg.Close() })
-	return buildServeMux(api, spa, reg), reg
+	// Production wiring (cmdServe): the policy getter comes from the API
+	// handler so both guard layers read one owner, and the phone bundle is
+	// the embedded one.
+	sites := serveSites{hosts: api.HostPolicyFn(), phoneUI: gadak.PhoneUI}
+	return buildServeMux(api, spa, reg, sites), reg
 }
 
 func loopbackGet(path string) *http.Request {
@@ -294,6 +299,49 @@ func TestHealthzIdentity(t *testing.T) {
 	}
 }
 
+// TestServeMuxMountsPhoneRoute (GDK-1966): /m/ is the phone bundle's own
+// mount, never the web SPA's catch-all. A go build without `make phone`
+// embeds no bundle, so the honest expectation is "the phone handler
+// answered" — the real bundle's index, or the 503 that names the fix — and
+// never the SPA shell a missing route would fall through to.
+func TestServeMuxMountsPhoneRoute(t *testing.T) {
+	mux, _ := testServeMux(t)
+
+	for _, path := range []string{"/m/", "/m/issues/AAA-1"} {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, loopbackGet(path))
+		if rec.Code != http.StatusOK && rec.Code != http.StatusServiceUnavailable {
+			t.Fatalf("%s status %d, want 200 (bundle) or 503 (no bundle); body %s", path, rec.Code, rec.Body.String())
+		}
+		if body := rec.Body.String(); body == "<html>spa</html>" {
+			t.Fatalf("%s answered the web SPA shell — /m/ is the phone bundle's mount", path)
+		}
+		if rec.Code == http.StatusServiceUnavailable {
+			var doc map[string]string
+			if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil || doc["error"] != "phone_ui_missing" {
+				t.Fatalf("%s 503 body %s, want phone_ui_missing", path, rec.Body.String())
+			}
+		}
+	}
+
+	// The serve's own config.json carries phone_urls ([] when there is
+	// nothing to dial) so the web Devices tab can bind without guards.
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, loopbackGet("/config.json"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("/config.json status %d, want 200; body %s", rec.Code, rec.Body.String())
+	}
+	var doc struct {
+		PhoneURLs []string `json:"phone_urls"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+		t.Fatalf("/config.json decode: %v (%s)", err, rec.Body.String())
+	}
+	if doc.PhoneURLs == nil {
+		t.Fatalf("/config.json phone_urls absent — the key must always be present, never null")
+	}
+}
+
 func TestServeMuxRejectsForeignHostOnTopLevelRoutes(t *testing.T) {
 	mux, _ := testServeMux(t)
 
@@ -402,5 +450,30 @@ func TestServeMuxWorkspacesManageGuardBoundary(t *testing.T) {
 	body = nil
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body["error"] != "unsupported_kind" {
 		t.Fatalf("loopback POST: error %v, want unsupported_kind (%s)", body, rec.Body.String())
+	}
+}
+
+// TestServeMuxPhoneQR (GDK-1966): /phone-qr.png renders phone_urls[i] with
+// the pairing QR's own encoder — one owner — and answers 404 past the list
+// so the Devices tab never draws a code for an address that is not there.
+func TestServeMuxPhoneQR(t *testing.T) {
+	mux := buildServeMux(http.NotFoundHandler(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("<html>spa</html>"))
+	}), nil, serveSites{phoneURLs: []string{"http://192.0.2.9:7777/m/"}})
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, loopbackGet("/phone-qr.png"))
+	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "image/png" {
+		t.Fatalf("/phone-qr.png status %d type %q, want 200 image/png", rec.Code, rec.Header().Get("Content-Type"))
+	}
+	if b := rec.Body.Bytes(); len(b) < 8 || string(b[1:4]) != "PNG" {
+		t.Fatalf("/phone-qr.png body is not a PNG (%d bytes)", len(b))
+	}
+	for _, q := range []string{"?i=1", "?i=-1", "?i=x"} {
+		rec = httptest.NewRecorder()
+		mux.ServeHTTP(rec, loopbackGet("/phone-qr.png"+q))
+		if rec.Code != http.StatusNotFound && rec.Code != http.StatusBadRequest {
+			t.Fatalf("/phone-qr.png%s status %d, want 404 or 400", q, rec.Code)
+		}
 	}
 }

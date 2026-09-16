@@ -25,6 +25,8 @@
 // slot and fall back to a read-only Keychain peek so a freshly started dev
 // webview can adopt the shell's existing pairing. One dev slot per kind.
 
+import { runtimeMode } from './runtime'
+
 const IS_DEV = import.meta.env.DEV
 
 export type TokenKind = 'serve' | 'terminal'
@@ -64,8 +66,10 @@ export function parseTokenKind(kind?: string | null): TokenKind {
   throw new Error('unknown token kind')
 }
 
-function hasTauri(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+function canInvokeKeychain(): boolean {
+  // The Rust bridge check, read through the one ladder (GDK-1966) instead
+  // of a second copy of the __TAURI_INTERNALS__ probe.
+  return runtimeMode() === 'tauri'
 }
 
 async function invokeToken(cmd: 'token_get' | 'token_set' | 'token_del', args?: Record<string, unknown>) {
@@ -76,10 +80,14 @@ async function invokeToken(cmd: 'token_get' | 'token_set' | 'token_del', args?: 
 export async function tokenGet(kind: TokenKind = 'serve', hostId?: string): Promise<string | null> {
   const k = parseTokenKind(kind)
   const host = requireHostId(hostId)
+  // Hosted (GDK-1966): no token exists — same-origin needs no Bearer, and
+  // the browser's localStorage must not grow a pairing it can never use.
+  // Defense in depth under boot's hosted branch, which never calls this.
+  if (runtimeMode() === 'hosted') return null
   if (IS_DEV) {
     const stored = localStorage.getItem(devSlot(k, host))
     if (stored) return stored
-    if (!hasTauri()) return null
+    if (!canInvokeKeychain()) return null
     try {
       // Read-only peek at the shell's LEGACY Keychain slot: the dev
       // webview never writes host-keyed Keychain entries, so there is no
@@ -89,7 +97,7 @@ export async function tokenGet(kind: TokenKind = 'serve', hostId?: string): Prom
       return null
     }
   }
-  if (!hasTauri()) return null
+  if (!canInvokeKeychain()) return null
   return await invokeToken('token_get', { kind: k, host })
 }
 
@@ -100,6 +108,8 @@ export async function tokenSet(
 ): Promise<void> {
   const k = parseTokenKind(kind)
   const host = requireHostId(hostId)
+  // Hosted: there is no slot to write (GDK-1966) — see tokenGet above.
+  if (runtimeMode() === 'hosted') return
   if (IS_DEV) {
     localStorage.setItem(devSlot(k, host), token)
     return
@@ -110,6 +120,8 @@ export async function tokenSet(
 export async function tokenDel(kind: TokenKind = 'serve', hostId?: string): Promise<void> {
   const k = parseTokenKind(kind)
   const host = requireHostId(hostId)
+  // Hosted: nothing was ever stored, so there is nothing to drop.
+  if (runtimeMode() === 'hosted') return
   if (IS_DEV) {
     localStorage.removeItem(devSlot(k, host))
     return

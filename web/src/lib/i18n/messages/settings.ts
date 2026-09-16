@@ -781,6 +781,23 @@ export const settings = {
     ko: '휴대폰이나 다른 gadak를 이 워크스페이스에 연결합니다: 페어링 오퍼를 발급해 기기가 QR을 스캔하게 하고, 떠난 기기는 여기서 해지하세요.',
     ja: 'スマホや別の gadak をこのワークスペースに組み込みます：ペアリングオファーを発行して端末に QR をスキャンさせ、いなくなった端末はここで失効させます。',
   },
+  // GDK-1966: the phone-open card above the pairing section. ko/ja are
+  // lead-written — inserted verbatim, never edited here.
+  'settings.phoneOpen.title': {
+    en: 'Open on your phone',
+    ko: '폰에서 열기',
+    ja: 'スマートフォンで開く',
+  },
+  'settings.phoneOpen.body': {
+    en: 'Any device on your tailnet can open this address in its browser. No app, no pairing.',
+    ko: '테일넷에 있는 기기라면 브라우저로 이 주소를 열면 됩니다. 앱도 페어링도 필요 없습니다.',
+    ja: 'テイルネット上の端末なら、ブラウザでこのアドレスを開くだけです。アプリもペアリングも要りません。',
+  },
+  'settings.phoneOpen.none': {
+    en: 'This serve is reachable only from this machine. Bind it to your tailnet address (gadak serve --addr <tailnet-ip>:7777 --allow-remote) to get a phone address.',
+    ko: '이 serve는 이 컴퓨터에서만 닿습니다. 테일넷 주소로 바인드하면(gadak serve --addr <테일넷 IP>:7777 --allow-remote) 폰 주소가 생깁니다.',
+    ja: 'この serve はこのコンピュータからしか届きません。テイルネットのアドレスにバインドすると(gadak serve --addr <テイルネットIP>:7777 --allow-remote)スマートフォン用のアドレスが表示されます。',
+  },
   'settings.devicesLoadFailed': {
     en: 'Could not read the device list from the app. Try again, or check the desktop app.',
     ko: '앱에서 기기 목록을 읽지 못했습니다. 다시 시도하거나 데스크톱 앱을 확인하세요.',
@@ -1449,6 +1466,28 @@ export const settings = {
     en: 'This code is expired or revoked. Mint a new terminal offer on the desktop and pair again.',
     ko: '이 코드는 만료됐거나 취소됐습니다. 데스크톱에서 터미널 코드를 새로 만들어 다시 페어링하세요.',
     ja: 'このコードは期限切れか取り消されています。デスクトップでターミナル用のコードを作り直して、もう一度ペアリングしてください。',
+  },
+  // ── hosted mode (GDK-1966): the /m/ bundle a serve hands out, opened in
+  //    the phone's browser over the tailnet ──
+  'settings.hostedTitle': {
+    en: 'Connected through your tailnet',
+    ko: '테일넷으로 연결됨',
+    ja: 'テイルネット経由で接続中',
+  },
+  'settings.hostedViewer': {
+    en: 'Signed in as {name} ({login}) via Tailscale',
+    ko: 'Tailscale 계정 {name}({login})으로 보고 있습니다.',
+    ja: 'Tailscale アカウント {name}({login})として表示しています。',
+  },
+  'settings.hostedNoViewer': {
+    en: 'No viewer identity — this serve is reached directly, not through tailscale serve. Writes attribute to the workspace owner.',
+    ko: '보는 사람 정보가 없습니다. tailscale serve를 거치지 않고 바로 붙은 연결이라, 쓰기는 워크스페이스 소유자 이름으로 남습니다.',
+    ja: '閲覧者情報がありません。tailscale serve を経由しない直接接続のため、書き込みはワークスペース所有者の名前で記録されます。',
+  },
+  'settings.hostedUnreachable': {
+    en: 'This page is not served by gadak serve — open the address the desktop shows under "Open on your phone".',
+    ko: '이 페이지는 gadak serve가 서빙한 것이 아닙니다. 데스크톱의 "폰에서 열기"에 나온 주소를 여세요.',
+    ja: 'このページは gadak serve が配信したものではありません。デスクトップの「スマートフォンで開く」に表示されたアドレスを開いてください。',
   },
   'settings.terminalAppearance': {
     en: 'Appearance',

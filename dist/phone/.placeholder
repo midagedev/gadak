@@ -1,0 +1,2 @@
+Placeholder so the go:embed directive in embed.go always has a directory.
+Run `make phone` to produce the real phone bundle here.

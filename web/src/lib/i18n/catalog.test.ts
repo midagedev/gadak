@@ -165,6 +165,12 @@ const ALLOWED_PHONE_ONLY = new Map<string, string>([
   ['pairing.noIdentityLocal', 'local-serve pairing note (Settings); the desk pairing UI says it differently'],
   ['settings.termOfferWrongScope', 'terminal-offer scope refusal (Settings); the desk pairing UI says it differently (GDK-1945)'],
   ['settings.termOfferExpired', 'terminal-offer expired refusal (Settings); pair of the row above'],
+  // ── hosted mode (GDK-1966): the phone served by gadak serve at /m/ over the
+  //    tailnet; the desk is never hosted, so these four have no desk reader ──
+  ['settings.hostedTitle', 'hosted-connection section title (Settings, GDK-1966)'],
+  ['settings.hostedViewer', 'viewer identity from tailscale serve headers (Settings, GDK-1966)'],
+  ['settings.hostedNoViewer', 'no-identity degradation sentence when reached without tailscale serve (Settings, GDK-1966)'],
+  ['settings.hostedUnreachable', 'page not served by gadak serve (PairGate, GDK-1966)'],
   // ── phone detail screen: the desk panel renders these facts under its own
   //    section keys (description/comments/…) or not at all (no Fields
   //    section, no share verb, tap-to-play media) ──

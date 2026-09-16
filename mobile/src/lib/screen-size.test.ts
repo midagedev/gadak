@@ -39,7 +39,11 @@ const CEILINGS: Record<string, { lines: number; state: number }> = {
   // sheet takes the current status as a prop. 1,793 → 1,817; $state 38.
   'Detail.svelte': { lines: 1817, state: 38 },
   'Shell.svelte': { lines: 1611, state: 18 },
-  'Settings.svelte': { lines: 765, state: 14 },
+  // Raised 2026-09-16 for GDK-1966 (hosted mode): the hosted connection
+  // section (page host + the viewer sentence from GET viewer/) plus hosted
+  // guards on the roster read, the scan entries, the terminal endpoint line
+  // and both unpair controls. 765 → 827; $state 14 → 15 (the viewer doc).
+  'Settings.svelte': { lines: 827, state: 15 },
   'PageDetail.svelte': { lines: 522, state: 8 },
   // 2026-09-16, GDK-1936: raised to 497 when the header learned to wrap,
   // then lowered when the revision moved the measurement out to
@@ -49,7 +53,10 @@ const CEILINGS: Record<string, { lines: number; state: number }> = {
   // Measured 2026-09-16 at birth (GDK-1827): the sprint list is the first
   // screen with no local state at all — every row is derived from the store.
   'Sprints.svelte': { lines: 262, state: 0 },
-  'PairGate.svelte': { lines: 247, state: 4 },
+  // Raised 2026-09-16 for GDK-1966 (hosted mode): the gate's hosted branch —
+  // the unreachable sentence replaces the pairing form a hosted page cannot
+  // complete, and the scan entry is unreachable at its guard. 247 → 260.
+  'PairGate.svelte': { lines: 260, state: 4 },
 }
 
 /** `let x = $state(...)`, including the typed form `$state<T>(...)` — the

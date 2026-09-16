@@ -95,6 +95,10 @@ var neverExportConfigFields = []string{
 	// starting directory that exist on this machine. Same seat as UI: a
 	// personal preference, not team consensus.
 	"Terminal",
+	// Serve names the DNS origins this machine's own serve answers
+	// (GDK-1966) — a tailnet or public name tied to this host, not team
+	// consensus. Same seat as Kind: the surface it describes is per-machine.
+	"Serve",
 }
 
 // credentialJSONKeys are JSON object keys that mean "this file carries

@@ -549,6 +549,64 @@ func TestSettingGetSetRetroSessionGap(t *testing.T) {
 	}
 }
 
+// serve.publicUrls — contract ↔ assertion (FAIL-first: before the key
+// existed SettingByPath missed and the default-get failed): default []; a
+// validated origin stores on a serve block; clearing stores nil (an
+// untouched config carries no block); non-origin entries and non-http(s)
+// schemes refuse, naming the setting; a trailing slash normalizes away and
+// duplicates by host collapse.
+func TestSettingGetSetServePublicURLs(t *testing.T) {
+	s, ok := SettingByPath("serve.publicUrls")
+	if !ok {
+		t.Fatal("serve.publicUrls not in the settings catalog")
+	}
+	if !strings.Contains(s.Description, "--public-url") {
+		t.Errorf("description must name the flag it mirrors: %q", s.Description)
+	}
+	c := &Config{}
+	got, err := json.Marshal(s.Get(c))
+	if err != nil || string(got) != "[]" {
+		t.Fatalf("default get = %s (%v), want []", got, err)
+	}
+	if err := s.Set(c, json.RawMessage(`["https://gadak.example.com"]`)); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	if c.Serve == nil || len(c.Serve.PublicURLs) != 1 || c.Serve.PublicURLs[0] != "https://gadak.example.com" {
+		t.Fatalf("stored %+v", c.Serve)
+	}
+	got, err = json.Marshal(s.Get(c))
+	if err != nil || string(got) != `["https://gadak.example.com"]` {
+		t.Fatalf("get after set = %s (%v)", got, err)
+	}
+	if err := s.Set(c, json.RawMessage(`[]`)); err != nil {
+		t.Fatalf("clear: %v", err)
+	}
+	if c.Serve != nil {
+		t.Fatalf("cleared serve must be nil, got %+v", c.Serve)
+	}
+	for name, raw := range map[string]string{
+		"empty entry":  `[""]`,
+		"bare host":    `["gadak.example.com"]`,
+		"bad scheme":   `["ftp://gadak.example.com"]`,
+		"with a path":  `["https://gadak.example.com/m/"]`,
+		"not an array": `"https://gadak.example.com"`,
+	} {
+		bad := &Config{}
+		if err := s.Set(bad, json.RawMessage(raw)); err == nil {
+			t.Fatalf("accepted %s (%s)", raw, name)
+		}
+		if bad.Serve != nil {
+			t.Fatalf("%s: stored %+v after rejection", name, bad.Serve)
+		}
+	}
+	if err := s.Set(c, json.RawMessage(`["https://Alt.example.com/", "https://alt.example.com"]`)); err != nil {
+		t.Fatalf("dedupe set: %v", err)
+	}
+	if c.Serve == nil || len(c.Serve.PublicURLs) != 1 || c.Serve.PublicURLs[0] != "https://alt.example.com" {
+		t.Fatalf("dedupe stored %+v", c.Serve)
+	}
+}
+
 // settingsCatalogLiteralPaths returns the Path of every catalog item in
 // buildSettings that is a hand-written struct literal rather than a helper
 // call, plus any explicitly typed Setting{…} literal anywhere in the

@@ -28,6 +28,7 @@ import {
   upsertHostFromPairing,
 } from './hosts'
 import { tokenGet, tokenSet, tokenDel } from './secure'
+import { runtimeMode } from './runtime'
 import {
   CACHE_KEY,
   FIELD_SPECS_KEY,
@@ -106,6 +107,17 @@ export const app = $state({
    * Keychain call below is gated on it being false.
    */
   demo: false,
+  /**
+   * True for the whole life of a hosted page (GDK-1966): the bundle a serve
+   * hands out at /m/, opened in the phone's browser. Set once by boot's
+   * hosted branch — before any pairing storage is read — and never reset:
+   * it names the runtime, not a session. Settings and PairGate read it to
+   * decide what exists on a hosted page (no roster, no unpair, no pairing
+   * form), and boot keeps it set even when the same-origin probe fails, so
+   * the gate explains itself with the hosted sentence instead of offering
+   * a pairing there is no way to complete.
+   */
+  hosted: false,
   /**
    * Whether this serve can write to origin (GDK-952): GET credential/'s
    * `configured` bit, probed on every session entrance (sync's cycle; the
@@ -448,6 +460,16 @@ export async function boot(): Promise<void> {
   // creation), and boot has several exits that never reach a pairing.
   app.terminalFontSize = readTerminalFontSize()
   applyTerminalFontSize(app.terminalFontSize)
+  // A hosted page has no pairing to restore and none to adopt: it IS the
+  // serve's own bundle, same-origin by construction. The branch sits above
+  // every storage read below so the roster/meta/token dance — migration,
+  // legacy slots, the unpaired flag — never runs against a browser's
+  // localStorage it must not own (GDK-1966).
+  if (runtimeMode() === 'hosted') {
+    app.hosted = true
+    await bootHosted()
+    return
+  }
   await migrateLegacyPairing()
   const activeHost = getActiveHostId()
   // B2: with a roster host active, the six session documents live at its
@@ -510,6 +532,31 @@ export async function boot(): Promise<void> {
     }
   }
   app.phase = 'unpaired'
+}
+
+/**
+ * The hosted page's whole pairing lifecycle (GDK-1966): probe the same-origin
+ * serve once, then enter paired with a RAM-only meta labelled by the host the
+ * page was opened at. There is no token — same-origin needs no Bearer under
+ * the loopback trust model (decision 0003 addendum 2026-09-16) — and nothing
+ * is ever written: no roster, no meta, no Keychain. A dead probe leaves the
+ * app unpaired under `app.hosted`, which PairGate answers with the hosted
+ * unreachable sentence instead of the pairing form (nothing can be paired
+ * from a page the serve is not serving).
+ *
+ * The dev-proxy adoption below boot() is the model: same probe, same
+ * tokenless enterPaired — the difference is that dev may keep a roster and
+ * a token, and hosted may not.
+ */
+async function bootHosted(): Promise<void> {
+  try {
+    await request<Me>('auth/me/', { session: { endpoint: '', token: null } })
+  } catch {
+    app.phase = 'unpaired'
+    return
+  }
+  const meta: PairMeta = { endpoint: '', label: location.host, expires_at: '' }
+  await enterPaired(meta, '')
 }
 
 async function enterPaired(meta: PairMeta, token: string): Promise<void> {
@@ -1006,7 +1053,9 @@ function devShellArmed(): boolean {
  * it), and the stored meta/token above is what the next arm re-reads.
  */
 async function armShellPairing(endpoint: string, host: string): Promise<void> {
-  if (import.meta.env.DEV) return
+  // Dev has no native pairing to arm; hosted has no native side at all
+  // (GDK-1966) — the same early return, one ladder reading both.
+  if (import.meta.env.DEV || runtimeMode() !== 'tauri') return
   try {
     const { invoke } = await import('@tauri-apps/api/core')
     await invoke('shell_pair_set', { endpoint, host })
@@ -1016,6 +1065,15 @@ async function armShellPairing(endpoint: string, host: string): Promise<void> {
 }
 
 async function loadTerminal(): Promise<void> {
+  // Hosted (GDK-1966): a RAM-only offer on the page origin. The shell dials
+  // the same-origin WebSocket (openShellSocket routes hosted to the browser
+  // socket), so the tab exists exactly as it does in dev — and nothing is
+  // read or stored to get it there: no TERM_META, no token, no native arm.
+  if (runtimeMode() === 'hosted') {
+    terminalToken = null
+    app.terminal = { endpoint: '', label: location.host, expires_at: '' }
+    return
+  }
   // The terminal meta lives in the active host's namespace (B2); the legacy
   // read covers a phone whose rename could not be verified.
   const meta = devShellArmed()
@@ -1118,8 +1176,10 @@ export async function unpairTerminal(): Promise<void> {
   // Rust-side pairing itself is left to die with the token: the dial re-reads
   // storage at connect time, so a stale pairing with a deleted token dials
   // bearer-less and the gate refuses it — fail-closed without a fifth
-  // command. Dev has no native socket to close.
-  if (!import.meta.env.DEV) {
+  // command. Dev has no native socket to close; neither does a hosted page
+  // (GDK-1966) — and there, importing the Tauri core would be the one
+  // hosted-page plugin load this round exists to prevent.
+  if (runtimeMode() === 'tauri' && !import.meta.env.DEV) {
     void import('@tauri-apps/api/core')
       .then(({ invoke }) => invoke('shell_ws_close'))
       .catch(() => {})

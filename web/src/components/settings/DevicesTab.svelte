@@ -22,6 +22,7 @@
   import { onMount } from 'svelte'
   import { t, type MessageKey } from '../../lib/i18n'
   import { copyText } from '../../lib/copy-text'
+  import { config } from '../../lib/config'
   import LoadingState from '../ui/LoadingState.svelte'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import { ADD_BTN, COPY_BTN, INPUT, SELECT, SELECT_CHEVRON } from './controls'
@@ -64,6 +65,28 @@
   let minted = $state<Minted | null>(null)
   let revealed = $state(false)
   let offerCopied = $state(false)
+
+  /*
+   * GDK-1966: where a phone opens this serve — the tailnet URLs the server
+   * lists in config.json (`phone_urls`; empty when loopback-only, so the
+   * card then explains the bind flag instead of showing a QR). Read once at
+   * mount: the document is loaded before the app mounts and the list does
+   * not change under a mounted tab. The URL is not a credential — unlike
+   * the pairing offer it is shown in full, never masked.
+   */
+  const phoneUrls = config().phoneUrls
+  let urlCopied = $state(false)
+
+  async function copyPhoneUrl(): Promise<void> {
+    // Same transport and "copied only when it wrote" rule as the offer below.
+    if (phoneUrls.length === 0) return
+    if (await copyText(phoneUrls[0])) {
+      urlCopied = true
+      setTimeout(() => {
+        urlCopied = false
+      }, 1500)
+    }
+  }
 
   /** Server scope values → row copy. local-routing is the _home row. */
   function scopeLabel(scope: string): string {
@@ -185,6 +208,59 @@
 
 <div class="flex flex-col gap-2.5" data-testid="devices-tab">
   <p class="text-micro leading-relaxed text-text-muted">{t('settings.devicesIntro')}</p>
+
+  <!-- The no-pairing door (GDK-1966): a tailnet device opens the serve in
+       its browser. Above the pairing section on purpose — it is the answer
+       for the phone this intro is about to sell a pairing to. -->
+  <section
+    class="rounded-md border border-border-subtle bg-bg-base/60 px-3 py-2.5"
+    data-testid="phone-open"
+  >
+    <p class="text-micro font-medium text-text-primary">{t('settings.phoneOpen.title')}</p>
+    {#if phoneUrls.length === 0}
+      <p class="mt-1 text-micro leading-relaxed text-text-secondary">{t('settings.phoneOpen.none')}</p>
+    {:else}
+      <p class="mt-1 text-micro leading-relaxed text-text-secondary">{t('settings.phoneOpen.body')}</p>
+      <div class="mt-2 flex flex-col items-center gap-2">
+        <!-- alt="": the URL is rendered right below as text, and the QR
+             duplicates it — a screen reader should hear it once. The PNG is
+             minted by the serve (GDK-1966) — one QR encoder in the tree,
+             internal/pairflow — over the same URL shown as text. -->
+        <img
+          src="/phone-qr.png?i=0"
+          alt=""
+          class="h-56 w-56 rounded border border-border-subtle bg-white p-1"
+          data-testid="phone-open-qr"
+        />
+        <div
+          class="flex w-full max-w-md items-center gap-1.5 rounded border border-border-subtle bg-bg-base px-2 py-1"
+        >
+          <code
+            class="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono text-micro text-text-secondary"
+            data-testid="phone-open-url">{phoneUrls[0]}</code
+          >
+          <button
+            type="button"
+            class="{COPY_BTN} flex-none"
+            onclick={() => void copyPhoneUrl()}
+            aria-label={t('settings.copy')}
+          >
+            {urlCopied ? t('detail.linkCopied') : t('settings.copy')}
+          </button>
+        </div>
+        {#if phoneUrls.length > 1}
+          <ul
+            class="w-full max-w-md list-inside list-disc text-micro text-text-secondary"
+            data-testid="phone-open-more"
+          >
+            {#each phoneUrls.slice(1) as u (u)}
+              <li class="break-all font-mono">{u}</li>
+            {/each}
+          </ul>
+        {/if}
+      </div>
+    {/if}
+  </section>
 
   {#if loadError}
     <div

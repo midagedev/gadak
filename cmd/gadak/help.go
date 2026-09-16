@@ -184,7 +184,7 @@ var helps = map[string]cmdHelp{
 	"serve": {
 		summary: "web UI and API on loopback (" + serveSyncDefault + ")",
 		usage: "gadak [--workspace <name>] serve\n" +
-			"[--addr HOST:PORT] [--static DIR] [--no-sync] [--no-open] [--allow-remote]",
+			"[--addr HOST:PORT] [--static DIR] [--public-url ORIGIN]… [--no-sync] [--no-open] [--allow-remote]",
 		examples: []string{
 			"gadak serve",
 			"gadak serve --addr 127.0.0.1:7778 --no-open",

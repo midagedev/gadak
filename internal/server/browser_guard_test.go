@@ -19,7 +19,7 @@ func TestGuardBrowserWrapsNext(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
-	h := GuardBrowser(next, GuardExempts{})
+	h := GuardBrowser(next, GuardExempts{}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/config.json", nil)
 	req.Host = "attacker.example"

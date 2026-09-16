@@ -25,6 +25,7 @@
  */
 
 import { decideDeepLink, type ParseFailure, type ResolveRefusal } from './deeplink'
+import { runtimeMode } from './runtime'
 
 /** The reasons a link produced no navigation. `not_gadak` never surfaces. */
 export type DeepLinkRefusal = ParseFailure | ResolveRefusal
@@ -112,6 +113,11 @@ export type DeepLinkRouter = ReturnType<typeof createDeepLinkRouter>
  * URL that started the app was delivered before anything subscribed.
  */
 export async function bindOsDeepLinks(router: DeepLinkRouter): Promise<() => void> {
+  // Deep links are a Tauri affordance (GDK-1966): a hosted page — and a
+  // dev browser tab — has no OS link channel, so the plugin is never even
+  // imported there. Unreachable beats caught-and-swallowed: the hosted page
+  // loads zero plugin code.
+  if (runtimeMode() !== 'tauri') return () => {}
   let unlisten: (() => void) | null = null
   try {
     const plugin = await import('@tauri-apps/plugin-deep-link')

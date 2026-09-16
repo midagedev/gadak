@@ -92,7 +92,11 @@ func PairedMirrorHostExempt(dir func() string) func(*http.Request) bool {
 //	serve-scope Bearer        → through
 func (s *server) mirrorGate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if allowedHost(r.Host) || !serveScopeAdmits(r.Method, r.URL.Path) {
+		// A host-policy name is admitted here too (GDK-1966): the guard
+		// vouched for the Host by allowlist membership, so this gate has no
+		// token to demand — membership is the credential. Every other
+		// DNS-named Host keeps the full token ladder below.
+		if allowedHost(r.Host, s.hostPolicyFn()) || !serveScopeAdmits(r.Method, r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}

@@ -12,6 +12,7 @@
 import { coerceDroppedReason } from '../../../../web/src/lib/terminal/protocol'
 import type { SocketHandle, SocketHandlers } from '../../../../web/src/lib/terminal/protocol'
 import { inDialScope } from '../dial-scope'
+import { runtimeMode } from '../runtime'
 
 const IS_DEV = import.meta.env.DEV
 
@@ -195,7 +196,10 @@ export function openShellSocket(
   handlers: SocketHandlers,
   opts: ShellSocketOpts,
 ): SocketHandle {
-  const dev = opts.dev ?? IS_DEV
+  // Hosted rides the browser socket on the page origin — ws/wss by scheme,
+  // no Bearer (GDK-1966): the same branch dev takes against the vite
+  // proxy, which is why this is a small branch and not a hidden tab.
+  const dev = opts.dev ?? (IS_DEV || runtimeMode() === 'hosted')
   return dev ? openDevSocket(id, handlers, opts) : openPackagedSocket(id, handlers, opts)
 }
 

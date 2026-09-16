@@ -52,11 +52,19 @@ const CATALOG_PATHS = new RegExp(
   `^issues/(${KEY}/priorities/|${KEY}/users/(\\?.*)?|create-meta/)$`,
 )
 
+/**
+ * The app's own mount point, without the trailing slash: `/` at the default
+ * base, `/m` under GADAK_PHONE_BASE (GDK-1966). Vite's BASE_URL always ends
+ * with a slash, and a naive prefix would produce `//demo/…` — which a
+ * browser reads as protocol-relative, not same-origin.
+ */
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, '')
+
 /** Bundled-file URLs; null means the path gets a synthesized response. */
 function demoAssetUrl(path: string): string | null {
-  if (path === 'issues/bootstrap/') return '/demo/bootstrap.json'
+  if (path === 'issues/bootstrap/') return `${BASE}/demo/bootstrap.json`
   const detail = DETAIL_PATH.exec(path)
-  if (detail) return `/demo/detail/${detail[1]}.json`
+  if (detail) return `${BASE}/demo/detail/${detail[1]}.json`
   return null
 }
 

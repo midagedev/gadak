@@ -104,7 +104,7 @@ Markers:
     `internal/sync/linear.go`).
 
 [^3]: The same Jira-family pass, answered in-process by the origin
-    (`internal/origin/transport.go:40`) or by a paired serve (`:194`).
+    (`internal/origin/transport.go:78`) or by a paired serve (`:238`).
 
 [^4]: Runs on the mirror — SQLite FTS over `issues_full`, origin-agnostic
     (`cmd/gadak/agent_search.go:66`).
@@ -555,8 +555,8 @@ Markers:
 [^101]: The origin is a remote host — `https://<site>.atlassian.net` for Jira,
     `https://api.linear.app` for Linear (`internal/linear/client.go`).
 
-[^102]: Embedded in the same process (`internal/origin/transport.go:40`), or
-    one hop to a paired serve (`:194`).
+[^102]: Embedded in the same process (`internal/origin/transport.go:78`), or
+    one hop to a paired serve (`:238`).
 
 [^117]: Server keeps REST v2 only (a v3 route answers 401, not 404) and the
     classic `POST /search` paged by `startAt`/`total`
@@ -842,7 +842,7 @@ this table from the code instead of maintaining it by hand is GDK-1301.
     wire shape the issue detail does (`internal/server/read.go:927`), and the
     bytes stream from `content/{attId}/download` through `origin.Wiki` on the
     `pages/` byte route, which reuses the issue byte handler rather than
-    growing a second copy (`internal/server/server.go:317`,
+    growing a second copy (`internal/server/server.go:354`,
     `internal/server/attachment.go:512`). The REST v1 shapes are pinned by
     httptest fixtures; not yet measured against a live Cloud site. Adding or
     deleting an attachment bumps no page version, so the hourly reconcile

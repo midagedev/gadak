@@ -231,6 +231,12 @@ type Config struct {
 	// guide-based default, user-settable). Nil means every default.
 	Retro *RetroConfig `json:"retro,omitempty"`
 
+	// Serve is this machine's serve-surface block (GDK-1966): origins whose
+	// DNS name the serve answers. Nil means none — the rebinding guard
+	// refuses every DNS name, exactly as before this block existed. The
+	// Tailscale MagicDNS name is probed at serve start and never stored.
+	Serve *ServeConfig `json:"serve,omitempty"`
+
 	// Confluence, when non-nil, enables the wiki-page mirror (second source).
 	// Spaces empty means every *global* space — not every space the account can
 	// see, which is what this comment used to claim and what a warning written
@@ -360,6 +366,23 @@ type LinearConfig struct {
 // it, so a stored value this package admitted still cannot split wrongly.
 type RetroConfig struct {
 	SessionGap string `json:"sessionGap,omitempty"`
+}
+
+// ServeConfig is the serve-surface block in config.json. PublicURLs lists
+// http(s) origins (scheme://host[:port], no path) whose DNS name this
+// machine's serve answers — the stored half of --public-url, which flags
+// supplement per run. Each name widens the rebinding guard for exactly that
+// one Host; membership is the credential (the tailnet is the audience).
+type ServeConfig struct {
+	PublicURLs []string `json:"publicUrls,omitempty"`
+}
+
+// ServePublicURLs is the stored serve.publicUrls, nil-safe.
+func (c *Config) ServePublicURLs() []string {
+	if c == nil || c.Serve == nil {
+		return nil
+	}
+	return c.Serve.PublicURLs
 }
 
 // DefaultRetroSessionGap is what an unset retro.sessionGap means. Every

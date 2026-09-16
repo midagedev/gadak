@@ -4,6 +4,7 @@
   import { app, enterDemo, pair } from '../lib/store.svelte'
   import { decodeOffer, OfferError, OfferScopeError } from '../lib/offer'
   import { errorMessage } from '../lib/api'
+  import { runtimeMode } from '../lib/runtime'
 
   // The unpaired app IS this screen — pairing is the front door, not a
   // setting. Paste-first: the dev webview has no camera, and a one-line
@@ -86,6 +87,9 @@
   }
 
   async function scan() {
+    // Hosted: unreachable at the entry (GDK-1966) — no camera plugin is
+    // ever imported on a page that cannot pair at all.
+    if (runtimeMode() !== 'tauri') return
     error = null
     try {
       const { scan: scanQR, Format, cancel } = await import('@tauri-apps/plugin-barcode-scanner')
@@ -113,6 +117,14 @@
       <p class="rejected">{t('app.gate.rejected')}</p>
     {/if}
 
+    {#if app.hosted}
+      <!-- The hosted gate (GDK-1966): the same-origin probe refused, so this
+           page was not served by gadak serve — or the serve is down. A
+           hosted page cannot pair (there is no pairing to have), so the
+           form does not exist here; the sentence says where the address
+           comes from, in the gate's existing error register. -->
+      <p class="error" role="alert">{t('settings.hostedUnreachable')}</p>
+    {:else}
     <label class="lbl" for="offer">{t('app.hosts.offerLabel')}</label>
     <textarea
       id="offer"
@@ -150,6 +162,7 @@
     </button>
     {#if devProbe}
       <p class="hint">{devProbe}</p>
+    {/if}
     {/if}
     </div>
   </div>

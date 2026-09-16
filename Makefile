@@ -1,10 +1,22 @@
 .PHONY: build test vet typecheck theme-check bench scan docker plugins-test \
 	media media-web media-search media-agent media-groupby media-scale media-sprint media-retro media-mcp media-prep media-deps \
 	media-fixture media-phone media-phone-clip media-hero-sprint-retro brand demo-enrich demo-fixture demo-fixture-check \
-	hosted-demo hosted-demo-test
+	hosted-demo hosted-demo-test phone
 
 build:
 	CGO_ENABLED=0 go build -trimpath -o bin/gadak ./cmd/gadak
+
+# The phone bundle (GDK-1966): `gadak serve` mounts it at /m/. Built from
+# mobile/ with base /m/ so asset URLs match the mount, --emptyOutDir so the
+# directory is exactly what this build wrote (the committed .placeholder is
+# regenerated tracking-wise the same way dist/app's is — the build deletes
+# it and git shows the real bundle instead; do not hand-write index.html
+# here). A sibling of build, not a prerequisite: `make build` stays free of
+# web/ and mobile/ work — go:embed only needs the directory to exist.
+phone:
+	cd mobile && \
+	if [ ! -d node_modules ]; then npm ci --no-audit --no-fund; fi && \
+	GADAK_PHONE_BASE=/m/ npx vite build --outDir ../dist/phone --emptyOutDir
 
 vet:
 	go vet ./...

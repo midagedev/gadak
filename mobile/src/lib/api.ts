@@ -13,6 +13,7 @@
 
 import { demoRequest, isDemoSession } from './demo'
 import { inDialScope } from './dial-scope'
+import { runtimeMode } from './runtime'
 import { t } from './i18n'
 import { classifyRefusal, REFUSAL_KEYS } from './terminal/refusal'
 import type { ApiError as WebApiError } from '../../../web/src/lib/api'
@@ -107,7 +108,10 @@ export function apiHeaders(token: string | null, hasJsonBody: boolean): Record<s
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>
 
 async function pickFetch(): Promise<FetchLike> {
-  if (IS_DEV) return (url, init) => window.fetch(url, init)
+  // Dev rides the page's own fetch through the vite proxy; hosted does the
+  // same against the serve origin it was loaded from (GDK-1966) — the
+  // plugin would be the one native dial a hosted page must never make.
+  if (IS_DEV || runtimeMode() === 'hosted') return (url, init) => window.fetch(url, init)
   const mod = await import('@tauri-apps/plugin-http')
   return mod.fetch as FetchLike
 }
@@ -173,7 +177,12 @@ async function dial(path: string, opts: RequestOpts): Promise<Response> {
   const s = opts.session ?? session
   const dev = opts.dev ?? IS_DEV
   const url = apiUrl(s.endpoint, path, dev)
-  if (!dev && !inDialScope(url)) {
+  // The scope check is the Tauri capability list's shadow (dial-scope.ts).
+  // A hosted page's URL is the bare same-origin path `/api/v1/…`, which
+  // `new URL` cannot parse — there is no Tauri scope in a browser tab, so
+  // hosted skips the check rather than fail on its own address book
+  // (GDK-1966). Dev already skips it (the proxy is the boundary).
+  if (!dev && runtimeMode() !== 'hosted' && !inDialScope(url)) {
     throw new ApiError('endpoint_out_of_scope', 0)
   }
   const doFetch = opts.fetchFn ?? (await pickFetch())

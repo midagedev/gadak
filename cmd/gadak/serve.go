@@ -18,6 +18,7 @@ import (
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/serveaddr"
+	"github.com/midagedev/gadak/internal/server"
 )
 
 // serveOpts is the parsed serve CLI surface. cmdServe only parses flags and
@@ -29,8 +30,22 @@ type serveOpts struct {
 	noSync            bool
 	importAttachments string
 	noOpen            bool
+	// publicURLs are the repeatable --public-url origins (GDK-1966): each
+	// names a DNS Host this serve also answers, on purpose.
+	publicURLs []string
 	// addrPinned is true when the user passed --addr (no port fallback on conflict).
 	addrPinned bool
+}
+
+// publicURLFlag is the repeatable --public-url: one origin per use. flag's
+// String() is the usage default; empty prints as nothing.
+type publicURLFlag []string
+
+func (f *publicURLFlag) String() string { return strings.Join(*f, ", ") }
+
+func (f *publicURLFlag) Set(v string) error {
+	*f = append(*f, v)
+	return nil
 }
 
 func parseServeOpts(args []string) (serveOpts, error) {
@@ -46,6 +61,9 @@ func parseServeOpts(args []string) (serveOpts, error) {
 	importAttachments := fs.String("import-attachments", "",
 		"seed the attachment cache from a directory holding manifest.json (see examples/attachments)")
 	noOpen := fs.Bool("no-open", false, "do not open the browser after the server starts")
+	var publicURLs publicURLFlag
+	fs.Var(&publicURLs, "public-url",
+		"a public origin (https://name[:port]) whose DNS name this serve also answers — repeatable; reaching it is the credential (the stored form is serve.publicUrls)")
 	if err := fs.Parse(args); err != nil {
 		return serveOpts{}, err
 	}
@@ -63,6 +81,7 @@ func parseServeOpts(args []string) (serveOpts, error) {
 		noSync:            *noSync,
 		importAttachments: *importAttachments,
 		noOpen:            *noOpen,
+		publicURLs:        publicURLs,
 		addrPinned:        addrPinned,
 	}, nil
 }
@@ -253,10 +272,32 @@ func cmdServe(args []string) error {
 
 	spa := serveSPAHandler(opts.static)
 
+	// The host policy (GDK-1966): --public-url flags, the stored
+	// serve.publicUrls, and the Tailscale MagicDNS name this machine
+	// already answers by — each name widens the rebinding guard for exactly
+	// that Host, and both guard layers plus the mirror gate read the one
+	// policy installed here. The Tailscale probe is best-effort: without a
+	// tailnet it logs one line and the policy simply has no such name.
+	tsName := server.TailscaleDNSName()
+	cfgURLs := rt.Cfg.ServePublicURLs()
+	policy := server.NewHostPolicy(opts.publicURLs, cfgURLs, tsName)
+	rt.API.SetHostPolicy(policy)
+	if d := policy.Describe(); d != "" {
+		log.Printf("serve: hosts: %s", d)
+	}
+
+	// The phone's address list (config.json phone_urls): every --public-url
+	// origin, plus the dialable listen address when there is one.
+	phoneURLs := server.PhoneURLs(opts.addr, append(append([]string{}, opts.publicURLs...), cfgURLs...), tsName)
+
 	// Workspace mounts share this process's listener; each profile opens lazily.
 	// Update checks stay on the primary handler; workspace mirrors get their own
 	// sync loops (see WatchAll in apprun.StartWatch) when they have credentials.
-	mux := buildServeMux(rt.API, spa, rt.Reg)
+	mux := buildServeMux(rt.API, spa, rt.Reg, serveSites{
+		hosts:     rt.API.HostPolicyFn(),
+		phoneUI:   gadak.PhoneUI,
+		phoneURLs: phoneURLs,
+	})
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
