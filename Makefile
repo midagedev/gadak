@@ -1,6 +1,6 @@
 .PHONY: build test vet typecheck theme-check bench scan docker plugins-test \
 	media media-web media-search media-agent media-groupby media-scale media-sprint media-retro media-mcp media-prep media-deps \
-	media-fixture media-phone media-hero-sprint-retro brand demo-enrich demo-fixture demo-fixture-check \
+	media-fixture media-phone media-phone-clip media-hero-sprint-retro brand demo-enrich demo-fixture demo-fixture-check \
 	hosted-demo hosted-demo-test
 
 build:
@@ -292,6 +292,26 @@ media-phone: media-deps media-fixture
 	rm -rf mobile/test-results/media-$${GADAK_MOBILE_E2E_PORT:-5182}-$${GADAK_MOBILE_API_PORT:-7899}
 	GADAK_MOBILE_API_DB="$(MEDIA_FIXTURE_DB)" \
 		./node_modules/.bin/playwright test --config mobile/media.config.ts
+
+# The phone exhibit in motion (0.23, GDK-1955) — one ~16s take per locale at
+# 402×874 @3x, cut into phone[.<locale>].mp4 (the landing), phone[.<locale>].
+# gif (the READMEs — GitHub strips <video> from markdown) and
+# phone-poster[.<locale>].png. It replaces the stills above on the public
+# surfaces; the stills camera stays as the frame-by-frame review rig and as
+# the owner of GADAK_MEDIA_LOCALE for the phone tree. Servers, fixture and
+# the ko/ja attachments symlink are media-phone's, for the same reasons.
+# Outside `make media`, same reason as media-sprint.
+media-phone-clip: media-deps media-fixture
+	@mkdir -p $(MEDIA_DIR) e2e/.tmp
+	@set -e; \
+	if [ "$${GADAK_MEDIA_LOCALE:-en}" != "en" ]; then \
+		ln -sfn "$$(pwd)/examples/attachments" e2e/.tmp/attachments; \
+	fi; \
+	echo "media-phone-clip: recording the phone exhibit clip (locale $${GADAK_MEDIA_LOCALE:-en})…"
+	rm -rf mobile/test-results/clip-$${GADAK_MOBILE_E2E_PORT:-5182}-$${GADAK_MOBILE_API_PORT:-7899}
+	GADAK_MOBILE_API_DB="$(MEDIA_FIXTURE_DB)" \
+		./node_modules/.bin/playwright test --config mobile/clip.config.ts
+	bash mobile/clip/export-phone-clip.sh
 
 media-agent: media-deps
 	@mkdir -p $(MEDIA_DIR)

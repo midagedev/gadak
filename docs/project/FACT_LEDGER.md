@@ -90,8 +90,10 @@ carries these facts and no more:
   authoring a view, laying out a dashboard and moving cards stay on the
   desktop, and the app says so where the control would be.
 - **Screens on the public surfaces are recorded**, not mocked:
-  `make media-phone` at 402×874, device scale 3, over the demo snapshot, one
-  take per UI language (§15).
+  `make media-phone-clip` at 402×874, device scale 3, over the demo snapshot,
+  one ~16s take per UI language (§15). It is a clip, not stills, on the user's
+  call of 2026-09-16; the stills camera (`make media-phone`) stays as the
+  frame-by-frame review rig.
 
 ## 4. Install commands (verbatim; one `brew install` per fence)
 
