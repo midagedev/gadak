@@ -37,6 +37,14 @@ jobs:
           npm run build
           test -d dist/app
 
+      # The phone bundle rides in the same binary at /m/ (GDK-1966): built
+      # from mobile/ with base /m/ into dist/phone, which go:embed compiles.
+      # Without this step a released binary answers 503 phone_ui_missing.
+      - name: Build phone bundle
+        run: |
+          make phone
+          test -f dist/phone/index.html
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:

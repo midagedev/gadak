@@ -20,6 +20,8 @@ before:
     - go mod tidy
     # Web UI must already be built (release workflow runs npm run build first).
     - test -d dist/app
+    # The phone bundle too (release workflow runs `make phone`, GDK-1966).
+    - test -f dist/phone/index.html
 
 builds:
   - id: gadak

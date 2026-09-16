@@ -42,6 +42,14 @@ jobs:
           npm run build
           test -d dist/app
 
+      # The phone bundle rides in the same binary at /m/ (GDK-1966): built
+      # from mobile/ with base /m/ into dist/phone, which go:embed compiles.
+      # Without this step a released binary answers 503 phone_ui_missing.
+      - name: Build phone bundle
+        run: |
+          make phone
+          test -f dist/phone/index.html
+
       # Developer ID p12 + notary API key. Absent on forks — signing/notarization
       # self-disable and the job still succeeds with an unsigned dmg.
       - name: Import signing certificate
@@ -354,6 +362,20 @@ jobs:
           npm run build
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path -LiteralPath dist/app)) { throw "dist/app missing" }
+
+      # Same bundle as the bash jobs (GDK-1966), spelled for pwsh: make is
+      # not on the Windows runner, so the Makefile's phone target is inlined.
+      - name: Build phone bundle
+        shell: pwsh
+        run: |
+          Push-Location mobile
+          npm ci --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:GADAK_PHONE_BASE = "/m/"
+          npx vite build --outDir ../dist/phone --emptyOutDir
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Pop-Location
+          if (-not (Test-Path -LiteralPath dist/phone/index.html)) { throw "dist/phone missing" }
 
       # --msix adds the unsigned Store package next to each zip (GDK-1380).
       # It is a workflow artifact only, never a Release asset: unsigned, it

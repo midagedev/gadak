@@ -69,6 +69,11 @@ jobs:
       - name: Frontend build
         run: npm run build
 
+      # The phone bundle is embedded beside the web UI (GDK-1966); building
+      # it here keeps the serve smoke below on the real /m/ mount.
+      - name: Phone bundle build
+        run: make phone && test -f dist/phone/index.html
+
       - name: Go build (static)
         run: CGO_ENABLED=0 go build -trimpath -o /tmp/gadak ./cmd/gadak
 
