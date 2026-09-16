@@ -240,12 +240,19 @@ type Stats struct {
 	SprintIssues int
 
 	// Attachment byte pass.
-	AttachInlined  int
-	AttachBytes    int64 // bytes actually written into the seed (GDK-1618)
-	AttachMissing  int   // origin answered 404 — metadata kept
-	AttachTooLarge int
-	AttachSkipURL  int // stored origin URL (non-Jira source) — out of scope
-	AttachErrors   []string
+	AttachInlined int
+	AttachBytes   int64 // bytes actually written into the seed (GDK-1618)
+	// Where the bytes were read from (GDK-1960): the source origin, or the
+	// source workspace's own cache when the origin could not supply them
+	// (unreachable, or the file gone from there). Counted as serves, so a
+	// serve the writer then fails to inline still lands here and in
+	// AttachErrors — the two axes answer different questions.
+	AttachFromOrigin int
+	AttachFromCache  int
+	AttachMissing    int // origin answered 404 — metadata kept
+	AttachTooLarge   int
+	AttachSkipURL    int // stored origin URL (non-Jira source) — out of scope
+	AttachErrors     []string
 
 	MissingUsers    []string // referenced account ids absent from the users catalog
 	UnnamedStatuses []string // history-only status ids with no display name

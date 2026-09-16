@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/midagedev/gadak/internal/atomicfile"
+	"github.com/midagedev/gadak/internal/attachcache"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/fsperm"
 	"github.com/midagedev/gadak/internal/jira"
@@ -119,40 +120,20 @@ func cmdMigrate(args []string) error {
 		return err
 	}
 
-	// The attachment byte source. nil means the seed carries metadata only
-	// (--skip-attachments, or a source with no attachments at all).
+	// The attachment byte source (GDK-1960): the source origin first, the
+	// source workspace's own cache second. nil means the seed carries
+	// metadata only (--skip-attachments, or a source with no attachments at
+	// all). The refusal for an unreachable origin still fires here, before
+	// the export (GDK-1275) — now only for the bytes the cache cannot
+	// supply.
 	var fetch migrate.StreamFetch
 	if !*skipAttach && stats.Attachments > 0 {
-		client, cerr := origin.Client(srcCfg)
-		if cerr != nil {
-			// A warning used to be enough here, and it was not: the run
-			// still "succeeded", and the verify table still read 26/26,
-			// because that row counts rows and the bytes are what went
-			// missing (GDK-1275). The cutover procedure — freeze the
-			// source, then migrate — walks into exactly this, so the
-			// refusal has to come before the export, not after.
-			return fmt.Errorf("cannot read attachment bytes from %q: %w\n"+
-				"  %d attachments would migrate as empty metadata, and the count table would not say so\n"+
-				"  to bring the bytes: make the source reachable (a frozen workspace: `gadak --workspace %s config set frozen false`)\n"+
-				"  to migrate without them on purpose: --skip-attachments",
-				*from, cerr, stats.Attachments, *from)
+		src, err := attachSourceFor(*from, srcCfg)
+		if err != nil {
+			return err
 		}
-		fetch = func(ctx context.Context, id string) (int, int64, io.ReadCloser, error) {
-			// Stream, not Raw: Raw reads through a 64 MiB io.LimitReader,
-			// which on a large attachment returns a truncated prefix with no
-			// error — the same silent loss GDK-1614 fixed on the upload
-			// side, on the migrate side (GDK-1617). The body is handed on
-			// unread: migrate.WriteDoc base64-encodes it straight into the
-			// seed file, so the bytes never accumulate in memory (GDK-1618).
-			res, err := client.Stream(ctx, "GET", "/rest/api/3/attachment/content/"+url.PathEscape(id), nil)
-			if err != nil {
-				return 0, 0, nil, err
-			}
-			if res.StatusCode != 200 {
-				_ = res.Body.Close()
-				return res.StatusCode, 0, nil, nil
-			}
-			return res.StatusCode, res.ContentLength, res.Body, nil
+		if fetch, err = src.Fetch(doc, stats); err != nil {
+			return err
 		}
 	}
 
@@ -330,6 +311,55 @@ func splitCSV(s string) []string {
 	return out
 }
 
+// attachSourceFor builds the attachment byte source both migrate
+// destinations share (GDK-1960): the source origin's stream when it is
+// reachable, plus the source workspace's own attachment cache — the bytes
+// of everything the user has already looked at are on this disk, so an
+// unreachable origin (frozen, credential revoked) is only fatal for what
+// the cache cannot supply. The cache is the *source* workspace's (its own
+// attachments directory, keyed by its own site and profile name — the
+// normalized one ProfileName answers, which is what its server keyed by).
+func attachSourceFor(from string, cfg *config.Config) (migrate.AttachSource, error) {
+	src := migrate.AttachSource{From: from, Site: cfg.Site, Profile: cfg.ProfileName()}
+	if client, err := origin.Client(cfg); err != nil {
+		src.Err = err
+	} else {
+		src.Origin = func(ctx context.Context, issueKey, id string) (int, int64, io.ReadCloser, error) {
+			// Stream, not Raw: Raw reads through a 64 MiB io.LimitReader,
+			// which on a large attachment returns a truncated prefix with no
+			// error — the same silent loss GDK-1614 fixed on the upload
+			// side, on the migrate side (GDK-1617). The body is handed on
+			// unread: the writer base64-encodes it straight into the seed
+			// file, so the bytes never accumulate in memory (GDK-1618).
+			res, err := client.Stream(ctx, "GET", "/rest/api/3/attachment/content/"+url.PathEscape(id), nil)
+			if err != nil {
+				return 0, 0, nil, err
+			}
+			if res.StatusCode != 200 {
+				_ = res.Body.Close()
+				return res.StatusCode, 0, nil, nil
+			}
+			return res.StatusCode, res.ContentLength, res.Body, nil
+		}
+	}
+	cacheDir, err := config.AttachmentDirFor(from)
+	if err != nil {
+		return migrate.AttachSource{}, err
+	}
+	cache, cerr := attachcache.New(cacheDir, 0, 0)
+	if cerr != nil {
+		if src.Origin == nil {
+			// Both halves are down. The refusal names the credential — the
+			// actionable half — and the unreadable cache shows up as "0 of
+			// N coverable" rather than a second error stacked on the first.
+			return src, nil
+		}
+		return migrate.AttachSource{}, cerr
+	}
+	src.Cache = cache
+	return src, nil
+}
+
 func printMigrateReport(w *os.File, target, from, locale string, st *migrate.Stats, verify []migrate.VerifyRow) {
 	fmt.Fprintf(w, "migrated %s → built-in workspace %q\n", from, target)
 	fmt.Fprintf(w, "projects: %s", strings.Join(st.Projects, ", "))
@@ -361,7 +391,10 @@ func printMigrateReport(w *os.File, target, from, locale string, st *migrate.Sta
 	}
 
 	if st.Attachments > 0 {
-		fmt.Fprintf(w, "attachments: %d inlined (%d bytes)", st.AttachInlined, st.AttachBytes)
+		// GDK-1960: where each byte was read from is on the line because
+		// "why did this file not come" is the question it exists to answer.
+		fmt.Fprintf(w, "attachments: %d inlined (%d bytes; origin %d, local cache %d)",
+			st.AttachInlined, st.AttachBytes, st.AttachFromOrigin, st.AttachFromCache)
 		if n := st.Attachments - st.AttachInlined; n > 0 {
 			fmt.Fprintf(w, ", %d metadata-only (missing at origin %d, over size cap %d, non-Jira source %d, errors %d)",
 				n, st.AttachMissing, st.AttachTooLarge, st.AttachSkipURL, len(st.AttachErrors))
@@ -450,30 +483,19 @@ func migrateToJira(target, from, project, projects string, limit int, skipAttach
 		}
 	}
 
-	// Attachment bytes come from the source origin, streamed into each
-	// upload as the writer reaches it (the GDK-1618 shape; GDK-1275: a
-	// warning here let a run report success with empty files, because the
-	// count table counts rows and the bytes are what went missing).
+	// Attachment bytes come from the source — origin first, the source
+	// workspace's cache second (GDK-1960) — streamed into each upload as
+	// the writer reaches it (the GDK-1618 shape; GDK-1275: a warning here
+	// let a run report success with empty files, because the count table
+	// counts rows and the bytes are what went missing).
 	var fetch migrate.StreamFetch
 	if !dryRun && !skipAttach && stats.Attachments > 0 {
-		srcClient, cerr := origin.Client(srcCfg)
-		if cerr != nil {
-			return fmt.Errorf("cannot read attachment bytes from %q: %w\n"+
-				"  %d attachments would migrate as empty metadata, and the count table would not say so\n"+
-				"  to bring the bytes: make the source reachable (a frozen workspace: `gadak --workspace %s config set frozen false`)\n"+
-				"  to migrate without them on purpose: --skip-attachments",
-				from, cerr, stats.Attachments, from)
+		src, err := attachSourceFor(from, srcCfg)
+		if err != nil {
+			return err
 		}
-		fetch = func(ctx context.Context, id string) (int, int64, io.ReadCloser, error) {
-			res, err := srcClient.Stream(ctx, "GET", "/rest/api/3/attachment/content/"+url.PathEscape(id), nil)
-			if err != nil {
-				return 0, 0, nil, err
-			}
-			if res.StatusCode != 200 {
-				_ = res.Body.Close()
-				return res.StatusCode, 0, nil, nil
-			}
-			return res.StatusCode, res.ContentLength, res.Body, nil
+		if fetch, err = src.Fetch(doc, stats); err != nil {
+			return err
 		}
 	}
 

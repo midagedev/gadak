@@ -28,13 +28,16 @@ import (
 	"strings"
 )
 
-// StreamFetch opens one attachment's bytes by content id. Implemented by
+// StreamFetch opens one attachment's bytes. issueKey is the owning issue —
+// the owner part of the cache key AttachSource forms (GDK-1960), not
+// decoration: a content id alone cannot name a cached file. Implemented by
 // the caller over the source origin client (Jira's and issuetap's
-// /attachment/content/{id} are the same shape). size is the response's
-// declared length, -1 when the origin does not say; body is nil unless
-// status is 200 and err is nil, and the caller of StreamFetch closes it. A
-// missing file answers 404 with err nil.
-type StreamFetch func(ctx context.Context, contentID string) (status int, size int64, body io.ReadCloser, err error)
+// /attachment/content/{id} are the same shape) and folded with the source
+// workspace's cache by AttachSource. size is the response's declared
+// length, -1 when the source does not say; body is nil unless status is
+// 200 and err is nil, and the caller of StreamFetch closes it. A missing
+// file answers 404 with err nil.
+type StreamFetch func(ctx context.Context, issueKey, contentID string) (status int, size int64, body io.ReadCloser, err error)
 
 // inlineTextMax caps what the readable `text` slot may hold. Choosing that
 // slot means deciding on the bytes before the key is written, which means
@@ -182,7 +185,7 @@ func writeAttachment(ctx context.Context, w *bufio.Writer, a Attachment, issueKe
 		return writeObject(w, meta, nil)
 	}
 
-	status, size, body, err := fetch(ctx, a.ContentID)
+	status, size, body, err := fetch(ctx, issueKey, a.ContentID)
 	if body != nil {
 		defer body.Close()
 	}

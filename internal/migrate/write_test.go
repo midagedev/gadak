@@ -87,7 +87,7 @@ func TestWriteDocAttachments(t *testing.T) {
 		{Filename: "long.txt", MimeType: "text/plain", ContentID: "7"},
 	}}}}
 	st := &Stats{}
-	fetch := func(_ context.Context, id string) (int, int64, io.ReadCloser, error) {
+	fetch := func(_ context.Context, _, id string) (int, int64, io.ReadCloser, error) {
 		body := func(b []byte) (int, int64, io.ReadCloser, error) {
 			return 200, int64(len(b)), io.NopCloser(bytes.NewReader(b)), nil
 		}
@@ -195,7 +195,7 @@ func TestWriteDocAllocsDoNotScaleWithArchive(t *testing.T) {
 			Size:      m,
 		})
 	}
-	fetch := func(_ context.Context, _ string) (int, int64, io.ReadCloser, error) {
+	fetch := func(_ context.Context, _, _ string) (int, int64, io.ReadCloser, error) {
 		return 200, m, &repeating{left: m}, nil
 	}
 

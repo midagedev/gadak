@@ -480,14 +480,20 @@ Markers:
     (`issuetap/internal/api/jira.go:92`).
 
 [^91]: The export reads the mirror; attachment bytes come from the origin's
-    attachment route (`cmd/gadak/migrate.go:147`).
+    attachment route first and the source workspace's own attachment cache
+    second (`cmd/gadak/migrate.go:322`, `internal/migrate/fetch.go`;
+    GDK-1960), so a source whose origin is out of reach — frozen for the
+    cutover, its credential revoked — still carries out everything it had
+    already fetched. The count line names which of the two supplied each
+    file.
 
-[^92]: Linear attachment URLs are not byte-fetchable the way Jira's are — a
-    workspace with attachments refuses without `--skip-attachments`
-    (`cmd/gadak/migrate.go:134`).
+[^92]: Linear attachment URLs are not byte-fetchable the way Jira's are, so
+    only the cache can supply them; a workspace whose attachments it does not
+    hold refuses without `--skip-attachments` (`internal/migrate/fetch.go`,
+    the coverage refusal).
 
-[^93]: The export's byte fetch uses the same passthrough route
-    (`cmd/gadak/migrate.go:147`). Bodies leave as the origin's ADF beside
+[^93]: The export's byte fetch uses the same passthrough route, behind the
+    same cache fallback (`cmd/gadak/migrate.go:322`). Bodies leave as the origin's ADF beside
     their text (`internal/migrate/migrate.go:87`), so headings, lists and
     paragraph breaks arrive as written (GDK-1382).
 

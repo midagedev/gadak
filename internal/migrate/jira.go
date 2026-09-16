@@ -145,10 +145,12 @@ type JiraOptions struct {
 	SkipAttachments bool
 	// Progress receives one line per created issue ("NMS-1 → ABC-42").
 	Progress io.Writer
-	// Fetch opens one attachment's bytes at the source origin; they are
-	// streamed straight into the upload, never held (GDK-1618 shape). nil
-	// falls back to bytes already carried in the export (DataBase64 / Text
-	// — fixtures and tests), and an attachment with neither is skipped.
+	// Fetch opens one attachment's bytes at the source — the origin's
+	// stream folded with the source workspace's cache by AttachSource
+	// (GDK-1960); bytes are streamed straight into the upload, never held
+	// (GDK-1618 shape). nil falls back to bytes already carried in the
+	// export (DataBase64 / Text — fixtures and tests), and an attachment
+	// with neither is skipped.
 	Fetch StreamFetch
 }
 
@@ -727,7 +729,7 @@ func (r *jiraRun) completeIssues() error {
 			continue
 		}
 		for _, a := range is.Attachments {
-			src, warn, err := jiraAttachmentSource(r.ctx, r.opt.Fetch, a)
+			src, warn, err := jiraAttachmentSource(r.ctx, r.opt.Fetch, is.Key, a)
 			if err != nil {
 				return fmt.Errorf("attachment %q on %s: %w", a.Filename, is.Key, err)
 			}
@@ -787,13 +789,14 @@ func (r *jiraRun) createLinks() error {
 }
 
 // jiraAttachmentSource opens the bytes one attachment uploads: the source
-// origin when fetch is set (streamed, not held), else what the export
-// carries. nil src with an empty warning is a plain skip (metadata-only
-// row); a warning names why bytes that should exist could not be read.
-func jiraAttachmentSource(ctx context.Context, fetch StreamFetch, a Attachment) (src io.ReadCloser, warn string, err error) {
+// when fetch is set (origin folded with the cache by AttachSource,
+// streamed, not held), else what the export carries. nil src with an empty
+// warning is a plain skip (metadata-only row); a warning names why bytes
+// that should exist could not be read.
+func jiraAttachmentSource(ctx context.Context, fetch StreamFetch, issueKey string, a Attachment) (src io.ReadCloser, warn string, err error) {
 	switch {
 	case fetch != nil && a.SourceURL == "" && a.ContentID != "":
-		status, _, body, ferr := fetch(ctx, a.ContentID)
+		status, _, body, ferr := fetch(ctx, issueKey, a.ContentID)
 		switch {
 		case ferr != nil:
 			return nil, "", ferr
