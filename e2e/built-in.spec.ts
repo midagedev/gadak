@@ -253,9 +253,12 @@ test.describe('built-in workspace indicator', () => {
       en['write.commentPlaceholder'],
     )
 
-    // Document comments: same class (doc.commentNeedCredentials).
+    // Document comments: same class (doc.commentNeedCredentials). Any query
+    // that lands a document row will do; 'cross-check' is the page-only token
+    // e2e/docs.spec.ts picks (it was '빌링' until GDK-1956 made the English
+    // fixture English).
     const input = searchInput(page)
-    await input.fill('빌링')
+    await input.fill('cross-check')
     await input.press('Enter')
     await page.getByTestId('search-doc-row').first().click()
     const docs = page.getByTestId('doc-panel')

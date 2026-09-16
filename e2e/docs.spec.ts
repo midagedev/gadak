@@ -114,15 +114,32 @@ test.describe('mirrored wiki documents', () => {
     const errors = attachConsoleErrors(page)
     await gotoApp(page)
 
-    // '빌링' hits no issue field but two page bodies (CJK in body_text) — the case
-    // that only works because the search response carries pages.
+    // 'cross-check' hits two page bodies and no issue field — the case that
+    // only works because the search response carries pages.
+    //
+    // It used to be '빌링', chosen because it was CJK and so could not
+    // possibly match an issue. That worked for the wrong reason: the two
+    // pages it hit were written in Korean inside the *English* fixture, which
+    // was a defect nobody had noticed (GDK-1956) and is now gated. What this
+    // test needs is not CJK, it is a token that is page-only, so when the
+    // fixture's prose changes, re-pick one:
+    //
+    //   select it.key, it.title from items_fts f join items it
+    //     on it.rowid = f.rowid where items_fts match '<token>'
+    //
+    // — two pages, no issues, one of them the PROD meeting notes below.
     const input = searchInput(page)
-    await input.fill('빌링')
+    await input.fill('cross-check')
     await input.press('Enter')
 
     const rows = page.getByTestId('search-doc-row')
     await expect(rows).toHaveCount(2)
-    await expect(rows.first()).toContainText('PROD')
+    // The space badge renders on the row, and the two hits are in different
+    // spaces — assert the one this test goes on to open rather than whichever
+    // the ranking puts first.
+    await expect(rows.filter({ hasText: 'Product Meeting Notes — Billing Quality' })).toContainText(
+      'PROD',
+    )
 
     await rows.filter({ hasText: 'Product Meeting Notes — Billing Quality' }).click()
 
@@ -139,7 +156,7 @@ test.describe('mirrored wiki documents', () => {
       'Product Meetings',
     ])
     // Body ADF rendered (first heading of the mirrored page).
-    await expect(panel.getByRole('heading', { name: '요약' })).toBeVisible()
+    await expect(panel.getByRole('heading', { name: 'Summary' })).toBeVisible()
     // The only write surface is the page comment composer (GDK-381) — the
     // body itself stays read-only in the panel.
     await expect(panel.getByTestId('doc-comment-composer')).toHaveCount(1)
