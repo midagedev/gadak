@@ -50,7 +50,9 @@ were Korean end to end, and the census that gates the translated copies now
 runs against the English one too, so the next such page fails a check rather
 than a reviewer ([GDK-1956]). And the phone now says when a
 write has landed: moving the status, posting a comment or saving a field each
-ends in one short line at the foot of the screen, the status sheet opens with
+ends in one short line at the top of the screen — in dark ink, above the sheet's
+lane rather than in it, so it no longer reads as the sheet leaving
+([GDK-1969]) — the status sheet opens with
 the current status above the choices, and the priority group header and the
 two terminal-pairing refusals speak the phone's language instead of English
 ([GDK-1964], [GDK-1965], [GDK-1945]).
@@ -1725,3 +1727,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1964]: https://gadak.dev/backlog/#/?ks=GDK-1964
 [GDK-1965]: https://gadak.dev/backlog/#/?ks=GDK-1965
 [GDK-1966]: https://gadak.dev/backlog/#/?ks=GDK-1966
+[GDK-1969]: https://gadak.dev/backlog/#/?ks=GDK-1969

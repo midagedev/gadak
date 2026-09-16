@@ -50,6 +50,25 @@ const LITE = {
   updated_at: '2026-09-16T00:00:00.000Z',
 }
 
+/** WCAG relative-luminance contrast between two computed css colours,
+ *  computed here rather than by a dependency — the gate owns the number
+ *  (GDK-1969). Throws on transparent/unparseable so a token change that
+ *  breaks the reading fails loudly, not green-by-accident. */
+function contrast(a: string, b: string): number {
+  const lum = (css: string): number => {
+    const m = css.match(/rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)/)
+    if (!m) throw new Error(`contrast: unparseable color "${css}"`)
+    if (m[4] !== undefined && Number(m[4]) === 0) throw new Error(`contrast: transparent "${css}"`)
+    const ch = [1, 2, 3].map((i) => {
+      const c = Number(m[i]) / 255
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+    })
+    return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2]
+  }
+  const [l1, l2] = [lum(a), lum(b)].sort((x, y) => y - x)
+  return (l1 + 0.05) / (l2 + 0.05)
+}
+
 async function armWrites(page: Page): Promise<void> {
   await page.route('**/api/v1/credential/', async (route) => {
     await route.fulfill({
@@ -123,6 +142,29 @@ test('a status move announces itself and paints the header before sync', async (
   await page.locator('.sheet button.t-row', { hasText: 'Done' }).click()
 
   await expect(page.locator('[data-testid="toast"][data-kind="success"]')).toHaveText('Moved to Done')
+
+  // GDK-1969 lane separation: the confirmation lives in the top half of the
+  // viewport. Every bottom surface is thumb territory — the sheet this very
+  // write just closed falls through `fly y:320` (Sheet.svelte) exactly where
+  // the old bottom-anchored toast rose, and users read the confirmation as
+  // part of the sheet's exit.
+  const box = await page.locator('[data-testid="toast"]').boundingBox()
+  const viewportHeight = page.viewportSize()!.height
+  expect(box!.y + box!.height, `toast bottom ${box!.y + box!.height} must sit above half of ${viewportHeight}`).toBeLessThan(
+    viewportHeight * 0.5,
+  )
+
+  // GDK-1969 contrast: the pill is inverted ink on the page ground, and the
+  // gate pins the measured number (≥7:1, both themes clear it — light
+  // #1c1812 on #f4efe4 ≈ 15:1, dark ≈ 16:1). body paints --color-bg-base
+  // (mobile/src/app.css, `body { background: var(--color-bg-base) }`), so
+  // body is the ground to read, not a transparent stand-in.
+  const { pill, ground } = await page.evaluate(() => ({
+    pill: getComputedStyle(document.querySelector('.toast .pill')!).backgroundColor,
+    ground: getComputedStyle(document.body).backgroundColor,
+  }))
+  expect(contrast(pill, ground), `pill ${pill} on ground ${ground}`).toBeGreaterThanOrEqual(7)
+
   await expect(chip).toHaveText(/Done/)
   release!()
   // The held sync finally lands the fixture's own row — older than the
