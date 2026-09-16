@@ -1,6 +1,6 @@
 .PHONY: build test vet typecheck theme-check bench scan docker plugins-test \
 	media media-web media-search media-agent media-groupby media-scale media-sprint media-retro media-mcp media-prep media-deps \
-	media-fixture media-hero-sprint-retro brand demo-enrich demo-fixture demo-fixture-check \
+	media-fixture media-phone media-hero-sprint-retro brand demo-enrich demo-fixture demo-fixture-check \
 	hosted-demo hosted-demo-test
 
 build:
@@ -268,6 +268,30 @@ media-hero-sprint-retro: media-deps media-fixture
 	GADAK_MEDIA=1 GADAK_SEED_DB="$(MEDIA_FIXTURE_DB)" \
 		./node_modules/.bin/playwright test --config e2e/demo/sprint-retro-hero.config.ts
 	bash e2e/demo/export-sprint-retro-hero.sh
+
+# The phone's publication camera (0.23): four exhibit stills at 402×874 @3x —
+# the list, the palette, NMB-110's detail, the sprints screen — in three
+# locales, written under the committed-asset naming (phone-<stem>[.<locale>].
+# png). Not in `make media`: an exhibit still is taken once, at the release it
+# documents; the aggregate is for clips that must keep tracking the code, and
+# regenerating these on every contributor's machine is work with no reader.
+# gadak demo imports attachment bytes from the directory the --db snapshot
+# sits in (cmd/gadak/demo.go importDemoAttachments reads <dir>/attachments/),
+# and the translated copy media-fixture writes lives in e2e/.tmp — so the
+# non-en runs need the committed images beside it, or the ko/ja detail frames
+# photograph demoted ledger rows instead of the image grid. For en,
+# GADAK_MOBILE_API_DB is examples/demo.db and gate-serve.sh appends no --db:
+# the exact exec line every gate run has always run.
+media-phone: media-deps media-fixture
+	@mkdir -p $(MEDIA_DIR) e2e/.tmp
+	@set -e; \
+	if [ "$${GADAK_MEDIA_LOCALE:-en}" != "en" ]; then \
+		ln -sfn "$$(pwd)/examples/attachments" e2e/.tmp/attachments; \
+	fi; \
+	echo "media-phone: recording the phone exhibit stills (locale $${GADAK_MEDIA_LOCALE:-en})…"
+	rm -rf mobile/test-results/media-$${GADAK_MOBILE_E2E_PORT:-5182}-$${GADAK_MOBILE_API_PORT:-7899}
+	GADAK_MOBILE_API_DB="$(MEDIA_FIXTURE_DB)" \
+		./node_modules/.bin/playwright test --config mobile/media.config.ts
 
 media-agent: media-deps
 	@mkdir -p $(MEDIA_DIR)

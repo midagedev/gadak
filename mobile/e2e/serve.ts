@@ -394,6 +394,15 @@ export function gateWebServers(env: NodeJS.ProcessEnv = process.env): WebServerE
         GADAK_MOBILE_API_PORT: apiPort,
         GADAK_MOBILE_API_STAMP: apiStampPath(env),
         GADAK_MOBILE_API_BIN: apiBinPath(env),
+        // An optional fixture override the localized media rig sets
+        // (make media-phone): a translated copy of the snapshot. Absent or
+        // empty must mean the bundled examples/demo.db — gate-serve.sh then
+        // appends no --db and the demo binary's own default stands, which is
+        // the fixture every gate spec's expectations are written against.
+        // Not part of the stamp digest on purpose: the digest answers which
+        // tree built this server, and the fixture a media run points at is
+        // not the tree.
+        GADAK_MOBILE_API_DB: env.GADAK_MOBILE_API_DB ?? '',
       },
     },
     {

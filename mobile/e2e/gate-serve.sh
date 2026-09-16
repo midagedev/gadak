@@ -204,6 +204,16 @@ case "${1:-}" in
     CGO_ENABLED=0 go build -ldflags "-X main.buildCommit=${API_HEAD} -X main.buildDigest=${API_DIGEST}" -o "$BIN" ./cmd/gadak
     emit_stamp api "$(now_ms)" "$BIN" >"$STAMP"
     echo "[mobile-gate] $(cat "$STAMP")"
+    # GADAK_MOBILE_API_DB (optional): a different snapshot for the localized
+    # media rig (make media-phone), which records over a translated copy of
+    # the fixture. Deliberately not a `need`: that is for values serve.ts
+    # must supply, and this one is optional by design. Unset or empty keeps
+    # the exec line byte-for-byte what the gate has always run — the demo
+    # binary's own --db default (examples/demo.db), which is the fixture
+    # every spec's expectations are written against.
+    if [ -n "${GADAK_MOBILE_API_DB:-}" ]; then
+      exec "$BIN" demo --addr "127.0.0.1:${PORT}" --no-open --db "$GADAK_MOBILE_API_DB"
+    fi
     exec "$BIN" demo --addr "127.0.0.1:${PORT}" --no-open
     ;;
 
