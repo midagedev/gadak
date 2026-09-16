@@ -1,4 +1,18 @@
 import { defineConfig, devices } from '@playwright/test'
+import { execFileSync } from 'node:child_process'
+
+/**
+ * One Go cache path, read here in node where the real environment still is.
+ * The webServer command changes HOME (see the comment below), and Go derives
+ * both of its caches from HOME — so without this the take re-downloads 313 MB
+ * of modules and rebuilds 223 MB of objects under e2e/.tmp on every machine
+ * that has not run it before. Reading it inside the command string does not
+ * work: a `$(…)` in a command prefix runs before the assignments apply, but
+ * the shell Playwright spawns does not carry a PATH with `go` on it.
+ */
+function goEnv(name: 'GOMODCACHE' | 'GOCACHE'): string {
+  return JSON.stringify(execFileSync('go', ['env', name], { encoding: 'utf8' }).trim())
+}
 
 /**
  * Terminal-pane hero (0.18). Separate from e2e/demo/playwright.config.ts so
@@ -44,7 +58,10 @@ import { defineConfig, devices } from '@playwright/test'
  *           — dotfiles, caches, a personal path in an error — leaves with it,
  *           which is why the fix is the variable and not a filter on the line.
  *           GADAK_HOME is separate and set by e2e/serve.sh, so gadak's own
- *           workspace does not move with this.
+ *           workspace does not move with this. GOMODCACHE and GOCACHE are
+ *           pinned back to the real ones: the take builds a gadak binary,
+ *           and a scratch HOME sent Go's caches with it — 544 MB
+ *           re-downloaded under e2e/.tmp on the first run after this landed.
  *   GADAK_E2E_ORIGIN=builtin — the mirror is migrated onto the built-in
  *           tracker so the `gadak claim` beat is a write that lands; the
  *           fixture's Jira credential is fake and a claim against it fails
@@ -80,7 +97,8 @@ export default defineConfig({
     command:
       'GADAK_E2E_PORT=7793 GADAK_FRESHEN=1 GADAK_E2E_ORIGIN=builtin PATH="$PWD/e2e/.tmp:$PATH" SHELL=/bin/sh ' +
       'ENV="$PWD/e2e/demo/prompt.sh" HISTFILE=/dev/null ' +
-      'HOME="$PWD/e2e/.tmp/media-home" bash -c \'mkdir -p "$HOME" && exec bash e2e/serve.sh\'',
+      `HOME="$PWD/e2e/.tmp/media-home" GOMODCACHE=${goEnv('GOMODCACHE')} GOCACHE=${goEnv('GOCACHE')} ` +
+      'bash -c \'mkdir -p "$HOME" && exec bash e2e/serve.sh\'',
     url: 'http://127.0.0.1:7793/healthz',
     reuseExistingServer: false,
     timeout: 180_000,
