@@ -1,9 +1,12 @@
 package server
 
 import (
+	"mime"
 	"net"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
@@ -41,18 +44,36 @@ type Viewer struct {
 // is an in-process call (terminalLocal's rule): no proxy there either, and
 // the same nobody answer.
 func viewerFrom(r *http.Request) Viewer {
-	if !viewerTrustedPeer(r.RemoteAddr) {
-		return Viewer{Source: viewerSourceNone}
-	}
 	login := strings.TrimSpace(r.Header.Get("Tailscale-User-Login"))
 	if login == "" {
+		// Headers first: this runs on every request, and the peer check
+		// below may ask the kernel for interface addresses.
+		return Viewer{Source: viewerSourceNone}
+	}
+	if !viewerTrustedPeer(r.RemoteAddr) {
 		return Viewer{Source: viewerSourceNone}
 	}
 	return Viewer{
 		Login:  login,
-		Name:   strings.TrimSpace(r.Header.Get("Tailscale-User-Name")),
+		Name:   decodeHeaderWord(r.Header.Get("Tailscale-User-Name")),
 		Source: viewerSourceTailscale,
 	}
+}
+
+// decodeHeaderWord unfolds an RFC 2047 encoded-word. Measured 2026-09-16
+// against a live `tailscale serve`: a Korean display name arrives as
+// `=?utf-8?q?=EA=B9=80...?=`, which would otherwise be shown — and stamped
+// as the actor's name — verbatim. Anything that is not an encoded word is
+// returned trimmed, as it came.
+func decodeHeaderWord(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return ""
+	}
+	if dec, err := (&mime.WordDecoder{}).DecodeHeader(v); err == nil {
+		return strings.TrimSpace(dec)
+	}
+	return v
 }
 
 // viewerTrustedPeer is the loopback half of terminalLocal's rule: where the
@@ -65,8 +86,48 @@ func viewerTrustedPeer(addr string) bool {
 		return true
 	}
 	ip := net.ParseIP(stripHostPort(addr))
-	return ip != nil && ip.IsLoopback()
+	if ip == nil {
+		return false
+	}
+	if ip.IsLoopback() {
+		return true
+	}
+	// A serve bound to its tailnet address (`--addr 100.x.y.z:7777
+	// --allow-remote`, the runbook's shape) is reached by `tailscale serve`
+	// from that same address, not from 127.0.0.1 — measured 2026-09-16:
+	// the proxy dials the backend's own IP. A peer that IS one of this
+	// machine's interface addresses is this machine; another tailnet node
+	// cannot present it (WireGuard binds the source to the key), and a
+	// process already on this host is inside the trust boundary anyway.
+	return isLocalInterfaceIP(ip)
 }
+
+// isLocalInterfaceIP reports whether ip is bound to one of this host's
+// interfaces. The answer is cached briefly: interface lists move rarely,
+// and this sits on the request path.
+func isLocalInterfaceIP(ip net.IP) bool {
+	localIPsMu.Lock()
+	defer localIPsMu.Unlock()
+	if time.Since(localIPsAt) > localIPsTTL || localIPs == nil {
+		localIPs = map[string]bool{}
+		if addrs, err := net.InterfaceAddrs(); err == nil {
+			for _, a := range addrs {
+				if n, ok := a.(*net.IPNet); ok && n.IP != nil {
+					localIPs[n.IP.String()] = true
+				}
+			}
+		}
+		localIPsAt = time.Now()
+	}
+	return localIPs[ip.String()]
+}
+
+var (
+	localIPsMu  sync.Mutex
+	localIPs    map[string]bool
+	localIPsAt  time.Time
+	localIPsTTL = 30 * time.Second
+)
 
 // viewerActor derives the acting identity for write attribution from a
 // trusted viewer: the login's local part (before @), validated exactly the

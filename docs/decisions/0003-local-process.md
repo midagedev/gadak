@@ -53,8 +53,9 @@ Consequences:
   `--public-url` / `serve.publicUrls`, plus the node's own MagicDNS name when
   `tailscale status` can supply it. Any other DNS name is still 403.
 - Identity comes from `tailscale serve` (`Tailscale-User-Login`, `-Name`), read
-  only when the request arrives from loopback — that is the only path a
-  trustworthy copy can take. A direct tailnet bind has no identity and
+  only when the request arrives from this machine (loopback or the host's
+  own interface address) — the only peers a `tailscale serve` proxy dials
+  from, and the only path a trustworthy copy can take. A direct tailnet bind has no identity and
   attributes writes as it did before.
 - The phone opens `…/m/` in its browser: the same bundle the native shell
   wrapped, now embedded in the binary. Pairing stays for other machines'

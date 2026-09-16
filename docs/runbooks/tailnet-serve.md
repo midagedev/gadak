@@ -143,7 +143,8 @@ found at startup, plus any `--public-url` origin passed to `serve` or stored
 as `serve.publicUrls`. The pairing in steps 5–6 is for other `gadak`
 machines, not the phone's browser.
 
-Who the phone is: `tailscale serve` proxies from the host's own loopback and
+Who the phone is: `tailscale serve` proxies from the host itself (loopback, or
+the host's own tailnet address when the serve is bound there) and
 stamps `Tailscale-User-Login`/`-Name` headers it verified itself; the serve
 reads those (and only those — the same headers from any other peer are just
 headers), `GET /api/v1/viewer/` reports the person, and writes on the

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -193,7 +194,13 @@ func fakeTailscale(t *testing.T, body string, sleep time.Duration) string {
 	dir := t.TempDir()
 	script := "#!/bin/sh\n"
 	if sleep > 0 {
-		script += "sleep " + sleep.String() + "\n"
+		// Absolute path and whole seconds on purpose (CI run 35089699488,
+		// 2026-09-16): t.Setenv("PATH", dir) below leaves the script with
+		// no PATH to find `sleep`, so a bare `sleep 30s` printed
+		// "not found" and fell through to printf — the timeout case
+		// returned the name in 0.00s on the Linux runner while macOS,
+		// whose /bin/sh resolves builtins differently, stayed green.
+		script += fmt.Sprintf("/bin/sleep %d\n", int(sleep.Seconds()))
 	}
 	script += "printf '%s' " + shellQuote(body) + "\n"
 	if err := os.WriteFile(filepath.Join(dir, "tailscale"), []byte(script), 0o755); err != nil {

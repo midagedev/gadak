@@ -175,7 +175,13 @@ func tailscaleDNSName(timeout time.Duration) string {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, path, "status", "--json").Output()
+	cmd := exec.CommandContext(ctx, path, "status", "--json")
+	// The timeout kills `tailscale`, but Output() also waits for the stdout
+	// pipe to close, and a child the CLI spawned can hold it open past the
+	// kill. WaitDelay bounds that wait so a hung probe costs the serve one
+	// timeout, never a hang at startup.
+	cmd.WaitDelay = timeout
+	out, err := cmd.Output()
 	if err != nil {
 		log.Printf("serve: tailscale status --json failed (%v) — MagicDNS name not added to allowed hosts", err)
 		return ""

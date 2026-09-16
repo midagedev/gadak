@@ -201,8 +201,9 @@ host allowlist that widens the rebinding guard for exactly those names —
 reaching a listed name is the credential, the tailnet being the audience
 (`internal/server/host_policy.go`). Viewer identity headers
 (`Tailscale-User-Login`/`-Name`) are trusted only when the connection
-arrives from loopback — i.e. from a `tailscale serve` proxy on the same
-machine — and are read nowhere else (`internal/server/viewer.go`).
+arrives from this machine — loopback, or one of the host's own interface
+addresses, which is where a `tailscale serve` proxy dials a serve bound to
+its tailnet IP — and are read nowhere else (`internal/server/viewer.go`).
 
 Each surface takes only its own scope: `gadak pairing mint --scope origin`
 (the default) rides the passthrough and is refused on the mirror REST;

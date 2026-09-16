@@ -1,6 +1,7 @@
 package server
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -145,5 +146,48 @@ func TestServeHTTPAttachesViewerActorContext(t *testing.T) {
 	req3.Header.Set("Tailscale-User-Login", "kim@example.com")
 	if got := h.s.withViewerActor(req3); got != req3 {
 		t.Fatal("withViewerActor attached the viewer actor for a non-loopback peer")
+	}
+}
+
+// The proxy's peer address is the backend's own when the serve is bound to
+// its tailnet IP (measured 2026-09-16 on the GDK host): the machine's own
+// interface address counts as this machine, a foreign address never does.
+func TestViewerTrustsOwnInterfaceAddress(t *testing.T) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		t.Skip("no interface list")
+	}
+	var own string
+	for _, a := range addrs {
+		if n, ok := a.(*net.IPNet); ok && n.IP != nil && !n.IP.IsLoopback() && n.IP.To4() != nil {
+			own = n.IP.String()
+			break
+		}
+	}
+	if own == "" {
+		t.Skip("no non-loopback IPv4 interface on this host")
+	}
+	if !viewerTrustedPeer(own + ":51234") {
+		t.Fatalf("own interface address %s should be a trusted peer", own)
+	}
+	if viewerTrustedPeer("192.0.2.77:51234") {
+		t.Fatal("a foreign address must not be a trusted peer")
+	}
+}
+
+// Tailscale sends non-ASCII display names as RFC 2047 encoded-words
+// (measured 2026-09-16: a Korean name arrived as =?utf-8?q?…?=).
+func TestViewerDecodesEncodedName(t *testing.T) {
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/viewer/", nil)
+	r.RemoteAddr = "127.0.0.1:40000"
+	r.Header.Set("Tailscale-User-Login", "dana@example.com")
+	r.Header.Set("Tailscale-User-Name", "=?utf-8?q?=EA=B9=80=ED=98=84=EC=B2=A0?=")
+	v := viewerFrom(r)
+	if v.Name != "김현철" {
+		t.Fatalf("Name = %q, want the decoded word", v.Name)
+	}
+	r.Header.Set("Tailscale-User-Name", "Dana Whitfield")
+	if v := viewerFrom(r); v.Name != "Dana Whitfield" {
+		t.Fatalf("plain name changed: %q", v.Name)
 	}
 }
