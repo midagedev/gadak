@@ -206,39 +206,24 @@ const jsonLd = JSON.stringify({
                 <span class="badge">{t.phone.badge}</span>
               </h2>
               <p set:html={t.phone.body} />
-              {/* Three stills, not a clip: a phone screen reads from one frame
-                  (docs/project/MEDIA.md, the landing media policy). Shot at the
-                  app's own 402x874 rather than cropped out of a desktop capture,
-                  which is the unreadable shape docs/runbooks/release-video.md
-                  measured. No bezel and no invented status bar — the picture is
-                  the app's own viewport. */}
+              {/* One take, not three stills. The landing media policy sent a
+                  phone screen to a still on the rule that it reads from one
+                  frame; the user reversed that on 2026-09-16, and what the
+                  stills could not say is the part that is new — the phone is
+                  the same cache, navigated. Recorded at the app's own 402x874
+                  @3x rather than cropped out of a desktop capture, which is
+                  the unreadable shape docs/runbooks/release-video.md measured.
+                  No bezel and no invented status bar: the picture is the app's
+                  own viewport. Each locale has its own take (MEDIA_LOCALES). */}
               <figure class="shots">
-                <div class="row">
-                  <img
-                    src={mediaFor(lang, '/media/phone-list.png')}
-                    alt={t.phone.alt.list}
-                    loading="lazy"
-                    decoding="async"
-                    width="1206"
-                    height="2622"
-                  />
-                  <img
-                    src={mediaFor(lang, '/media/phone-detail.png')}
-                    alt={t.phone.alt.detail}
-                    loading="lazy"
-                    decoding="async"
-                    width="1206"
-                    height="2622"
-                  />
-                  <img
-                    src={mediaFor(lang, '/media/phone-palette.png')}
-                    alt={t.phone.alt.palette}
-                    loading="lazy"
-                    decoding="async"
-                    width="1206"
-                    height="2622"
-                  />
-                </div>
+                <MediaSlot
+                  slot={t.landing.phoneSlot}
+                  src={mediaFor(lang, '/media/phone.mp4')}
+                  poster={mediaFor(lang, '/media/phone-poster.png')}
+                  alt={t.phone.alt}
+                  displayWidth={300}
+                  autoplay
+                />
                 <figcaption>{t.phone.caption}</figcaption>
               </figure>
               <p class="note">{t.phone.note}</p>
@@ -570,32 +555,31 @@ const jsonLd = JSON.stringify({
        nudge it back onto the cap line. */
     transform: translateY(-0.15em);
   }
-  /* Three phone frames across on a wide column, wrapping to two and one as the
-     column narrows. Each still is 1206x2622, so the cap is what keeps a 2622px
-     image from deciding the section's height. */
+  /* The take is 1206x2622 — a 2.17:1 column. Left at the section's width it
+     would be taller than any screen it plays on, so the slot caps it at
+     300px (MediaSlot displayWidth) and this rounds its corners the way the
+     stills before it were rounded. */
   .phone .shots {
-    margin: 1.25rem 0 0;
+    margin: 0;
   }
-  .phone .shots .row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
-    justify-content: center;
-  }
-  .phone .shots img {
-    width: 100%;
-    max-width: 200px;
-    height: auto;
-    border: 1px solid var(--border);
+  .phone .shots :global(video) {
     border-radius: calc(var(--radius) * 1.5);
-    background: var(--panel);
-    display: block;
+    /* The phone's own viewport, so the box is the right height before the
+       first byte of video arrives and the section does not jump. */
+    aspect-ratio: 402 / 874;
   }
   .phone figcaption {
     margin-top: 0.75rem;
     font-size: 0.8125rem;
     color: var(--ink-3);
     text-align: center;
+  }
+  /* The caption belongs to the clip; the note under it is the section's own
+     sentence about the beta. At the paragraph's default spacing the two read
+     as one block, and the caption becomes the note's first line — reported
+     in the 2026-09-16 review of this section. */
+  .phone .note {
+    margin-top: 1.75rem;
   }
   .exhibit {
     display: grid;

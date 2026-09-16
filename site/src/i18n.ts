@@ -102,7 +102,8 @@ export interface Strings {
     body: string
     note: string
     caption: string
-    alt: { list: string; detail: string; palette: string }
+    /** The clip's description, read by anyone the video itself does not reach. */
+    alt: string
   }
   /** en only: the official hosted server, compared on capability and operating cost. */
   compare?: {
@@ -155,7 +156,13 @@ export interface Strings {
     caution: string
     links: ReadonlyArray<{ href: string; label: string }>
   }
-  landing: { flagshipSlot: string; searchSlot: string; agentSlot: string; allPlatforms: string }
+  landing: {
+    flagshipSlot: string
+    searchSlot: string
+    agentSlot: string
+    phoneSlot: string
+    allPlatforms: string
+  }
   /** `nameNote` is the one sentence the name gets, and the only place it is explained (fact ledger §1). */
   footer: { builtBy: string; whereBytes: string; nameNote: string }
   /**
@@ -298,12 +305,9 @@ export const strings: Record<Locale, Strings> = {
       note:
         'Beta, and that is the whole status: builds go to TestFlight for internal testers, and there is no public download. An App Store listing waits on a way for a reviewer to see the app without joining your network.',
       caption:
-        'Recorded from the app at its own size over the demo snapshot, one take per language.',
-      alt: {
-        list: 'The phone list: the workspace heading, the active sprint on one line with its goal and days left, and the issues under it',
-        detail: 'An issue on the phone: status and priority, the Fields section with its parent, labels and components, and the attachments three across',
-        palette: 'The palette open in the heading, where the tab bar used to be: recent issues, views, filters, spaces and the terminal',
-      },
+        'One take per language, recorded from the app at its own size over the demo snapshot.',
+      alt:
+        'The phone app in one take: the issue list with the active sprint on a line of its own, the same list scrolled, the palette open in the heading where a tab bar would be, NMB-110 typed into it, and the issue itself — status, priority, the Fields block and its three attachments.',
     },
     connect: {
       label: 'Before you connect work data',
@@ -379,6 +383,7 @@ export const strings: Record<Locale, Strings> = {
       flagshipSlot: 'recording · 20k mirror',
       searchSlot: 'search',
       agentSlot: 'agent in the window',
+      phoneSlot: 'the phone, one take',
       allPlatforms: 'All platforms →',
     },
     footer: {
@@ -459,12 +464,9 @@ export const strings: Record<Locale, Strings> = {
         '아이폰 앱은 이미 돌리고 있는 <code>gadak serve</code>에 페어링한다. 자기 네트워크 안에서 끝나고, 중간에 계정도 남의 서버도 없다. 캐시가 가진 것은 폰도 보여준다 — 필드, 첨부, 연결된 이슈, 위키, 진행 중인 스프린트와 그 뒤의 전부. 한 줄로 끝나는 수정은 폰에서 끝난다. 코멘트, 라벨, 마감일, 사진, 에픽 밑에 새 이슈. 쓰기는 데스크톱과 똑같이 원본을 먼저 통과한다. 페이지나 커스텀 필드 편집, 뷰 작성, 대시보드 배치, 카드 끌기는 데스크톱 몫이고, 앱이 그 컨트롤 자리에서 그렇게 말한다.',
       note:
         '베타이고 상태는 그게 전부다. 빌드는 내부 테스터용 TestFlight 로만 가고 공개 다운로드는 없다. 스토어 등록은 심사자가 내 네트워크에 들어오지 않고도 앱을 볼 수 있는 경로가 먼저다.',
-      caption: '데모 스냅샷 위에서 앱을 자기 크기 그대로 찍었다. 언어마다 한 번씩.',
-      alt: {
-        list: '폰 목록 화면 — 워크스페이스 헤딩, 진행 중인 스프린트가 목표와 남은 날짜까지 한 줄로, 그 아래 이슈들',
-        detail: '폰 상세 화면 — 상태와 우선순위, 상위 이슈·라벨·컴포넌트가 들어간 Fields 구역, 첨부 이미지 세 개가 가로로',
-        palette: '탭바가 있던 자리에 열린 팔레트 — 최근 이슈, 뷰, 필터, 스페이스, 터미널',
-      },
+      caption: '데모 스냅샷 위에서 앱을 자기 크기 그대로 한 번에 찍었다. 언어마다 한 번씩.',
+      alt:
+        '폰 앱을 한 번에 — 진행 중인 스프린트가 한 줄로 얹힌 이슈 목록, 같은 목록을 내린 화면, 탭바가 있을 자리에 열리는 팔레트, 거기 입력한 NMB-110, 그리고 그 이슈의 상태와 우선순위·Fields 구역·첨부 세 장.',
     },
     connect: {
       label: '연결하기 전에',
@@ -539,6 +541,7 @@ export const strings: Record<Locale, Strings> = {
       flagshipSlot: '검색 녹화 · 이슈 2만 건',
       searchSlot: '검색',
       agentSlot: '앱 안의 Claude Code',
+      phoneSlot: '폰 화면 녹화',
       allPlatforms: '다른 플랫폼 →',
     },
     footer: {
@@ -632,12 +635,9 @@ export const strings: Record<Locale, Strings> = {
         'iOSアプリは、すでに動かしている<code>gadak serve</code>とペアリングします。自分のネットワークの中で完結し、あいだにアカウントも他社のサーバーも入りません。キャッシュにあるものは電話にも出ます—フィールド、添付、リンクされた課題、ウィキ、進行中のスプリントとその前後。一行で済む変更は電話で終わります。コメント、ラベル、期限、写真、エピック配下の新規課題。書き込みはデスクトップと同じく接続先を先に通ります。ページやカスタムフィールドの編集、ビューの作成、ダッシュボードの配置、カードの移動はデスクトップの仕事で、アプリはそのコントロールがある場所でそう伝えます。',
       note:
         'ベータで、状態はそれがすべてです。ビルドは内部テスター向けのTestFlightにのみ配られ、一般向けのダウンロードはありません。App Storeへの掲載は、審査者がこちらのネットワークに入らずにアプリを確認できる経路が先です。',
-      caption: 'デモスナップショットの上で、アプリを実寸のまま撮影しました。言語ごとに一度ずつ。',
-      alt: {
-        list: '電話の一覧画面—ワークスペースの見出し、進行中のスプリントが目標と残り日数まで一行で、その下に課題',
-        detail: '電話の詳細画面—ステータスと優先度、親課題・ラベル・コンポーネントを並べたFields欄、添付画像が横に三つ',
-        palette: 'タブバーがあった場所に開いたパレット—最近の課題、ビュー、フィルター、スペース、ターミナル',
-      },
+      caption: 'デモスナップショットの上で、アプリを実寸のまま一続きで撮影しました。言語ごとに一度ずつ。',
+      alt:
+        'アプリを一続きで—進行中のスプリントが一行で乗った課題一覧、同じ一覧をスクロールした画面、タブバーがあるはずの場所に開くパレット、そこへ入力したNMB-110、そしてその課題のステータスと優先度・Fields欄・三つの添付。',
     },
     connect: {
       label: '導入前に確認したいこと',
@@ -709,6 +709,7 @@ export const strings: Record<Locale, Strings> = {
       flagshipSlot: '録画·課題2万件',
       searchSlot: '検索',
       agentSlot: 'ウィンドウの中のエージェント',
+      phoneSlot: '電話の画面録画',
       allPlatforms: 'すべてのプラットフォーム→',
     },
     footer: {
@@ -764,12 +765,12 @@ export const MEDIA_LOCALES: Record<string, readonly Exclude<Locale, 'en'>[]> = {
   '/media/search-poster.png': ['ko', 'ja'],
   '/media/terminal-hero.mp4': ['ko', 'ja'],
   '/media/terminal-hero-poster.png': ['ko', 'ja'],
-  // The phone stills (GDK-1932). Same rule as the clips: the app's own UI is
-  // in the pixels and the cache under it is translated, so each locale has
-  // its own take — `make media-phone` with GADAK_MEDIA_LOCALE.
-  '/media/phone-list.png': ['ko', 'ja'],
-  '/media/phone-detail.png': ['ko', 'ja'],
-  '/media/phone-palette.png': ['ko', 'ja'],
+  // The phone clip (GDK-1955, replacing the three stills of GDK-1932 on the
+  // user's call of 2026-09-16). Same rule as the clips above: the app's own
+  // UI is in the pixels and the cache under it is translated, so each locale
+  // has its own take — `make media-phone-clip` with GADAK_MEDIA_LOCALE.
+  '/media/phone.mp4': ['ko', 'ja'],
+  '/media/phone-poster.png': ['ko', 'ja'],
 }
 
 /**

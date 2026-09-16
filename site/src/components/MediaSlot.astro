@@ -17,6 +17,10 @@ interface Props {
   alt?: string
   displayWidth?: number
 }
+// `alt` describes a still; on a video it becomes the element's aria-label,
+// which is the only description a reader who cannot watch it ever gets. A
+// clip that carries its claim in its pixels (the phone exhibit, GDK-1955)
+// must pass one.
 const { slot, note, src, poster, autoplay, still, alt, displayWidth } = Astro.props
 ---
 
@@ -39,6 +43,8 @@ const { slot, note, src, poster, autoplay, still, alt, displayWidth } = Astro.pr
         autoplay={autoplay}
         poster={poster}
         src={src}
+        aria-label={alt}
+        style={displayWidth ? `max-width: min(100%, ${displayWidth}px)` : undefined}
       />
     ) : (
       <div class="empty">
@@ -55,6 +61,7 @@ const { slot, note, src, poster, autoplay, still, alt, displayWidth } = Astro.pr
   }
   .slot :global(video) {
     width: 100%;
+    margin: 0 auto;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--panel);

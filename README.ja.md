@@ -276,9 +276,7 @@ iOS アプリは、すでに動かしている `gadak serve` とペアリング�
 デスクトップの仕事で、アプリはそのコントロールがある場所でそう伝えます。
 
 <p align="center">
-  <img src="docs/media/phone-list.ja.png" alt="電話の一覧画面 — ワークスペースの見出し、進行中のスプリントが目標と残り日数まで一行で、その下に課題" width="230">
-  <img src="docs/media/phone-detail.ja.png" alt="電話の詳細画面 — ステータスと優先度、親課題・ラベル・コンポーネントを並べた Fields 欄、添付画像が横に三つ" width="230">
-  <img src="docs/media/phone-palette.ja.png" alt="タブバーがあった場所に開いたパレット — 最近の課題、ビュー、フィルター、スペース、ターミナル" width="230">
+  <img src="docs/media/phone.ja.gif" alt="アプリを一続きで — 進行中のスプリントが一行で乗った課題一覧、同じ一覧をスクロールした画面、タブバーがあるはずの場所に開くパレット、そこへ入力した NMB-110、そしてその課題のステータスと優先度・Fields 欄・三つの添付" width="260">
 </p>
 
 ベータで、状態はそれがすべてです。ビルドは内部テスター向けの TestFlight にのみ配られ、

@@ -206,9 +206,7 @@ authoring a view, laying out a dashboard and moving cards stay on the desktop,
 and the app says so where the control would be.
 
 <p align="center">
-  <img src="docs/media/phone-list.png" alt="The phone list: the workspace heading, the active sprint on one line with its goal and days left, and the issues under it" width="230">
-  <img src="docs/media/phone-detail.png" alt="An issue on the phone: status and priority, the Fields section with its parent, labels and components, and the attachments three across" width="230">
-  <img src="docs/media/phone-palette.png" alt="The palette open in the heading, where the tab bar used to be: recent issues, views, filters, spaces and the terminal" width="230">
+  <img src="docs/media/phone.gif" alt="One take of the phone app: the issue list with the active sprint on a line of its own, the same list scrolled, the palette open in the heading where a tab bar would be, NMB-110 typed into it, and the issue itself — status, priority, the Fields block and its three attachments" width="260">
 </p>
 
 **Beta, and that is the whole status.** Builds go to TestFlight for internal

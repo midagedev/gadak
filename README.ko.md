@@ -184,9 +184,7 @@ Linear로 옮길 때는 `--to linear`를 붙입니다. 다른 컴퓨터와 페�
 말합니다.
 
 <p align="center">
-  <img src="docs/media/phone-list.ko.png" alt="폰 목록 화면 — 워크스페이스 헤딩, 진행 중인 스프린트가 목표와 남은 날짜까지 한 줄로, 그 아래 이슈들" width="230">
-  <img src="docs/media/phone-detail.ko.png" alt="폰 상세 화면 — 상태와 우선순위, 상위 이슈·라벨·컴포넌트가 들어간 Fields 구역, 첨부 이미지 세 개가 가로로" width="230">
-  <img src="docs/media/phone-palette.ko.png" alt="탭바가 있던 자리에 열린 팔레트 — 최근 이슈, 뷰, 필터, 스페이스, 터미널" width="230">
+  <img src="docs/media/phone.ko.gif" alt="폰 앱을 한 번에 — 진행 중인 스프린트가 한 줄로 얹힌 이슈 목록, 같은 목록을 내린 화면, 탭바가 있을 자리에 열리는 팔레트, 거기 입력한 NMB-110, 그리고 그 이슈의 상태와 우선순위·Fields 구역·첨부 세 장" width="260">
 </p>
 
 베타이고 상태는 그게 전부입니다. 빌드는 내부 테스터용 TestFlight로만 가고 공개
