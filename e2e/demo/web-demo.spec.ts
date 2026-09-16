@@ -143,14 +143,23 @@ test.describe('web UI demo', () => {
     await expect(docPanel).toHaveCount(0)
     await beat(page, 300)
 
-    // ── Board: the same open work as columns, one click from the list ────
+    // ── Board: the work no Jira can list, as columns ─────────────────────
     // The startup view is already the epic breakdown when the mirror has
     // epics (startup-view.ts), so an "Epics" beat would repeat the boot
     // frame. The layout toggle is the beat that shows something new — it
     // lives in the list toolbar, so leave the documents column first.
-    const allOpen = page.getByRole('button', { name: /All open/ })
-    await allOpen.scrollIntoViewIfNeeded()
-    await allOpen.click()
+    //
+    // Reopened, not All open (GDK-1941). Two reasons, and the second is the
+    // one that made this a defect. Reopened is derived from the changelog
+    // while syncing, so it is the one view on the list that no Jira shows on
+    // its own (builtin-views.ts) — the strongest last sentence the tour has.
+    // And a board is three status columns always (BoardView.svelte, on
+    // purpose: an empty Done is an answer and a card must be seen arriving),
+    // so a view filtered to open work ends the clip on a third of the frame
+    // reading "DONE 0 / Nothing here". Reopened carries all three.
+    const boardView = page.getByRole('button', { name: /Reopened/ })
+    await boardView.scrollIntoViewIfNeeded()
+    await boardView.click()
     await expect(page.getByTestId('issue-list-scroller')).toBeVisible()
     await beat(page, 1000)
     await page.getByTestId('view-settings').click()
@@ -162,6 +171,21 @@ test.describe('web UI demo', () => {
     await page.keyboard.press('Escape')
     await expect(page.getByTestId('layout-board')).toBeHidden()
     await beat(page, 1800)
+
+    // The clip may not end on an empty frame (GDK-1941, and GDK-1491 before
+    // it — that take ended on "No issues match" with every gate green). The
+    // rule is the ending, so the assertion is on the ending: every status
+    // column the board draws carries at least one card in the last frame.
+    const columns = page.getByTestId('board-column')
+    await expect(columns).not.toHaveCount(0)
+    const cards = await columns.evaluateAll((nodes) =>
+      nodes.map((n) => ({
+        key: n.getAttribute('data-board-column') ?? '?',
+        cards: n.querySelectorAll('[data-testid="board-card"]').length,
+      })),
+    )
+    const empty = cards.filter((c) => c.cards === 0).map((c) => c.key)
+    expect(empty, `the last frame ends on empty board columns: ${empty.join(', ')}`).toEqual([])
 
     await expect(listCount(page)).toBeVisible()
     await beat(page, 1400)

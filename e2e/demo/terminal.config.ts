@@ -34,6 +34,17 @@ import { defineConfig, devices } from '@playwright/test'
  *           of thing MEDIA.md's privacy rule exists to keep out.
  *   PS1/ENV/HISTFILE — a bare `$ ` prompt, no startup file, no history on
  *           disk. `ENV=/dev/null` is what stops sh from sourcing one.
+ *   HOME  — a scratch directory, not the recorder's (GDK-1940). This was the
+ *           one inherited thing the list above forgot, and it reached the
+ *           frame: the 0.23 take printed `warning: skill file differs from
+ *           this build — run `gadak skill install`` three times in the pane,
+ *           because the recorder's own ~/.claude/skills copy was behind and
+ *           gadak is right to say so. The product is not wrong there; a
+ *           publication clip that shows it is. Every other HOME-derived leak
+ *           — dotfiles, caches, a personal path in an error — leaves with it,
+ *           which is why the fix is the variable and not a filter on the line.
+ *           GADAK_HOME is separate and set by e2e/serve.sh, so gadak's own
+ *           workspace does not move with this.
  *   GADAK_E2E_ORIGIN=builtin — the mirror is migrated onto the built-in
  *           tracker so the `gadak claim` beat is a write that lands; the
  *           fixture's Jira credential is fake and a claim against it fails
@@ -68,7 +79,8 @@ export default defineConfig({
   webServer: {
     command:
       'GADAK_E2E_PORT=7793 GADAK_FRESHEN=1 GADAK_E2E_ORIGIN=builtin PATH="$PWD/e2e/.tmp:$PATH" SHELL=/bin/sh ' +
-      'ENV="$PWD/e2e/demo/prompt.sh" HISTFILE=/dev/null bash e2e/serve.sh',
+      'ENV="$PWD/e2e/demo/prompt.sh" HISTFILE=/dev/null ' +
+      'HOME="$PWD/e2e/.tmp/media-home" bash -c \'mkdir -p "$HOME" && exec bash e2e/serve.sh\'',
     url: 'http://127.0.0.1:7793/healthz',
     reuseExistingServer: false,
     timeout: 180_000,

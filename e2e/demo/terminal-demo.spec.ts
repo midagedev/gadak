@@ -30,6 +30,23 @@ import { test, expect } from '../helpers'
 import { attachConsoleErrors, forceLocale } from '../helpers'
 import { readTerm } from '../term-read'
 
+/**
+ * The pane may say only what the product said (GDK-1940). A `warning:` or
+ * `error:` line in a publication clip is the recorder's machine talking —
+ * a stale skill copy, a missing credential, a personal path — and every one
+ * of them is a thing the frame promises is not there. Call it at each point
+ * the clip is about to throw scrollback away.
+ */
+async function expectNoMachineState(page: Parameters<typeof readTerm>[0]) {
+  const noise = (await readTerm(page))
+    .split('\n')
+    .filter((line) => /^\s*(warning|error):/i.test(line))
+  expect(
+    noise,
+    `the pane carried machine state into the frame:\n${noise.join('\n')}`,
+  ).toEqual([])
+}
+
 const isMedia = !!process.env.GADAK_MEDIA
 
 /** Pause between beats so a human can read the frame. */
@@ -125,6 +142,16 @@ test.describe('terminal demo', () => {
     await expect(page.getByTestId('list-count')).toHaveText(/\b5\b/, { timeout: 30_000 })
     await beat(page, 2200)
 
+    // GDK-1940: nothing the recorder's machine happens to be carrying may
+    // reach the pane. The 0.23 take printed `warning: skill file differs from
+    // this build` three times because the PTY inherited the operator's HOME,
+    // and the rig was green through all of it — a clip is only deterministic
+    // if what it does NOT show is asserted too. The product is right to warn;
+    // the config gives the pane a scratch HOME so there is nothing to warn
+    // about. Sampled here rather than at the end because the next line is
+    // `clear`, which takes the scrollback with it.
+    await expectNoMachineState(page)
+
     // Beat 4 — and you do not have to leave JQL to get one. Two beats
     // because the pipe alone reads as "gadak wants SQL".
     await typeLine(page, 'clear')
@@ -139,6 +166,8 @@ test.describe('terminal demo', () => {
       page.locator('[data-testid="issue-list-scroller"] [data-issue-key]').first(),
     ).toBeVisible({ timeout: 10_000 })
     await beat(page, 2400)
+
+    await expectNoMachineState(page)
 
     // Beat 5 — the pane closes, the view it produced stays.
     await page.keyboard.press('Control+Backquote')

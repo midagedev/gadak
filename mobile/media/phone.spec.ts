@@ -3,17 +3,15 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, statSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { en, ja, ko } from '../../web/src/lib/i18n/catalog'
 import { mediaLocale, mediaLocaleTag } from '../media.config'
 
 /*
- * The publication stills (GDK-1501's phone half). Four frames, the four
+ * The publication stills (GDK-1501's phone half). Three frames, the three
  * surfaces a landing page or a README can spend a picture on:
  *
  *   phone-list     the list a person lands on, active-sprint line and all
  *   phone-palette  the scope palette over it
  *   phone-detail   NMB-110 — fields and attachments, the two summary blocks
- *   phone-sprints  the sprint list
  *
  * Unlike shots/ (scratch/, throwaway), these land in docs/media/ as committed
  * assets under the locale-variant naming (docs/project/MEDIA.md: the tag is
@@ -31,13 +29,6 @@ const MEDIA_DIR = join(repoRoot, 'docs', 'media')
 
 /** '' for en, '.ko' / '.ja' for the variants — the committed-asset convention. */
 const suffix = mediaLocale === 'en' ? '' : `.${mediaLocale}`
-
-/** The sprints palette row is found by its own translated word, not by position. */
-const SPRINTS_TITLE = {
-  en: en['sprints.title'],
-  ko: ko['sprints.title'],
-  ja: ja['sprints.title'],
-}[mediaLocale]
 
 /** The config's viewport height, in css px — the fold measurements answer to it. */
 const FRAME_HEIGHT = 874
@@ -142,26 +133,6 @@ test(`phone publication stills (${mediaLocale})`, async ({ page }) => {
       `(${gridBox && gridBox.y + gridBox.height <= FRAME_HEIGHT ? 'whole grid inside the frame' : 'grid runs past the fold'})`,
   )
   await shoot(page, 'detail')
-
-  /* ── phone-sprints ── */
-  // openIssue does not close the palette (store.svelte.ts), so it is still
-  // mounted behind the detail layer with the NMB-110 query in it. The sprints
-  // row only renders in empty-query mode, so clear the field before looking
-  // for it. The match must be exact, not a substring: in ko the active
-  // sprint's own scope row ("진행 중인 스프린트") also contains the word and
-  // sits higher in the palette — the first measured run clicked it and
-  // re-scoped the list instead of opening the sprints screen. No .first():
-  // if two rows ever tie, strict mode failing loudly is the wanted outcome.
-  await page.locator('.detail-layer button.back').click()
-  await page.locator('.palette-field input').waitFor()
-  await page.locator('.palette-field input').fill('')
-  const sprintsRow = page
-    .locator('button.palette-row')
-    .filter({ has: page.getByText(SPRINTS_TITLE, { exact: true }) })
-  await sprintsRow.waitFor()
-  await sprintsRow.click()
-  await page.locator('.pane:not(.off) [data-testid="sprints-row"]').first().waitFor()
-  await shoot(page, 'sprints')
 
   /* ── provenance ── */
   // Printed, not written to a file: the PNGs are the committed assets; the
