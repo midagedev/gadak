@@ -59,6 +59,33 @@ if [[ "$TAKE_LOCALE" != "$LOCALE" ]]; then
 fi
 echo "export-phone-clip: source $WEBM (locale $LOCALE, take.json agrees)"
 
+# What the take says it wrote, read back from the app rather than from the
+# requests it sent (phone-clip.spec.ts's `writes`). The clip's whole claim
+# after the halfway mark is that the phone writes, and a serve that quietly
+# refused every write would still record a perfectly valid film of someone
+# tapping disabled controls — which is the shape that put a clip ending on
+# "No issues match" on the site for four days (GDK-1491). So the artifact is
+# not cut unless the take can name what changed.
+TAKE_WRITES="$(python3 -c "
+import json
+print(' | '.join(json.load(open('$TAKE_JSON')).get('writes') or []))
+")"
+if [[ -z "$TAKE_WRITES" ]]; then
+  echo "export-phone-clip: the take recorded no writes." >&2
+  echo "  the clip's second half is the phone writing; a take with an empty ledger filmed disabled controls." >&2
+  echo "  the rig needs a writable origin: make media-phone-clip sets GADAK_MOBILE_API_WRITABLE=1 (gadak demo --writable, GDK-1959)." >&2
+  exit 7
+fi
+echo "export-phone-clip: the take wrote — $TAKE_WRITES"
+
+# Where the README's cut opens. The take names it (phone-clip.spec.ts
+# markGifCut): seconds from the start of the recording, on the frame where
+# the issue is on screen and everything after is a write.
+GIF_FROM="$(python3 -c "
+import json
+print(json.load(open('$TAKE_JSON')).get('gifFrom') or 0)
+")"
+
 # Open on the frame the take closes on. The clip loops on the landing, and
 # its last beat is deliberately the screen its first beat opened on — so the
 # head trim is not a clock reading, it is that contract measured: step
@@ -163,13 +190,27 @@ echo "export-phone-clip: frame-fill guard ok — bottom-right quadrant luma $GUA
 # colours give way before width.
 PALETTE="$(mktemp "${TMPDIR:-/tmp}/gadak-phone-palette.XXXXXX").png"
 
+# The GIF is a cut, not the whole take (GDK-1962). A phone screen in motion
+# is the worst case this format has — almost every pixel changes every frame —
+# and the write take is 28s: the whole of it came out at 4.59 MB even at
+# fps 9, so the ladder dropped to fps 8 and 64 colours to fit, which is the
+# setting that costs the typed comment its letters. Halving the duration buys
+# that back at the top of the ladder instead. The offset is the take's own
+# (GIF_FROM) minus the head trim the mp4 already applied, because the cut is
+# measured from the recording and this input starts at $START.
+GIF_SS="$(python3 -c "
+start, frm = float('$START'), float('$GIF_FROM')
+print(f'{max(0.0, frm - start):.2f}')
+")"
+echo "export-phone-clip: gif cut opens at ${GIF_SS}s of the mp4 (take marked ${GIF_FROM}s, mp4 opens at ${START}s)"
+
 make_gif() {
   local fps="$1" width="$2" colors="$3"
   echo "export-phone-clip: palette 2-pass gif fps=${fps} width=${width} colors=${colors}" >&2
-  ffmpeg -y -v error -i "$MP4" \
+  ffmpeg -y -v error -ss "$GIF_SS" -i "$MP4" \
     -vf "fps=${fps},scale=${width}:-1:flags=lanczos,palettegen=max_colors=${colors}:stats_mode=diff" \
     "$PALETTE"
-  ffmpeg -y -v error -i "$MP4" -i "$PALETTE" \
+  ffmpeg -y -v error -ss "$GIF_SS" -i "$MP4" -i "$PALETTE" \
     -lavfi "fps=${fps},scale=${width}:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle" \
     "$GIF"
   if command -v gifsicle >/dev/null; then

@@ -34,11 +34,21 @@ What stays on the desk — editing a page or a custom field, authoring a view,
 laying out a dashboard, moving cards — says so in one dimmed line where you
 would look for it ([GDK-1874]). The phone reaches the project's public
 surfaces for the first time: the landing page and the three READMEs carry a
-recorded walk through the app — the list, the palette, an issue and back —
-marked beta ([GDK-1932], [GDK-1955]). The demo cache those takes record over
-is English again: two wiki pages in it were Korean end to end, and the census
-that gates the translated copies now runs against the English one too, so the
-next such page fails a check rather than a reviewer ([GDK-1956]).
+recorded walk through the app — the list, the palette, an issue, and then the
+phone writing to it: the status moved, a comment typed, a photo attached
+([GDK-1932], [GDK-1955], [GDK-1962]). Those writes are not staged, because
+`gadak demo --writable` serves the bundled snapshot as a tracker of its own
+instead of as a cache with no credential — which is also how a store reviewer
+can now see the half of the app that writes ([GDK-1959]). Moving a workspace
+onto that tracker got the two things it had been quietly dropping: attachment
+bytes, which `migrate` looked for only at an origin it could not always reach
+even though the files were already on the disk ([GDK-1960]), and sprints,
+which the export left behind entirely — 86 issues arrived with no sprint and
+the report filed it under what the destination could not take ([GDK-1961]).
+The demo cache those takes record over is English again: two wiki pages in it
+were Korean end to end, and the census that gates the translated copies now
+runs against the English one too, so the next such page fails a check rather
+than a reviewer ([GDK-1956]).
 
 **What the cache holds, and what it counts, answer to the origin.** A wiki page removed at the
 origin used to stay in the local cache for as long as its space did. A full
@@ -1690,3 +1700,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1943]: https://gadak.dev/backlog/#/?ks=GDK-1943
 [GDK-1955]: https://gadak.dev/backlog/#/?ks=GDK-1955
 [GDK-1956]: https://gadak.dev/backlog/#/?ks=GDK-1956
+[GDK-1959]: https://gadak.dev/backlog/#/?ks=GDK-1959
+[GDK-1960]: https://gadak.dev/backlog/#/?ks=GDK-1960
+[GDK-1961]: https://gadak.dev/backlog/#/?ks=GDK-1961
+[GDK-1962]: https://gadak.dev/backlog/#/?ks=GDK-1962

@@ -154,6 +154,7 @@ func cmdDemo(args []string) error {
 	dbPath := fs.String("db", "examples/demo.db", "snapshot to serve")
 	noOpen := fs.Bool("no-open", false, "do not open the browser after the server starts")
 	writable := fs.Bool("writable", false, "serve the snapshot as a workspace on the built-in tracker, so comments, transitions and attachments actually write (GDK-1959)")
+	locale := fs.String("locale", "", "display-name language of the served workspace: en, ko, ja, de (empty = English). Only --writable reads it — a read-only demo serves the snapshot's own names")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -170,6 +171,21 @@ func cmdDemo(args []string) error {
 	}
 	// The identity the retro resume row needs (GDK-1729); see demoUserEmail.
 	demoCfgMap := map[string]any{"projects": []string{"NMB", "NMA", "NMS"}, "email": demoUserEmail}
+	// The workspace's display-name language, and why it is only written when
+	// asked for: the read-only demo serves the snapshot's rows verbatim, so a
+	// translated snapshot already reads in its language and this setting
+	// would change nothing. --writable is different — the built-in tracker
+	// stores ids and overlays the names, so a target left at the default
+	// prints English status chips over Korean prose (GDK-1561). migrate
+	// carries the source workspace's locale to the target, so setting it here
+	// is the whole plumbing.
+	if *locale != "" {
+		v, err := config.ValidateLocale(*locale)
+		if err != nil {
+			return err
+		}
+		demoCfgMap["locale"] = v
+	}
 	demoAccount := demoAccountID(filepath.Join(home, "gadak.db"))
 	if demoAccount != "" {
 		demoCfgMap["account_id"] = demoAccount

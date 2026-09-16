@@ -305,9 +305,9 @@ export const strings: Record<Locale, Strings> = {
       note:
         'Beta, and that is the whole status: builds go to TestFlight for internal testers, and there is no public download. An App Store listing waits on a way for a reviewer to see the app without joining your network.',
       caption:
-        'One take per language, recorded from the app at its own size over the demo snapshot.',
+        'One take per language, recorded from the app at its own size. The writes are real: the demo snapshot is served as a tracker of its own, so the status, the comment and the photo actually land.',
       alt:
-        'The phone app in one take: the issue list with the active sprint on a line of its own, the same list scrolled, the palette open in the heading where a tab bar would be, NMB-110 typed into it, and the issue itself — status, priority, the Fields block and its three attachments.',
+        'The phone app in one take: the issue list with the active sprint on a line of its own, the same list scrolled, the palette open in the heading where a tab bar would be, NMB-110 typed into it, the issue itself with its Fields block and three attachments — and then the writing: the status moved to In Progress, a comment typed, a photo attached, and both landing in the thread.',
     },
     connect: {
       label: 'Before you connect work data',
@@ -464,9 +464,9 @@ export const strings: Record<Locale, Strings> = {
         '아이폰 앱은 이미 돌리고 있는 <code>gadak serve</code>에 페어링한다. 자기 네트워크 안에서 끝나고, 중간에 계정도 남의 서버도 없다. 캐시가 가진 것은 폰도 보여준다 — 필드, 첨부, 연결된 이슈, 위키, 진행 중인 스프린트와 그 뒤의 전부. 한 줄로 끝나는 수정은 폰에서 끝난다. 코멘트, 라벨, 마감일, 사진, 에픽 밑에 새 이슈. 쓰기는 데스크톱과 똑같이 원본을 먼저 통과한다. 페이지나 커스텀 필드 편집, 뷰 작성, 대시보드 배치, 카드 끌기는 데스크톱 몫이고, 앱이 그 컨트롤 자리에서 그렇게 말한다.',
       note:
         '베타이고 상태는 그게 전부다. 빌드는 내부 테스터용 TestFlight 로만 가고 공개 다운로드는 없다. 스토어 등록은 심사자가 내 네트워크에 들어오지 않고도 앱을 볼 수 있는 경로가 먼저다.',
-      caption: '데모 스냅샷 위에서, 앱 크기 그대로. 언어마다 한 번씩.',
+      caption: '데모 스냅샷 위에서, 앱 크기 그대로. 언어마다 한 번씩. 쓰는 장면은 연출이 아니라 실제로 써진 것이다.',
       alt:
-        '폰 앱을 한 번에 — 진행 중인 스프린트가 한 줄로 얹힌 이슈 목록, 같은 목록을 내린 화면, 탭바가 있을 자리에 열리는 팔레트, 거기 입력한 NMB-110, 그리고 그 이슈의 상태와 우선순위·Fields 구역·첨부 세 장.',
+        '폰 앱을 한 번에 — 진행 중인 스프린트가 한 줄로 얹힌 이슈 목록, 같은 목록을 내린 화면, 탭바가 있을 자리에 열리는 팔레트, 거기 입력한 NMB-110, 그 이슈의 Fields 구역과 첨부 세 장, 그리고 쓰는 장면: 상태를 진행 중으로 옮기고, 코멘트를 쓰고, 사진을 붙여 스레드에 올린다.',
     },
     connect: {
       label: '연결하기 전에',
@@ -635,9 +635,9 @@ export const strings: Record<Locale, Strings> = {
         'iOSアプリは、すでに動かしている<code>gadak serve</code>とペアリングします。自分のネットワークの中で完結し、あいだにアカウントも他社のサーバーも入りません。キャッシュにあるものは電話にも出ます—フィールド、添付、リンクされた課題、ウィキ、進行中のスプリントとその前後。一行で済む変更は電話で終わります。コメント、ラベル、期限、写真、エピック配下の新規課題。書き込みはデスクトップと同じく接続先を先に通ります。ページやカスタムフィールドの編集、ビューの作成、ダッシュボードの配置、カードの移動はデスクトップの仕事で、アプリはそのコントロールがある場所でそう伝えます。',
       note:
         'ベータで、状態はそれがすべてです。ビルドは内部テスター向けのTestFlightにのみ配られ、一般向けのダウンロードはありません。App Storeへの掲載は、審査者がこちらのネットワークに入らずにアプリを確認できる経路が先です。',
-      caption: 'デモスナップショットの上で、アプリを実寸のまま一続きで撮影しました。言語ごとに一度ずつ。',
+      caption: 'デモスナップショットの上で、アプリを実寸のまま一続きで撮影しました。言語ごとに一度ずつ。書き込みは演出ではなく、実際に記録されたものです。',
       alt:
-        'アプリを一続きで—進行中のスプリントが一行で乗った課題一覧、同じ一覧をスクロールした画面、タブバーがあるはずの場所に開くパレット、そこへ入力したNMB-110、そしてその課題のステータスと優先度・Fields欄・三つの添付。',
+        'アプリを一続きで—進行中のスプリントが一行で乗った課題一覧、同じ一覧をスクロールした画面、タブバーがあるはずの場所に開くパレット、そこへ入力したNMB-110、その課題のFields欄と三つの添付、そして書き込む場面：ステータスを進行中に移し、コメントを書き、写真を添えてスレッドに残す。',
     },
     connect: {
       label: '導入前に確認したいこと',

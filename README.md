@@ -206,8 +206,10 @@ authoring a view, laying out a dashboard and moving cards stay on the desktop,
 and the app says so where the control would be.
 
 <p align="center">
-  <img src="docs/media/phone.gif" alt="One take of the phone app: the issue list with the active sprint on a line of its own, the same list scrolled, the palette open in the heading where a tab bar would be, NMB-110 typed into it, and the issue itself — status, priority, the Fields block and its three attachments" width="260">
+  <img src="docs/media/phone.gif" alt="The phone writing: an issue open on its Fields block and attachments, the status moved to In Progress, a comment typed, a photo attached, and both landing in the thread" width="260">
 </p>
+
+<p align="center"><sub>The writing half of one take. Nothing here is staged — the demo snapshot is served as a tracker of its own, so every write lands.</sub></p>
 
 **Beta, and that is the whole status.** Builds go to TestFlight for internal
 testers, and there is no public download. An App Store listing waits on a way

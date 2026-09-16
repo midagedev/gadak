@@ -121,11 +121,16 @@
     font-family: var(--font-mono);
     color: var(--color-text-primary);
   }
+  /* The kind label never gives way (GDK-1963). It and .who were both
+     `flex: 0 1 auto`, so an overflowing row shrank them in proportion and a
+     long comment body clipped the label beside it — measured on the phone
+     clip, `New comment` rendered as `New …` in 31px while its own text
+     wanted 81. The label comes from a closed catalogue of seven short
+     strings; the detail is whatever a person wrote, and the ellipsis is
+     that one's job. The row's own `overflow: hidden` is the backstop at
+     widths where even the label cannot fit. */
   .what {
-    flex: 0 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    flex: none;
     color: var(--color-text-primary);
   }
   .who {

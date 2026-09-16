@@ -309,7 +309,8 @@ media-phone-clip: media-deps media-fixture
 	fi; \
 	echo "media-phone-clip: recording the phone exhibit clip (locale $${GADAK_MEDIA_LOCALE:-en})…"
 	rm -rf mobile/test-results/clip-$${GADAK_MOBILE_E2E_PORT:-5182}-$${GADAK_MOBILE_API_PORT:-7899}
-	GADAK_MOBILE_API_DB="$(MEDIA_FIXTURE_DB)" \
+	GADAK_MOBILE_API_DB="$(MEDIA_FIXTURE_DB)" GADAK_MOBILE_API_WRITABLE=1 \
+	GADAK_MOBILE_API_LOCALE="$${GADAK_MEDIA_LOCALE:-en}" \
 		./node_modules/.bin/playwright test --config mobile/clip.config.ts
 	bash mobile/clip/export-phone-clip.sh
 

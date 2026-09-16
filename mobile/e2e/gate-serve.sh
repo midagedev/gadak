@@ -211,10 +211,26 @@ case "${1:-}" in
     # the exec line byte-for-byte what the gate has always run — the demo
     # binary's own --db default (examples/demo.db), which is the fixture
     # every spec's expectations are written against.
-    if [ -n "${GADAK_MOBILE_API_DB:-}" ]; then
-      exec "$BIN" demo --addr "127.0.0.1:${PORT}" --no-open --db "$GADAK_MOBILE_API_DB"
+    # GADAK_MOBILE_API_WRITABLE (optional): the clip rig records writes, so
+    # it needs a serve whose origin takes them — `gadak demo --writable`
+    # migrates the same snapshot onto the built-in tracker (GDK-1959). The
+    # gate never sets it: its specs are written against the credential-less
+    # serve, where every write control ships disabled.
+    DEMO_ARGS="--addr 127.0.0.1:${PORT} --no-open"
+    if [ -n "${GADAK_MOBILE_API_WRITABLE:-}" ]; then
+      DEMO_ARGS="$DEMO_ARGS --writable"
     fi
-    exec "$BIN" demo --addr "127.0.0.1:${PORT}" --no-open
+    # Only meaningful with --writable: the built-in tracker overlays display
+    # names by this, while a read-only demo serves the snapshot's own.
+    if [ -n "${GADAK_MOBILE_API_LOCALE:-}" ]; then
+      DEMO_ARGS="$DEMO_ARGS --locale ${GADAK_MOBILE_API_LOCALE}"
+    fi
+    if [ -n "${GADAK_MOBILE_API_DB:-}" ]; then
+      # shellcheck disable=SC2086 # DEMO_ARGS is ours, word-splitting is the point
+      exec "$BIN" demo $DEMO_ARGS --db "$GADAK_MOBILE_API_DB"
+    fi
+    # shellcheck disable=SC2086
+    exec "$BIN" demo $DEMO_ARGS
     ;;
 
   *)

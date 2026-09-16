@@ -179,6 +179,12 @@ func ValidateTheme(s string) (string, error) {
 // back to English.
 var localeValues = map[string]bool{"": true, "en": true, "ko": true, "ja": true, "de": true}
 
+// ValidateLocale is validateLocale for callers outside this package — the
+// verbs that take a locale as a flag rather than through `config set`
+// (cmd/gadak demo --locale). One owner for the accepted set, so a flag
+// cannot drift from the setting.
+func ValidateLocale(s string) (string, error) { return validateLocale(s) }
+
 // validateLocale accepts "", en, ko, ja, de (GDK-597). Empty stores as the
 // zero value so the default is not persisted.
 func validateLocale(s string) (string, error) {

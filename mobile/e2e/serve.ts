@@ -403,6 +403,20 @@ export function gateWebServers(env: NodeJS.ProcessEnv = process.env): WebServerE
         // tree built this server, and the fixture a media run points at is
         // not the tree.
         GADAK_MOBILE_API_DB: env.GADAK_MOBILE_API_DB ?? '',
+        // The clip rig sets this to record writes (GDK-1962): the same
+        // snapshot served as a workspace on the built-in tracker, so the
+        // app's write controls are live and a comment, a transition and a
+        // photo actually land. Absent or empty is the gate's own shape —
+        // a credential-less serve whose write controls ship disabled, which
+        // is what every gate spec's expectations are written against.
+        GADAK_MOBILE_API_WRITABLE: env.GADAK_MOBILE_API_WRITABLE ?? '',
+        // The display-name language of a writable serve. It matters only
+        // there: a read-only demo hands over the snapshot's own rows, so a
+        // translated snapshot already reads in its language, while the
+        // built-in tracker stores ids and overlays the names — measured on
+        // the ko clip, whose status chip said "Backlog" over Korean prose
+        // until this was passed (GDK-1561, GDK-1962).
+        GADAK_MOBILE_API_LOCALE: env.GADAK_MOBILE_API_LOCALE ?? '',
       },
     },
     {

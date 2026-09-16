@@ -91,7 +91,9 @@ carries these facts and no more:
   desktop, and the app says so where the control would be.
 - **Screens on the public surfaces are recorded**, not mocked:
   `make media-phone-clip` at 402×874, device scale 3, over the demo snapshot,
-  one ~16s take per UI language (§15). It is a clip, not stills, on the user's
+  one ~28s take per UI language (§15), reading first and then writing — the
+  status, a comment and a photo all land, because the rig serves
+  `gadak demo --writable`. It is a clip, not stills, on the user's
   call of 2026-09-16; the stills camera (`make media-phone`) stays as the
   frame-by-frame review rig.
 
