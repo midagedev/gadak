@@ -174,3 +174,31 @@ describe('hasDoneWord pending clauses (GDK-1428 parity)', () => {
     expect(hasDoneWord(body as string)).toBe(want)
   })
 })
+
+/*
+ * GDK-1943, the particle clauses — same table as Go's
+ * TestDoneWordParticleClauses, row for row. The three demo fixtures are one
+ * corpus translated, and the mismatch heuristic counted 7 (en) / 36 (ko) /
+ * 7 (ja) on it: the row was measuring the language. The largest family was
+ * "지난주 페이지네이션 변경이 반영된 뒤부터 시작됨" — a sequence clause read
+ * as a claim because the suffix list knew "뒤에" but not "뒤부터", the rune
+ * guard read 부 as a word head, and neither ran past the adnominal 된.
+ *
+ * FAIL-first: every `false` row below was `true` against the pre-fix rule.
+ */
+describe('hasDoneWord particle clauses (GDK-1943 parity)', () => {
+  test.each([
+    ['지난주 페이지네이션 변경이 반영된 뒤부터 시작됨.', false],
+    ['머지된 후에 재시도하겠습니다', false],
+    ['반영된 후까지 로그를 확인했습니다', false],
+    ['배포 후부터 알림이 두 배로 옵니다', false],
+    ['완료 후로 미루겠습니다', false],
+    ['검토 완료 시부터 다음 단계입니다', false],
+    ['완료된 시점을 기록했습니다', true],
+    ['완료 후보 목록을 정리했습니다', true],
+    ['머지된 내용을 확인했습니다', true],
+    ['스테이징에 반영됐습니다', true],
+  ])('hasDoneWord(%j) === %s', (body, want) => {
+    expect(hasDoneWord(body)).toBe(want)
+  })
+})

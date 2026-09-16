@@ -171,6 +171,11 @@ func TestRetroDemoDBTableAndJSONAgree(t *testing.T) {
 	first := jsonBuckets[0]
 	materialKeys := []string{"events", "surprises", "closed_by_type", "closed_by_epic",
 		"unplanned", "cycle_points", "seen_not_moved", "moved_not_seen"}
+	// mismatch_comments rides the same census: an array always present —
+	// empty, never null — so a reader iterates without a nil check, like the
+	// material lists. One entry per counted mismatch comment, each naming the
+	// issue key, the matched word and the stamp (GDK-1943).
+	materialKeys = append(materialKeys, "mismatch_comments")
 	// events_truncated is omitempty: present only on a bucket past the cap,
 	// which the demo fixture is not, so it is dropped before the count rather
 	// than making this assertion depend on how busy the fixture is.

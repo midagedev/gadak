@@ -156,7 +156,7 @@ var negationPrefixes = []rune{'미', '未', '불', '非', '无', '無'}
 var negationSuffixes = []string{"되지 않", "하지 않", "지 않", "안 됨", "안됨", "ではない", "されていない", "していない", "ていない"}
 
 // pendingSuffixes follow a done word and turn it into a clause about work that
-// has NOT happened yet: "검토 완료 후 진행", "완료되면 알려주세요", "完了次第".
+// has NOT happened yet: "완료되면 알려주세요", "완료 예정입니다", "完了次第".
 // This is the second narrowing of GDK-1428 — on a Korean corporate Jira the
 // mismatch row ran 44–201 hits a week against 54–244 closures while the
 // English OSS mirror stayed at 0–23, because scheduling and requesting are
@@ -165,9 +165,16 @@ var negationSuffixes = []string{"되지 않", "하지 않", "지 않", "안 됨"
 // Anchored right after the word like negationSuffixes, so no byte window is
 // involved and the TypeScript copy (UTF-16 indices) expresses the identical
 // rule. A conditional in a later sentence is never borrowed.
+//
+// GDK-1943 halved the list: what remains are the verbal endings — condition,
+// obligation, futurity, politeness — which are word morphology and have to be
+// listed one by one. The marker-plus-particle spellings that used to live
+// here ("후에", "뒤에", "후까지"…) moved into koreanParticles, where one
+// table composes with every marker at once; a list of compound spellings is a
+// list that is short by one again, and "뒤부터" was exactly that one.
 var pendingSuffixes = []string{
-	// Korean: sequence ("후", "뒤"), condition ("되면", "하면", "시"),
-	// obligation and futurity ("해야", "될", "할", "예정"), and "as soon as".
+	// Korean: condition ("되면", "하면", "시"), "as soon as", obligation
+	// and futurity ("해야", "될", "할", "예정").
 	"되면", "하면", "면 ", "되는 대로", "되는대로", "되면서",
 	"해야", "하여야", "되어야", "예정", "되기 전", "하기 전",
 	"할", "될", "하겠", "드리겠",
@@ -176,19 +183,42 @@ var pendingSuffixes = []string{
 	// vocabulary (배포·머지·반영) take these endings freely, which is most of
 	// why they fired on ordinary Korean.
 	"합니다", "해주", "해 주", "하시", "부탁", "요청",
-	// The single markers below carry a particle here, which settles them
-	// without the following-rune look pendingSingles needs.
-	"후에", "후엔", "후에는", "뒤에", "시에", "전에", "후까지", "전까지",
 	// Japanese.
 	"次第", "したら", "すれば", "予定",
 }
 
-// pendingSingles are the one-character clause markers that need a further
-// guard: bare "후"/"뒤"/"시"/"전"/"後"/"前" is a clause only when it is not the
-// head of a longer word ("완료 후반전" is not a schedule). The following rune
-// decides — a Hangul or Han syllable means the marker was a prefix of
-// something else, so the claim stands.
+// pendingSingles are the one-character clause markers: bare "후"/"뒤"/"시"/
+// "전"/"後"/"前". Whether one is carrying a clause is decided in one place,
+// clauseMarkerFollows, by two rules in order — a Korean particle after the
+// marker keeps it a clause marker, and failing that a Hangul or Han syllable
+// means it was the head of a longer word, so the claim stands.
 var pendingSingles = []string{"후", "뒤", "시", "전", "後", "前"}
+
+// koreanParticles is the closed class of particles that attach directly to a
+// bare temporal noun: 후에, 뒤에서, 시부터, 전까지, 후로… (GDK-1943). Korean
+// glues particles onto the noun in the same script as the words themselves,
+// which is exactly why the following-rune guard alone cannot tell "뒤부터"
+// (a clause) from "후반전" (a longer word) — 부 and 반 are both Hangul. This
+// table holds the class, not the spellings seen so far, so a marker and a
+// particle that have never met still compose, and any particle prefix
+// settles, so stacked particles (후에는, 뒤에서도) need no entries of their
+// own. Japanese particles are kana — a script the rune guard already
+// separates from the Kanji markers — so they are deliberately absent.
+var koreanParticles = []string{
+	"에서", "부터", "까지", "으로", "보다",
+	"에", "엔", "로", "도", "만",
+}
+
+// adnominalBridges are the endings that let a done word modify a following
+// noun instead of claiming anything: "반영된 뒤부터 시작됨" — the sentence's
+// verb is 시작됨, and 반영 is a past modifier inside its temporal phrase. The
+// bridge only counts when a clause marker follows it, spaces aside;
+// "반영된 부분만 남겼습니다" keeps its claim, because 부분은 is not a marker.
+// Without the bridge the marker rule could never see "된 뒤" at all: the
+// anchor is the text right after the done word, and 된 sits in front of the
+// marker (GDK-1943 — the whole family the issue was opened on reads this
+// way, "지난주 페이지네이션 변경이 반영된 뒤부터 시작됨").
+var adnominalBridges = []string{"된", "됐", "되고", "되어", "한", "하고", "하여"}
 
 // englishNegators cancel an English done word when they sit just before it:
 // "not fixed", "isn't done", "never merged".
@@ -297,6 +327,12 @@ type Bucket struct {
 	MismatchKeys   []string
 	CycleKeys      []string
 
+	// MismatchComments names each counted mismatch comment — which issue,
+	// which word fired, when (GDK-1943) — in lockstep with MismatchKeys, so
+	// the count is the length of this slice too. No bodies: a comment can
+	// quote private text, and key+word+stamp is enough to find the row.
+	MismatchComments []MismatchComment
+
 	// SprintDoneKeys and SprintInProgKeys are the members behind the two
 	// membership rows, same rule as the slices above: one entry per counted
 	// issue, sorted, so each count is the length of its slice (membership.go).
@@ -327,6 +363,15 @@ type Bucket struct {
 	CyclePoints     []CyclePoint
 	SeenNotMoved    KeySet
 	MovedNotSeen    KeySet
+}
+
+// MismatchComment is one entry of Bucket.MismatchComments: the issue key,
+// the done word that fired on it, and the comment's stamp. It names the
+// sentence a counted mismatch rests on without carrying its body (GDK-1943).
+type MismatchComment struct {
+	Key  string `json:"key"`
+	Word string `json:"word"`
+	At   string `json:"at"`
 }
 
 // Label is the bucket's column title and the name --open reports:
@@ -770,9 +815,13 @@ func Compute(ctx context.Context, db *sql.DB, me store.FeedIdentity, since time.
 			if !ClaimStands(c.at, true, issChangedAt[c.item]) {
 				continue
 			}
-			if HasDoneWord(c.body) {
+			if word, ok := doneWordIn(c.body); ok {
 				b.Mismatch++
-				b.MismatchKeys = append(b.MismatchKeys, itemByID[c.item].key)
+				key := itemByID[c.item].key
+				b.MismatchKeys = append(b.MismatchKeys, key)
+				b.MismatchComments = append(b.MismatchComments, MismatchComment{
+					Key: key, Word: word, At: c.at.Format(time.RFC3339),
+				})
 			}
 		}
 		sort.Strings(b.ClosedKeys)
@@ -1201,26 +1250,41 @@ func ClaimStands(commentAt time.Time, commentOK bool, statusChangedAt string) bo
 // enough for an affordance that costs one dismissal when wrong; a count
 // shown to a steward needs more than this.
 func HasDoneWord(body string) bool {
+	_, ok := doneWordIn(body)
+	return ok
+}
+
+// DoneWordMatch reports the first done word that fires in body (GDK-1943):
+// the word a counted mismatch actually matched, for the surfaces that show
+// it — the JSON document's mismatch_comments array carries it per counted
+// comment, so "which sentence, and what fired on it" is answerable from the
+// product instead of a throwaway probe. Same rule as HasDoneWord; empty and
+// false when nothing fires.
+func DoneWordMatch(body string) (string, bool) {
+	return doneWordIn(body)
+}
+
+func doneWordIn(body string) (string, bool) {
 	text := stripQuotedAndCode(body)
 	if strings.TrimSpace(text) == "" {
-		return false
+		return "", false
 	}
 	if endsWithQuestion(text) {
-		return false
+		return "", false
 	}
 	low := strings.ToLower(text)
 	for _, w := range DoneWords {
 		if isASCIIWord(w) {
 			if matchEnglishWord(low, w) {
-				return true
+				return w, true
 			}
 			continue
 		}
 		if matchCJKWord(text, w) {
-			return true
+			return w, true
 		}
 	}
-	return false
+	return "", false
 }
 
 // stripQuotedAndCode removes Markdown quote lines and fenced code blocks.
@@ -1358,11 +1422,13 @@ func negatedSuffix(after string) bool {
 // clause about work that has not happened yet (GDK-1428). Anchored the same
 // way negatedSuffix is: the marker has to start there, spaces aside.
 //
-// The single-syllable markers get one extra look. "완료 후 진행" schedules;
-// "완료 후반" would merely start a longer word, so a Hangul or Han rune right
-// after the marker means it was not a clause marker at all and the claim
-// stands. Being wrong in that direction only costs the row a hit it should
-// not have had; being wrong the other way is what this whole guard is for.
+// GDK-1943 made this the one owner of that decision, as a rule in three
+// steps — a verbal ending, an adnominal bridge into a marker, or a bare
+// marker carrying a particle — where it used to be a suffix list, a marker
+// list and a rune class that disagreed at the edges ("뒤부터" fell through
+// all three and the row measured the language, not the work). Being wrong
+// toward "pending" only costs the row a hit it should not have had; being
+// wrong the other way is what this whole guard is for.
 func pendingSuffix(after string) bool {
 	rest := strings.TrimLeft(after, " \t")
 	for _, p := range pendingSuffixes {
@@ -1370,14 +1436,35 @@ func pendingSuffix(after string) bool {
 			return true
 		}
 	}
+	for _, b := range adnominalBridges {
+		if strings.HasPrefix(rest, b) && clauseMarkerFollows(rest[len(b):]) {
+			return true
+		}
+	}
+	return clauseMarkerFollows(rest)
+}
+
+// clauseMarkerFollows is the single owner of "a bare clause marker is
+// actually carrying a clause" (GDK-1943). A Korean particle right after the
+// marker keeps it one — "뒤부터", "후로", "완료 후에" — and failing that a
+// Hangul or Han syllable means the marker was the head of a longer word
+// ("완료 후반전", "준비 시점"), so the claim stands. The end of the text, a
+// space, punctuation or another script leaves it a clause: "완료 후 진행"
+// schedules, and Japanese kana after 後/前 is its particle, not a word head.
+func clauseMarkerFollows(rest string) bool {
+	rest = strings.TrimLeft(rest, " \t")
 	for _, p := range pendingSingles {
 		if !strings.HasPrefix(rest, p) {
 			continue
 		}
-		r, _ := utf8.DecodeRuneInString(rest[len(p):])
-		if r == utf8.RuneError || !isCJKSyllable(r) {
-			return true
+		tail := rest[len(p):]
+		for _, part := range koreanParticles {
+			if strings.HasPrefix(tail, part) {
+				return true
+			}
 		}
+		r, _ := utf8.DecodeRuneInString(tail)
+		return r == utf8.RuneError || !isCJKSyllable(r)
 	}
 	return false
 }
@@ -1719,6 +1806,11 @@ type BucketJSON struct {
 	SprintDoneKeys   []string `json:"sprint_done_keys,omitempty"`
 	SprintInProgKeys []string `json:"sprint_in_progress_keys,omitempty"`
 
+	// The sentence behind each mismatch entry (GDK-1943): key, the word
+	// that fired, the stamp. Present, empty rather than null, and capped
+	// beside the key array it explains.
+	MismatchComments []MismatchComment `json:"mismatch_comments"`
+
 	// The materials (materials.go): what happened in the bucket. Every
 	// array is present, empty rather than null, so a renderer can iterate
 	// without a nil check.
@@ -1879,6 +1971,13 @@ func (r Report) JSON() Doc {
 		j.Keys.InProgress, _ = capKeys(b.InProgressKeys)
 		j.Keys.Mismatch, _ = capKeys(b.MismatchKeys)
 		j.Keys.Cycle, _ = capKeys(b.CycleKeys)
+		j.MismatchComments = orEmpty(b.MismatchComments)
+		if len(b.MismatchComments) > MaxJSONKeys {
+			// The comments array rides beside the key array it explains
+			// (GDK-1943), so it caps the same way and flags the same cut.
+			j.MismatchComments = j.MismatchComments[:MaxJSONKeys]
+			truncated = true
+		}
 		if truncated || len(b.ClosedKeys) > MaxJSONKeys ||
 			len(b.InProgressKeys) > MaxJSONKeys || len(b.MismatchKeys) > MaxJSONKeys ||
 			len(b.CycleKeys) > MaxJSONKeys {

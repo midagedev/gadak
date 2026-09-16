@@ -144,3 +144,51 @@ func TestDoneWordPendingClauses(t *testing.T) {
 		}
 	}
 }
+
+/*
+ * TestDoneWordParticleClauses closes GDK-1943. The release clips record over
+ * one fixture translated three ways, and the mismatch row read 0/0/4→9 while
+ * every other column agreed — counting comments directly on the three
+ * fixtures gave 7 (en) / 36 (ko) / 7 (ja) on the same work. The largest
+ * family was one sentence, "지난주 페이지네이션 변경이 반영된 뒤부터 시작됨",
+ * duplicated across the fixture's rows: a sequence clause read as a claim
+ * because three mechanisms each held part of the rule and disagreed at the
+ * edges — the suffix list knew "뒤에" but not "뒤부터", the following-rune
+ * guard read 부 as the head of a longer word, and neither ran at all past
+ * the adnominal 된 in front of the marker.
+ *
+ * The fix is one owner (clauseMarkerFollows) with the closed particle class
+ * and the bridge into it. FAIL-first: every `false` row below returned true
+ * against the pre-fix rule, and the locale gate held the 36-vs-7 gap
+ * (doneword_locale_gate_test.go).
+ */
+func TestDoneWordParticleClauses(t *testing.T) {
+	cases := []struct {
+		body string
+		want bool
+	}{
+		// A particle after the marker keeps it a clause marker, and the
+		// adnominal bridge lets the rule see the marker at all.
+		{"지난주 페이지네이션 변경이 반영된 뒤부터 시작됨.", false},
+		{"머지된 후에 재시도하겠습니다", false},
+		{"반영된 후까지 로그를 확인했습니다", false},
+		{"배포 후부터 알림이 두 배로 옵니다", false},
+		{"완료 후로 미루겠습니다", false},
+		{"검토 완료 시부터 다음 단계입니다", false},
+
+		// A Hangul syllable that is not a particle still heads a longer
+		// word — these are the rows that say the class is a particle class,
+		// not a script check.
+		{"완료된 시점을 기록했습니다", true},
+		{"완료 후보 목록을 정리했습니다", true},
+		{"머지된 내용을 확인했습니다", true},
+
+		// The bridge without a marker is a completed claim.
+		{"스테이징에 반영됐습니다", true},
+	}
+	for _, c := range cases {
+		if got := HasDoneWord(c.body); got != c.want {
+			t.Errorf("HasDoneWord(%q) = %v, want %v", c.body, got, c.want)
+		}
+	}
+}

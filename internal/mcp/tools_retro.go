@@ -263,8 +263,11 @@ func (s *Server) toolRetro(args map[string]any) ([]contentItem, error) {
 // the aging tail and the actions are all still there.
 // The sprint cut's two membership key lists (GDK-1846) ride the bucket
 // flat, beside `keys`, and are dropped for the same reason: `open` with
-// sprint-done / sprint-in-progress returns them on demand.
-var retroHeavyBucketFields = []string{"events", "keys", "sprint_done_keys", "sprint_in_progress_keys"}
+// sprint-done / sprint-in-progress returns them on demand. mismatch_comments
+// (GDK-1943) is dropped as one entry per counted comment — it scales with
+// the row that once ran 44–201 a week — while the mismatch count itself and
+// `open mismatch` stay; the words are in `gadak retro --json` when wanted.
+var retroHeavyBucketFields = []string{"events", "keys", "sprint_done_keys", "sprint_in_progress_keys", "mismatch_comments"}
 
 // retroHeavyKeySets are the material objects whose `keys` array is dropped;
 // their counts stay.
