@@ -3659,6 +3659,10 @@
   "catalog:component:SDK": "SDK",
   "catalog:component:Triage": "Triage",
   "catalog:component:Webhooks": "Webhooks",
-  "catalog:component:Workers": "Workers"
+  "catalog:component:Workers": "Workers",
+  "catalog:linktype:Blocks": "Blocks",
+  "catalog:linktype:Cloners": "Cloners",
+  "catalog:linktype:Duplicate": "Duplicate",
+  "catalog:linktype:Relates": "Relates"
  }
 }

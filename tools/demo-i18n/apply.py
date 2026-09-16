@@ -27,6 +27,7 @@ What changes, by id family (see extract.py for the ids):
   catalog:version:<n>      the entry in issues_raw.fix_versions arrays, and versions.name
   catalog:board:<id>       boards.name for that board id
   issue:<KEY>:environment  issues_raw.environment_text
+  catalog:linktype:<n>     links.type for that display name, and link_types.name
 Finally items_fts is rebuilt (same shape as scripts/scrub-demo-db.py), because
 it is contentless and holds the English tokens otherwise.
 
@@ -175,6 +176,16 @@ def main() -> int:
             con.execute("UPDATE issues_raw SET resolution = ? WHERE resolution = ?", (v, p[2]))
         elif p[1] == "board":
             con.execute("UPDATE boards SET name = ? WHERE id = ?", (v, p[2]))
+        elif p[1] == "linktype":
+            # Two copies of one name, like sprints: links.type is what the
+            # phone prints raw on a linked-issue row (GDK-1937), link_types
+            # is the web's phrase catalog keyed by the same name — empty in
+            # the demo fixture, present once a real origin's catalog rides
+            # along (v43). Rewriting the type string strands nothing the
+            # viewer reads: the phrase and the label both come from these
+            # two columns.
+            con.execute("UPDATE links SET type = ? WHERE type = ?", (v, p[2]))
+            con.execute("UPDATE link_types SET name = ? WHERE name = ?", (v, p[2]))
         elif p[1] == "sprintgoal":
             # One copy: the goal lives only on the sprints row (GDK-1717).
             con.execute("UPDATE sprints SET goal = ? WHERE id = ?", (v, p[2]))

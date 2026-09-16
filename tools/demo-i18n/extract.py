@@ -21,6 +21,7 @@ way applies without any English-string matching:
   catalog:board:<board_id>             boards.name
   issue:<KEY>:environment              issues_raw.environment_text
   catalog:sprint:<sprint_id>           sprints.name (and the issues_raw.sprint_name copy)
+  catalog:linktype:<name>              links.type (and the link_types.name copy)
 
 Text nodes are the unit because ADF marks (links, code) split a sentence into
 nodes; a translator sees the nodes of one document together, in order, so the
@@ -125,6 +126,15 @@ def extract(db: Path) -> dict:
         for name in json.loads(c or "[]"): comps.add(name)
     for name in sorted(comps):
         s[f"catalog:component:{name}"] = name
+    # The link type name is the phone's own label for a linked-issue row: the
+    # mobile detail prints links.type raw, so a ko/ja still read "Blocks"
+    # beside a translated summary while the applied census — table-blind
+    # until that day — said 0 untranslated (GDK-1937). Keyed by the name
+    # itself like priority/resolution: links carries no type id, only the
+    # display string. link_types.name is the same name in the web's phrase
+    # catalog; the demo fixture has no rows there, a real origin's does (v43).
+    for (name,) in con.execute("SELECT DISTINCT type FROM links WHERE type IS NOT NULL AND type != '' ORDER BY 1"):
+        s[f"catalog:linktype:{name}"] = name
     return {"version": 1, "source": "examples/demo.db", "strings": s}
 
 if __name__ == "__main__":

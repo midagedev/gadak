@@ -3660,6 +3660,10 @@
     "issue:NMS-93:environment": "프로덕션, EU 리전",
     "issue:NMS-97:environment": "Chrome 140 / macOS 15",
     "issue:NMS-98:environment": "Chrome 140 / macOS 15",
-    "issue:NMS-99:environment": "Safari 18 / iOS 18"
+    "issue:NMS-99:environment": "Safari 18 / iOS 18",
+    "catalog:linktype:Blocks": "차단",
+    "catalog:linktype:Cloners": "복제",
+    "catalog:linktype:Duplicate": "중복",
+    "catalog:linktype:Relates": "연관"
   }
 }
