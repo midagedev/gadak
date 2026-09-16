@@ -3664,6 +3664,11 @@
     "catalog:linktype:Blocks": "차단",
     "catalog:linktype:Cloners": "복제",
     "catalog:linktype:Duplicate": "중복",
-    "catalog:linktype:Relates": "연관"
+    "catalog:linktype:Relates": "연관",
+    "changelog:link:This work item blocks {key}": "{key}을(를) 차단",
+    "changelog:link:This work item duplicates {key}": "{key}을(를) 중복",
+    "changelog:link:This work item is blocked by {key}": "{key}에 의해 차단됨",
+    "changelog:link:This work item is duplicated by {key}": "{key}에 의해 중복됨",
+    "changelog:link:This work item relates to {key}": "{key}와(과) 연관"
   }
 }

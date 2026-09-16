@@ -3663,6 +3663,11 @@
   "catalog:linktype:Blocks": "Blocks",
   "catalog:linktype:Cloners": "Cloners",
   "catalog:linktype:Duplicate": "Duplicate",
-  "catalog:linktype:Relates": "Relates"
+  "catalog:linktype:Relates": "Relates",
+  "changelog:link:This work item blocks {key}": "This work item blocks {key}",
+  "changelog:link:This work item duplicates {key}": "This work item duplicates {key}",
+  "changelog:link:This work item is blocked by {key}": "This work item is blocked by {key}",
+  "changelog:link:This work item is duplicated by {key}": "This work item is duplicated by {key}",
+  "changelog:link:This work item relates to {key}": "This work item relates to {key}"
  }
 }

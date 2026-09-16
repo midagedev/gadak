@@ -22,16 +22,29 @@ way applies without any English-string matching:
   issue:<KEY>:environment              issues_raw.environment_text
   catalog:sprint:<sprint_id>           sprints.name (and the issues_raw.sprint_name copy)
   catalog:linktype:<name>              links.type (and the link_types.name copy)
+  changelog:link:<template>            a changelog link phrase, the issue key as {key} (GDK-1944)
 
 Text nodes are the unit because ADF marks (links, code) split a sentence into
 nodes; a translator sees the nodes of one document together, in order, so the
 sentence is still readable. apply.py writes the translation back into the same
 node and regenerates body_text / excerpt / FTS from the translated tree.
 """
-import json, sqlite3, sys
+import importlib.util, json, sqlite3, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def load_check():
+    """check.py owns the wire-fact detectors, key shape among them — one
+    definition of "this token is an issue key", not a restated regex."""
+    spec = importlib.util.spec_from_file_location("dcheck", Path(__file__).with_name("check.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+CHECK = load_check()
 
 def text_nodes(adf: str):
     if not adf:
@@ -135,6 +148,19 @@ def extract(db: Path) -> dict:
     # catalog; the demo fixture has no rows there, a real origin's does (v43).
     for (name,) in con.execute("SELECT DISTINCT type FROM links WHERE type IS NOT NULL AND type != '' ORDER BY 1"):
         s[f"catalog:linktype:{name}"] = name
+    # The changelog's link rows are rendered sentences over one issue key —
+    # Jira's own wording for a link's direction, measured on a live site
+    # (internal/origin/linkresolve.go). One id per distinct template with the
+    # key as a {key} placeholder, not one per row: 122 rows share five
+    # sentences, and apply.py substitutes the row's key back after
+    # translation. Every other changelog family needs no id at all — its
+    # values are copies of catalog names apply.py derives (GDK-1944).
+    for (val,) in con.execute(
+        "SELECT to_value FROM changelog WHERE field = 'link' AND to_value IS NOT NULL AND to_value != '' "
+        "UNION SELECT from_value FROM changelog WHERE field = 'link' AND from_value IS NOT NULL AND from_value != '' "
+        "ORDER BY 1"):
+        tpl = CHECK.KEY.sub("{key}", val)
+        s[f"changelog:link:{tpl}"] = tpl
     return {"version": 1, "source": "examples/demo.db", "strings": s}
 
 if __name__ == "__main__":

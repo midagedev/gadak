@@ -44,6 +44,18 @@ remember either. Two escapes remain, both deliberate and both printed by
 data the plan shows), and a table in ALL_WIRE (machinery nothing renders;
 an explicit decision, never silence).
 
+The argument applies one level further down, to values inside a column, and
+that is where changelog lives (GDK-1944): `from_value`/`to_value` are not
+one vocabulary — what a value is (a catalog copy apply.py derives, a person,
+an issue key, a file name, a rendered link sentence) is decided by the row's
+`field`. The exemption is value-level and keyed on that field, so a
+people-shaped row is exempt while every other row in the same column is
+still checked. The mirror of that rule is the coverage assertion: every
+distinct `changelog.field` must be accounted for by a named rule in
+apply.py's CHANGELOG_FIELD_RULES, and a field no rule names is a failure
+naming it — a new field value has to argue its way in, not pass silently
+the way an underived family did before.
+
 Exit 0 when clean, 1 with the offending rows, 2 on usage.
 """
 import importlib.util, json, sqlite3, sys
@@ -60,7 +72,22 @@ def load_check():
     return mod
 
 
+def load_apply():
+    """The changelog field rules live in apply.py, beside the catalogs they
+    derive from; the census reads the same table so a rule cannot be added
+    for one half and forgotten for the other (GDK-1944)."""
+    spec = importlib.util.spec_from_file_location("dapply", Path(__file__).with_name("apply.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 CHECK = load_check()
+APPLY = load_apply()
+
+# Value shapes no locale ever translates. The rule table in apply.py owns
+# the decision; the census obeys it row by row (GDK-1944).
+CHANGELOG_EXEMPT_KINDS = ("people", "key", "filename")
 
 # Columns that are wire, not prose: ids, categories, enums, timestamps, JSON
 # and ADF payloads (the ADF is checked through the plain-text column beside
@@ -178,7 +205,9 @@ WIRE = {
         # from_value / to_value are deliberately absent: the web history
         # timeline and the retro's sprint log render them raw, so they are
         # prose on camera (status, sprint and assignee display names, link
-        # phrases like "This work item blocks NMA-24").
+        # phrases like "This work item blocks NMA-24"). What a value is, is
+        # decided per row by its field — CHANGELOG_FIELD_RULES in apply.py
+        # owns that table and the pass in main() reads it.
     },
     "dev_links": {
         "item_id": "row id into items",
@@ -191,8 +220,19 @@ WIRE = {
         "actor_name": "person name — Latin on purpose in every locale",
         "branch": "git ref",
         "environment": "deploy environment name, machine-read; empty in the demo fixture",
-        # title is deliberately absent: the PR title renders in the detail
-        # panel's PR list (ListLinkedPRs → PrList).
+        "title": (
+            # Argued out 2026-09-16 (GDK-1944), and the reason is realism,
+            # not convenience. A PR title renders in the detail panel's PR
+            # list (ListLinkedPRs -> PrList), so it is on camera — but it is
+            # branch-adjacent developer text, and a Korean or Japanese team's
+            # pull requests carry English titles as a matter of course. It
+            # patterns with `issues_raw.labels` (slugs, left English) rather
+            # than with `components` (display phrases, translated).
+            # Translating it would make the fixture read less like a real
+            # workspace, not more. If a published frame ever shows the PR
+            # list in ko or ja, this decision is the thing to revisit.
+            "pull-request title — developer text, English in every locale's real workspace"
+        ),
     },
     "links": {
         "item_id": "row id into items",
@@ -368,9 +408,23 @@ def plan(con, db: Path) -> int:
             elif c in PEOPLE_COLUMNS:
                 print(f"  {c:<18} wire: {PEOPLE_REASON}")
                 n_wire += 1
+            elif table == "changelog" and c in APPLY.CHANGELOG_VALUE_COLUMNS:
+                print(f"  {c:<18} CHECK — per-row rule by the row's field (below)")
+                n_checked += 1
             else:
                 print(f"  {c:<18} CHECK")
                 n_checked += 1
+        if table == "changelog":
+            for f in [r[0] for r in con.execute(
+                    "SELECT DISTINCT field FROM changelog WHERE field IS NOT NULL AND field != '' ORDER BY 1")]:
+                r = APPLY.CHANGELOG_FIELD_RULES.get(f)
+                if r is None:
+                    print(f"    field {f!r}: NO RULE — the census fails on it")
+                elif r["kind"] in CHANGELOG_EXEMPT_KINDS:
+                    print(f"    field {f!r}: {r['kind']} — never translated, exempt per row")
+                else:
+                    src = f"catalog:{r['family']}" if r["kind"] == "derived" else r["prefix"]
+                    print(f"    field {f!r}: {r['kind']} from {src} — apply.py derives the value")
         for c in wire:
             if c not in cols:
                 print(f"  {c:<18} STALE — named in WIRE but no such column")
@@ -407,8 +461,9 @@ def main() -> int:
     virtual, shadows = index_machinery(con)
     bad: list[tuple[str, str, str, str]] = []
     checked_cols = 0
+    tables = discovered_tables(con)
 
-    for table in discovered_tables(con):
+    for table in tables:
         if table in virtual or table in shadows:
             continue  # index machinery, rebuilt from the checked text
         if table in ALL_WIRE:
@@ -417,6 +472,11 @@ def main() -> int:
         wire = WIRE.get(table, {})
         unknown = [c for c in cols if c not in wire and c not in PEOPLE_COLUMNS]
         for col in unknown:
+            if table == "changelog" and col in APPLY.CHANGELOG_VALUE_COLUMNS:
+                # One column, many vocabularies: what a value is, is decided
+                # per row by its field. Counted and checked in the dedicated
+                # pass below so the column total stays honest.
+                continue
             checked_cols += 1
             keyexpr, from_clause = row_key(table, cols)
             try:
@@ -442,6 +502,34 @@ def main() -> int:
                 if is_untranslated(value, locale):
                     bad.append((table, col, str(key), value))
 
+    # changelog.from_value/to_value: the exemption is value-level, keyed on
+    # the row's field (GDK-1944) — a people-shaped row is exempt while every
+    # other row in the same column is still checked. The rule table lives in
+    # apply.py beside the catalogs it derives from; this reads the same table
+    # so the halves cannot drift.
+    unaccounted_fields: set[str] = set()
+    if "changelog" in tables:
+        rules = APPLY.CHANGELOG_FIELD_RULES
+        checked_cols += sum(1 for c in APPLY.CHANGELOG_VALUE_COLUMNS if c in columns_of(con, "changelog"))
+        for key, field, fv, tv in con.execute(
+                'SELECT COALESCE(it."key", c.item_id), c.field, c.from_value, c.to_value '
+                'FROM changelog c LEFT JOIN items it ON it."id" = c."item_id"'):
+            rule = rules.get(field or "")
+            if rule is None:
+                if field:
+                    unaccounted_fields.add(field)
+                continue
+            if rule["kind"] in CHANGELOG_EXEMPT_KINDS:
+                continue
+            for v, col in ((fv, "from_value"), (tv, "to_value")):
+                if isinstance(v, str) and is_untranslated(v, locale):
+                    bad.append(("changelog", col, str(key), v))
+
+    if unaccounted_fields:
+        print("FAIL changelog.field values no rule accounts for: " + ", ".join(sorted(unaccounted_fields)))
+        print("  name the rule in CHANGELOG_FIELD_RULES (tools/demo-i18n/apply.py):")
+        print("  derived (a catalog family), people, key, filename, or template")
+
     for table, col, key, value in bad[:limit]:
         one = " ".join(value.split())
         print(f"FAIL {table}.{col} [{key}]: {one[:100]}")
@@ -455,7 +543,7 @@ def main() -> int:
         print("  a complete translation file cannot cover an id that is never extracted.")
         print("  If the column is wire and not prose, name it in WIRE here with the reason;")
         print("  if the whole table is machinery, say so in ALL_WIRE. --plan shows every decision.")
-    return 1 if bad else 0
+    return 1 if bad or unaccounted_fields else 0
 
 
 if __name__ == "__main__":

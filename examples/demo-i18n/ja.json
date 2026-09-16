@@ -3664,6 +3664,11 @@
     "catalog:linktype:Blocks": "ブロック",
     "catalog:linktype:Cloners": "クローン",
     "catalog:linktype:Duplicate": "重複",
-    "catalog:linktype:Relates": "関連"
+    "catalog:linktype:Relates": "関連",
+    "changelog:link:This work item blocks {key}": "{key}をブロック",
+    "changelog:link:This work item duplicates {key}": "{key}と重複",
+    "changelog:link:This work item is blocked by {key}": "{key}にブロックされている",
+    "changelog:link:This work item is duplicated by {key}": "{key}に重複されている",
+    "changelog:link:This work item relates to {key}": "{key}に関連"
   }
 }
