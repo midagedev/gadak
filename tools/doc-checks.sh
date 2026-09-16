@@ -2511,6 +2511,26 @@ if [ -n "$i18n_applied" ]; then
 fi
 ok "the applied ko and ja recording fixtures carry no English prose"
 
+# -- and the English fixture is English ------------------------------------
+# The same census, pointed the other way (GDK-1956). The three passes above
+# all take the English fixture as the thing being translated *from*, so none
+# of them can see that it is not English: two wiki pages in examples/demo.db
+# were Korean end to end — 14 strings in the extracted catalogue — and the
+# ko/ja translations of them were complete and green, because a complete
+# translation of a Korean source is still complete.
+#
+# What found it was a person: a vision judge reading the English phone clip
+# reported a Korean snippet in the palette's document results (GDK-1955's
+# review round). That is the shape of finding this check exists to stop
+# relying on — one reviewer, one beat, one frame they happened to open.
+#
+# FAIL-first 2026-09-16 against the fixture at HEAD: 4 values
+# (items.body_text and pages.excerpt for both pages); 0 after the fix.
+if ! en_fixture_out=$(python3 tools/demo-i18n/check-applied.py examples/demo.db en --limit 8 2>&1); then
+  fail "the English demo fixture carries text that is not English:"$'\n'"$en_fixture_out"
+fi
+ok "the English demo fixture carries no CJK prose"
+
 # ---------------------------------------------------------------------------
 # #60  Japanese copy is set solid.
 #

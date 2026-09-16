@@ -33,8 +33,12 @@ the picture until the issue has a key ([GDK-1872], [GDK-1873], [GDK-1879]).
 What stays on the desk — editing a page or a custom field, authoring a view,
 laying out a dashboard, moving cards — says so in one dimmed line where you
 would look for it ([GDK-1874]). The phone reaches the project's public
-surfaces for the first time: the landing page and the three READMEs carry
-recorded screens of it, marked beta ([GDK-1932]).
+surfaces for the first time: the landing page and the three READMEs carry a
+recorded walk through the app — the list, the palette, an issue and back —
+marked beta ([GDK-1932], [GDK-1955]). The demo cache those takes record over
+is English again: two wiki pages in it were Korean end to end, and the census
+that gates the translated copies now runs against the English one too, so the
+next such page fails a check rather than a reviewer ([GDK-1956]).
 
 **What the cache holds, and what it counts, answer to the origin.** A wiki page removed at the
 origin used to stay in the local cache for as long as its space did. A full
@@ -1684,3 +1688,5 @@ priority sorting keyed on `priority_rank`.
 [GDK-1898]: https://gadak.dev/backlog/#/?ks=GDK-1898
 [GDK-1932]: https://gadak.dev/backlog/#/?ks=GDK-1932
 [GDK-1943]: https://gadak.dev/backlog/#/?ks=GDK-1943
+[GDK-1955]: https://gadak.dev/backlog/#/?ks=GDK-1955
+[GDK-1956]: https://gadak.dev/backlog/#/?ks=GDK-1956

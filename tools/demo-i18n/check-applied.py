@@ -58,7 +58,7 @@ the way an underived family did before.
 
 Exit 0 when clean, 1 with the offending rows, 2 on usage.
 """
-import importlib.util, json, sqlite3, sys
+import importlib.util, json, re, sqlite3, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -331,10 +331,35 @@ PEOPLE_COLUMNS = {"author", "assignee", "reporter", "version_by", "created_by", 
 PEOPLE_REASON = "person name — Latin on purpose in every locale"
 
 
+# The same census, pointed at the English fixture (GDK-1956). Everything
+# above asks "is there English left in the ko/ja copy"; this asks the
+# question nobody had asked, which is whether the *source* is English at all.
+# It was not: two wiki pages in examples/demo.db were Korean end to end —
+# 14 of the strings in the extracted English catalogue — and the first thing
+# that noticed was a vision judge reading the English phone clip and finding
+# a Korean snippet in the palette's document results. check.py and this
+# file's ko/ja passes were both green throughout, because a translation that
+# is complete against a Korean "English" source is complete.
+#
+# `issues_raw.raw` stays exempt (it is WIRE above): that column is the
+# origin's own payload, and this fixture's origin was a Korean-locale Jira
+# account, so its issuetype/status display names are Korean by construction
+# while the projection beside them is English. That pair is worth keeping —
+# it is the display-name trap (CLAUDE.md) in fixture form.
+CJK = re.compile(r"[\u1100-\u11ff\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uff66-\uff9f]")
+
+
 def is_untranslated(value: str, locale: str) -> bool:
-    """English prose with no letter of the target script anywhere in it."""
+    """A value in the wrong language for this fixture.
+
+    For ko/ja that is English prose with no letter of the target script in
+    it. For en it is the reverse and simpler: any CJK character at all, since
+    an English fixture has no reason to carry one.
+    """
     if not isinstance(value, str) or not value.strip():
         return False
+    if locale == "en":
+        return bool(CJK.search(value))
     if CHECK.SCRIPT[locale].search(value):
         return False  # mixed is fine: a Korean sentence may quote a flag
     return CHECK.needs_translation(value)
@@ -454,7 +479,7 @@ def main() -> int:
         return 2
     locale = args[1]
     limit = int(sys.argv[sys.argv.index("--limit") + 1]) if "--limit" in sys.argv else 25
-    if locale not in CHECK.SCRIPT:
+    if locale != "en" and locale not in CHECK.SCRIPT:
         print(f"unknown locale {locale}")
         return 2
 
@@ -538,7 +563,12 @@ def main() -> int:
     print(f"{db.name}: {checked_cols} viewer-visible columns checked, {len(bad)} untranslated values")
     if bad:
         print()
-        print(f"  These strings are on camera in a {locale} take and are English.")
+        if locale == "en":
+            print("  These strings are in the English fixture and are not English.")
+            print("  Fix them in examples/demo-source.db (the content original) and run `make demo-fixture`;")
+            print("  the ko/ja files are keyed by structural id, so they keep applying unchanged.")
+        else:
+            print(f"  These strings are on camera in a {locale} take and are English.")
         print("  If the column has no id family in tools/demo-i18n/extract.py, add one —")
         print("  a complete translation file cannot cover an id that is never extracted.")
         print("  If the column is wire and not prose, name it in WIRE here with the reason;")
