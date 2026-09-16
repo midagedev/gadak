@@ -119,6 +119,59 @@ test(`phone publication stills (${mediaLocale})`, async ({ page }) => {
   const fields = page.locator('[data-testid="detail-fields"]')
   await fields.evaluate((el) => el.scrollIntoView({ block: 'start' }))
   await page.waitForTimeout(400)
+  // Then snap the top edge to a paragraph boundary. scrollIntoView lands on
+  // whatever offset puts Fields where it wants it, and the review of the
+  // first take found that offset in the middle of a sentence, with the
+  // descenders of the line above clipped against the bar — a marketing still
+  // that reads as a screenshot taken mid-scroll. Nudge up to the nearest
+  // block start in the body, so the frame opens on a whole line. Up, never
+  // down: the frame must not lose the Attachments grid it is here to show,
+  // and the assertions below still measure what it kept.
+  const snapped = await page.evaluate(() => {
+    const scroller = document.querySelector('.detail-layer main')
+    const body = document.querySelector('.detail-layer .body')
+    if (!(scroller instanceof HTMLElement) || !body) return null
+    const blocks = 'p, h1, h2, h3, ul, ol, pre, blockquote, [data-testid]'
+    // Align the top edge with the first block the frame shows any of. A
+    // negative delta lifts a clipped line fully into view; the loop settles
+    // because each pass either moves nothing or exposes the block above.
+    let moved = 0
+    for (let pass = 0; pass < 4; pass++) {
+      const top = scroller.getBoundingClientRect().top
+      const bottom = scroller.getBoundingClientRect().bottom
+      let delta: number | null = null
+      for (const el of body.querySelectorAll(blocks)) {
+        const r = el.getBoundingClientRect()
+        if (r.bottom > top && r.top < bottom) {
+          delta = r.top - top
+          break
+        }
+      }
+      if (delta === null || Math.abs(delta) < 1) break
+      scroller.scrollTop += delta
+      moved += delta
+    }
+    return Math.round(moved)
+  })
+  console.log(`media-phone: detail top snapped to a block boundary by ${snapped ?? 'nothing'} css px`)
+  await page.waitForTimeout(400)
+  // The frame must open on a whole line, not a clipped one. Measured after
+  // the snap: the topmost block that the frame shows any of must start at or
+  // below the content top.
+  const firstBlockOffset = await page.evaluate(() => {
+    const scroller = document.querySelector('.detail-layer main')
+    const body = document.querySelector('.detail-layer .body')
+    if (!(scroller instanceof HTMLElement) || !body) return null
+    const top = scroller.getBoundingClientRect().top
+    const bottom = scroller.getBoundingClientRect().bottom
+    for (const el of body.querySelectorAll('p, h1, h2, h3, ul, ol, pre, blockquote')) {
+      const r = el.getBoundingClientRect()
+      if (r.bottom > top && r.top < bottom) return Math.round(r.top - top)
+    }
+    return null
+  })
+  console.log(`media-phone: first visible block starts ${firstBlockOffset} css px below the content top`)
+  expect(firstBlockOffset, 'the detail frame opens on a clipped line').toBeGreaterThanOrEqual(-1)
   const fieldsBox = await fields.boundingBox()
   const attHeadingBox = await page
     .locator('.detail-layer h3:has([data-testid="detail-attachments-count"])')

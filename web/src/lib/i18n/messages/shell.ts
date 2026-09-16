@@ -610,10 +610,17 @@ export const shell = {
     ko: '팀 전체',
     ja: 'チーム全体',
   },
+  // すべての未解決 is seven glyphs, and on the phone's 402pt heading it is
+  // the one view name that does not fit: measured 177px of name into 162px
+  // of line, with the freshness stamp already reduced to its glyph
+  // (GDK-1936, 2026-09-16). The の is what makes it a phrase rather than a
+  // name — 未解決すべて says the same two things in six, reads as a filter's
+  // name the way English's two words do, and clears the line with room.
+  // English and Korean already fit and are unchanged.
   'view.allOpen.name': {
     en: 'All open',
     ko: '전체 미해결',
-    ja: 'すべての未解決',
+    ja: '未解決すべて',
   },
   'view.allOpen.hint': {
     en: 'New + in progress',

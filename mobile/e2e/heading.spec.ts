@@ -54,6 +54,9 @@ type Boxes = {
   freshLines: number
   newBtn: number
   gear: number
+  headHeight: number
+  headScroll: number
+  stampShown: boolean
 }
 
 async function measure(page: import('@playwright/test').Page): Promise<Boxes> {
@@ -67,8 +70,8 @@ async function measure(page: import('@playwright/test').Page): Promise<Boxes> {
     // returns one rect per visual line, so a wrap reads 2 without guessing
     // what "one line tall" is in px.
     const freshLines = (() => {
-      const span = fresh?.querySelector('span')
-      if (!span) return -1
+      const span = fresh?.querySelector('span.stamp')
+      if (!span || getComputedStyle(span).display === 'none') return 1
       const range = document.createRange()
       range.selectNodeContents(span)
       return range.getClientRects().length
@@ -84,6 +87,12 @@ async function measure(page: import('@playwright/test').Page): Promise<Boxes> {
       freshLines,
       newBtn: width('.head button.new'),
       gear: width('.head button.gear'),
+      headHeight: Math.round(el('.head')?.getBoundingClientRect().height ?? -1),
+      headScroll: el('.head')?.scrollWidth ?? -1,
+      stampShown: (() => {
+        const span = fresh?.querySelector('span.stamp')
+        return !!span && getComputedStyle(span).display !== 'none'
+      })(),
     }
   })
 }
@@ -102,7 +111,8 @@ for (const locale of WANTED) {
     console.log(
       `[heading] ${locale}: .head ${b.head} | .scope ${b.scope} (.name ${b.name}/${b.nameScroll}` +
         `${b.nameScroll > b.name ? ' ✂' : ''}) | .count ${b.count} | .spacer ${b.spacer}` +
-        ` | .new ${b.newBtn} | .gear ${b.gear} | .fresh ${b.fresh} (${b.freshLines} line${b.freshLines === 1 ? '' : 's'})`,
+        ` | .new ${b.newBtn} | .gear ${b.gear} | .fresh ${b.fresh}` +
+        ` (stamp ${b.stampShown ? 'shown' : 'shed'}) | .head h=${b.headHeight} scroll=${b.headScroll}`,
     )
     // Capture only when a round asked for it (e2e/capture-guard.unit.ts): the
     // env read sits beside the call, which is the shape that guard reads.
@@ -119,6 +129,16 @@ for (const locale of WANTED) {
     ).toBeLessThanOrEqual(b.name)
     expect(b.fresh, `${locale} .fresh is visible`).toBeGreaterThan(0)
     expect(b.freshLines, `${locale} .fresh wraps`).toBe(1)
+    // One line in every language (GDK-1936, revised 2026-09-16). The first
+    // fix let the row wrap, which kept the name whole and moved the stamp to
+    // a second line in ja only — the exhibit then showed one locale with a
+    // header a band taller and a chip floating in it. The row is one line
+    // now and the stamp sheds its words instead, so the assertion is on the
+    // row's height, not on any one child.
+    expect(
+      b.headScroll,
+      `${locale} the header row overflows its line: scrollWidth ${b.headScroll} > ${b.head}`,
+    ).toBeLessThanOrEqual(b.head + 1)
     // The touch-target contract the fix must not pay its width from.
     expect(b.newBtn, `${locale} .new tap target`).toBeGreaterThanOrEqual(44)
     expect(b.gear, `${locale} .gear tap target`).toBeGreaterThanOrEqual(44)

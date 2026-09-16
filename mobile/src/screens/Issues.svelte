@@ -9,6 +9,7 @@
   import CreateSheet from '../ui/CreateSheet.svelte'
   import SprintLine from '../ui/SprintLine.svelte'
   import { t } from '../lib/i18n'
+  import { fitHeading } from '../lib/fit-heading'
   import {
     app,
     closePalette,
@@ -165,7 +166,7 @@
 
 <Screen bind:scroller>
   {#snippet header()}
-    <div class="head">
+    <div class="head" use:fitHeading>
       <h1>
         <button class="scope" onclick={showPalette} aria-expanded={app.palette}>
           <span class="name type-subject">{heading}</span>
@@ -207,7 +208,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class:spin={app.syncing} aria-hidden="true">
           <path d="M21 12a9 9 0 1 1-2.6-6.3" /><path d="M21 3v6h-6" />
         </svg>
-        <span>{syncLabel}</span>
+        <span class="stamp">{syncLabel}</span>
       </button>
     </div>
     {#if offlineBanner}
@@ -298,14 +299,6 @@
 <style>
   .head {
     display: flex;
-    /* GDK-1936 (measured at 402px, all-open scope): the ja row's natural
-       width is ~423px against 370px of line, and the shrinkable stamp paid
-       for the overflow by folding its text while the name took the
-       ellipsis (すべて…, scrollWidth 177 > 124). Wrapping the row moves only
-       the overflowing locale's stamp to the header's second line — line 1
-       without it is 357px, so the name keeps its full width; en (348px) and
-       ko (352px) never reach the break and stay single-line as they were. */
-    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
     /* The heading is a 44pt control now, so the padding that used to carry
@@ -350,11 +343,19 @@
   .spacer {
     flex: 1 1 auto;
   }
+  /* The name had to ellipsize with the stamp's words in the row, so they go.
+     The glyph is the control; the words were the nicety (GDK-1936). `tight`
+     is put on by lib/fit-heading's action after layout, so the selector is
+     global — Svelte cannot see a class no template writes. */
+  .head:global(.tight) .fresh .stamp {
+    display: none;
+  }
   .fresh {
     /* GDK-1936: the stamp is never the element that folds. One breath
-       (nowrap), no width traded for the heading's (flex:none — its old
-       default shrink is what bent the text into two lines), and it keeps
-       its right-edge stance on whichever line it lands. */
+       (nowrap), no width traded for the heading's — its old default shrink
+       is what bent the text into two lines. When the row cannot hold the
+       words the glyph stays and the words go (see `.head.tight` below);
+       the button keeps its 44pt either way. */
     flex: none;
     white-space: nowrap;
     margin-left: auto;
