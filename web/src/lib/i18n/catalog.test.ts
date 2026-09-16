@@ -171,6 +171,7 @@ const ALLOWED_PHONE_ONLY = new Map<string, string>([
   ['settings.hostedViewer', 'viewer identity from tailscale serve headers (Settings, GDK-1966)'],
   ['settings.hostedNoViewer', 'no-identity degradation sentence when reached without tailscale serve (Settings, GDK-1966)'],
   ['settings.hostedUnreachable', 'page not served by gadak serve (PairGate, GDK-1966)'],
+  ['settings.hostedAddHome', 'home-screen install hint (Settings, GDK-1970)'],
   // ── phone detail screen: the desk panel renders these facts under its own
   //    section keys (description/comments/…) or not at all (no Fields
   //    section, no share verb, tap-to-play media) ──

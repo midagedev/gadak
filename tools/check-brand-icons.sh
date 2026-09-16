@@ -14,6 +14,7 @@ set -uo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 src="$repo/docs/media/logo.png"
+icons="$repo/mobile/src-tauri/icons"
 stamp="$repo/mobile/src-tauri/icons/SOURCE.sha256"
 ios="$repo/mobile/src-tauri/icons/ios"
 appiconset="$repo/mobile/src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset"
@@ -65,6 +66,22 @@ if [ -d "$appiconset" ]; then
 		fi
 	done
 fi
+
+# The hosted /m/ bundle's home-screen icons (GDK-1970) are plain copies of
+# the generated set — a third way to drift, so the same gate holds them.
+webicons="$repo/mobile/public/icons"
+web_copy() { # <generated source> <web copy name>
+	if [ ! -f "$1" ]; then
+		note "missing generated icon $1 — run: make brand"
+	elif [ ! -f "$webicons/$2" ]; then
+		note "missing $webicons/$2 — the hosted page ships no icon"
+	elif ! cmp -s "$1" "$webicons/$2"; then
+		note "$2 differs from $1"
+	fi
+}
+web_copy "$icons/128x128@2x.png" icon-256.png
+web_copy "$icons/128x128@2x.png" apple-touch-icon.png
+web_copy "$icons/icon.png" icon-512.png
 
 if [ "$fail" -ne 0 ]; then
 	echo "brand-icons: fix with  make brand  (regenerates from docs/media/logo.png and restamps)" >&2

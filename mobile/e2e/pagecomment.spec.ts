@@ -121,9 +121,17 @@ test('a page comment typed on the phone survives leaving the page', async ({ pag
   await expect(page.locator('.page-detail .composer .draft-note')).toHaveCount(0)
   await expect(page.locator('.page-detail .composer input')).toHaveValue(`${TYPED}!`)
 
-  // Closing the app, as this webview experiences it.
+  // Closing the app, as this webview experiences it. GDK-1970: the reload
+  // keeps the #/page/<key> hash, and the cold link restores the page detail —
+  // words already back in the composer. Leave through the visible control and
+  // re-enter the way this test has always walked; the trip is one leg longer,
+  // so the draft now survives one more leave-and-return than it did before.
   await page.reload({ waitUntil: 'domcontentloaded' })
-  await page.locator('h1 button.scope').waitFor()
+  await page.locator('.page-detail button.back').waitFor()
+  await expect(page.locator('.page-detail .composer input')).toHaveValue(`${TYPED}!`)
+  await expect(page.locator('.page-detail .composer .draft-note')).toBeVisible()
+  await page.locator('.page-detail button.back').first().click()
+  await expect(page.locator('.detail-layer')).toHaveCount(0)
   await reopenFirstPage(page)
   await expect(page.locator('.page-detail .composer input')).toHaveValue(`${TYPED}!`)
   await expect(page.locator('.page-detail .composer .draft-note')).toBeVisible()

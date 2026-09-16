@@ -7,6 +7,7 @@ import {
   createBackStack,
   peekBack,
   systemBack,
+  type DetailRef,
   type HistorySeam,
   type PopTarget,
 } from './back'
@@ -40,6 +41,14 @@ function fakeNav() {
     pushState(data: unknown) {
       state = data
     },
+    replaceState(data: unknown) {
+      state = data
+    },
+    back() {
+      state = null
+      for (const l of listeners.slice()) l()
+    },
+    readHash: () => '',
   }
   const target: PopTarget = {
     addEventListener(_type, listener) {
@@ -287,5 +296,262 @@ describe('recurrence — the owner stays the owner', () => {
 
   it('app.css does not claim App.svelte collapses the insets', () => {
     expect(read('app.css')).not.toMatch(/App\.svelte collapses/)
+  })
+})
+
+/*
+ * GDK-1970 — the detail is a real history entry.
+ *
+ * The hosted phone is a browser page, and iOS Safari's edge swipe slides to
+ * the previous entry's snapshot before popstate fires. With the detail
+ * living only in store state, that previous entry is whatever the browser
+ * had below the page — a second swipe leaves the app. These tests pin the
+ * two-layer fix's unit half: the detail push (a frame + a #/KEY hash), the
+ * gesture closing it back to the sentinel, and the URL following the ←
+ * control instead of drifting.
+ *
+ * The fake here is an entry stack, not a bare `state` cell: "popped to the
+ * sentinel" (state stays the sentinel) and "pushed over it" (state also a
+ * sentinel, one entry taller) are indistinguishable through state alone,
+ * and the whole point of this round is which of the two happened.
+ */
+function fakeHistory(initialUrl = '', initialState: unknown = null) {
+  const entries: Array<{ state: unknown; url: string }> = [{ state: initialState, url: initialUrl }]
+  let index = 0
+  const listeners: Array<() => void> = []
+  const calls = { push: 0, replace: 0, back: 0 }
+  const fire = () => {
+    for (const l of listeners.slice()) l()
+  }
+  const history: HistorySeam = {
+    get state() {
+      return entries[index].state
+    },
+    pushState(data: unknown, _unused: string, url?: string) {
+      // History structured-clones its state; a Svelte $state proxy thrown
+      // at it dies as DataCloneError in the browser and silently armed
+      // nothing (measured 2026-09-17, GDK-1970). The fake pays the same
+      // toll so that class fails here too, not only in e2e.
+      entries.splice(index + 1, entries.length, {
+        state: structuredClone(data),
+        url: url ?? entries[index].url,
+      })
+      index++
+      calls.push++
+    },
+    replaceState(data: unknown, _unused: string, url?: string) {
+      entries[index] = { state: structuredClone(data), url: url ?? entries[index].url }
+      calls.replace++
+    },
+    back() {
+      calls.back++
+      if (index === 0) return
+      index--
+      fire()
+    },
+    readHash() {
+      const url = entries[index].url
+      // A lone '#' is how a same-document URL drops its hash; location.hash
+      // reads it as '' and so does this fake.
+      return url.startsWith('#') && url !== '#' ? url : ''
+    },
+  }
+  const target: PopTarget = {
+    addEventListener(_type, listener) {
+      listeners.push(listener)
+    },
+    removeEventListener(_type, listener) {
+      const i = listeners.indexOf(listener)
+      if (i >= 0) listeners.splice(i, 1)
+    },
+  }
+  return {
+    history,
+    target,
+    calls,
+    hash: () => history.readHash(),
+    entries: () => entries.length,
+    /** One user swipe: the browser pops one entry and fires popstate.
+     *  Deliberately not seam.back() — that counter must stay zero unless
+     *  the module itself called back(). */
+    pop() {
+      if (index === 0) return
+      index--
+      fire()
+    },
+    /** Browser forward — index up onto a surviving entry, then popstate. */
+    fwd() {
+      if (index + 1 >= entries.length) return
+      index++
+      fire()
+    },
+  }
+}
+
+/** The store's two callbacks plus the rigging every test below needs. */
+function rig(nav: ReturnType<typeof fakeHistory>) {
+  const stack = createBackStack()
+  let current: DetailRef | null = null
+  const opened: Array<string> = []
+  const closeDetail = vi.fn(() => {
+    current = null
+  })
+  const stop = stack.bind(
+    nav.history,
+    nav.target,
+    () => current !== null,
+    closeDetail,
+    () => current,
+    (kind, key) => {
+      opened.push(`${kind}:${key}`)
+      current = { kind, key }
+    },
+  )
+  return {
+    stack,
+    stop,
+    opened,
+    closeDetail,
+    /** The store's openIssue/openPage, then the effect's sync. */
+    open: (d: DetailRef) => {
+      current = d
+      stack.syncDetail(d)
+    },
+    /** The visible control's closeIssue, then the effect's sync. */
+    closeViaControl: () => {
+      current = null
+      stack.syncDetail(null)
+    },
+  }
+}
+
+describe('GDK-1970 — the detail is a real history entry', () => {
+  it('a reload onto a detail frame rebuilds root → sentinel → frame, so two swipes reach the root and stay there', () => {
+    // The browser keeps both the hash and the frame state across a reload.
+    const nav = fakeHistory('#/NMA-7', { gadakDetail: { kind: 'issue', key: 'NMA-7' } })
+    const r = rig(nav)
+    expect(r.opened).toEqual(['issue:NMA-7'])
+    // root (cleared), sentinel, frame — not frame, sentinel, frame.
+    expect(nav.entries()).toBe(3)
+    nav.pop()
+    expect(r.closeDetail).toHaveBeenCalledTimes(1)
+    nav.pop()
+    // The second swipe lands on the root and re-arms; nothing reopens.
+    expect(r.opened).toEqual(['issue:NMA-7'])
+    expect(nav.hash()).toBe('')
+    r.stop()
+  })
+
+  it('opening a detail pushes one frame carrying the #/KEY hash over the sentinel', () => {
+    const nav = fakeHistory()
+    const r = rig(nav)
+    r.open({ kind: 'issue', key: 'STD-7' })
+    expect(nav.hash()).toBe('#/STD-7')
+    expect(nav.history.state).toEqual({ gadakDetail: { kind: 'issue', key: 'STD-7' } })
+    // document entry, sentinel, frame — one push, and the sentinel is the
+    // entry below the frame, where a swipe lands.
+    expect(nav.entries()).toBe(3)
+    expect(nav.calls.push).toBe(2) // arm + frame
+  })
+
+  it('a page detail gets the #/page/<key> hash', () => {
+    const nav = fakeHistory()
+    const r = rig(nav)
+    r.open({ kind: 'page', key: 'Docs~Main' })
+    expect(nav.hash()).toBe('#/page/Docs~Main')
+  })
+
+  it('the swipe closes the detail and the URL returns to no hash, pushing nothing', () => {
+    const nav = fakeHistory()
+    const r = rig(nav)
+    r.open({ kind: 'issue', key: 'STD-7' })
+    const pushes = nav.calls.push
+    nav.pop() // popstate lands on the sentinel
+    expect(r.closeDetail).toHaveBeenCalledOnce()
+    expect(nav.history.state).toEqual({ gadakBack: true })
+    expect(nav.hash()).toBe('')
+    expect(nav.calls.push).toBe(pushes) // the arm found its sentinel: no re-push
+    expect(nav.entries()).toBe(3)
+  })
+
+  it('a second swipe at the root re-arms and never calls back — the page is never left', () => {
+    const nav = fakeHistory()
+    const r = rig(nav)
+    r.open({ kind: 'issue', key: 'STD-7' })
+    nav.pop() // closes the detail, now on the sentinel
+    nav.pop() // pops below the sentinel: the bounce
+    expect(r.closeDetail).toHaveBeenCalledOnce() // not called a second time
+    expect(nav.calls.back).toBe(0)
+    expect(nav.history.state).toEqual({ gadakBack: true })
+    // the forward stack died with the re-arm (the browser's rule) and a
+    // fresh sentinel stands over the document entry again.
+    expect(nav.entries()).toBe(2)
+  })
+
+  it('the ← control closes via back() and the resulting pop is swallowed', () => {
+    const nav = fakeHistory()
+    const r = rig(nav)
+    const onclose = vi.fn()
+    r.stack.registerSheet(onclose)
+    r.open({ kind: 'issue', key: 'STD-7' })
+    const closes = r.closeDetail.mock.calls.length
+    r.closeViaControl()
+    expect(nav.calls.back).toBe(1)
+    // the pop was swallowed: no perform ran, so the sheet under the user
+    // stayed open and closeDetail was not re-fired by the gesture path.
+    expect(onclose).not.toHaveBeenCalled()
+    expect(r.closeDetail.mock.calls.length).toBe(closes)
+    expect(nav.hash()).toBe('')
+    expect(nav.history.state).toEqual({ gadakBack: true })
+  })
+
+  it('linked navigation replaces the frame — one back still returns to the list', () => {
+    const nav = fakeHistory()
+    const r = rig(nav)
+    r.open({ kind: 'issue', key: 'STD-7' })
+    const pushes = nav.calls.push
+    r.open({ kind: 'issue', key: 'STD-9' })
+    expect(nav.calls.replace).toBe(1)
+    expect(nav.calls.push).toBe(pushes)
+    expect(nav.hash()).toBe('#/STD-9')
+    expect(nav.entries()).toBe(3)
+    nav.pop()
+    expect(r.closeDetail).toHaveBeenCalledOnce()
+    expect(nav.hash()).toBe('')
+  })
+
+  it('a pop onto a detail frame reopens it (browser forward)', () => {
+    const nav = fakeHistory()
+    const r = rig(nav)
+    r.open({ kind: 'issue', key: 'STD-7' })
+    nav.pop() // gesture close — the frame is still a forward entry
+    nav.fwd() // browser forward lands on the frame
+    expect(r.opened).toEqual(['issue:STD-7'])
+    expect(nav.hash()).toBe('#/STD-7')
+    // the reopen must not arm a sentinel above the frame: the entry below
+    // the frame already is one, and a sentinel on top would strand it.
+    expect(nav.entries()).toBe(3)
+    expect(nav.calls.push).toBe(2)
+  })
+
+  it('a cold #/KEY hash opens its detail on bind', () => {
+    const nav = fakeHistory('#/STD-12')
+    const r = rig(nav)
+    expect(r.opened).toEqual(['issue:STD-12'])
+    expect(nav.hash()).toBe('#/STD-12')
+    expect(nav.entries()).toBe(3) // document entry, sentinel, frame — no duplicate
+  })
+
+  it('a cold #/page/<key> hash opens its page detail on bind', () => {
+    const nav = fakeHistory('#/page/Playbook')
+    const r = rig(nav)
+    expect(r.opened).toEqual(['page:Playbook'])
+  })
+
+  it('a hash that names nothing opens nothing', () => {
+    const nav = fakeHistory('#/section')
+    const r = rig(nav)
+    expect(r.opened).toEqual([])
+    expect(nav.entries()).toBe(2)
   })
 })

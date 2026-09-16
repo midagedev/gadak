@@ -1489,6 +1489,11 @@ export const settings = {
     ko: '이 페이지는 gadak serve가 서빙한 것이 아닙니다. 데스크톱의 "폰에서 열기"에 나온 주소를 여세요.',
     ja: 'このページは gadak serve が配信したものではありません。デスクトップの「スマートフォンで開く」に表示されたアドレスを開いてください。',
   },
+  'settings.hostedAddHome': {
+    en: 'Add this page to your Home Screen: it opens full-screen, and a swipe never leaves the page.',
+    ko: '홈 화면에 추가해 두면 브라우저 없이 전체 화면으로 열리고, 쓸어넘기기가 페이지를 벗어나지 않습니다.',
+    ja: 'ホーム画面に追加すると、ブラウザなしの全画面で開き、スワイプでページの外に出ません。',
+  },
   'settings.terminalAppearance': {
     en: 'Appearance',
     ko: '외관',

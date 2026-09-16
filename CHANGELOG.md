@@ -67,7 +67,11 @@ Behind `tailscale serve` the person's Tailscale login rides each request and
 their writes are attributed to them; reached directly, the serve stays the
 single-user surface it was. The desktop's Devices tab shows that address as a
 QR beside the pairing offers, which stay for other machines' `gadak`
-([GDK-1966]).
+([GDK-1966]). In that browser an open issue is a real history entry with its
+key in the address, so the back swipe lands on the list instead of walking
+off the page, an issue's address can be pasted to a teammate on the tailnet,
+and the page installs to the Home Screen as a full-screen app with no browser
+chrome and no swipe to leave ([GDK-1970]).
 
 **What the cache holds, and what it counts, answer to the origin.** A wiki page removed at the
 origin used to stay in the local cache for as long as its space did. A full
@@ -1728,3 +1732,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1965]: https://gadak.dev/backlog/#/?ks=GDK-1965
 [GDK-1966]: https://gadak.dev/backlog/#/?ks=GDK-1966
 [GDK-1969]: https://gadak.dev/backlog/#/?ks=GDK-1969
+[GDK-1970]: https://gadak.dev/backlog/#/?ks=GDK-1970

@@ -31,6 +31,13 @@
   // snapshot, who does the serve think I am. The one destructive rarity —
   // Unpair — uses the house two-step arm (UX_PRINCIPLES §7): first tap
   // arms, second tap within 3s fires, no modal.
+  //
+  // Home-screen install hint (GDK-1970): a standalone web app has no
+  // browser chrome and none of the edge-swipe history navigation that can
+  // walk a hosted page off the tailnet. Read once — display-mode changes
+  // with how the page was launched, not while it runs.
+  const standalone =
+    typeof matchMedia !== 'undefined' && matchMedia('(display-mode: standalone)').matches
   let armed = $state(false)
   let armTimer: ReturnType<typeof setTimeout> | null = null
   let termArmed = $state(false)
@@ -346,6 +353,9 @@
             </p>
           {:else}
             <p class="sub">{t('settings.hostedNoViewer')}</p>
+          {/if}
+          {#if !standalone}
+            <p class="sub" data-testid="hosted-add-home">{t('settings.hostedAddHome')}</p>
           {/if}
         </section>
       {/if}

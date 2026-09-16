@@ -4,6 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>gadak</title>
+    <!-- Home-screen web app (GDK-1970): installed from the hosted page, the
+         bundle opens standalone — no browser chrome, and none of the edge-
+         swipe history navigation that can walk a hosted page off the
+         tailnet. The manifest's relative URLs and this page's /-rooted
+         hrefs are both rewritten by the build base (/m/ when mounted). -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="gadak" />
+    <meta name="theme-color" content="#f4efe4" />
     <!-- Dark mode comes from prefers-color-scheme via the shared token
          stylesheet (src/app.css imports web/src/app.css); no boot script is
          needed until an in-app theme override exists. -->

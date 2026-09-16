@@ -72,8 +72,18 @@ test('a comment typed on the phone survives leaving the issue and reloading the 
   await expect(page.locator('.composer .draft-note')).toHaveCount(0)
   await expect(page.locator('.composer input')).toHaveValue(`${TYPED}!`)
 
-  // Closing the app, as this webview experiences it.
+  // Closing the app, as this webview experiences it. GDK-1970: the reload
+  // keeps the #/KEY hash, and the cold link reopens the issue over the list —
+  // the app switch returns the user to where they were, draft already in the
+  // composer. Leave through the visible control and re-enter the way this
+  // test has always walked; the trip is one leg longer, so the draft now
+  // survives one more leave-and-return than it did before.
   await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.locator('.detail-layer button.back').waitFor()
+  await expect(page.locator('.composer input')).toHaveValue(`${TYPED}!`)
+  await expect(page.locator('.composer .draft-note')).toBeVisible()
+  await page.locator('.detail-layer button.back').first().click()
+  await expect(page.locator('.detail-layer')).toHaveCount(0)
   await page.locator('h1 button.scope').waitFor()
   const rowAgain = page.locator('.pane:not(.off) button.row').first()
   await rowAgain.waitFor()

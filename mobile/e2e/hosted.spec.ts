@@ -52,3 +52,71 @@ test('hosted: boots to the list, Settings says hosted, no Tauri runtime loads', 
   expect(await page.evaluate(() => '__TAURI_INTERNALS__' in window)).toBe(false)
   expect(errors).toEqual([])
 })
+
+/*
+ * GDK-1970 — the detail is a history entry, and the page is never left.
+ *
+ * In a browser the edge swipe walks session history, so the detail living
+ * only in store state meant one swipe slid the whole page to whatever the
+ * browser had below it, and a second could leave the app. The unit half
+ * (lib/back.test.ts) pins the frame mechanics with a fake entry stack;
+ * this is the half only a real browser history can prove: the open writes
+ * the #/KEY hash, one back closes the detail onto the sentinel with the
+ * URL following, forward reopens the same key, and a back at the root is
+ * the bounce — still this document, still the list, URL never moved.
+ *
+ * The order is back → forward → back → back, not back → back → forward:
+ * the bounce re-arms by pushing a fresh sentinel, and a pushState is what
+ * clears the browser's forward stack — after a double back there is no
+ * forward entry to reopen. Each assertion the round wants is still here,
+ * asserted from a history position where it is reachable.
+ */
+test('hosted: back closes the detail onto the sentinel, forward reopens it, the page is never left', async ({
+  page,
+}) => {
+  const errors: string[] = []
+  page.on('pageerror', (err) => errors.push(String(err)))
+
+  await page.goto('/?hosted')
+  await waitPaired(page)
+  const startUrl = page.url()
+
+  // The first row's key, read before the tap that opens it.
+  const key = ((await page.locator('.pane:not(.off) .row .key').first().textContent()) ?? '').trim()
+  expect(key).toMatch(/^[A-Z][A-Z0-9_]*-\d+$/)
+  const pathname = await page.evaluate(() => location.pathname)
+
+  await page.locator('.pane:not(.off) button.row').first().click()
+
+  // The open is a real pushState: the hash names the key.
+  await expect(page.locator('.detail-layer')).toHaveCount(1)
+  expect(await page.evaluate(() => location.hash)).toBe(`#/${key}`)
+
+  // One back — the edge swipe: the detail closes onto the sentinel, the
+  // URL returns to no hash, and the document never moved.
+  await page.goBack()
+  await expect(page.locator('.detail-layer')).toHaveCount(0)
+  await waitPaired(page)
+  expect(await page.evaluate(() => location.hash)).toBe('')
+  expect(await page.evaluate(() => location.pathname)).toBe(pathname)
+
+  // Forward reopens the same key — the frame survived as a forward entry.
+  await page.goForward()
+  await expect(page.locator('.detail-layer')).toHaveCount(1)
+  expect(await page.evaluate(() => location.hash)).toBe(`#/${key}`)
+
+  // Close it again, then the second back is the bounce: the re-arm's
+  // pushState eats the gesture, which is the whole point of the sentinel.
+  await page.goBack()
+  await expect(page.locator('.detail-layer')).toHaveCount(0)
+  await page.goBack()
+  await waitPaired(page)
+  expect(page.url()).toBe(startUrl)
+  expect(errors).toEqual([])
+
+  // The install hint (Layer A′) says what the home screen buys: shown in
+  // hosted Settings while the page is still a browser tab.
+  await openSettings(page)
+  await expect(page.getByTestId('hosted-add-home')).toBeVisible()
+  expect(errors).toEqual([])
+})

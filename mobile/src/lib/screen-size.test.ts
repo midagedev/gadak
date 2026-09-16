@@ -43,7 +43,10 @@ const CEILINGS: Record<string, { lines: number; state: number }> = {
   // section (page host + the viewer sentence from GET viewer/) plus hosted
   // guards on the roster read, the scan entries, the terminal endpoint line
   // and both unpair controls. 765 → 827; $state 14 → 15 (the viewer doc).
-  'Settings.svelte': { lines: 827, state: 15 },
+  // Raised 2026-09-17 (GDK-1970 install hint, 2026-09-17): the home-screen
+  // install sentence + its standalone guard. 827 → 837; $state unchanged
+  // (display-mode is read once, not state).
+  'Settings.svelte': { lines: 837, state: 15 },
   'PageDetail.svelte': { lines: 522, state: 8 },
   // 2026-09-16, GDK-1936: raised to 497 when the header learned to wrap,
   // then lowered when the revision moved the measurement out to

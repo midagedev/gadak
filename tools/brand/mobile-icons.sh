@@ -38,6 +38,16 @@ if [ -d "$appiconset" ]; then
 	cp "$appiconset"/*.png "$icons/ios/"
 fi
 
+# The hosted /m/ bundle's home-screen icons (GDK-1970): manifest +
+# apple-touch-icon copies of the sizes tauri just generated, so the page a
+# serve hands out wears the same mark the packaged app does. Byte copies of
+# the generated set — tools/check-brand-icons.sh holds them to it.
+webicons="$repo/mobile/public/icons"
+mkdir -p "$webicons"
+cp "$icons/128x128@2x.png" "$webicons/icon-256.png"
+cp "$icons/128x128@2x.png" "$webicons/apple-touch-icon.png"
+cp "$icons/icon.png" "$webicons/icon-512.png"
+
 cat > "$icons/SOURCE.sha256" <<EOF
 # The brand source these icons were generated from.
 # Regenerate: make brand   (tools/brand/mobile-icons.sh)

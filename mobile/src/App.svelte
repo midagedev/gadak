@@ -2,8 +2,8 @@
   import { fly } from 'svelte/transition'
   import { initLocale } from './lib/i18n'
   import { t } from './lib/i18n'
-  import { systemBack } from './lib/back'
-  import { app, boot, closeTop, exitDemo, goToList, hasBackTarget, openIssue, startClock } from './lib/store.svelte'
+  import { browserHistory, systemBack } from './lib/back'
+  import { app, boot, closeTop, exitDemo, goToList, hasBackTarget, openIssue, openPage, startClock } from './lib/store.svelte'
   import { bindOsDeepLinks, createDeepLinkRouter, exposeForTests } from './lib/deeplink-entry'
   import PairGate from './screens/PairGate.svelte'
   import Issues from './screens/Issues.svelte'
@@ -31,17 +31,31 @@
   })
 
   // One owner for system back (DESIGN.md §2). Sheets register themselves;
-  // this bind is the only history listener in the app.
+  // this bind is the only history listener in the app. Since GDK-1970 the
+  // seam is browserHistory() — window.history plus the hash read it cannot
+  // make — and the bind also knows how to read the open detail and how to
+  // reopen one, so the detail can be a real history entry on the hosted
+  // page instead of store-only state a browser swipe walks past.
   $effect(() => {
     // The order is the entry/exit table's: detail, then a push layer, then
     // the palette. Both live in the store so the order is one statement and
     // a unit can read it (GDK-902).
     return systemBack.bind(
-      window.history,
+      browserHistory(),
       window,
       hasBackTarget,
       closeTop,
+      () => app.detail,
+      (kind, key) => (kind === 'issue' ? openIssue(key) : openPage(key)),
     )
+  })
+
+  // The detail ↔ history frame sync (GDK-1970): the store stays the owner
+  // of what is open; this effect is the only thing that translates a store
+  // change into a history change. Declared after the bind effect so the
+  // seam exists before the first sync runs.
+  $effect(() => {
+    systemBack.syncDetail(app.detail)
   })
 
   // gadak:// deep links (GDK-873). The decision is entirely in lib/deeplink
