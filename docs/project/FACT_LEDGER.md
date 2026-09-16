@@ -46,7 +46,9 @@ storage and type, attribution, MCP clients, read exceptions, deletions).
   into **one SQLite file on the reader's own machine**, indexed together.
 - **Reads never touch the network.**
 - Three surfaces on the same mirror: **desktop app**, **browser tab via
-  `gadak serve`**, **CLI**. Plus **MCP** for shell-less hosts.
+  `gadak serve`**, **CLI**. Plus **MCP** for shell-less hosts, and an
+  **iOS app in beta** that pairs with a `gadak serve` the reader already runs
+  (§3a — say *beta*, and do not promise a download).
 - **The mirror is a cache you can throw away.** Delete the directory and
   nothing is lost — **Jira stays the source of truth.** An edition may let
   the word *cache* carry both halves; it does not have to say "source of
@@ -63,6 +65,33 @@ storage and type, attribution, MCP clients, read exceptions, deletions).
   three READMEs, and re-asserts on every tag.)
 - Sync, read API, write-through, desktop, web, CLI and MCP are verified
   against a live site.
+
+## 3a. The phone app (beta, 2026-09-16)
+
+The iOS app (`mobile/`, Tauri v2 + Svelte) reaches the landing page and the
+three READMEs for 0.23. It reverses the 2026-09-02 call that kept it off every
+public surface (`docs/project/MEDIA.md`, the removed `hero.mp4` row); what
+changed is that the phone now reads the whole cache and writes the one-line
+edits (GDK-1875), so there is something to show. Every edition that shows it
+carries these facts and no more:
+
+- **It is beta, and the word is on the surface.** Builds go to TestFlight for
+  internal testers. There is **no public download** — external TestFlight and
+  the App Store both wait on the review-demo path (GDK-958). An edition must
+  not print a store link, a TestFlight link, or a waitlist that does not exist.
+- **It pairs with a `gadak serve` the reader already runs**, over their own
+  network. No gadak account, no hosted service in between — the same
+  loopback-and-your-own-network rule §11 states for every other surface.
+- **What it does**: whatever the cache holds, it shows — fields, attachments,
+  linked issues, the wiki, the active sprint and every sprint the cache holds.
+  What is one line to say, it writes through the origin: a comment, a label, a
+  due date, a photo, a child issue.
+- **What it does not do, out loud**: editing a wiki page or a custom field,
+  authoring a view, laying out a dashboard and moving cards stay on the
+  desktop, and the app says so where the control would be.
+- **Screens on the public surfaces are recorded**, not mocked:
+  `make media-phone` at 402×874, device scale 3, over the demo snapshot, one
+  take per UI language (§15).
 
 ## 4. Install commands (verbatim; one `brew install` per fence)
 

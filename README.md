@@ -194,6 +194,27 @@ Linear, an agent's comments and the issues it creates carry its name (off switch
 **An agent that reads the mirror sends what it reads to whatever model it talks
 to.** gadak itself sends nothing. Scope the mirror to what the agent should see.
 
+## The phone app (beta)
+
+The iOS app pairs with a `gadak serve` you already run, over your own network.
+No gadak account, and nothing hosted in between. Whatever the cache holds, the
+phone shows: fields, attachments, linked issues, wiki pages, the active sprint
+and every sprint behind it. What is one line to say, the phone writes through
+the origin first, the way the desk does: a comment, a label, a due date, a
+photo, an issue filed under its epic. Editing a page or a custom field,
+authoring a view, laying out a dashboard and moving cards stay on the desktop,
+and the app says so where the control would be.
+
+<p align="center">
+  <img src="docs/media/phone-list.png" alt="The phone list: the workspace heading, the active sprint on one line with its goal and days left, and the issues under it" width="230">
+  <img src="docs/media/phone-detail.png" alt="An issue on the phone: status and priority, the Fields section with its parent, labels and components, and the attachments three across" width="230">
+  <img src="docs/media/phone-palette.png" alt="The palette open in the heading, where the tab bar used to be: recent issues, views, filters, spaces and the terminal" width="230">
+</p>
+
+**Beta, and that is the whole status.** Builds go to TestFlight for internal
+testers, and there is no public download. An App Store listing waits on a way
+for a reviewer to see the app without joining your network.
+
 ## Origins and limits
 
 Four origins, one set of verbs: Atlassian Cloud, Jira Server / Data Center

@@ -197,6 +197,55 @@ const jsonLd = JSON.stringify({
           </>
         )}
 
+        {section === 'phone' && (
+          <>
+            <Thread label={t.phone.label} />
+            <section class="phone">
+              <h2>
+                {t.phone.heading}
+                <span class="badge">{t.phone.badge}</span>
+              </h2>
+              <p set:html={t.phone.body} />
+              {/* Three stills, not a clip: a phone screen reads from one frame
+                  (docs/project/MEDIA.md, the landing media policy). Shot at the
+                  app's own 402x874 rather than cropped out of a desktop capture,
+                  which is the unreadable shape docs/runbooks/release-video.md
+                  measured. No bezel and no invented status bar — the picture is
+                  the app's own viewport. */}
+              <figure class="shots">
+                <div class="row">
+                  <img
+                    src={mediaFor(lang, '/media/phone-list.png')}
+                    alt={t.phone.alt.list}
+                    loading="lazy"
+                    decoding="async"
+                    width="1206"
+                    height="2622"
+                  />
+                  <img
+                    src={mediaFor(lang, '/media/phone-detail.png')}
+                    alt={t.phone.alt.detail}
+                    loading="lazy"
+                    decoding="async"
+                    width="1206"
+                    height="2622"
+                  />
+                  <img
+                    src={mediaFor(lang, '/media/phone-palette.png')}
+                    alt={t.phone.alt.palette}
+                    loading="lazy"
+                    decoding="async"
+                    width="1206"
+                    height="2622"
+                  />
+                </div>
+                <figcaption>{t.phone.caption}</figcaption>
+              </figure>
+              <p class="note">{t.phone.note}</p>
+            </section>
+          </>
+        )}
+
         {section === 'compare' && t.compare && (
           <>
             <Thread label={t.compare.label} />
@@ -502,6 +551,52 @@ const jsonLd = JSON.stringify({
     margin: 0;
   }
 
+  .phone h2 {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .phone .badge {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    padding: 0.05rem 0.45rem;
+    /* Baseline-aligned with a heading twice its size reads as a footnote;
+       nudge it back onto the cap line. */
+    transform: translateY(-0.15em);
+  }
+  /* Three phone frames across on a wide column, wrapping to two and one as the
+     column narrows. Each still is 1206x2622, so the cap is what keeps a 2622px
+     image from deciding the section's height. */
+  .phone .shots {
+    margin: 1.25rem 0 0;
+  }
+  .phone .shots .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+  }
+  .phone .shots img {
+    width: 100%;
+    max-width: 200px;
+    height: auto;
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) * 1.5);
+    background: var(--panel);
+    display: block;
+  }
+  .phone figcaption {
+    margin-top: 0.75rem;
+    font-size: 0.8125rem;
+    color: var(--ink-3);
+    text-align: center;
+  }
   .exhibit {
     display: grid;
     gap: 1.75rem;

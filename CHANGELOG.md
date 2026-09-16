@@ -32,9 +32,11 @@ comment, on an issue or a wiki page, and on a new issue the create sheet holds
 the picture until the issue has a key ([GDK-1872], [GDK-1873], [GDK-1879]).
 What stays on the desk — editing a page or a custom field, authoring a view,
 laying out a dashboard, moving cards — says so in one dimmed line where you
-would look for it ([GDK-1874]).
+would look for it ([GDK-1874]). The phone reaches the project's public
+surfaces for the first time: the landing page and the three READMEs carry
+recorded screens of it, marked beta ([GDK-1932]).
 
-**A page deleted on Confluence leaves the cache.** A wiki page removed at the
+**What the cache holds, and what it counts, answer to the origin.** A wiki page removed at the
 origin used to stay in the local cache for as long as its space did. A full
 wiki sync now compares each space's page listing with the cache, and the hourly
 reconcile does the same by page id, reading a body only where the two disagree;
@@ -45,6 +47,15 @@ or comment added to a page reaches the cache on the reconcile even when the
 page itself was not edited ([GDK-1888]); and Linear gets the same rule — an
 issue deleted at the origin leaves the cache the next time gadak re-reads it
 ([GDK-1889]).
+
+The retrospective's numbers answer to the same rule. Under sprint columns the
+table carries two rows about what is *in* the sprint, beside the interval rows
+that say what moved during it ([GDK-1846]). And its mismatch row stopped
+measuring the language: on a Korean workspace it read ordinary scheduling
+vocabulary — a sentence saying a problem started *after* a change landed — as a
+claim that the work was finished, and counted five times too often. One rule
+now decides whether a done word is carrying a clause, so the three translations
+of one corpus count alike ([GDK-1943]).
 
 **An agent's page renders on the issue.** Attach an HTML file to an issue and
 the detail shows it as an artifact: the page runs in a sandboxed frame — no
@@ -1649,6 +1660,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1833]: https://gadak.dev/backlog/#/?ks=GDK-1833
 [GDK-1837]: https://gadak.dev/backlog/#/?ks=GDK-1837
 [GDK-1839]: https://gadak.dev/backlog/#/?ks=GDK-1839
+[GDK-1846]: https://gadak.dev/backlog/#/?ks=GDK-1846
 [GDK-1848]: https://gadak.dev/backlog/#/?ks=GDK-1848
 [GDK-1853]: https://gadak.dev/backlog/#/?ks=GDK-1853
 [GDK-1854]: https://gadak.dev/backlog/#/?ks=GDK-1854
@@ -1670,3 +1682,5 @@ priority sorting keyed on `priority_rank`.
 [GDK-1889]: https://gadak.dev/backlog/#/?ks=GDK-1889
 [GDK-1897]: https://gadak.dev/backlog/#/?ks=GDK-1897
 [GDK-1898]: https://gadak.dev/backlog/#/?ks=GDK-1898
+[GDK-1932]: https://gadak.dev/backlog/#/?ks=GDK-1932
+[GDK-1943]: https://gadak.dev/backlog/#/?ks=GDK-1943

@@ -173,6 +173,26 @@ Atlassian 계정 없이 시작하려면 `gadak init --local`로 내장 트래커
 Linear로 옮길 때는 `--to linear`를 붙입니다. 다른 컴퓨터와 페어링은
 `gadak --workspace laptop init --pairing-code-stdin`입니다.
 
+## 폰 앱 (베타)
+
+아이폰 앱은 이미 돌리고 있는 `gadak serve`에 페어링합니다. 자기 네트워크 안에서
+끝나고, 중간에 계정도 남의 서버도 없습니다. 캐시가 가진 것은 폰도 보여줍니다.
+필드, 첨부, 연결된 이슈, 위키, 진행 중인 스프린트와 그 뒤의 전부. 한 줄로 끝나는
+수정은 폰에서 끝납니다. 코멘트, 라벨, 마감일, 사진, 에픽 밑에 새 이슈. 쓰기는
+데스크톱과 똑같이 원본을 먼저 통과합니다. 페이지나 커스텀 필드 편집, 뷰 작성,
+대시보드 배치, 카드 끌기는 데스크톱 몫이고, 앱이 그 컨트롤 자리에서 그렇게
+말합니다.
+
+<p align="center">
+  <img src="docs/media/phone-list.ko.png" alt="폰 목록 화면 — 워크스페이스 헤딩, 진행 중인 스프린트가 목표와 남은 날짜까지 한 줄로, 그 아래 이슈들" width="230">
+  <img src="docs/media/phone-detail.ko.png" alt="폰 상세 화면 — 상태와 우선순위, 상위 이슈·라벨·컴포넌트가 들어간 Fields 구역, 첨부 이미지 세 개가 가로로" width="230">
+  <img src="docs/media/phone-palette.ko.png" alt="탭바가 있던 자리에 열린 팔레트 — 최근 이슈, 뷰, 필터, 스페이스, 터미널" width="230">
+</p>
+
+베타이고 상태는 그게 전부입니다. 빌드는 내부 테스터용 TestFlight로만 가고 공개
+다운로드는 없습니다. 스토어 등록은 심사자가 제 네트워크에 들어오지 않고도 앱을
+볼 수 있는 경로가 먼저입니다.
+
 ## 다른 선택지
 
 Rovo MCP는 Atlassian이 호스팅하니 설치할 것이 없고, Jira와 Confluence를
