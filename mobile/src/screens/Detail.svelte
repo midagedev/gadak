@@ -47,9 +47,11 @@
     DetailComment,
     DetailResponse,
     IssueLite,
+    IssueWriteResponse,
     PriorityDoc,
     TransitionDoc,
     UploadedAttachment,
+    WriteField,
   } from '../lib/types'
 
   let { issueKey }: { issueKey: string } = $props()
@@ -529,13 +531,21 @@
     transitionError = null
     failedId = null
     try {
-      await request(`issues/${issueKey}/transition/`, {
+      // The POST's own answer carries the refreshed lite (respondIssue in
+      // write.go — every mutate write does), so the move lands through the
+      // same latch the sheets take and the header chip moves now, before
+      // sync() brings a row (GDK-1964).
+      const res = await request<IssueWriteResponse>(`issues/${issueKey}/transition/`, {
         method: 'POST',
         body: { transition_id: doc.id },
       })
-      sheetOpen = false
+      // A 2xx always carries the issue; a null body is a protocol break,
+      // and the refusal road below is not for it (same guard writes.ts's
+      // unwrap holds for every typed wrapper).
+      if (!res.body) throw new ApiError('bad_response', res.status)
+      onWritten(res.body.issue)
       transitions = null
-      void sync()
+      announceWrite(t('write.statusMoved', { status: doc.to_status }))
     } catch (err) {
       transitionError = errorMessage(err)
       failedId = doc.id
@@ -577,6 +587,7 @@
       thumbs = {}
       const res = await request<DetailResponse>(`issues/${issueKey}/detail/`)
       detail = res.body
+      announceWrite(t('write.commentPosted', { key: issueKey }))
       void sync()
     } catch (err) {
       pending = null
@@ -612,16 +623,28 @@
     return true
   }
 
+  /** The one announcer (GDK-1964): a landed write says what it did through
+   *  the toast host, one call site per write kind, so anything that ever
+   *  wants to count writes lands in one place. The message arrives already
+   *  translated, like every other showToast caller here. */
+  function announceWrite(message: string): void {
+    showToast(message, 'success')
+  }
+
   /** The one place a landed write lands (GDK-1925): every sheet's wrapper
    *  answers with the issue it brought back, and this screen latches it,
-   *  drops whichever sheet is standing (only one can be) and syncs. */
-  function onWritten(next: IssueLite): void {
+   *  drops whichever sheet is standing (only one can be) and syncs. Since
+   *  GDK-1964 the sheet also names its field, and the landing announces
+   *  itself — a pick that closes a sheet under a finger is otherwise
+   *  indistinguishable from a dismissal. */
+  function onWritten(next: IssueLite, field?: WriteField): void {
     written = next
     sheetOpen = false
     assigneeOpen = false
     priorityOpen = false
     labelsOpen = false
     dueOpen = false
+    if (field !== undefined) announceWrite(t('write.fieldSaved', { field: fieldLabel(field) }))
     void sync()
   }
 
@@ -1088,6 +1111,7 @@
   {#if sheetOpen}
     <TransitionSheet
       transitions={transitions}
+      current={lite ? { status: lite.status, category: spineToken(lite) } : null}
       error={transitionError}
       applying={applying}
       failedId={failedId}

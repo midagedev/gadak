@@ -4,7 +4,7 @@
   import { t } from '../../lib/i18n'
   import { errorMessage } from '../../lib/api'
   import { setPriority } from '../../lib/writes'
-  import type { IssueLite, PriorityDoc } from '../../lib/types'
+  import type { IssueLite, PriorityDoc, WriteField } from '../../lib/types'
 
   /*
    * The priority picker (GDK-1925), extracted from Detail.svelte. The
@@ -35,7 +35,9 @@
     priorities: PriorityDoc[] | null
     loading: boolean
     error: string | null
-    onwritten: (next: IssueLite) => void
+    /** The wrapper's answer — the screen latches `written`, syncs, and
+     *  since GDK-1964 names the field so the save can announce itself. */
+    onwritten: (next: IssueLite, field: WriteField) => void
     onrefused: (err: unknown, keepSheetOpen?: boolean) => boolean
     onclose: () => void
   } = $props()
@@ -57,7 +59,7 @@
     failedRow = null
     try {
       const res = await setPriority(issueKey, priorityId)
-      onwritten(res.issue)
+      onwritten(res.issue, 'priority')
     } catch (err) {
       if (onrefused(err)) return
       rowError = errorMessage(err)

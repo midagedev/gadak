@@ -6,7 +6,7 @@
   import { errorMessage } from '../../lib/api'
   import { searchUsers, setAssignee } from '../../lib/writes'
   import { app } from '../../lib/store.svelte'
-  import type { IssueLite, UserDoc } from '../../lib/types'
+  import type { IssueLite, UserDoc, WriteField } from '../../lib/types'
 
   /*
    * The assignee picker (GDK-1925), extracted from Detail.svelte. The
@@ -30,8 +30,9 @@
     issueKey: string
     lite: IssueLite | undefined
     writesOff: boolean
-    /** The wrapper's answer — the screen latches `written` and syncs. */
-    onwritten: (next: IssueLite) => void
+    /** The wrapper's answer — the screen latches `written`, syncs, and
+     *  since GDK-1964 names the field so the save can announce itself. */
+    onwritten: (next: IssueLite, field: WriteField) => void
     /** The screen's refuseWrite: true means the refusal was handled. */
     onrefused: (err: unknown, keepSheetOpen?: boolean) => boolean
     onclose: () => void
@@ -144,7 +145,7 @@
     failedRow = null
     try {
       const res = await setAssignee(issueKey, accountId)
-      onwritten(res.issue)
+      onwritten(res.issue, 'assignee')
     } catch (err) {
       if (onrefused(err)) return
       rowError = errorMessage(err)

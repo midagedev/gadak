@@ -203,10 +203,10 @@
     if (err instanceof OfferError) return offerCopy(err)
     if (err instanceof ApiError && err.code === 'scope_rejected') {
       // A serve QR scanned into the terminal slot. Distinct from expired.
-      return 'This offer is for the issue mirror, not the shell. Mint a terminal-scope offer on the desktop and pair again.'
+      return t('settings.termOfferWrongScope')
     }
     if (err instanceof ApiError && err.code === 'pairing_rejected') {
-      return 'This code is expired or revoked. Mint a new terminal offer on the desktop and pair again.'
+      return t('settings.termOfferExpired')
     }
     return errorMessage(err)
   }

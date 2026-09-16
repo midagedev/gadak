@@ -6,7 +6,7 @@
   import { setLabels } from '../../lib/writes'
   import { knownLabels, sameLabels, splitLabelInput } from '../../lib/labels'
   import { app } from '../../lib/store.svelte'
-  import type { IssueLite } from '../../lib/types'
+  import type { IssueLite, WriteField } from '../../lib/types'
 
   /*
    * The labels picker (GDK-1925), extracted from Detail.svelte. The set
@@ -35,7 +35,9 @@
     /** The labels the issue carries — the draft's starting point. */
     current: string[]
     writesOff: boolean
-    onwritten: (next: IssueLite) => void
+    /** The wrapper's answer — the screen latches `written`, syncs, and
+     *  since GDK-1964 names the field so the save can announce itself. */
+    onwritten: (next: IssueLite, field: WriteField) => void
     onrefused: (err: unknown, keepSheetOpen?: boolean) => boolean
     onclose: () => void
   } = $props()
@@ -87,7 +89,7 @@
     labelsError = null
     try {
       const res = await setLabels(issueKey, labelDraft)
-      onwritten(res.issue)
+      onwritten(res.issue, 'labels')
     } catch (err) {
       labelsError = errorMessage(err)
       onrefused(err, true)

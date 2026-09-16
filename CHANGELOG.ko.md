@@ -39,7 +39,10 @@ README 세 판본이 앱을 한 번에 훑는 녹화 — 목록, 팔레트, 이�
 가서 86개 이슈가 스프린트 없이 도착했고, 리포트는 그것을 "목적지가 못 받는 것"으로
 적고 있었습니다 ([GDK-1961]). 그 녹화가 찍는 데모 캐시는 다시 영어입니다.
 위키 페이지 두 장이 통째로 한국어였고, 번역본을 재던 인구조사가 이제 영어판도 잽니다
-([GDK-1956]).
+([GDK-1956]). 그리고 폰은 쓰기가 반영됐다고 말합니다. 상태를 옮기거나
+코멘트를 달거나 필드를 저장하면 화면 아래에 짧은 한 줄이 뜨고, 상태 시트는 고를 것
+위에 지금 상태를 먼저 보이며, 우선순위 묶음 머리와 터미널 페어링 거절 문구 둘은 영어
+대신 폰의 언어로 말합니다 ([GDK-1964], [GDK-1965], [GDK-1945]).
 
 **캐시가 가진 것도, 캐시가 세는 숫자도 원본을 따릅니다.** 원본에서 지운 위키 페이지는 그
 스페이스가 범위 안에 있는 동안 캐시에 남아 있었습니다. 이제 전체 위키 동기화가
@@ -1609,9 +1612,12 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1898]: https://gadak.dev/backlog/#/?ks=GDK-1898
 [GDK-1932]: https://gadak.dev/backlog/#/?ks=GDK-1932
 [GDK-1943]: https://gadak.dev/backlog/#/?ks=GDK-1943
+[GDK-1945]: https://gadak.dev/backlog/#/?ks=GDK-1945
 [GDK-1955]: https://gadak.dev/backlog/#/?ks=GDK-1955
 [GDK-1956]: https://gadak.dev/backlog/#/?ks=GDK-1956
 [GDK-1959]: https://gadak.dev/backlog/#/?ks=GDK-1959
 [GDK-1960]: https://gadak.dev/backlog/#/?ks=GDK-1960
 [GDK-1961]: https://gadak.dev/backlog/#/?ks=GDK-1961
 [GDK-1962]: https://gadak.dev/backlog/#/?ks=GDK-1962
+[GDK-1964]: https://gadak.dev/backlog/#/?ks=GDK-1964
+[GDK-1965]: https://gadak.dev/backlog/#/?ks=GDK-1965

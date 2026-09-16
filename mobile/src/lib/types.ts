@@ -345,6 +345,10 @@ export interface IssueWriteResponse {
   dropped?: string[]
 }
 
+/** The four pick sheets' fields (GDK-1964): the word a landed save's toast
+ *  names, resolved through the shared fieldLabel(). */
+export type WriteField = 'assignee' | 'priority' | 'labels' | 'due'
+
 /**
  * One row of the POST `<key>/attachments/` answer (internal/server/write.go
  * :713-722), and the envelope it arrives in (write.go:725). Folded here from

@@ -1435,6 +1435,21 @@ export const settings = {
     ko: '터미널',
     ja: 'ターミナル',
   },
+  // The terminal pairing refusals the phone's own probe answers (GDK-1945):
+  // terminalProbeCopy authored these two inline until the desk's catalog
+  // took them, the same mapping the roster flow's app.hosts.* above keeps.
+  'settings.termOfferWrongScope': {
+    en: 'This offer is for the issue mirror, not the shell. Mint a terminal-scope offer on the desktop and pair again.',
+    ko: '이 코드는 터미널이 아니라 이슈 캐시용입니다. 데스크톱에서 터미널 범위 코드를 새로 만들어 다시 페어링하세요.',
+    // ja says 課題, the catalog's canon (Japanese Jira Cloud) — the settled-
+    // terms gate in catalog.test.ts pins it.
+    ja: 'このコードはターミナルではなく課題キャッシュ用です。デスクトップでターミナル用のコードを作り直して、もう一度ペアリングしてください。',
+  },
+  'settings.termOfferExpired': {
+    en: 'This code is expired or revoked. Mint a new terminal offer on the desktop and pair again.',
+    ko: '이 코드는 만료됐거나 취소됐습니다. 데스크톱에서 터미널 코드를 새로 만들어 다시 페어링하세요.',
+    ja: 'このコードは期限切れか取り消されています。デスクトップでターミナル用のコードを作り直して、もう一度ペアリングしてください。',
+  },
   'settings.terminalAppearance': {
     en: 'Appearance',
     ko: '외관',

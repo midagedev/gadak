@@ -3,7 +3,7 @@
   import { t, fieldLabel } from '../../lib/i18n'
   import { errorMessage } from '../../lib/api'
   import { setDuedate } from '../../lib/writes'
-  import type { IssueLite } from '../../lib/types'
+  import type { IssueLite, WriteField } from '../../lib/types'
 
   /*
    * The due-date picker (GDK-1925), extracted from Detail.svelte. The same
@@ -24,7 +24,9 @@
     /** The issue's duedate as YYYY-MM-DD ('' when it carries none). */
     current: string
     writesOff: boolean
-    onwritten: (next: IssueLite) => void
+    /** The wrapper's answer — the screen latches `written`, syncs, and
+     *  since GDK-1964 names the field so the save can announce itself. */
+    onwritten: (next: IssueLite, field: WriteField) => void
     onrefused: (err: unknown, keepSheetOpen?: boolean) => boolean
     onclose: () => void
   } = $props()
@@ -44,7 +46,7 @@
     dueError = null
     try {
       const res = await setDuedate(issueKey, value)
-      onwritten(res.issue)
+      onwritten(res.issue, 'due')
     } catch (err) {
       dueError = errorMessage(err)
       onrefused(err, true)

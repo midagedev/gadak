@@ -309,6 +309,19 @@ export const write = {
     ko: '{key}에 코멘트를 등록했습니다.',
     ja: '{key} にコメントを投稿しました。',
   },
+  // A landed write announces itself (GDK-1964). The status sentence takes
+  // the destination's own name; the field sentence takes the field's label
+  // (field.*), the same word the sheet's title and the meta line use.
+  'write.statusMoved': {
+    en: 'Moved to {status}',
+    ko: '이제 {status}입니다.',
+    ja: '{status} に移動しました。',
+  },
+  'write.fieldSaved': {
+    en: 'Saved {field}',
+    ko: '{field} 저장했습니다.',
+    ja: '{field}を保存しました。',
+  },
   'write.attachFailed': {
     en: 'Attachment upload failed: {name}',
     ko: '첨부 업로드 실패: {name}',
@@ -446,6 +459,13 @@ export const write = {
     en: 'Move status',
     ko: '상태 이동',
     ja: 'ステータスを移動',
+  },
+  // The standing line above the transition rows (GDK-1965): one word, the
+  // sheet is narrow and the status name beside it says the rest.
+  'write.currentStatus': {
+    en: 'Now',
+    ko: '현재',
+    ja: '現在',
   },
   'write.askingServer': {
     en: 'Asking the server…',

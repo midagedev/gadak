@@ -83,16 +83,6 @@ const OPT_OUT: { file: string; needle: string; why: string }[] = [
     why: 'the dev-proxy adoption meta label, shown only in dev-paired sessions; the catalog has no key for it yet',
   },
   {
-    file: 'screens/Settings.svelte',
-    needle: 'This offer is for the issue mirror',
-    why: 'genuine user-facing English (terminalProbeCopy, scope_rejected) — GDK-1935-class, needs desk catalog keys; reported to the lead, opted out until the desk owns the words',
-  },
-  {
-    file: 'screens/Settings.svelte',
-    needle: 'This code is expired or revoked',
-    why: 'genuine user-facing English (terminalProbeCopy, pairing_rejected) — same class, same report',
-  },
-  {
     file: 'screens/PairGate.svelte',
     needle: 'dev: ',
     why: 'dev diagnostics (IS_DEV-gated keychain probe), presence-only and never localized',

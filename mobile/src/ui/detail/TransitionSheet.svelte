@@ -14,6 +14,7 @@
    */
   let {
     transitions,
+    current,
     error,
     applying,
     failedId,
@@ -22,6 +23,10 @@
   }: {
     /** null while the screen's one-per-issue ask is still crossing. */
     transitions: TransitionDoc[] | null
+    /** The status the issue carries now (GDK-1965), with the category
+     *  token the sheet's own dots paint by — the screen passes
+     *  spineToken(lite), the same token its header chip uses. */
+    current: { status: string; category: string } | null
     error: string | null
     /** The transition id being applied (null = idle). */
     applying: string | null
@@ -34,6 +39,18 @@
 
 <Sheet title={t('write.moveStatus')} {onclose}>
   <div class="t-list">
+    {#if current}
+      <!-- Where the work sits now (GDK-1965): the rows below are
+           destinations, and offering them without saying where the work is
+           made every choice a guess at the current line's expense. A line,
+           not a control — the row's own padding and dot grammar, and
+           aria-current because that is exactly what it is. -->
+      <div class="t-current" data-current={current.category} aria-current="true">
+        <span class="dot dot-{current.category}" aria-hidden="true"></span>
+        <span class="t-current-label">{t('write.currentStatus')}</span>
+        <span class="t-current-name">{current.status}</span>
+      </div>
+    {/if}
     {#if !transitions && !error}
       <p class="none">{t('write.askingServer')}</p>
     {:else if transitions}
@@ -99,6 +116,25 @@
   .t-list {
     overflow-y: auto;
     padding: 4px 8px 8px;
+  }
+  /* The standing status above the rows (GDK-1965): a row's own padding and
+     gap, so the sheet reads as one list whose first line is the current
+     one. Not a .t-row — that class owns the pressed/hover grammar of a
+     control, and this line must never read as tappable. */
+  .t-current {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    color: var(--color-text-primary);
+  }
+  .t-current-label {
+    font-size: var(--text-micro);
+    color: var(--color-text-muted);
+  }
+  .t-current-name {
+    font-weight: 600;
   }
   /* also in the other pick sheets — same tokens, GDK-1925 */
   .t-row {

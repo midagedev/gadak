@@ -145,6 +145,10 @@ function webCitedKeys(includeTests = true): Set<string> {
  * (Detail.svelte was under concurrent edit). Each line says where the phone
  * reads it; moving a key to `app.*` is a mobile round's call, and removing
  * its entry here is how that round closes it.
+ *
+ * The 2026-09-16 phone write-feedback round (GDK-1964/1965/1945) added five
+ * under the same contract — three write-flow words the desk's write flow has
+ * its own keys for, two Settings terminal-offer refusals — 25 → 30.
  */
 const ALLOWED_PHONE_ONLY = new Map<string, string>([
   // ── phone affordances wearing a shared prefix; eventual home app.* ──
@@ -159,6 +163,8 @@ const ALLOWED_PHONE_ONLY = new Map<string, string>([
   ['sidebar.scopeOpenDesktop', 'blocked-scope rows say to open the desktop (AttachmentGrid, DeskRow) — the phone cannot render those scopes by design'],
   ['sidebar.scopeShowAll', 'palette show-all-{n} row (Palette); named for the sidebar scopes it ranks'],
   ['pairing.noIdentityLocal', 'local-serve pairing note (Settings); the desk pairing UI says it differently'],
+  ['settings.termOfferWrongScope', 'terminal-offer scope refusal (Settings); the desk pairing UI says it differently (GDK-1945)'],
+  ['settings.termOfferExpired', 'terminal-offer expired refusal (Settings); pair of the row above'],
   // ── phone detail screen: the desk panel renders these facts under its own
   //    section keys (description/comments/…) or not at all (no Fields
   //    section, no share verb, tap-to-play media) ──
@@ -184,6 +190,9 @@ const ALLOWED_PHONE_ONLY = new Map<string, string>([
   ['write.askingServer', 'asking-server placeholder (move-status sheet)'],
   ['write.noTransitionsFrom', 'no-transitions empty line (move-status sheet)'],
   ['write.transitionNeedsFields', 'needs-fields suffix (move-status sheet)'],
+  ['write.currentStatus', 'current-status line atop the move-status sheet (TransitionSheet, GDK-1965)'],
+  ['write.statusMoved', 'status-move success toast (Detail, GDK-1964)'],
+  ['write.fieldSaved', 'field-save success toast naming its field (Detail, GDK-1964)'],
 ])
 
 

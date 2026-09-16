@@ -34,7 +34,10 @@ const screensDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'screens'
 const CEILINGS: Record<string, { lines: number; state: number }> = {
   // Lowered 2026-09-16 in the extraction round (GDK-1925): the five write
   // sheets moved to ui/detail/, 2,319→1,793 lines and 52→38 $state.
-  'Detail.svelte': { lines: 1793, state: 38 },
+  // Raised 2026-09-16 for GDK-1964/1965: every landed write now announces
+  // itself (announceWrite + onWritten's field param) and the transition
+  // sheet takes the current status as a prop. 1,793 → 1,817; $state 38.
+  'Detail.svelte': { lines: 1817, state: 38 },
   'Shell.svelte': { lines: 1611, state: 18 },
   'Settings.svelte': { lines: 765, state: 14 },
   'PageDetail.svelte': { lines: 522, state: 8 },

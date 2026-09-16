@@ -48,7 +48,12 @@ the report filed it under what the destination could not take ([GDK-1961]).
 The demo cache those takes record over is English again: two wiki pages in it
 were Korean end to end, and the census that gates the translated copies now
 runs against the English one too, so the next such page fails a check rather
-than a reviewer ([GDK-1956]).
+than a reviewer ([GDK-1956]). And the phone now says when a
+write has landed: moving the status, posting a comment or saving a field each
+ends in one short line at the foot of the screen, the status sheet opens with
+the current status above the choices, and the priority group header and the
+two terminal-pairing refusals speak the phone's language instead of English
+([GDK-1964], [GDK-1965], [GDK-1945]).
 
 **What the cache holds, and what it counts, answer to the origin.** A wiki page removed at the
 origin used to stay in the local cache for as long as its space did. A full
@@ -1698,9 +1703,12 @@ priority sorting keyed on `priority_rank`.
 [GDK-1898]: https://gadak.dev/backlog/#/?ks=GDK-1898
 [GDK-1932]: https://gadak.dev/backlog/#/?ks=GDK-1932
 [GDK-1943]: https://gadak.dev/backlog/#/?ks=GDK-1943
+[GDK-1945]: https://gadak.dev/backlog/#/?ks=GDK-1945
 [GDK-1955]: https://gadak.dev/backlog/#/?ks=GDK-1955
 [GDK-1956]: https://gadak.dev/backlog/#/?ks=GDK-1956
 [GDK-1959]: https://gadak.dev/backlog/#/?ks=GDK-1959
 [GDK-1960]: https://gadak.dev/backlog/#/?ks=GDK-1960
 [GDK-1961]: https://gadak.dev/backlog/#/?ks=GDK-1961
 [GDK-1962]: https://gadak.dev/backlog/#/?ks=GDK-1962
+[GDK-1964]: https://gadak.dev/backlog/#/?ks=GDK-1964
+[GDK-1965]: https://gadak.dev/backlog/#/?ks=GDK-1965

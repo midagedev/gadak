@@ -71,9 +71,17 @@ describe('GDK-1925 request invariance — a sheet fetches nothing', () => {
 })
 
 describe('GDK-1925 ownership — the two verdicts stay on the screen', () => {
-  it('every sheet hands a landed write to onwritten, not to its own state', () => {
+  it('every sheet hands a landed write to onwritten, naming its field', () => {
+    // Since GDK-1964 the landing also announces the save, and the sentence
+    // names the field — so the call carries it: `onwritten(res.issue, '…')`.
+    const field = {
+      'AssigneeSheet.svelte': 'assignee',
+      'PrioritySheet.svelte': 'priority',
+      'LabelsSheet.svelte': 'labels',
+      'DueSheet.svelte': 'due',
+    } as const
     for (const name of pickers) {
-      expect(read(name), name).toMatch(/onwritten\(res\.issue\)/)
+      expect(read(name), name).toMatch(new RegExp(`onwritten\\(res\\.issue, '${field[name]}'\\)`))
       expect(read(name), name).not.toMatch(/void sync\(\)/)
     }
   })
@@ -136,5 +144,32 @@ describe('GDK-1925 the tick has one owner', () => {
       expect(read(name), name).not.toMatch(/class="tick"/)
     }
     expect(detail).not.toMatch(/class="tick"/)
+  })
+})
+
+describe('GDK-1965 every pick sheet shows the current value', () => {
+  // What the work carries right now, above the rows that would change it.
+  // The marker is the attribute each sheet's rows already own: aria-current
+  // on the three single-pick sheets, aria-pressed on labels' multi-pick,
+  // and the due sheet's own {#if current} clearing row.
+  it('transition, priority and assignee carry an aria-current marker', () => {
+    expect(read('TransitionSheet.svelte')).toMatch(/aria-current/)
+    expect(read('PrioritySheet.svelte')).toMatch(/aria-current/)
+    expect(read('AssigneeSheet.svelte')).toMatch(/aria-current/)
+  })
+
+  it('labels marks the on set with aria-pressed; due shows the current line', () => {
+    expect(read('LabelsSheet.svelte')).toMatch(/aria-pressed/)
+    expect(read('DueSheet.svelte')).toMatch(/\{#if current\}/)
+  })
+
+  it('the screen hands TransitionSheet the status it is about to move', () => {
+    // The sheet cannot know the status — the screen passes it, and the
+    // marker assertions above are meaningless without this hand-off. The
+    // category rides spineToken, the screen's own single owner for the
+    // token every dot on it already paints by.
+    const at = detail.indexOf('<TransitionSheet')
+    const call = detail.slice(at, detail.indexOf('/>', at))
+    expect(call).toContain('current={lite ? { status: lite.status, category: spineToken(lite) } : null}')
   })
 })

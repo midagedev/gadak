@@ -40,7 +40,11 @@ originだけを見ていて、ファイルはすでにディスクにありま�
 それを「移行先が受け取れないもの」として記していました([GDK-1961])。その録画が写す
 デモのキャッシュは、また英語に戻りました。wikiページ2枚が丸ごと韓国語で、翻訳版を
 測っていた点検が英語版も測るようになったので、次の一枚は査読者ではなく検査で
-止まります([GDK-1956])。
+止まります([GDK-1956])。そして電話は、書き込みが反映されたことを告げます。
+ステータスを移す、コメントを付ける、フィールドを保存する、そのたびに画面下に短い一行が
+出ます。ステータスのシートは選択肢の上に今のステータスを先に示し、優先度の見出しと
+ターミナルのペアリング拒否文2つは英語ではなく電話の言語で話します([GDK-1964]、
+[GDK-1965]、[GDK-1945])。
 
 **キャッシュが持つものも、キャッシュが数える値も、原本に従います。**原本で削除したWikiページは、
 そのスペースが範囲内にある限りキャッシュに残っていました。全体のWiki同期はスペースごとに
@@ -1700,9 +1704,12 @@ Jiraサイトでも同じ意味になる軸をキーにします。解決の判�
 [GDK-1898]: https://gadak.dev/backlog/#/?ks=GDK-1898
 [GDK-1932]: https://gadak.dev/backlog/#/?ks=GDK-1932
 [GDK-1943]: https://gadak.dev/backlog/#/?ks=GDK-1943
+[GDK-1945]: https://gadak.dev/backlog/#/?ks=GDK-1945
 [GDK-1955]: https://gadak.dev/backlog/#/?ks=GDK-1955
 [GDK-1956]: https://gadak.dev/backlog/#/?ks=GDK-1956
 [GDK-1959]: https://gadak.dev/backlog/#/?ks=GDK-1959
 [GDK-1960]: https://gadak.dev/backlog/#/?ks=GDK-1960
 [GDK-1961]: https://gadak.dev/backlog/#/?ks=GDK-1961
 [GDK-1962]: https://gadak.dev/backlog/#/?ks=GDK-1962
+[GDK-1964]: https://gadak.dev/backlog/#/?ks=GDK-1964
+[GDK-1965]: https://gadak.dev/backlog/#/?ks=GDK-1965
