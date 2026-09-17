@@ -60,8 +60,8 @@ storage and type, attribution, MCP clients, read exceptions, deletions).
 
 ## 3. Status
 
-- **Status: 0.22, still 0.x.** (`tools/doc-checks.sh` check 6 asserts the
-  minor version appears as `Status: 0.22` / `상태: 0.22` / `状態: 0.22` in all
+- **Status: 0.23, still 0.x.** (`tools/doc-checks.sh` check 6 asserts the
+  minor version appears as `Status: 0.23` / `상태: 0.23` / `状態: 0.23` in all
   three READMEs, and re-asserts on every tag.)
 - Sync, read API, write-through, desktop, web, CLI and MCP are verified
   against a live site.
@@ -526,7 +526,7 @@ landing (`site/src/i18n.ts`) and all three READMEs.
   (it asks them to self-censor a harmless number), the separate
   what-to-send-about-an-agent paragraph, and the numbered bug-report list on
   the landings. The deployment type in a bug report is now "Cloud or Server".
-- **Every edition carries status where a first-time reader finds it**: 0.22
+- **Every edition carries status where a first-time reader finds it**: 0.23
   / 0.x, one maintainer, Apache-2.0, and the work that stays in Jira. The
   three-promise compatibility contract is README material, not landing
   material (§11).

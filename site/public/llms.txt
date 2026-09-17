@@ -8,7 +8,7 @@
 > coding agent all read the same file; an iOS app in beta pairs with that
 > serve over the owner's own network (TestFlight only, no public download).
 > No telemetry, and no gadak account.
-> Status: 0.22, still 0.x. Apache-2.0, one maintainer.
+> Status: 0.23, still 0.x. Apache-2.0, one maintainer.
 
 ## For an agent working on someone's tracker
 

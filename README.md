@@ -256,7 +256,7 @@ Confluence mirror with SQL, desktop and browser interfaces, a CLI, and MCP.
 
 ## Status, compatibility and maintenance
 
-**Status: 0.22, still 0.x.** Sync, read API, write-through, desktop, web, CLI
+**Status: 0.23, still 0.x.** Sync, read API, write-through, desktop, web, CLI
 and MCP are verified against a live site. The project currently has one
 maintainer. During 0.x, compatibility is promised for three things, listed in
 [specs/000-product/data-model.md](specs/000-product/data-model.md): `issues_full` and the

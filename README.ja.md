@@ -23,7 +23,7 @@ gadak は、指定した範囲の Jira と Confluence をキャッシュし、�
 同じキャッシュを使えます。書き込みは先に Jira へ届き、キャッシュはいつ消しても構いません。
 バイナリは 1 つで、gadak のアカウントはありません。
 
-**状態: 0.22、まだ 0.x です。** メンテナーは現在 1 人、ライセンスは Apache-2.0、対応している Jira は Cloud と Server / Data Center です。
+**状態: 0.23、まだ 0.x です。** メンテナーは現在 1 人、ライセンスは Apache-2.0、対応している Jira は Cloud と Server / Data Center です。
 
 Atlassian 公式の Rovo MCP があるのになぜ、という問いへの答えは
 [公式の Rovo MCP との違い](#公式の-rovo-mcp-との違い)にあります。短く言えば集計とオフラインです。

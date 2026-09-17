@@ -354,7 +354,7 @@ export const strings: Record<Locale, Strings> = {
       label: 'Where the project stands',
       heading: 'Status and limits',
       points: [
-        'Status: 0.22, still 0.x. Sync, reads, write-through, desktop, web, CLI and MCP are verified against a live site.',
+        'Status: 0.23, still 0.x. Sync, reads, write-through, desktop, web, CLI and MCP are verified against a live site.',
         'One maintainer, currently. Apache-2.0. The mirror is ordinary SQLite: if gadak went away tomorrow, the file opens in any SQLite client and your issues are still in it.',
         'Keep sprint planning, administration, page editing in a UI, and anything that cannot tolerate a sync interval of delay in Jira.',
         'Four origins, one set of verbs: Atlassian Cloud, Jira Server / Data Center, Linear, and the built-in tracker. What each one refuses is in one table, measured cell by cell.',
@@ -512,9 +512,9 @@ export const strings: Record<Locale, Strings> = {
     },
     status: {
       label: '어디까지 왔는지',
-      heading: '0.22, 만드는 사람 한 명, Apache-2.0',
+      heading: '0.23, 만드는 사람 한 명, Apache-2.0',
       points: [
-        '버전 0.22, 아직 0.x입니다. 동기화, 읽기 API, Jira를 먼저 거치는 쓰기, 데스크톱·웹·CLI·MCP를 실제 사이트에서 확인했습니다.',
+        '버전 0.23, 아직 0.x입니다. 동기화, 읽기 API, Jira를 먼저 거치는 쓰기, 데스크톱·웹·CLI·MCP를 실제 사이트에서 확인했습니다.',
         '캐시는 평범한 SQLite 파일입니다. gadak이 내일 사라져도 그 파일은 아무 SQLite 클라이언트에서나 열리고, 이슈는 그대로 들어 있습니다.',
         '스프린트 계획, Jira 대시보드와 알림, 관리자 작업, 1분의 지연도 안 되는 일은 Jira에서 계속 합니다.',
         'Atlassian Cloud, Jira Server와 Data Center, Linear, 내장 트래커에서 같은 명령을 씁니다. 서비스별로 되는 것과 안 되는 것은 셀마다 직접 실행해서 표 하나에 적어 두었습니다.',
@@ -683,7 +683,7 @@ export const strings: Record<Locale, Strings> = {
       label: '開発状況',
       heading: '対応範囲と開発状況',
       points: [
-        '状態: 0.22、まだ0.xです。同期、読み取りAPI、書き込み、デスクトップアプリ、ウェブ、CLI、MCPは、実際のサイトで検証しています。',
+        '状態: 0.23、まだ0.xです。同期、読み取りAPI、書き込み、デスクトップアプリ、ウェブ、CLI、MCPは、実際のサイトで検証しています。',
         'メンテナーは現在1人で、ライセンスはApache-2.0です。キャッシュはただのSQLiteファイルなので、gadakがなくなっても、どのSQLiteクライアントからでも開けます。',
         'スプリント計画、管理作業、アプリの画面でのページ編集、1分の遅れが問題になる作業は、Jira側で続けてください。',
         'Atlassian Cloud、Jira Server / Data Center、Linear、内蔵トラッカーを共通のコマンドで操作できます。接続先ごとの対応状況は、セルごとに実際に実行して1枚の表にまとめています。',
