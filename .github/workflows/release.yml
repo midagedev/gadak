@@ -45,6 +45,18 @@ jobs:
           make phone
           test -f dist/phone/index.html
 
+      # GoReleaser refuses a dirty tree, and the two bundle builds above are
+      # the only steps that write into tracked paths. Fail here, naming the
+      # files, instead of inside GoReleaser's own check (v0.23.0, run
+      # 35182112534: `make phone` had deleted dist/phone/.placeholder).
+      - name: Tree is clean for GoReleaser
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "the bundle builds left tracked files changed:" >&2
+            git status --porcelain >&2
+            exit 1
+          fi
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:

@@ -1,6 +1,8 @@
 /// <reference types="vitest/config" />
 import { fileURLToPath, URL } from 'node:url'
-import { defineConfig } from 'vite'
+import { existsSync, writeFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { defineConfig, type Plugin } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import tailwindcss from '@tailwindcss/vite'
 import { mobileAPIPort } from './e2e/serve'
@@ -88,8 +90,37 @@ export function watchIgnored(env: NodeJS.ProcessEnv = process.env): string[] {
   ]
 }
 
+/**
+ * `make phone` builds this app into ../dist/phone with `--emptyOutDir`, which
+ * also deletes the tracked `dist/phone/.placeholder` that keeps
+ * `go:embed all:dist/phone` compilable before the first phone build. The web
+ * bundle has the same rule in the root vite.config.ts; without it here the
+ * v0.23.0 Release run stopped at GoReleaser's dirty-tree check with
+ * ` D dist/phone/.placeholder` (run 35182112534). Put the file back once the
+ * bundle is written — only when the embed outDir was the target, so a tauri
+ * build into mobile/dist or a harness outDir is untouched.
+ */
+function keepEmbedPlaceholder(): Plugin {
+  const embedOut = resolve(repoRoot, 'dist/phone')
+  let resolvedOut = ''
+  return {
+    name: 'gadak-phone-embed-placeholder',
+    configResolved(cfg) {
+      resolvedOut = resolve(cfg.root, cfg.build.outDir)
+    },
+    closeBundle() {
+      if (resolvedOut !== embedOut || !existsSync(embedOut)) return
+      writeFileSync(
+        resolve(embedOut, '.placeholder'),
+        'Placeholder so the go:embed directive in embed.go always has a directory.\n' +
+          'Run `make phone` to produce the real phone bundle here.\n',
+      )
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [svelte(), tailwindcss()],
+  plugins: [svelte(), tailwindcss(), keepEmbedPlaceholder()],
   clearScreen: false,
   // The /m/ bundle (GDK-1966) is this app built with a mounted base; unset
   // means the default '/' (dev server, tauri build) — nothing else changes.
