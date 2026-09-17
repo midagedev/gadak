@@ -39,6 +39,18 @@ hard-won 목록)와 `AGENTS.md`(기여 계약)·`docs/MIRROR.md`(스키마·SQL 
   `status_category` (new|inprogress|done) 또는 `status_id`; 우선순위는
   `priority_rank` (또는 `priority_id`); 유형은 `issue_type_id`. 이 함정은
   코드·문서·툴 설명 어디서든 재발 금지.
+- **클라이언트가 카탈로그에서 고른 정체를 서버가 다시 해석하지 않는다** (GDK-1982,
+  2026-09-17). 웹·폰이 `GET {key}/transitions/` 가 준 객체의 id 를 돌려보내면 그것은
+  기계가 이미 확정한 정체이지 사람이 친 말이 아니다 — 그 id 를 사람 어휘 리졸버
+  (전이 id → 상태 id → 이름 → 카테고리)에 다시 태우면, 마이그레이션된 워크플로에서
+  전이 id 와 상태 id 가 겹치는 순간 리졸버가 자기 자신을 모호하다며 거절한다
+  (빌트인 트래커의 Done 이 어떤 버튼으로도 안 눌리던 그 결함). 기계 경로는 목록과
+  **정확 일치**로만 답하고 미스는 제시된 id 를 이름으로 부르는 거절이다. 선례는
+  `internal/create/resolve.go` 의 `matchType` — 단계가 배타적이라 정확한 id 가 맞으면
+  이름 단계로 흘러가지 않는다. 사람 어휘는 CLI 에 남는다. 같은 클래스의 잠재 위험이
+  링크 타입에 하나 남아 있다(GDK-1983: 드롭다운이 타입 id 가 아니라 표시 문구를 보낸다 —
+  문구가 방향까지 나르기 때문인데, 두 타입이 같은 문구를 쓰면 UI 가 제시한 선택지를
+  서버가 거절한다).
 - `time-in-status`는 저장 컬럼이 아니다 — `status_changed_at`에서 계산.
   (`data-model.md`가 "deliberately absent"로 명시.)
 - decisions/ 문서는 **개정하지 않는다. Addendum만 추가.**
