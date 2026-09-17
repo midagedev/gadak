@@ -32,8 +32,10 @@ func TestStatusShowsEnvActor(t *testing.T) {
 	if !strings.Contains(out, "actor") || !strings.Contains(out, "claude:354bff2b") {
 		t.Fatalf("text status must carry the actor slug:\n%s", out)
 	}
-	if !strings.Contains(out, "(env)") {
-		t.Fatalf("text status must name the source rung:\n%s", out)
+	// GDK-1973: the line names the rung and the kind beside it — env actors
+	// are always agents.
+	if !strings.Contains(out, "(env · agent)") {
+		t.Fatalf("text status must name the source rung and the kind:\n%s", out)
 	}
 
 	out, err = capture(t, func() error { return cmdStatus([]string{"--json"}) })

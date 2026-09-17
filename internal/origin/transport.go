@@ -36,6 +36,11 @@ type handlerTransport struct {
 	// origin already infers from the in-process Basic credential.
 	actor     string
 	actorName string
+	// actorKind stamps X-Issuetap-Actor-Type: person when the acting
+	// identity is a person (GDK-1973 — issuetap then provisions the account
+	// as a human). agent/"" sends nothing: the header's absence is the
+	// agent default, so pre-person requests are byte-identical.
+	actorKind string
 }
 
 // viewerActorKey is the context key for the per-request viewer actor
@@ -46,33 +51,43 @@ type viewerActorCtxKey struct{}
 type viewerActorPair struct {
 	slug string
 	name string
+	kind string
 }
 
-// WithViewerActor carries a loopback-proxied viewer's identity as this
-// context's acting identity: the server package derives it from headers it
-// trusts (viewer.go) and handlerTransport stamps it over the session actor
-// for the requests riding this context — one person's write attributed to
-// that person, not to whatever agent the process was started as. Only the
-// embedded transport honors it: a paired serve forwards requests this
-// process did not witness the peer of, and its own session actor is the
-// truth there.
-func WithViewerActor(ctx context.Context, slug, name string) context.Context {
+// WithViewerActor carries a per-request acting identity as this context's
+// own: the server package derives it from headers it trusts (viewer.go) and
+// handlerTransport stamps it over the session actor for the requests riding
+// this context — one person's write attributed to that person, not to
+// whatever agent the process was started as. kind is config.ActorKindPerson
+// or Agent, and rides with the slug so X-Issuetap-Actor-Type follows the
+// override (GDK-1973). Only the embedded transport honors it: a paired
+// serve forwards requests this process did not witness the peer of, and its
+// own session actor is the truth there.
+func WithViewerActor(ctx context.Context, slug, name, kind string) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return context.WithValue(ctx, viewerActorCtxKey{}, viewerActorPair{slug: slug, name: name})
+	return context.WithValue(ctx, viewerActorCtxKey{}, viewerActorPair{slug: slug, name: name, kind: kind})
 }
 
 // viewerActorFrom reads the override, reporting false when the context
 // carries none (or carries an empty slug — no identity, no stamp).
-func viewerActorFrom(ctx context.Context) (string, string, bool) {
+func viewerActorFrom(ctx context.Context) (slug, name, kind string, ok bool) {
 	if ctx == nil {
-		return "", "", false
+		return "", "", "", false
 	}
 	if v, ok := ctx.Value(viewerActorCtxKey{}).(viewerActorPair); ok && v.slug != "" {
-		return v.slug, v.name, true
+		return v.slug, v.name, v.kind, true
 	}
-	return "", "", false
+	return "", "", "", false
+}
+
+// ViewerActorFrom is viewerActorFrom exported for the server package's
+// tests — the one way to read back what withViewerActor attached without
+// driving a full origin write. Same shape as TransportIsEmbedded: a test
+// seam, not a second production reader.
+func ViewerActorFrom(ctx context.Context) (slug, name, kind string, ok bool) {
+	return viewerActorFrom(ctx)
 }
 
 func (t *handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -82,11 +97,11 @@ func (t *handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	if req == nil {
 		return nil, errors.New("origin: nil request")
 	}
-	actor, actorName := t.actor, t.actorName
+	actor, actorName, actorKind := t.actor, t.actorName, t.actorKind
 	// The viewer override (GDK-1966) wins for this one request; an empty
 	// override is no override, and falls back to the session actor.
-	if slug, name, ok := viewerActorFrom(req.Context()); ok {
-		actor, actorName = slug, name
+	if slug, name, kind, ok := viewerActorFrom(req.Context()); ok {
+		actor, actorName, actorKind = slug, name, kind
 	}
 	if actor != "" {
 		// The request never leaves the process, and the jira client builds
@@ -94,6 +109,9 @@ func (t *handlerTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		req.Header.Set("X-Issuetap-Actor", actor)
 		if actorName != "" {
 			req.Header.Set("X-Issuetap-Actor-Name", actorName)
+		}
+		if actorKind == config.ActorKindPerson {
+			req.Header.Set("X-Issuetap-Actor-Type", config.ActorKindPerson)
 		}
 	}
 	return serveStreaming(t.h, req), nil
@@ -193,9 +211,12 @@ type serveOriginTransport struct {
 	// actor/actorName stamp X-Issuetap-Actor/-Name on the rewritten request
 	// (GDK-586). The serve passthrough forwards them, so a CLI routing
 	// through its live serve attributes to its own agent, not the serve's
-	// identity. Empty sends nothing.
+	// identity. Empty sends nothing. actorKind rides the same way (GDK-1973):
+	// person stamps X-Issuetap-Actor-Type, so the home origin provisions the
+	// account as a human; agent/"" sends nothing.
 	actor     string
 	actorName string
+	actorKind string
 	rt        http.RoundTripper
 }
 
@@ -279,6 +300,9 @@ func (t *serveOriginTransport) RoundTrip(req *http.Request) (*http.Response, err
 		req2.Header.Set("X-Issuetap-Actor", t.actor)
 		if t.actorName != "" {
 			req2.Header.Set("X-Issuetap-Actor-Name", t.actorName)
+		}
+		if t.actorKind == config.ActorKindPerson {
+			req2.Header.Set("X-Issuetap-Actor-Type", config.ActorKindPerson)
 		}
 	}
 	resp, err := t.rt.RoundTrip(req2)

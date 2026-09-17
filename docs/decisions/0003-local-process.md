@@ -77,3 +77,28 @@ token — same Tailscale account, same person as the CLI user. Any other account
 is refused (`403 viewer_rejected`); a self-declared header never reaches the
 comparison, because `viewerFrom` trusts the headers only from this machine's
 own peers. The terminal-scope token remains the road for everyone else.
+
+## Addendum (2026-09-17) — a person can say who they are (GDK-1973)
+
+The identity headers above answer "who is asking" for attribution. One more
+source joins them, and it is deliberately the weakest: `X-Gadak-Actor-Name`, a
+UTF-8 display name the client percent-encodes, honoured only on a gadak origin
+and only when no attested viewer outranks it. It has no peer requirement — on
+an `--allow-remote` serve not fronted by `tailscale serve`, anyone can set it —
+so it buys attribution and nothing else: no gate reads it (the terminal gate
+refuses a request carrying the owner's own login as the declared name; pinned
+in `internal/server/terminal_test.go`). The precedence is written once, in
+`withViewerActor` (`internal/server/viewer.go`): a verified Tailscale viewer >
+the declared name > the serve process's own actor (env/config) > the origin's
+default user. A present-but-unusable attestation is not a vacancy — it does
+not fall through to the declaration.
+
+The config side gains the matching rung: an actor block may say `kind:
+person`, its slug derived from the display name (`person:<name>`,
+config.PersonSlug — the one derivation point). `gadak me set "Your Name"` and
+`gadak me clear` are the person's verbs onto that block, through the same
+settings-registry setter `gadak config set actor` uses; refused on a connected
+Jira/Linear workspace, where the account is the identity. The origin learns
+the kind through `X-Issuetap-Actor-Type: person` (absent = agent, byte-
+identical to every pre-1973 request), so the built-in tracker provisions the
+account as a human.

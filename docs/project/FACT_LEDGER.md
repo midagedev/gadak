@@ -282,6 +282,14 @@ gadak sql "select epic_key, count(*) from issues_full where resolved_at is null
 - **An agent that reads the mirror sends what it reads to whatever model it
   talks to.** gadak itself sends nothing. Scope the mirror to what the agent
   should see.
+- **The person's verb** (GDK-1973, 2026-09-17): `gadak me set "Your Name"`
+  writes the `actor` block as a person (kind `person`, slug derived
+  `person:<name>`); `gadak me` shows the resolved identity and `gadak me
+  clear` removes it. Refused on connected Jira/Linear — there the account is
+  the identity. A person identity, however it arrives (config block, a
+  verified `tailscale serve` viewer, the Settings-declared
+  `X-Gadak-Actor-Name`), is attribution only: no gate (terminal, pairing,
+  token) reads it.
 
 ## 9. Origins covered
 

@@ -194,6 +194,7 @@ Commands:
   install-service  keep serve running across reboots (launchd / systemd user)
                    [--uninstall]
   install-cli      put this binary on PATH  [--dir] [--force] [--print]
+  me               who you are on the built-in tracker; set/clear the person identity  [set <name>|clear] [--json]
   status           sync state and row counts [--json]
   doctor           redacted diagnostics safe to paste into a bug report [--json]
   demo             serve the bundled snapshot, no Jira account needed
@@ -476,6 +477,7 @@ var commands = map[string]func([]string) error{
 	"unlink":          cmdUnlink,
 	"list":            cmdList,
 	"mcp":             cmdMCP,
+	"me":              cmdMe,
 	"memory":          cmdMemory,
 	"migrate":         cmdMigrate,
 	"next":            cmdNext,

@@ -170,6 +170,20 @@ var helps = map[string]cmdHelp{
 		},
 		seeAlso: []string{"gadak init", "gadak status"},
 	},
+	"me": {
+		summary: "who you are on the built-in tracker — a person's identity for write attribution (set/clear); agents use GADAK_ACTOR or `gadak config set actor`",
+		usage:   "gadak [--workspace <name>] me [set \"Your Name\" | clear] [--json]",
+		options: []helpOption{
+			{name: "json", desc: "emit JSON (show): name, slug, kind, source, workspace, default_author"},
+		},
+		examples: []string{
+			"gadak me",
+			"gadak me --json",
+			"gadak me set \"Kim Cheolsu\"",
+			"gadak me clear",
+		},
+		seeAlso: []string{"gadak config set actor", "gadak status"},
+	},
 	"sync": {
 		summary: "mirror the workspace origin into the local SQLite database",
 		usage:   "gadak [--workspace <name>] sync [--full] [--watch] [--source jira|linear|confluence|all] [--if-stale DUR] [--concurrency N]",

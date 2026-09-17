@@ -781,8 +781,10 @@ func buildSettings() []Setting {
 			Path: "actor",
 			Root: "actor",
 			Description: "workspace-default acting identity for writes to a built-in/paired origin " +
-				"(GDK-586): {\"slug\", \"name\"}; env GADAK_ACTOR wins over it and Claude Code is " +
-				"auto-detected when neither is set (never sent to a connected Cloud site)",
+				"(GDK-586): {\"slug\", \"name\", \"kind\": agent|person}; a person block with no slug " +
+				"derives one from the name (`gadak me set \"Your Name\"` writes it); env GADAK_ACTOR " +
+				"wins over it and Claude Code is auto-detected when neither is set (never sent to a " +
+				"connected Cloud site)",
 			Get: func(c *Config) any {
 				if c == nil || c.Actor == nil {
 					return ActorConfig{}
@@ -790,17 +792,18 @@ func buildSettings() []Setting {
 				return *c.Actor
 			},
 			Set: func(c *Config, raw json.RawMessage) error {
-				// Object form {"slug","name"}; the "slug|name" shorthand
-				// (the GADAK_ACTOR shape) parses through the same owner.
+				// Object form {"slug","name","kind"}; the "slug|name"
+				// shorthand (the GADAK_ACTOR shape) parses through the same
+				// owner and stays an agent.
 				var in ActorConfig
 				if err := json.Unmarshal(raw, &in); err != nil {
 					s, serr := decodeString(raw, "actor")
 					if serr != nil {
-						return fmt.Errorf("actor must be an object {\"slug\": \"claude:354bff2b\", \"name\": \"Claude Code\"} or the shorthand string \"slug|name\"")
+						return fmt.Errorf("actor must be an object {\"slug\": \"claude:354bff2b\", \"name\": \"Claude Code\", \"kind\": \"agent|person\"} or the shorthand string \"slug|name\"")
 					}
 					in.Slug, in.Name = ParseActorShorthand(s)
 				}
-				v, err := ValidateActor(in.Slug, in.Name)
+				v, err := ValidateActor(in.Slug, in.Name, in.Kind)
 				if err != nil {
 					return err
 				}

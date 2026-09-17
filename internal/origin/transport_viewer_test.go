@@ -42,13 +42,13 @@ func TestHandlerTransportViewerActorOverridesSession(t *testing.T) {
 	}
 
 	// The viewer override wins.
-	roundTrip(WithViewerActor(context.Background(), "kim", "Kim"))
+	roundTrip(WithViewerActor(context.Background(), "kim", "Kim", ""))
 	if gotActor != "kim" || gotName != "Kim" {
 		t.Fatalf("viewer override = %q/%q, want kim/Kim", gotActor, gotName)
 	}
 
 	// An empty-slug override is no override at all.
-	roundTrip(WithViewerActor(context.Background(), "", ""))
+	roundTrip(WithViewerActor(context.Background(), "", "", ""))
 	if gotActor != "claude:354bff2b" {
 		t.Fatalf("empty override = %q, want the session actor back", gotActor)
 	}
@@ -64,7 +64,7 @@ func TestHandlerTransportViewerActorWithoutSession(t *testing.T) {
 	})
 	tr := &handlerTransport{h: h}
 	req := httptest.NewRequest(http.MethodPost, "/rest/api/2/issue", nil)
-	req = req.WithContext(WithViewerActor(req.Context(), "kim", ""))
+	req = req.WithContext(WithViewerActor(req.Context(), "kim", "", ""))
 	resp, err := tr.RoundTrip(req)
 	if err != nil {
 		t.Fatal(err)

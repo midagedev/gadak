@@ -151,7 +151,10 @@ headers), `GET /api/v1/viewer/` reports the person, and writes on the
 built-in tracker attribute to them. The Shell tab opens for exactly the
 account that owns this machine and nobody else — any other tailnet account
 gets the viewer-refused sentence, and the `--allow-remote` address, which
-carries no identity, still needs a terminal-scope token (GDK-1972). If
+carries no identity, still needs a terminal-scope token (GDK-1972). A
+person reaching the serve without `tailscale serve` — the `--allow-remote`
+address — types their name in Settings, and that declared name authors
+their writes (attribution only; no gate reads it, GDK-1973). If
 `/m/` answers 503, the binary was
 built without the phone bundle — `make phone` from a source checkout.
 

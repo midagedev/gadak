@@ -56,6 +56,12 @@ in-progress transition in one step — instead of a "[claim]" comment: while
 another actor holds the issue in progress, the claim is refused with the
 holder's name and exit code 75 (`--take-over` replaces them).
 
+The person at the machine has their own verb: `gadak me set "Your Name"`
+records a person identity (kind `person`, slug `person:<name>`) so their
+own writes are authored as them rather than the workspace default user;
+`gadak me` shows what is set and `gadak me clear` removes it. Refused on a
+connected Jira/Linear workspace — there the account is the identity.
+
 ### Check freshness before you answer
 
 `issue`, `search`, `comment`, `transition`, `assign`, and `fields` print one line

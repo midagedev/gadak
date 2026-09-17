@@ -215,12 +215,14 @@ func cmdStatus(args []string) error {
 		}
 		// The actor.trailer switch beside the identity, so a person can see
 		// whether Jira/Linear writes will carry the attribution line (the
-		// built-in origin records the actor as the author instead).
+		// built-in origin records the actor as the author instead). Kind
+		// rides beside source (GDK-1973): a person block says person, every
+		// other rung is an agent.
 		trailer := "off"
 		if cfg.ActorTrailerEnabled() {
 			trailer = "on"
 		}
-		fmt.Printf("%-18s %s (%s) · trailer %s\n", "actor", line, actor.Source, trailer)
+		fmt.Printf("%-18s %s (%s · %s) · trailer %s\n", "actor", line, actor.Source, actor.Kind, trailer)
 	}
 	if loc, ok := st["locale"].(string); ok {
 		fmt.Printf("%-18s %s\n", "locale", loc)

@@ -111,23 +111,23 @@ func TestParseActorShorthand(t *testing.T) {
 }
 
 func TestValidateActor(t *testing.T) {
-	if v, err := ValidateActor("", ""); err != nil || v != nil {
+	if v, err := ValidateActor("", "", ""); err != nil || v != nil {
 		t.Fatalf("clear = %+v %v, want nil,nil", v, err)
 	}
-	if _, err := ValidateActor("", "JustAName"); err == nil {
+	if _, err := ValidateActor("", "JustAName", ""); err == nil {
 		t.Fatal("name without slug accepted")
 	}
-	if _, err := ValidateActor("  claude:354bff2b  ", " Claude "); err != nil {
+	if _, err := ValidateActor("  claude:354bff2b  ", " Claude ", ""); err != nil {
 		t.Fatalf("trim: %v", err)
 	}
-	if _, err := ValidateActor("Claude Code", ""); err == nil || !strings.Contains(err.Error(), "actor.name") {
+	if _, err := ValidateActor("Claude Code", "", ""); err == nil || !strings.Contains(err.Error(), "actor.name") {
 		t.Fatalf("display-name slug accepted: %v", err)
 	}
 	long := strings.Repeat("a", 129)
-	if _, err := ValidateActor(long, ""); err == nil || !strings.Contains(err.Error(), "128") {
+	if _, err := ValidateActor(long, "", ""); err == nil || !strings.Contains(err.Error(), "128") {
 		t.Fatalf("oversized slug accepted: %v", err)
 	}
-	if _, err := ValidateActor(strings.Repeat("a", 128), ""); err != nil {
+	if _, err := ValidateActor(strings.Repeat("a", 128), "", ""); err != nil {
 		t.Fatalf("128-char slug rejected: %v", err)
 	}
 }

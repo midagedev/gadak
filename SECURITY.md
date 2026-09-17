@@ -210,6 +210,11 @@ reaching a listed name is the credential, the tailnet being the audience
 arrives from this machine — loopback, or one of the host's own interface
 addresses, which is where a `tailscale serve` proxy dials a serve bound to
 its tailnet IP — and are read nowhere else (`internal/server/viewer.go`).
+The self-declared name (`X-Gadak-Actor-Name`, GDK-1973 — a person typing
+their name in Settings) has no peer requirement by design, so on an
+`--allow-remote` serve not fronted by `tailscale serve` it is
+attacker-choosable: it buys write attribution only, and never satisfies
+the terminal gate or any token gate — no gate reads it.
 
 Each surface takes only its own scope: `gadak pairing mint --scope origin`
 (the default) rides the passthrough and is refused on the mirror REST;

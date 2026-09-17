@@ -4,9 +4,11 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
@@ -30,11 +32,15 @@ const (
 )
 
 // Viewer is GET viewer/'s document. Source says who vouched for it:
-// "tailscale" (loopback proxy attested the person) or "none".
+// "tailscale" (loopback proxy attested the person) or "none". Declared is
+// the X-Gadak-Actor-Name this request carried when it was honoured
+// (GDK-1973) — the name a person typed in Settings — and the empty string
+// otherwise: present, never omitted, same rule as withViewerActor applies.
 type Viewer struct {
-	Login  string `json:"login"`
-	Name   string `json:"name"`
-	Source string `json:"source"`
+	Login    string `json:"login"`
+	Name     string `json:"name"`
+	Source   string `json:"source"`
+	Declared string `json:"declared"`
 }
 
 // viewerFrom reads the request's viewer. The headers count only when the
@@ -139,34 +145,90 @@ func viewerActor(v Viewer) (slug, name string, ok bool) {
 		return "", "", false
 	}
 	local, _, _ := strings.Cut(strings.TrimSpace(v.Login), "@")
-	a, err := config.ValidateActor(local, v.Name)
+	if local == "" {
+		// A degenerate login ("@example.com") has no local part to be.
+		return "", "", false
+	}
+	a, err := config.ValidateActor(local, v.Name, "")
 	if err != nil || a == nil {
 		return "", "", false
 	}
 	return a.Slug, a.Name, true
 }
 
-// withViewerActor is ServeHTTP's one hook: a trusted viewer on a gadak
-// origin rides the request as a context override, and handlerTransport
-// stamps it over the session actor for this request's writes only. Every
-// other shape — non-gadak origin (the header is an issuetap extension and
-// noise anywhere else), untrusted peer, unusable slug — returns the request
-// untouched.
+// declaredActorMaxRunes caps the self-declared display name (GDK-1973): a
+// name over the cap is ignored, not truncated — a truncated name would be
+// a different person's attribution.
+const declaredActorMaxRunes = 64
+
+// declaredActorName reads X-Gadak-Actor-Name: the UTF-8 display name a
+// person typed in Settings, percent-encoded by the client and decoded
+// here. ok is false when the value is absent, blank, undecodable, or over
+// the cap — each of those means "no declaration", never an error: the
+// header buys attribution, and a bad declaration attributes to nobody.
+func declaredActorName(r *http.Request) (string, bool) {
+	raw := strings.TrimSpace(r.Header.Get("X-Gadak-Actor-Name"))
+	if raw == "" {
+		return "", false
+	}
+	name, err := url.PathUnescape(raw)
+	if err != nil {
+		return "", false
+	}
+	name = strings.TrimSpace(name)
+	if name == "" || utf8.RuneCountInString(name) > declaredActorMaxRunes {
+		return "", false
+	}
+	return name, true
+}
+
+// withViewerActor is ServeHTTP's one hook, and the single owner of the
+// request-identity precedence (GDK-1973):
+//
+//  1. a verified Tailscale viewer (viewerFrom, loopback proxy attested) —
+//     always a person;
+//  2. X-Gadak-Actor-Name, the self-declared name — a person, attribution
+//     only, never authority: no gate reads it (the terminal gate's refusal
+//     is pinned in terminal_test.go);
+//  3. the serve process's own actor (env/config, ResolveActor);
+//  4. the origin's default user.
+//
+// An attestation that is present but unusable is not a vacancy — a garbage
+// login does not fall through to the declaration. Non-gadak origins skip
+// the whole ladder's first two rungs: X-Issuetap-* is an issuetap
+// extension and noise anywhere else, and the request goes back untouched.
 func (s *server) withViewerActor(r *http.Request) *http.Request {
 	cfg := s.config()
 	if cfg == nil || cfg.OriginType() != config.OriginGadak {
 		return r
 	}
-	slug, name, ok := viewerActor(viewerFrom(r))
+	if v := viewerFrom(r); v.Source == viewerSourceTailscale {
+		slug, name, ok := viewerActor(v)
+		if !ok {
+			return r
+		}
+		// A verified viewer is a person (GDK-1973): the proxy attested a
+		// human's tailnet account.
+		return r.WithContext(origin.WithViewerActor(r.Context(), slug, name, config.ActorKindPerson))
+	}
+	name, ok := declaredActorName(r)
 	if !ok {
 		return r
 	}
-	return r.WithContext(origin.WithViewerActor(r.Context(), slug, name))
+	return r.WithContext(origin.WithViewerActor(r.Context(), config.PersonSlug(name), name, config.ActorKindPerson))
 }
 
 // handleViewer answers GET viewer/: the loopback proxy's attested person,
-// or "none". Read-only — identity, not authority; it says who is asking,
-// never what they may do.
+// or "none", plus the declared name when this request's declaration is one
+// withViewerActor would honour — the same gate, read through the same
+// helpers, so the document cannot disagree with the writes. Read-only —
+// identity, not authority; it says who is asking, never what they may do.
 func (s *server) handleViewer(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, viewerFrom(r))
+	v := viewerFrom(r)
+	if s.config() != nil && s.config().OriginType() == config.OriginGadak && v.Source != viewerSourceTailscale {
+		if name, ok := declaredActorName(r); ok {
+			v.Declared = name
+		}
+	}
+	writeJSON(w, http.StatusOK, v)
 }

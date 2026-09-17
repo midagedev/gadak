@@ -90,6 +90,14 @@ also CLI-only — PUT's `ui` key is a whole-block replace with no per-axis
 or per-token merge. The listing carries one `ui.tokens.<axis>.<name>`
 row per axis, not one row per token.
 
+`gadak me` is the person's verb onto the same file: `gadak me set "Your
+Name"` writes the `actor` block as a person (`kind` `person`, slug
+derived from the name), `gadak me` shows the resolved identity (name,
+slug, kind, source rung, workspace — `--json` the same object), and
+`gadak me clear` removes the block. On a connected Jira or Linear
+workspace `me set` is refused: there the account is the identity, and
+only agents stamp a different one (`gadak config set actor`).
+
 ### `appearance.theme`
 
 Validation is **shape only**: empty or `system` (stored as the zero value),
@@ -485,7 +493,7 @@ is nothing to say, and a client-supplied value is ignored.
 | `linear` | object or absent | absent = Linear source off. `apiKey` (personal API key, sent bare in the Authorization header) turns the source on; writes to Linear-owned keys route through it | edit `config.json` (no Settings surface yet) | Next `sync --source linear` |
 | `linear.teamIds` | string[] | `[]` = every team the key can see; team UUIDs restrict the mirror scope | edit `config.json` | Next Linear pass |
 | `devStatus` | bool | **false** | `gadak config set devStatus true` / `config.json` (not on Settings UI or Settings PUT) | Next sync; Jira Cloud: mirror Jira's development-status API into `dev_links` (one extra request per issue). The built-in tracker always fetches; `gadak dev link` / `dev scan` write the same table |
-| `actor` | object or absent | absent = no acting identity; env `GADAK_ACTOR` (`slug\|display name`) overrides, and Claude Code sessions are auto-detected when both are unset | `gadak config set actor 'slug\|display name'` / `config.json` (not on Settings UI or Settings PUT; never team-exported) | Next origin session; writes to the built-in tracker (local or paired) carry `X-Issuetap-Actor` and attribute to that agent account. Never sent to Jira or Linear |
+| `actor` | object or absent | absent = no acting identity; `kind` is `agent` (the default) or `person` — a person block may omit `slug` and derives it from `name` (`person:<dashed-name>`, never longer than 128 bytes); env `GADAK_ACTOR` (`slug\|display name`) overrides, and Claude Code sessions are auto-detected when both are unset (both always agent) | `gadak me set "Your Name"` (person) / `gadak config set actor 'slug\|display name'` (agent) / `config.json` (not on Settings UI or Settings PUT; never team-exported) | Next origin session; writes to the built-in tracker (local or paired) carry `X-Issuetap-Actor` (plus `X-Issuetap-Actor-Type: person` for a person block) and attribute to that account. Never sent to Jira or Linear |
 | `locale` | string | _(empty)_ = English; `en` \| `ko` \| `ja` \| `de` | `gadak config set locale ko` / `config.json` (not on Settings UI or Settings PUT) | Built-in tracker only: the origin's display-name language — status / issue-type / priority / field names and agent aliases all follow it. Changing it rebuilds the mirror on the next sync (display names are cached). A Jira workspace ignores it: its language is the Atlassian account's |
 | `confluence.spaces` | string[] | `[]` = every team space (global, collaboration, knowledge_base); personal spaces only if named (`internal/config/config.go`) | Settings → Sources / `gadak config set confluence.spaces` (or `wiki.spaces`) | Next wiki pass |
 | `terminal` | `{shell, workingDir, scrollback, cursorBlink}` | absent = all defaults (see below) | `scrollback`/`cursorBlink`: Settings → Terminal or `gadak config set terminal.<leaf>`; `shell`/`workingDir`: `gadak config set terminal.<leaf>` **only** (never on Settings PUT — GDK-1069, see below; never team-exported — they are this machine's paths) | Next terminal session create; a block set replaces the whole object, a leaf set merges; Settings PUT merges the two display fields onto the stored block |

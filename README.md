@@ -189,7 +189,9 @@ on your screen, and `gadak views open --jql '…'` lands pasted JQL as chips.
 Writes (`create`, `edit`, `comment`, `transition`, `claim`, `link`, and the
 wiki's `page` verbs) go through the origin before the mirror refreshes. On Jira and
 Linear, an agent's comments and the issues it creates carry its name (off switch:
-`gadak config set actor.trailer false`).
+`gadak config set actor.trailer false`). On the built-in tracker, the person at
+the machine has the same byline: `gadak me set "Your Name"` authors their own
+writes as them.
 
 **An agent that reads the mirror sends what it reads to whatever model it talks
 to.** gadak itself sends nothing. Scope the mirror to what the agent should see.

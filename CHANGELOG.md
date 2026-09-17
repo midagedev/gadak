@@ -77,7 +77,12 @@ sheets pad themselves out of it, so the last row under a search is reachable
 instead of hidden behind the keys ([GDK-1971]). And the Shell tab follows the same
 rule as the data: behind `tailscale serve`, the account that owns the machine
 opens a shell with no pairing at all, any other tailnet account is told so by
-name, and a direct connection still needs the terminal-scope token ([GDK-1972]).
+name, and a direct connection still needs the terminal-scope token ([GDK-1972]). And a person on the built-in tracker can
+say who they are: `gadak me set "Your Name"` on the CLI, a name field in the
+web and phone Settings — one stored identity, and writes from every surface
+are recorded under it; a connection reached without `tailscale serve` writes
+under the name typed there, attribution only, never a credential
+([GDK-1973]).
 
 **What the cache holds, and what it counts, answer to the origin.** A wiki page removed at the
 origin used to stay in the local cache for as long as its space did. A full
@@ -1741,4 +1746,5 @@ priority sorting keyed on `priority_rank`.
 [GDK-1970]: https://gadak.dev/backlog/#/?ks=GDK-1970
 [GDK-1971]: https://gadak.dev/backlog/#/?ks=GDK-1971
 [GDK-1972]: https://gadak.dev/backlog/#/?ks=GDK-1972
+[GDK-1973]: https://gadak.dev/backlog/#/?ks=GDK-1973
 [GDK-1974]: https://gadak.dev/backlog/#/?ks=GDK-1974

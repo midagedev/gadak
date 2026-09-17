@@ -1162,6 +1162,35 @@ func TestTerminalTailnetSessionsAreScopedToTheirLogin(t *testing.T) {
 	}
 }
 
+// ⑰g GDK-1973: the declared name is attribution, never authority. A
+// request carrying X-Gadak-Actor-Name equal to the owner's login — the
+// most flattering possible declaration — still gets the gate's old answer:
+// the gate reads attested viewers and pairing tokens, and terminal.go never
+// references the header.
+func TestTerminalGateIgnoresDeclaredActorName(t *testing.T) {
+	srv, h, dir := termServer(t)
+	h.SetHostPolicy(ownerPolicy(ownerLogin))
+	seedStore(t, dir, seedToken{"pane", pairing.ScopeTerminal})
+
+	req, err := http.NewRequest(http.MethodPost, srv.URL+termBase+"sessions/", strings.NewReader(`{"cols":90,"rows":30}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Host = ownerHost
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Gadak-Actor-Name", ownerLogin)
+	resp, err := termClient(ownerHost).Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	buf := make([]byte, 4096)
+	n, _ := resp.Body.Read(buf)
+	if resp.StatusCode != http.StatusUnauthorized || !strings.Contains(string(buf[:n]), "pairing_rejected") {
+		t.Fatalf("declared owner login: %d %s; want 401 pairing_rejected (the header is not a credential)", resp.StatusCode, string(buf[:n]))
+	}
+}
+
 // ⑰f The revoke poll must leave the owner's shell alone. The watch closes
 // sessions whose token id the pairing store no longer answers for — and a
 // tailnet id is not a token, so without the prefix skip the poll would cut

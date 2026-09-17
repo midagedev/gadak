@@ -654,6 +654,13 @@ off with `gadak config set actor.trailer false` (`gadak status` shows the
 switch on the actor row). Without an actor,
 writes attribute to the workspace's default user, exactly as before.
 
+The person at the machine has their own verb — do not use it for agent
+sessions: `gadak me set "Your Name"` records a person identity (kind
+`person`, slug `person:<name>`) so that person's own writes are authored
+as them; `gadak me` shows what is set, `gadak me clear` removes it. It is
+refused on a connected Jira/Linear workspace, where the account is the
+identity.
+
 The attribution is queryable — "what did the previous session leave" is
 one query, not archaeology across four tables. Every write surface carries
 `author_id` (`items` for created issues and pages, `comments`, `changelog`,

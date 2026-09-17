@@ -257,7 +257,7 @@ func pairedJira(cfg *config.Config, rem *pairing.Remote) (*jira.Client, error) {
 		return nil, err
 	}
 	if a, ok := config.ResolveActor(cfg); ok {
-		tr.actor, tr.actorName = a.Slug, a.Name
+		tr.actor, tr.actorName, tr.actorKind = a.Slug, a.Name, a.Kind
 	}
 	c := transportJira(tr)
 	return c, nil
@@ -271,7 +271,7 @@ func pairedWiki(cfg *config.Config, rem *pairing.Remote) (*confluence.Client, er
 		return nil, err
 	}
 	if a, ok := config.ResolveActor(cfg); ok {
-		tr.actor, tr.actorName = a.Slug, a.Name
+		tr.actor, tr.actorName, tr.actorKind = a.Slug, a.Name, a.Kind
 	}
 	w := transportWiki(tr)
 	return w, nil
@@ -735,7 +735,7 @@ func constructBuiltIn(persist string, projects []string, actor config.ResolvedAc
 		return nil, fmt.Errorf("origin: issuetap: %w", err)
 	}
 
-	tr := &handlerTransport{h: emb, actor: actor.Slug, actorName: actor.Name}
+	tr := &handlerTransport{h: emb, actor: actor.Slug, actorName: actor.Name, actorKind: actor.Kind}
 
 	c := transportJira(tr)
 	w := transportWiki(tr)

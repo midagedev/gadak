@@ -4,16 +4,29 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"unicode/utf8"
+)
+
+// Actor kinds (GDK-1973). "" is the pre-1973 block — an agent — kept
+// byte-for-byte; "agent" says it out loud; "person" makes the block a
+// person's identity, whose slug may be derived from the display name.
+const (
+	ActorKindAgent  = "agent"
+	ActorKindPerson = "person"
 )
 
 // ActorConfig is the workspace-default acting identity for writes to an
 // issuetap origin (builtIn or paired, GDK-586): the slug becomes the
-// origin accountId verbatim and names an agent account there; Name is an
-// optional display name. Nil (or empty slug) means unset. Per-machine
+// origin accountId verbatim and names an account there; Name is an
+// optional display name. Kind says which sort of account it names — an
+// agent (the default, and what env/auto detection always resolves) or a
+// person (`gadak me set` writes person blocks; issuetap provisions those
+// as human accounts). Nil (or empty slug) means unset. Per-machine
 // identity — never team-exported.
 type ActorConfig struct {
 	Slug string `json:"slug,omitempty"`
 	Name string `json:"name,omitempty"`
+	Kind string `json:"kind,omitempty"`
 
 	// Trailer turns off the Jira/Linear attribution line (nil = true, the
 	// default): with an actor resolved and the origin unable to record one,
@@ -39,10 +52,14 @@ const (
 )
 
 // ResolvedActor is the ladder's answer: Slug is the X-Issuetap-Actor value,
-// Name the optional X-Issuetap-Actor-Name, Source which rung produced it.
+// Name the optional X-Issuetap-Actor-Name, Source which rung produced it,
+// Kind agent or person (never empty once resolved — env, auto-detection,
+// and a kindless config block are agents; only a config block that says
+// person resolves as one, GDK-1973).
 type ResolvedActor struct {
 	Slug   string `json:"slug"`
 	Name   string `json:"name,omitempty"`
+	Kind   string `json:"kind"`
 	Source string `json:"source"`
 }
 
@@ -81,16 +98,21 @@ func ParseActorShorthand(v string) (slug, name string) {
 func ResolveActor(cfg *Config) (ResolvedActor, bool) {
 	if v := strings.TrimSpace(os.Getenv("GADAK_ACTOR")); v != "" {
 		if slug, name := ParseActorShorthand(v); slug != "" {
-			return ResolvedActor{Slug: slug, Name: name, Source: ActorSourceEnv}, true
+			return ResolvedActor{Slug: slug, Name: name, Kind: ActorKindAgent, Source: ActorSourceEnv}, true
 		}
 		// An empty slug ("|name") is treated as unset, the same as Env()
 		// treats an empty GADAK_* value: fall through, do not fail.
 	}
 	if cfg != nil && cfg.Actor != nil {
 		if slug := strings.TrimSpace(cfg.Actor.Slug); slug != "" {
+			kind := ActorKindAgent
+			if cfg.Actor.Kind == ActorKindPerson {
+				kind = ActorKindPerson
+			}
 			return ResolvedActor{
 				Slug:   slug,
 				Name:   strings.TrimSpace(cfg.Actor.Name),
+				Kind:   kind,
 				Source: ActorSourceConfig,
 			}, true
 		}
@@ -105,7 +127,7 @@ func ResolveActor(cfg *Config) (ResolvedActor, bool) {
 			}
 			slug = "claude:" + sid
 		}
-		return ResolvedActor{Slug: slug, Name: "Claude Code", Source: ActorSourceAuto}, true
+		return ResolvedActor{Slug: slug, Name: "Claude Code", Kind: ActorKindAgent, Source: ActorSourceAuto}, true
 	}
 	return ResolvedActor{}, false
 }
@@ -122,11 +144,23 @@ func (c *Config) actorOrZero() ActorConfig {
 
 // ValidateActor is the `gadak config set actor` rule: empty slug clears the
 // block; a non-empty slug must be a stable identity, not a display name —
-// no whitespace, within issuetap's cap.
-func ValidateActor(slug, name string) (*ActorConfig, error) {
+// no whitespace, within issuetap's cap. kind is "", "agent", or "person"
+// (GDK-1973): a person block with no slug derives one from the name via
+// PersonSlug — the one derivation point — and a person with no name is
+// refused, because there is nothing to derive from and nothing to display.
+func ValidateActor(slug, name, kind string) (*ActorConfig, error) {
 	slug = strings.TrimSpace(slug)
 	name = strings.TrimSpace(name)
+	if kind != "" && kind != ActorKindAgent && kind != ActorKindPerson {
+		return nil, fmt.Errorf("actor.kind must be %q or %q (got %q)", ActorKindAgent, ActorKindPerson, kind)
+	}
 	if slug == "" {
+		if kind == ActorKindPerson {
+			if name == "" {
+				return nil, fmt.Errorf("a person needs a display name — `gadak me set \"Your Name\"`")
+			}
+			return &ActorConfig{Slug: PersonSlug(name), Name: name, Kind: kind}, nil
+		}
 		if name != "" {
 			return nil, fmt.Errorf("actor needs a slug; put the display name in actor.name and the identity (e.g. claude:354bff2b) in actor.slug")
 		}
@@ -138,5 +172,38 @@ func ValidateActor(slug, name string) (*ActorConfig, error) {
 	if len(slug) > maxActorSlugLen {
 		return nil, fmt.Errorf("actor.slug must be at most %d characters (got %d)", maxActorSlugLen, len(slug))
 	}
-	return &ActorConfig{Slug: slug, Name: name}, nil
+	return &ActorConfig{Slug: slug, Name: name, Kind: kind}, nil
+}
+
+// PersonSlug derives a stable person slug from a display name (GDK-1973):
+// trim, collapse whitespace runs to single dashes, lowercase ASCII letters
+// only (a non-ASCII name passes through unchanged — the name is the
+// identity here), prefix "person:", and cut to maxActorSlugLen on a rune
+// boundary. An empty name is the empty slug — the caller refuses a person
+// with no name instead of storing a bare prefix.
+func PersonSlug(name string) string {
+	fields := strings.Fields(name)
+	if len(fields) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for i, f := range fields {
+		if i > 0 {
+			b.WriteByte('-')
+		}
+		for _, r := range f {
+			if r >= 'A' && r <= 'Z' {
+				r += 'a' - 'A'
+			}
+			b.WriteRune(r)
+		}
+	}
+	s := "person:" + b.String()
+	// Byte cap (ValidateActor and issuetap measure bytes), cut on a rune
+	// boundary so the result stays valid UTF-8.
+	for len(s) > maxActorSlugLen {
+		_, size := utf8.DecodeLastRuneInString(s)
+		s = s[:len(s)-size]
+	}
+	return s
 }

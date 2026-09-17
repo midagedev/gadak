@@ -656,15 +656,16 @@ func initBuiltIn(cfg *config.Config, jsonOut bool, projectsFlag string) error {
 			cfg.DefaultProject, cfg.DefaultIssueType, p)
 	}
 	if author != "" {
-		// GDK-482: there is no CLI verb that changes this display name
-		// (config list has no path; issuetap seeds the fixture user).
+		// GDK-482/GDK-1973: no verb changes the fixture user's own display
+		// name — a person who wants their name on writes says who they are
+		// (`gadak me set`), which authors as them instead of this default.
 		// GDK-586: with an actor resolved, /myself above answered the
 		// agent — this process writes as the agent, so the parenthetical
 		// must not claim it is the workspace default.
 		if _, ok := config.ResolveActor(cfg); ok {
 			fmt.Printf("issues are authored as %s (this session's actor; writes without one use the workspace default)\n", author)
 		} else {
-			fmt.Printf("issues are authored as %s (the workspace default)\n", author)
+			fmt.Printf("issues are authored as %s (the workspace default — say who you are with `gadak me set \"Your Name\"`)\n", author)
 		}
 	}
 	printSkillAutoResult(skill)
@@ -751,8 +752,11 @@ JQL cannot ask.
 
 // builtInAuthorName is the display name GET /myself returns on the
 // in-process origin. Empty if the origin cannot answer — the init success
-// line is then omitted rather than inventing a name. GDK-482: no gadak
-// verb changes this (measured against config list paths and issuetap seed).
+// line and `gadak me`'s default-author sentence are then omitted rather
+// than inventing a name. GDK-482: no gadak verb changes this (measured
+// against config list paths and issuetap seed); GDK-1973: a person writes
+// as themselves via `gadak me set`, beside this default rather than
+// through it.
 func builtInAuthorName(cfg *config.Config) string {
 	c, err := origin.Client(cfg)
 	if err != nil {
