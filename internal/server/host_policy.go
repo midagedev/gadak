@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/url"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -22,7 +23,10 @@ import (
 // Handler.SetHostPolicy; both guard layers (the top-level mux's and the
 // Handler's own) and the mirror gate read the same live pointer, so nothing
 // else can widen between them. Membership admits the Host — it does not
-// mint a token, a shell, or anything else the pairing gates own.
+// mint a token or anything else the pairing gates own. The owner login is
+// the one identity half it also carries (GDK-1972): the terminal gate
+// compares a viewer the tailscale daemon verified against it, and nothing
+// else reads it.
 
 // hostPolicyEntry is one admitted name with the surface that contributed it,
 // so the startup line can say where each name came from.
@@ -36,7 +40,8 @@ type hostPolicyEntry struct {
 // before this type existed (every DNS name refused). All methods are
 // nil-safe and read-only, so the guard's per-request consult needs no lock.
 type HostPolicy struct {
-	entries []hostPolicyEntry
+	entries    []hostPolicyEntry
+	ownerLogin string
 }
 
 // NewHostPolicy builds the policy from its three sources, in order: the
@@ -144,6 +149,31 @@ func (p *HostPolicy) Empty() bool {
 	return p == nil || len(p.entries) == 0
 }
 
+// OwnerLogin is the tailnet login that owns this node, as the startup probe
+// reported it — "" when the node has no owner (a tagged node) or the probe
+// learned nothing. The terminal gate compares a verified viewer's login
+// against it (GDK-1972); an empty owner means that comparison can never
+// pass, which is exactly the pre-policy behavior.
+func (p *HostPolicy) OwnerLogin() string {
+	if p == nil {
+		return ""
+	}
+	return p.ownerLogin
+}
+
+// WithTailscaleOwner records the node owner's login, from the same probe
+// call that contributed the MagicDNS name so one `tailscale status` feeds
+// both halves of the policy. Builder form: the one construction site
+// (cmd/gadak serve) chains it after NewHostPolicy, before SetHostPolicy
+// installs the pointer the guards read.
+func (p *HostPolicy) WithTailscaleOwner(login string) *HostPolicy {
+	if p == nil {
+		return p
+	}
+	p.ownerLogin = strings.TrimSpace(login)
+	return p
+}
+
 // Describe is the one-line form the serve startup log prints, each name
 // with its source: "vps.example.ts.net (tailscale), gadak.example.com
 // (--public-url)". Empty policy describes as "".
@@ -158,20 +188,32 @@ func (p *HostPolicy) Describe() string {
 	return strings.Join(parts, ", ")
 }
 
-// TailscaleDNSName is this machine's Tailscale MagicDNS name, best-effort:
+// TailscaleSelf is this machine's Tailscale state in one probe, best-effort:
 // the tailscale binary on PATH, `status --json` with a 2s timeout, the
-// Self.DNSName field with its trailing dot stripped. Every failure mode —
-// binary missing, command failing, timeout, unparseable output — answers ""
-// after exactly one stderr line; the serve must start without a tailnet.
-func TailscaleDNSName() string {
-	return tailscaleDNSName(2 * time.Second)
+// Self.DNSName field with its trailing dot stripped, and — for the owner —
+// Self.UserID resolved through the User map to its LoginName. Every probe
+// failure mode — binary missing, command failing, timeout, unparseable
+// output — answers ("", "") after exactly one stderr line; the serve must
+// start without a tailnet. An owner that parses as nobody is not a failure:
+// a tagged node (Self.Tags non-empty) is owned by no account, UserID 0
+// names no account, and a User map without Self.UserID's entry resolves to
+// nobody — each answers "" for the owner with the DNS name intact.
+func TailscaleSelf() (dnsName, ownerLogin string) {
+	return tailscaleSelf(2 * time.Second)
 }
 
-func tailscaleDNSName(timeout time.Duration) string {
+// TailscaleDNSName keeps the DNS-name-only surface the policy was first
+// built on; the serve reads both halves from one TailscaleSelf call.
+func TailscaleDNSName() string {
+	dns, _ := TailscaleSelf()
+	return dns
+}
+
+func tailscaleSelf(timeout time.Duration) (dnsName, ownerLogin string) {
 	path, err := exec.LookPath("tailscale")
 	if err != nil {
-		log.Printf("serve: no tailscale binary on PATH — MagicDNS name not added to allowed hosts")
-		return ""
+		log.Printf("serve: no tailscale binary on PATH — MagicDNS name not added to allowed hosts, tailnet owner not learned")
+		return "", ""
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -183,17 +225,28 @@ func tailscaleDNSName(timeout time.Duration) string {
 	cmd.WaitDelay = timeout
 	out, err := cmd.Output()
 	if err != nil {
-		log.Printf("serve: tailscale status --json failed (%v) — MagicDNS name not added to allowed hosts", err)
-		return ""
+		log.Printf("serve: tailscale status --json failed (%v) — MagicDNS name not added to allowed hosts, tailnet owner not learned", err)
+		return "", ""
 	}
 	var st struct {
 		Self struct {
-			DNSName string `json:"DNSName"`
+			DNSName string   `json:"DNSName"`
+			UserID  int64    `json:"UserID"`
+			Tags    []string `json:"Tags"`
 		} `json:"Self"`
+		User map[string]struct {
+			LoginName string `json:"LoginName"`
+		} `json:"User"`
 	}
 	if err := json.Unmarshal(out, &st); err != nil {
-		log.Printf("serve: tailscale status --json: %v — MagicDNS name not added to allowed hosts", err)
-		return ""
+		log.Printf("serve: tailscale status --json: %v — MagicDNS name not added to allowed hosts, tailnet owner not learned", err)
+		return "", ""
 	}
-	return strings.TrimSuffix(strings.TrimSpace(st.Self.DNSName), ".")
+	var owner string
+	if len(st.Self.Tags) == 0 && st.Self.UserID != 0 {
+		if u, ok := st.User[strconv.FormatInt(st.Self.UserID, 10)]; ok {
+			owner = strings.TrimSpace(u.LoginName)
+		}
+	}
+	return strings.TrimSuffix(strings.TrimSpace(st.Self.DNSName), "."), owner
 }

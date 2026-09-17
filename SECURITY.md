@@ -192,7 +192,13 @@ token authenticates, and there are exactly three of those:
   request: the serve re-reads the token store every two seconds while a
   token-bound shell is open and closes those sessions — the socket is
   told `{"t":"dropped","reason":"token_revoked"}` and the shell's whole
-  process group is signalled.
+  process group is signalled. Behind `tailscale serve` the shell also
+  opens for a viewer identity the tailscale daemon verified whose login
+  is the Tailscale account that owns this node — the same account as the
+  CLI user, so no token is asked (GDK-1972, `internal/server/viewer.go`).
+  Any other tailnet account is refused (`403 viewer_rejected`), and a
+  direct connection — no proxy, no identity — still needs the
+  `terminal`-scope token.
 
 A serve can also be pointed at a DNS name on purpose (GDK-1966): the
 repeatable `--public-url` flag, `serve.publicUrls` in config, and the

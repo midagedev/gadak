@@ -276,11 +276,14 @@ func cmdServe(args []string) error {
 	// serve.publicUrls, and the Tailscale MagicDNS name this machine
 	// already answers by — each name widens the rebinding guard for exactly
 	// that Host, and both guard layers plus the mirror gate read the one
-	// policy installed here. The Tailscale probe is best-effort: without a
-	// tailnet it logs one line and the policy simply has no such name.
-	tsName := server.TailscaleDNSName()
+	// policy installed here. The same probe (GDK-1972) contributes the
+	// tailnet login that owns this node, which the terminal gate compares a
+	// verified viewer against. Both probes are best-effort: without a
+	// tailnet it logs one line and the policy simply has no such name and
+	// no owner.
+	tsName, tsOwner := server.TailscaleSelf()
 	cfgURLs := rt.Cfg.ServePublicURLs()
-	policy := server.NewHostPolicy(opts.publicURLs, cfgURLs, tsName)
+	policy := server.NewHostPolicy(opts.publicURLs, cfgURLs, tsName).WithTailscaleOwner(tsOwner)
 	rt.API.SetHostPolicy(policy)
 	if d := policy.Describe(); d != "" {
 		log.Printf("serve: hosts: %s", d)

@@ -973,3 +973,224 @@ func TestTerminalIssueBinding(t *testing.T) {
 		t.Fatalf("own token bind: %d %s; want 200", code, body)
 	}
 }
+
+// ── the tailnet owner (GDK-1972) ────────────────────────────────────────────
+
+// ownerHost is a policy-admitted DNS name: the shape `tailscale serve`
+// forwards, admitted by the probe-sourced MagicDNS entry the way the runbook
+// sets up. ownerLogin is the account that owns the node, as Self.UserID's
+// User-map entry reports it (host_policy.go).
+const (
+	ownerHost  = "vps.example.ts.net:7777"
+	ownerLogin = "owner@example.com"
+)
+
+// ownerPolicy is the fixture all GDK-1972 tests share: the probe's DNS name
+// on the policy plus the probe's owner login, exactly what serve installs.
+func ownerPolicy(owner string) *HostPolicy {
+	return NewHostPolicy(nil, nil, "vps.example.ts.net").WithTailscaleOwner(owner)
+}
+
+// viewerTermRequest is termRequest plus the Tailscale-User-Login header a
+// `tailscale serve` proxy stamps (viewer.go). The test listener's peers are
+// loopback, so viewerFrom reads the attestation the way it does in
+// production behind the proxy; an optional Bearer rides along so a test can
+// state the precedence rule (the Bearer path wins when one is present).
+func viewerTermRequest(t *testing.T, srv *httptest.Server, method, path, body, host, login, token string) (int, string) {
+	t.Helper()
+	req, err := http.NewRequest(method, srv.URL+path, strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Tailscale-User-Login", login)
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	resp, err := termClient(host).Do(req)
+	if err != nil {
+		t.Fatalf("%s %s: %v", method, path, err)
+	}
+	defer resp.Body.Close()
+	buf := make([]byte, 4096)
+	n, _ := resp.Body.Read(buf)
+	return resp.StatusCode, string(buf[:n])
+}
+
+// ⑰ GDK-1972, rule A: a viewer the tailscale daemon verified whose login is
+// this node's owner's login opens the shell with no Bearer — same Tailscale
+// account, same person as the CLI user (decision 0003, one node out). The
+// credential is a token id of its own ("tailnet:<login>"), so the ownership
+// rules (terminalOwns/terminalVisible compare ids) keep each viewer's
+// sessions apart the way they keep tokens apart.
+func TestTerminalOwnerViewerOpensShellWithoutBearer(t *testing.T) {
+	srv, h, _ := termServer(t)
+	h.SetHostPolicy(ownerPolicy(ownerLogin))
+
+	code, body := viewerTermRequest(t, srv, http.MethodPost, termBase+"sessions/", `{"cols":90,"rows":30}`, ownerHost, ownerLogin, "")
+	if code != http.StatusOK {
+		t.Fatalf("owner viewer create, no Bearer: %d %s; want 200", code, body)
+	}
+	var doc terminalSessionDoc
+	if err := json.Unmarshal([]byte(body), &doc); err != nil {
+		t.Fatalf("create body %s: %v", body, err)
+	}
+	sess, err := h.s.terminalManager().Get(doc.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := sess.TokenID(); got != "tailnet:"+ownerLogin {
+		t.Fatalf("session TokenID = %q, want tailnet:%s", got, ownerLogin)
+	}
+
+	// The login arrives in whatever case the proxy stamped; one spelling of
+	// the owner must not fork identities (the comparison folds, the id is
+	// the lower-cased login).
+	code, body = viewerTermRequest(t, srv, http.MethodGet, termBase+"sessions/", "", ownerHost, "Owner@Example.com", "")
+	if code != http.StatusOK || !strings.Contains(body, doc.ID) {
+		t.Fatalf("owner viewer list, other case: %d %s; want the session listed", code, body)
+	}
+
+	// And the owner may reap what it opened, like any credential holder.
+	code, body = viewerTermRequest(t, srv, http.MethodDelete, termBase+"sessions/"+doc.ID+"/", "", ownerHost, ownerLogin, "")
+	if code != http.StatusNoContent {
+		t.Fatalf("owner viewer delete: %d %s; want 204", code, body)
+	}
+}
+
+// ⑰b A verified viewer that is NOT the owner is refused by name — one row
+// in the gate's table with its own wire code, so the phone can say which
+// account to sign in as instead of a generic refusal.
+func TestTerminalOtherViewerIsRefusedByName(t *testing.T) {
+	srv, h, dir := termServer(t)
+	h.SetHostPolicy(ownerPolicy(ownerLogin))
+	seedStore(t, dir, seedToken{"pane", pairing.ScopeTerminal})
+
+	code, body := viewerTermRequest(t, srv, http.MethodPost, termBase+"sessions/", `{"cols":90,"rows":30}`, ownerHost, "stranger@example.com", "")
+	if code != http.StatusForbidden || !strings.Contains(body, "viewer_rejected") {
+		t.Fatalf("non-owner viewer: %d %s; want 403 viewer_rejected", code, body)
+	}
+
+	// A Bearer, when present, takes the token path unchanged: a paired
+	// non-owner still opens its shell under the token's hash — the viewer
+	// mismatch must not poison a valid credential.
+	tok, meta, err := pairing.MintScoped(dir, "pane-stranger", pairing.ScopeTerminal, time.Hour, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, body = viewerTermRequest(t, srv, http.MethodPost, termBase+"sessions/", `{"cols":90,"rows":30}`, ownerHost, "stranger@example.com", tok)
+	if code != http.StatusOK {
+		t.Fatalf("non-owner viewer with terminal Bearer: %d %s; want 200", code, body)
+	}
+	var doc terminalSessionDoc
+	if err := json.Unmarshal([]byte(body), &doc); err != nil {
+		t.Fatal(err)
+	}
+	sess, err := h.s.terminalManager().Get(doc.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := sess.TokenID(); got != meta.Hash {
+		t.Fatalf("session TokenID = %q, want the token's hash %s", got, meta.Hash)
+	}
+}
+
+// ⑰c The header only counts when the peer is this machine — viewerFrom's
+// rule, restated at the gate. A direct connection that stamps the owner's
+// login itself gets the old answers, not rule A.
+func TestTerminalViewerHeaderFromUntrustedPeerIsIgnored(t *testing.T) {
+	_, h, dir := termServer(t)
+	h.SetHostPolicy(ownerPolicy(ownerLogin))
+	seedStore(t, dir, seedToken{"pane", pairing.ScopeTerminal})
+
+	r := httptest.NewRequest(http.MethodPost, termBase+"sessions/", nil)
+	r.Host = ownerHost
+	r.RemoteAddr = "192.0.2.9:50000" // TEST-NET: not this machine
+	r.Header.Set("Tailscale-User-Login", ownerLogin)
+	rec := httptest.NewRecorder()
+	if _, ok := h.s.terminalGate(rec, r); ok {
+		t.Fatal("untrusted peer stamped the owner's login and passed the gate")
+	}
+	if rec.Code != http.StatusUnauthorized || !strings.Contains(rec.Body.String(), "pairing_rejected") {
+		t.Fatalf("untrusted peer: %d %s; want 401 pairing_rejected (the old rule, header ignored)", rec.Code, rec.Body.String())
+	}
+}
+
+// ⑰d A node with no owner login (tagged, or the probe learned nothing)
+// keeps the old table entire: a verified viewer is not a door there.
+func TestTerminalTaggedNodeKeepsBearerRules(t *testing.T) {
+	srv, h, dir := termServer(t)
+	h.SetHostPolicy(ownerPolicy("")) // tagged node: probe answered "" for the owner
+	seedStore(t, dir, seedToken{"pane", pairing.ScopeTerminal})
+
+	code, body := viewerTermRequest(t, srv, http.MethodPost, termBase+"sessions/", `{"cols":90,"rows":30}`, ownerHost, ownerLogin, "")
+	if code != http.StatusUnauthorized || !strings.Contains(body, "pairing_rejected") {
+		t.Fatalf("owner login, empty policy owner: %d %s; want 401 pairing_rejected (the old rule)", code, body)
+	}
+}
+
+// ⑰e Two viewers' sessions stay apart: the token id is per-login, so the
+// session one owner opened is invisible to another — ⑥'s rule carried to
+// the tailnet credential. The policy is re-pointed mid-test because one
+// node has one owner; two owners is two nodes looking at the same shape.
+func TestTerminalTailnetSessionsAreScopedToTheirLogin(t *testing.T) {
+	srv, h, _ := termServer(t)
+	h.SetHostPolicy(ownerPolicy("a@example.com"))
+	code, body := viewerTermRequest(t, srv, http.MethodPost, termBase+"sessions/", `{"cols":90,"rows":30}`, ownerHost, "a@example.com", "")
+	if code != http.StatusOK {
+		t.Fatalf("a@example.com create: %d %s", code, body)
+	}
+	var doc terminalSessionDoc
+	if err := json.Unmarshal([]byte(body), &doc); err != nil {
+		t.Fatal(err)
+	}
+
+	// b is not this node's owner: refused before any session is consulted.
+	if code, body := viewerTermRequest(t, srv, http.MethodGet, termBase+"sessions/", "", ownerHost, "b@example.com", ""); code != http.StatusForbidden || !strings.Contains(body, "viewer_rejected") {
+		t.Fatalf("b@example.com list under a's policy: %d %s; want 403 viewer_rejected", code, body)
+	}
+	// b's own node: b is the owner there, and a's session is still not b's.
+	h.SetHostPolicy(ownerPolicy("b@example.com"))
+	code, body = viewerTermRequest(t, srv, http.MethodGet, termBase+"sessions/", "", ownerHost, "b@example.com", "")
+	if code != http.StatusOK || !strings.Contains(body, `"sessions":[]`) {
+		t.Fatalf("b@example.com list under b's policy: %d %s; want an empty list", code, body)
+	}
+	// The machine's own user still sees everything (decision 0003).
+	code, body = termRequest(t, srv, http.MethodGet, termBase+"sessions/", "", "", "")
+	if code != http.StatusOK || !strings.Contains(body, doc.ID) {
+		t.Fatalf("loopback list: %d %s; want a's session visible", code, body)
+	}
+}
+
+// ⑰f The revoke poll must leave the owner's shell alone. The watch closes
+// sessions whose token id the pairing store no longer answers for — and a
+// tailnet id is not a token, so without the prefix skip the poll would cut
+// the owner's shell one tick (2s) after it opened. Same shape as ⑧: the
+// interval is shortened, the contract is "alive past three ticks".
+func TestTerminalRevokeWatchLeavesOwnerSessionsAlone(t *testing.T) {
+	prev := terminalPollInterval
+	terminalPollInterval = 50 * time.Millisecond
+	t.Cleanup(func() { terminalPollInterval = prev })
+
+	srv, h, _ := termServer(t)
+	h.SetHostPolicy(ownerPolicy(ownerLogin))
+	code, body := viewerTermRequest(t, srv, http.MethodPost, termBase+"sessions/", `{"cols":90,"rows":30}`, ownerHost, ownerLogin, "")
+	if code != http.StatusOK {
+		t.Fatalf("owner viewer create: %d %s", code, body)
+	}
+	var doc terminalSessionDoc
+	if err := json.Unmarshal([]byte(body), &doc); err != nil {
+		t.Fatal(err)
+	}
+	// Three ticks of the shortened interval, then the session must still
+	// be listed for the same owner — a paired token's session would be
+	// gone inside the first tick (⑧).
+	time.Sleep(3 * terminalPollInterval)
+	code, body = viewerTermRequest(t, srv, http.MethodGet, termBase+"sessions/", "", ownerHost, ownerLogin, "")
+	if code != http.StatusOK || !strings.Contains(body, doc.ID) {
+		t.Fatalf("owner session after three revoke ticks: %d %s; want it still listed", code, body)
+	}
+	if _, err := h.s.terminalManager().Get(doc.ID); err != nil {
+		t.Fatalf("owner session left the manager: %v", err)
+	}
+}

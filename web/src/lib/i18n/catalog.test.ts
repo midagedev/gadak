@@ -93,7 +93,8 @@ function unusedCatalogKeys(): string[] {
 /**
  * Prefixes the phone owns outright: keys here may be phone-only by design
  * (56 `app.*`, 13 `terminal.strip.*`, 4 `terminal.refusal.*` at the 2026-09-15
- * census) and are exempt from the web/src-citation requirement.
+ * census; 6 `terminal.refusal.*` after GDK-1972 added the viewer and hosted
+ * sentences) and are exempt from the web/src-citation requirement.
  */
 const PHONE_OWNED_PREFIXES = ['app.', 'terminal.'] as const
 

@@ -66,3 +66,14 @@ Consequences:
 Not decided here: what a shared tailnet means. Today every admitted device
 has the owner's write rights on the built-in tracker; per-viewer actors are
 the seam the first round measures.
+
+## Addendum (2026-09-17) — the owner's tailnet identity is the local user (GDK-1972)
+
+The loopback rule above ("a loopback caller is this machine's user") extends
+one node out: behind `tailscale serve`, a viewer identity the daemon verified
+whose login is the account that owns this node (`tailscale status` Self.UserID
+→ `User[<id>].LoginName`, empty for a tagged node) opens the terminal with no
+token — same Tailscale account, same person as the CLI user. Any other account
+is refused (`403 viewer_rejected`); a self-declared header never reaches the
+comparison, because `viewerFrom` trusts the headers only from this machine's
+own peers. The terminal-scope token remains the road for everyone else.

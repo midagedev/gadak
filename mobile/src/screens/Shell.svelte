@@ -1070,7 +1070,15 @@
           {/if}
         {:else}
           {#if status.refusal}
-            {t(REFUSAL_KEYS[status.refusal])}
+            {#if app.hosted && (status.refusal === 'pairing' || status.refusal === 'scope')}
+              <!-- A hosted page has no pairing road: the desktop-mint
+                   sentence sends the reader looking for an offer this
+                   surface cannot accept. The way in is the owner's account
+                   through tailscale serve (GDK-1972). -->
+              {t('terminal.refusal.hosted')}
+            {:else}
+              {t(REFUSAL_KEYS[status.refusal])}
+            {/if}
           {:else if status.cause === 'failed'}
             {t('terminal.unavailable.failed', { message: status.detail ?? '' })}
           {:else}

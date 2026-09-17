@@ -23,7 +23,7 @@ import type { MessageKey } from '../i18n'
  */
 
 /** Which "no" the server said — each kind owns one catalog sentence. */
-export type RefusalKind = 'origin' | 'pairing' | 'scope' | 'other'
+export type RefusalKind = 'origin' | 'pairing' | 'scope' | 'viewer' | 'other'
 
 /** The catalog key per kind. Keyed copy, never literal sentences. */
 export const REFUSAL_KEYS: Record<RefusalKind, MessageKey> = {
@@ -36,6 +36,11 @@ export const REFUSAL_KEYS: Record<RefusalKind, MessageKey> = {
   pairing: 'terminal.refusal.pairing',
   // 403 forbidden_host / scope_rejected: the token cannot read this.
   scope: 'terminal.refusal.scope',
+  // 403 viewer_rejected: tailscale serve vouched for the person, but the
+  // login is not the account that owns this machine — the shell is the
+  // owner's (GDK-1972). Only that proxy can produce this code, so the
+  // sentence can name the account situation.
+  viewer: 'terminal.refusal.viewer',
   // Any other 401/403, including a body with no code.
   other: 'terminal.refusal.other',
 }
@@ -50,5 +55,6 @@ export function classifyRefusal(status: number, code: string | null): RefusalKin
   if (code === 'forbidden_origin') return 'origin'
   if (code === 'pairing_rejected') return 'pairing'
   if (code === 'forbidden_host' || code === 'scope_rejected') return 'scope'
+  if (code === 'viewer_rejected') return 'viewer'
   return 'other'
 }

@@ -244,12 +244,73 @@ func TestTailscaleDNSNameNotOnPathIsEmpty(t *testing.T) {
 }
 
 func TestTailscaleDNSNameTimeoutIsEmpty(t *testing.T) {
-	fakeTailscale(t, `{"Self":{"DNSName":"never.example.ts.net."}}`, 30*time.Second)
+	fakeTailscale(t, `{"Self":{"DNSName":"never.example.ts.net.","UserID":42},"User":{"42":{"LoginName":"owner@example.com"}}}`, 30*time.Second)
 	start := time.Now()
-	if got := tailscaleDNSName(50 * time.Millisecond); got != "" {
-		t.Fatalf("tailscaleDNSName(timed out) = %q, want \"\"", got)
+	dns, owner := tailscaleSelf(50 * time.Millisecond)
+	if dns != "" || owner != "" {
+		t.Fatalf("tailscaleSelf(timed out) = (%q, %q), want (\"\", \"\")", dns, owner)
 	}
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
 		t.Fatalf("probe took %s — the timeout did not bound it", elapsed)
+	}
+}
+
+// The owner half of the probe (GDK-1972): Self.UserID resolved through the
+// User map, and the three shapes that own nobody — a tagged node, a missing
+// UserID, a User map without that id — each answer "" with the DNS name
+// intact, because owning nobody is a state, not a failure.
+func TestTailscaleSelfParsesOwnerLogin(t *testing.T) {
+	fakeTailscale(t, `{"Self":{"DNSName":"vps.example.ts.net.","UserID":12345678901234},"User":{"12345678901234":{"LoginName":"owner@example.com"}}}`, 0)
+	dns, owner := TailscaleSelf()
+	if dns != "vps.example.ts.net" {
+		t.Fatalf("dnsName = %q, want vps.example.ts.net", dns)
+	}
+	if owner != "owner@example.com" {
+		t.Fatalf("ownerLogin = %q, want owner@example.com", owner)
+	}
+}
+
+func TestTailscaleSelfTaggedNodeHasNoOwner(t *testing.T) {
+	fakeTailscale(t, `{"Self":{"DNSName":"server.example.ts.net.","UserID":7,"Tags":["tag:prod"]},"User":{"7":{"LoginName":"owner@example.com"}}}`, 0)
+	dns, owner := TailscaleSelf()
+	if owner != "" {
+		t.Fatalf("tagged node ownerLogin = %q, want \"\"", owner)
+	}
+	if dns != "server.example.ts.net" {
+		t.Fatalf("tagged node dnsName = %q, want the name intact", dns)
+	}
+}
+
+func TestTailscaleSelfZeroUserIDHasNoOwner(t *testing.T) {
+	fakeTailscale(t, `{"Self":{"DNSName":"vps.example.ts.net."},"User":{"1":{"LoginName":"owner@example.com"}}}`, 0)
+	if _, owner := TailscaleSelf(); owner != "" {
+		t.Fatalf("zero UserID ownerLogin = %q, want \"\"", owner)
+	}
+}
+
+func TestTailscaleSelfUnknownUserHasNoOwner(t *testing.T) {
+	// The User map is present but lacks Self.UserID's entry.
+	fakeTailscale(t, `{"Self":{"DNSName":"vps.example.ts.net.","UserID":7},"User":{"9":{"LoginName":"other@example.com"}}}`, 0)
+	if _, owner := TailscaleSelf(); owner != "" {
+		t.Fatalf("unknown user ownerLogin = %q, want \"\"", owner)
+	}
+}
+
+// OwnerLogin rides the policy: the builder records the probe's answer, and
+// a policy built without one (or a nil one) answers "" — the terminal
+// gate's owner comparison then can never pass, which is the old behavior.
+func TestHostPolicyCarriesOwnerLogin(t *testing.T) {
+	p := NewHostPolicy(nil, nil, "vps.example.ts.net").WithTailscaleOwner("owner@example.com")
+	if got := p.OwnerLogin(); got != "owner@example.com" {
+		t.Fatalf("OwnerLogin() = %q, want owner@example.com", got)
+	}
+	if got := NewHostPolicy(nil, nil, "").OwnerLogin(); got != "" {
+		t.Fatalf("policy without owner OwnerLogin() = %q, want \"\"", got)
+	}
+	if got := (*HostPolicy)(nil).OwnerLogin(); got != "" {
+		t.Fatalf("nil policy OwnerLogin() = %q, want \"\"", got)
+	}
+	if got := (*HostPolicy)(nil).WithTailscaleOwner("owner@example.com"); got != nil {
+		t.Fatal("nil policy builder did not stay nil")
 	}
 }

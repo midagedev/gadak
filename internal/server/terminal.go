@@ -150,11 +150,20 @@ func terminalTokenID(r *http.Request) string {
 	return id
 }
 
+// tailnetTokenPrefix marks a terminal credential that is not a pairing
+// token: the node owner's verified tailnet login (GDK-1972). The revoke
+// watch skips ids with this prefix — there is no pairing-store row to
+// re-read; the credential is the tailnet account itself, re-verified by
+// the gate on every request.
+const tailnetTokenPrefix = "tailnet:"
+
 // terminalGate is the third gate, the same shape as pairingGate and
 // mirrorGate: the guard vouches for the Host, the gate vouches for the
 // token, neither trusts the other's half.
 //
 //	local Host (loopback, *.localhost, empty) → no Bearer, tokenID ""
+//	tailnet viewer = this node's owner, no Bearer → through, tokenID "tailnet:<login>"
+//	tailnet viewer, any other login, no Bearer   → 403 viewer_rejected
 //	anything else, store unreadable           → 500 internal_error
 //	anything else, no active tokens           → 403 forbidden_host
 //	active tokens, no/unknown Bearer          → 401 pairing_rejected
@@ -164,6 +173,15 @@ func terminalTokenID(r *http.Request) string {
 // The local rule is decision 0003 — the loopback web UI is the same person
 // as the CLI user, and the browser guard's Origin check on the upgrade is
 // what stands between that surface and a hostile tab (GDK-855).
+//
+// The tailnet rows are that rule one node out (GDK-1972): a viewer
+// identity `tailscale serve` verified, whose login is the login that owns
+// this node, is the same person as the CLI user — same Tailscale account —
+// and the hosted phone's shell opens with no token. viewerFrom refuses
+// every untrusted peer, so a self-declared header never reaches this
+// branch (the comparison reads only the attested login), and a Bearer,
+// when present, takes the token path unchanged: a paired non-owner keeps
+// the road it always had.
 //
 // It is narrower here than on the mirror: terminalLocalHost accepts only
 // *loopback* IP literals, where allowedHost accepts every IP literal.
@@ -177,6 +195,25 @@ func terminalTokenID(r *http.Request) string {
 func (s *server) terminalGate(w http.ResponseWriter, r *http.Request) (string, bool) {
 	if terminalLocal(r) {
 		return "", true
+	}
+	// Rule A (GDK-1972), before the Bearer is read: the owner's verified
+	// identity is a credential. Owner-less policy (no tailnet, tagged
+	// node) falls through to the token rules untouched.
+	if bearerToken(r) == "" {
+		if v := viewerFrom(r); v.Source == viewerSourceTailscale {
+			if p := s.hostPolicy.Load(); p != nil && p.OwnerLogin() != "" {
+				login := strings.TrimSpace(v.Login)
+				if strings.EqualFold(login, p.OwnerLogin()) {
+					return tailnetTokenPrefix + strings.ToLower(login), true
+				}
+				// Verified but not the owner. The log names the login only
+				// — the display name is the account's own data, not ours
+				// to publish into serve logs.
+				log.Printf("server: terminal gate: tailnet viewer %q is not this node's owner", login)
+				fail(w, http.StatusForbidden, "viewer_rejected")
+				return "", false
+			}
+		}
 	}
 	cfg := s.config()
 	if cfg == nil {
@@ -787,6 +824,13 @@ func (s *server) terminalRevokeWatch(ctx context.Context) {
 		dir := cfg.Directory()
 		now := time.Now()
 		for _, id := range ids {
+			if strings.HasPrefix(id, tailnetTokenPrefix) {
+				// The node owner's shell is not a pairing token: there is
+				// no store row to re-read, so "inactive" would be the
+				// answer for every tick and the watch would cut the
+				// owner's shell two seconds after opening it.
+				continue
+			}
 			if pairing.TokenActive(dir, id, now) {
 				continue
 			}

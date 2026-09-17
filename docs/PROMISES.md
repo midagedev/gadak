@@ -130,7 +130,11 @@ opens no shell. Neither does an `origin` token, and neither does a token
 minted before the terminal existed — an empty scope does not silently acquire
 one. One rule decides it, and the server asks that rule on every terminal
 route. Loopback is the exception in the other direction: on your own machine
-there is no token at all. And the shell that opens is a real PTY whose
+there is no token at all. So is the owner's own tailnet identity behind
+`tailscale serve` — a verified `Tailscale-User-Login` that equals the login
+owning this node opens the shell with no token (GDK-1972); any other tailnet
+account is refused by name, and a direct connection still needs the token.
+And the shell that opens is a real PTY whose
 scrollback lives in one fixed byte slice in memory — a ring, 256 KiB,
 overwritten as it fills. The package that owns those sessions writes no file
 at all: not a log, not a transcript, not a crash dump. Close the session and

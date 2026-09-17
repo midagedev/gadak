@@ -191,6 +191,22 @@ export const shell = {
     ko: '서버가 이 요청을 거절했습니다.',
     ja: 'サーバーがこのリクエストを拒否しました。',
   },
+  // GDK-1972: the hosted shell's two account sentences. 'viewer' is the
+  // proxy-verified non-owner (403 viewer_rejected — only tailscale serve
+  // can produce it, so it can name the account situation); 'hosted' replaces
+  // the desktop-mint refusal copy on a hosted page, where pairing is not a
+  // road (Shell.svelte renders it for the pairing/scope kinds under
+  // app.hosted).
+  'terminal.refusal.viewer': {
+    en: 'This shell opens only for the Tailscale account that owns this machine. You are signed in as a different account.',
+    ko: '이 셸은 이 컴퓨터를 소유한 Tailscale 계정에서만 열립니다. 지금은 다른 계정으로 보고 있습니다.',
+    ja: 'このシェルは、このコンピュータを所有する Tailscale アカウントでのみ開けます。現在は別のアカウントで表示しています。',
+  },
+  'terminal.refusal.hosted': {
+    en: 'Reach this page through tailscale serve as the account that owns this machine, and the shell opens without pairing.',
+    ko: '이 컴퓨터를 소유한 Tailscale 계정으로 tailscale serve를 거쳐 열면, 페어링 없이 셸이 열립니다.',
+    ja: 'このコンピュータを所有する Tailscale アカウントで tailscale serve 経由で開くと、ペアリングなしでシェルが開きます。',
+  },
   'terminal.restartHint': {
     en: 'Press Enter to start a new shell',
     ko: 'Enter 키로 새 셸을 시작합니다',

@@ -148,7 +148,11 @@ the host's own tailnet address when the serve is bound there) and
 stamps `Tailscale-User-Login`/`-Name` headers it verified itself; the serve
 reads those (and only those — the same headers from any other peer are just
 headers), `GET /api/v1/viewer/` reports the person, and writes on the
-built-in tracker attribute to them. If `/m/` answers 503, the binary was
+built-in tracker attribute to them. The Shell tab opens for exactly the
+account that owns this machine and nobody else — any other tailnet account
+gets the viewer-refused sentence, and the `--allow-remote` address, which
+carries no identity, still needs a terminal-scope token (GDK-1972). If
+`/m/` answers 503, the binary was
 built without the phone bundle — `make phone` from a source checkout.
 
 ## Afterwards

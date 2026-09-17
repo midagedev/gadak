@@ -38,7 +38,11 @@ const CEILINGS: Record<string, { lines: number; state: number }> = {
   // itself (announceWrite + onWritten's field param) and the transition
   // sheet takes the current status as a prop. 1,793 → 1,817; $state 38.
   'Detail.svelte': { lines: 1817, state: 38 },
-  'Shell.svelte': { lines: 1611, state: 18 },
+  // Raised 2026-09-17 for GDK-1972 (the owner's shell): the hosted refusal
+  // dead end — a pairing/scope refusal on a hosted page renders the
+  // tailscale-serve sentence instead of the pairing road it cannot take.
+  // 1611 → 1619; $state unchanged (the branch reads app.hosted, not state).
+  'Shell.svelte': { lines: 1619, state: 18 },
   // Raised 2026-09-16 for GDK-1966 (hosted mode): the hosted connection
   // section (page host + the viewer sentence from GET viewer/) plus hosted
   // guards on the roster read, the scan entries, the terminal endpoint line

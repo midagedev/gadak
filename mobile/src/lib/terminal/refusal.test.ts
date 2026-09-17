@@ -39,6 +39,10 @@ describe('GDK-1121 classifyRefusal: (status, code) → kind', () => {
     expect(classifyRefusal(403, 'scope_rejected')).toBe('scope')
   })
 
+  it('403 viewer_rejected is the tailnet viewer who is not the owner', () => {
+    expect(classifyRefusal(403, 'viewer_rejected')).toBe('viewer')
+  })
+
   it('any other 401/403 — no code, or an unknown one — is the generic refusal', () => {
     expect(classifyRefusal(403, null)).toBe('other')
     expect(classifyRefusal(401, null)).toBe('other')
@@ -60,7 +64,7 @@ describe('GDK-1121 each refusal kind owns one distinct catalog sentence', () => 
     }
   })
 
-  it('the four sentences are pairwise distinct', () => {
+  it('the refusal sentences are pairwise distinct', () => {
     const values = Object.values(REFUSAL_KEYS).map((k) => en[k])
     expect(new Set(values).size).toBe(values.length)
   })
@@ -82,6 +86,10 @@ describe('GDK-1121 errorMessage() renders the owner’s sentence per status', ()
 
   it('403 scope_rejected', () => {
     expect(errorMessage(new ApiError('scope_rejected', 403))).toBe(en['terminal.refusal.scope'])
+  })
+
+  it('403 viewer_rejected names the account situation (GDK-1972)', () => {
+    expect(errorMessage(new ApiError('viewer_rejected', 403))).toBe(en['terminal.refusal.viewer'])
   })
 
   it('403 with no code stays the generic refusal sentence', () => {

@@ -74,7 +74,10 @@ and the page installs to the Home Screen as a full-screen app with no browser
 chrome and no swipe to leave ([GDK-1970]). With the keyboard up, the band it
 covers is one number the whole phone reads: the list, the palette and the tall
 sheets pad themselves out of it, so the last row under a search is reachable
-instead of hidden behind the keys ([GDK-1971]).
+instead of hidden behind the keys ([GDK-1971]). And the Shell tab follows the same
+rule as the data: behind `tailscale serve`, the account that owns the machine
+opens a shell with no pairing at all, any other tailnet account is told so by
+name, and a direct connection still needs the terminal-scope token ([GDK-1972]).
 
 **What the cache holds, and what it counts, answer to the origin.** A wiki page removed at the
 origin used to stay in the local cache for as long as its space did. A full
@@ -1737,3 +1740,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1969]: https://gadak.dev/backlog/#/?ks=GDK-1969
 [GDK-1970]: https://gadak.dev/backlog/#/?ks=GDK-1970
 [GDK-1971]: https://gadak.dev/backlog/#/?ks=GDK-1971
+[GDK-1972]: https://gadak.dev/backlog/#/?ks=GDK-1972
