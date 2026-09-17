@@ -54,6 +54,7 @@ import {
   type ViewConfig,
   type ViewFilters,
 } from '../lib/view-config'
+import { compareIssues } from '../lib/issue-sort'
 import { assignedTo, delegatedBy, type PersonRef } from '../lib/person-match'
 import { inRange as calendarInRange, localZone, type CalendarZone } from '../lib/calendar'
 import * as api from '../lib/api'
@@ -973,7 +974,6 @@ export function sortIssues(
   keyOrder?: readonly string[],
   serverOrder?: readonly string[],
 ): IssueLite[] {
-  const d: 1 | -1 = dir === 'asc' ? 1 : -1
   const arr = [...list]
   if (sort === 'keys') {
     const order = new Map<string, number>()
@@ -1018,61 +1018,7 @@ export function sortIssues(
     })
     return arr
   }
-  arr.sort((a, b) => {
-    switch (sort) {
-      case 'created':
-        return cmpStr(a.created_at, b.created_at, d)
-      case 'status_changed':
-      case 'started': {
-        // Age (T4): asc = longest first. 'status_changed' is age in the
-        // current status; 'started' is work item age — since started_at, the
-        // flow canon's clock (2026-09-07), falling back to status_changed_at
-        // for an issue that has not started or an origin with no history.
-        // aging-in-progress reads 'started'. A missing/unparseable stamp is
-        // "no evidence", not "oldest": last in both directions. Ties fall to
-        // newest updated_at so the top of the list stays the live work.
-        const stamp =
-          sort === 'started'
-            ? (it: IssueLite): string => it.started_at ?? it.status_changed_at ?? ''
-            : (it: IssueLite): string => it.status_changed_at ?? ''
-        const at = (it: IssueLite): number => {
-          const t = Date.parse(stamp(it))
-          return Number.isFinite(t) ? t : Number.NaN
-        }
-        const av = at(a)
-        const bv = at(b)
-        const aMiss = !Number.isFinite(av)
-        const bMiss = !Number.isFinite(bv)
-        if (aMiss && bMiss) return cmpStr(a.updated_at, b.updated_at, -1)
-        if (aMiss) return 1
-        if (bMiss) return -1
-        const diff = (av - bv) * d
-        return diff !== 0 ? diff : cmpStr(a.updated_at, b.updated_at, -1)
-      }
-      case 'due':
-        return cmpStr(a.duedate ?? '', b.duedate ?? '', d)
-      case 'reopen_count': {
-        const diff = (a.reopen_count - b.reopen_count) * d
-        return diff !== 0 ? diff : cmpStr(a.updated_at, b.updated_at, -1)
-      }
-      case 'priority': {
-        // priority_rank: lower = higher priority. Unset is 0 on the wire (not
-        // null) and always sorts last, so untriaged never outranks Highest.
-        const ar = prioritySortRank(a.priority_rank)
-        const br = prioritySortRank(b.priority_rank)
-        const aUnset = ar === Number.POSITIVE_INFINITY
-        const bUnset = br === Number.POSITIVE_INFINITY
-        if (aUnset && bUnset) return cmpStr(a.updated_at, b.updated_at, -1)
-        if (aUnset) return 1
-        if (bUnset) return -1
-        const diff = (ar - br) * d
-        return diff !== 0 ? diff : cmpStr(a.updated_at, b.updated_at, -1)
-      }
-      case 'updated':
-      default:
-        return cmpStr(a.updated_at, b.updated_at, d)
-    }
-  })
+  arr.sort((a, b) => compareIssues(a, b, sort, dir))
   return arr
 }
 
