@@ -43,9 +43,16 @@ export const FIT_STEPS = ['', '1', '2', '3'] as const
 /** The name inside the heading — the element that pays for an overflow. */
 const NAME = 'h1 .name'
 
-/** A step holds the name when its content fits the line within 1px. */
+/**
+ * A step holds the name when its content fits the line — the same strict
+ * predicate the CSS ellipsis and the heading gate apply. There is no 1px
+ * slack on purpose (2026-09-17, GDK-1974): with `<= clientWidth + 1` the
+ * action called ja `自分の課題` held at 130 > 129 on the Linux CI fonts and
+ * never stepped, while the ellipsis had already cut it. When the two
+ * integers round apart the cost is one needless step down, never a cut.
+ */
 function fits(name: Element): boolean {
-  return name.scrollWidth <= name.clientWidth + 1
+  return name.scrollWidth <= name.clientWidth
 }
 
 export function fitHeading(node: HTMLElement) {
