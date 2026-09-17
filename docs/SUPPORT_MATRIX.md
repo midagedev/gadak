@@ -88,6 +88,7 @@ Markers:
 | **Write** · worklog (`gadak api --write`) | ✅[^88] | ✅[^88] | —[^89] | —[^90] |
 | **Write** · `migrate --from` (source) | ✅[^91] | ✅[^91] | ◐[^92] | ✅[^93] |
 | **Write** · `migrate --to` (destination) | ◐[^149] | —[^94] | ◐[^94] | ✅[^95] |
+| **Write** · person identity — `gadak me set`, the Settings name field (GDK-1973) | —[^156] | —[^156] | —[^156] | ✅[^157] |
 | **Surface** · agent surfaces — skill / MCP / SQL | ✅[^96] | ✅[^96] | ✅[^96] | ✅[^96] |
 | **Surface** · board layout (0.19) | ✅[^97] | ✅[^97] | ✅[^97] | ✅[^97] |
 | **Surface** · board sprint scope + Sprint axes (0.22) | ✅[^138] | ✅[^138] | ✅[^138] | ✅[^138] |
@@ -906,3 +907,19 @@ this table from the code instead of maintaining it by hand is GDK-1301.
     from the workspace kind, an empty site URL, or auth/me identity — the
     class of defect GDK-1152 closed; `web/src/lib/capability-gate.test.ts`
     is the source gate that keeps it closed.
+
+[^156]: Refused: on a Jira or Linear workspace the account is the identity, so
+    `gadak me set` exits with that sentence (`cmd/gadak/me.go:128`), the
+    settings PUT answers `actor_not_gadak_origin`
+    (`internal/server/settings.go:598`), and the web hides the field
+    (`web/src/components/settings/WorkspacesTab.svelte:56`). Agents still
+    stamp an identity through `gadak config set actor`.
+
+[^157]: `gadak me set "Your Name"` writes the person block
+    (`cmd/gadak/me.go:128`); the web and phone Settings name field writes
+    the same block through the two person verbs
+    (`internal/server/settings.go:598`); the transports send
+    `X-Issuetap-Actor-Type: person` so the origin provisions a human
+    account (`internal/origin/transport.go:114`); a phone reaching the
+    serve declares the name per request as `X-Gadak-Actor-Name`,
+    attribution only (`internal/server/viewer.go:200`).
