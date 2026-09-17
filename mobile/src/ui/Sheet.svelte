@@ -76,8 +76,26 @@
     display: flex;
     flex-direction: column;
   }
+  /* GDK-1971: the TALL panel loses the keyboard band from its own height.
+     keyboardInset (which every sheet rides) translates the panel up by the
+     band; a 92%-tall panel translated up pushes its top — grab handle,
+     head, first fields — off the screen above. Losing the band here keeps
+     the panel between the screen top and the keys, and the description
+     editor it holds scrolls inside the capped box. 0px with the keys down:
+     calc(92% - 0px) is the old 92%.
+
+     The 70% panel above deliberately does NOT take the calc. Measured on
+     the gate rig (GDK-1971 DOM probe): the create sheet's content is
+     406px, nothing inside it scrolls (no overflow-y body — only the detail
+     pick sheets have one), and after the translate the whole panel already
+     sits above the band (top 168 on 874). calc(70% - inset) would cap it
+     at 312 and push the create row into the band through the panel's
+     visible overflow — a regression the cap exists to prevent. A 70%-class
+     panel only runs its head off-screen for content in the (screen−band,
+     70%] sliver; when that ever ships, the fix is a scroll region in the
+     sheet body, not a shorter panel. */
   .sheet.tall {
-    max-height: 92%;
+    max-height: calc(92% - var(--keyboard-inset));
   }
   .grab {
     flex: none;

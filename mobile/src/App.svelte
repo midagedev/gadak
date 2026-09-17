@@ -5,6 +5,7 @@
   import { browserHistory, systemBack } from './lib/back'
   import { app, boot, closeTop, exitDemo, goToList, hasBackTarget, openIssue, openPage, startClock } from './lib/store.svelte'
   import { bindOsDeepLinks, createDeepLinkRouter, exposeForTests } from './lib/deeplink-entry'
+  import { bindKeyboardBand } from './lib/keyboard'
   import PairGate from './screens/PairGate.svelte'
   import Issues from './screens/Issues.svelte'
   import Settings from './screens/Settings.svelte'
@@ -48,6 +49,18 @@
       () => app.detail,
       (kind, key) => (kind === 'issue' ? openIssue(key) : openPage(key)),
     )
+  })
+
+  // The keyboard band's one owner (GDK-1971): #app is the mount frame
+  // (index.html's <div id="app">, the fixed layout viewport of DESIGN.md
+  // §4.2), and this is the only place the band is written. Everything the
+  // software keyboard covers reads it back as the --keyboard-inset CSS
+  // variable — the scroll containers pad themselves out of the band, the
+  // sheet panels lose it from their max-height — while the composers that
+  // must ride ABOVE the keys keep the keyboardInset action (lib/keyboard.ts
+  // owns both, one formula).
+  $effect(() => {
+    return bindKeyboardBand(document.getElementById('app')!)
   })
 
   // The detail ↔ history frame sync (GDK-1970): the store stays the owner

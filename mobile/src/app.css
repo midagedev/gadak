@@ -95,6 +95,17 @@ body {
   --probe-safe-top: env(safe-area-inset-top);
   --probe-safe-bottom: env(safe-area-inset-bottom);
   /*
+    The band the software keyboard covers (GDK-1971). lib/keyboard.ts owns
+    the number — bindKeyboardBand writes it on #app, this is only the
+    keyboard-down default every consumer reads before (and unless) the band
+    opens. Scrollers pay it as padding-bottom/scroll-padding-bottom, sheet
+    panels lose it from max-height; with the keys down it is 0px and none
+    of that is a change. Android never sees a band: index.html's
+    interactive-widget=resizes-content shrinks the layout viewport itself,
+    so the same measurement reads 0 there.
+  */
+  --keyboard-inset: 0px;
+  /*
     Ink spine for status_category=new (GDK-879). --color-status-new on cream
     is a whisper (#2f5d8c on #f4efe4); --color-accent is the same 쪽빛
     thread, darker, still a shared token. Dark already paints a lighter

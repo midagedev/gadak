@@ -2,7 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- interactive-widget=resizes-content (GDK-1971): Android Chrome then
+         shrinks the layout viewport for the keyboard instead of overlaying
+         it, so lib/keyboard.ts measures a 0px band there — one code path,
+         right on both platforms. iOS (WKWebView and Safari) ignores the
+         key and overlays, which is what the measurement is for. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <title>gadak</title>
     <!-- Home-screen web app (GDK-1970): installed from the hosted page, the
          bundle opens standalone — no browser chrome, and none of the edge-

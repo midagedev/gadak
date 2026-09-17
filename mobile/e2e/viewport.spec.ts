@@ -412,6 +412,64 @@ test('viewport geometry at 402×874', async ({ page }) => {
   expect(await page.locator('[data-testid="doc-row"] .spine').count()).toBe(0)
 })
 
+test('the keyboard band (?kb=300) is one number the scroller and the sheet both honor', async ({ page }) => {
+  // GDK-1971 — the covered band gets one owner, and this gate pins the two
+  // surfaces that must read it. The band cannot be raised in Playwright
+  // (Chromium has no software keyboard), so the rig boots with the ?kb=300
+  // probe — the same URL-param idiom ?hosted uses — and lib/keyboard.ts
+  // answers 300px from it exactly as it would from the VisualViewport.
+  //
+  // All three measurements are taken and printed BEFORE any assertion, so a
+  // red run names every number: the FAIL-first run of this test on the
+  // unmodified tree printed var "" and both edges at ~874 against a band top
+  // of 574.
+  await page.goto('/?kb=300', { waitUntil: 'domcontentloaded' })
+  await waitPaired(page)
+
+  // (a) the root variable: bindKeyboardBand wrote the band on #app, where
+  // every scroller and the sheet panel read it back as --keyboard-inset.
+  const kbVar = await page.evaluate(() =>
+    getComputedStyle(document.getElementById('app')!).getPropertyValue('--keyboard-inset').trim(),
+  )
+
+  // (b) the palette's LAST row must be scrollable to above the band: Screen's
+  // main pays the band as padding-bottom, so a fully-scrolled list leaves the
+  // last row's bottom edge at the band's top rather than at the screen edge.
+  await openPalette(page)
+  const rowBottom = await page.evaluate(() => {
+    const main = document.querySelector('.pane:not(.off) main') as HTMLElement
+    main.scrollTop = main.scrollHeight
+    const rows = [...main.querySelectorAll('.palette-row, .desk-row, .recent, .more')]
+    const last = rows[rows.length - 1]
+    const r = last.getBoundingClientRect()
+    return Math.round((r.y + r.height) * 10) / 10
+  })
+
+  // (c) the create sheet's panel must clear the band: the create control is
+  // the list header's button.new (Issues.svelte), the panel is Sheet's
+  // .sheet, and keyboardInset translates it up by the same number.
+  await page.locator('button.palette-cancel').click()
+  await page.locator('.palette-field input').waitFor({ state: 'detached' })
+  await page.locator('button.new').click()
+  await page.locator('.sheet').first().waitFor()
+  await settleSheet(page)
+  const sheetBottom = await page.evaluate(() => {
+    const r = document.querySelector('.sheet')!.getBoundingClientRect()
+    return Math.round(r.bottom * 10) / 10
+  })
+
+  // The band's top edge on this rig: innerHeight − 300. The +1 is DSF-3
+  // fraction hygiene (settleSheet's note: a settled 44px control measures
+  // 43.9999…), not slack — the defect this gate exists for is 300px wide.
+  const bandTop = await page.evaluate(() => window.innerHeight - 300)
+  console.log(
+    `[kb] var ${JSON.stringify(kbVar)} | last palette row bottom ${rowBottom} | create panel bottom ${sheetBottom} | band top ${bandTop}`,
+  )
+  expect(kbVar, 'the probe wrote --keyboard-inset on #app').toBe('300px')
+  expect(rowBottom, 'the last palette row scrolls above the band').toBeLessThanOrEqual(bandTop + 1)
+  expect(sheetBottom, 'the create sheet panel clears the band').toBeLessThanOrEqual(bandTop + 1)
+})
+
 test('no visible button is under 44pt', async ({ page }) => {
   // GDK-867: 44pt floor on every visible button. FAIL-first on unmodified
   // source (2026-08-25): failed at the list screen with buttonsUnder44pt=1

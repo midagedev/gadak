@@ -71,7 +71,10 @@ QR beside the pairing offers, which stay for other machines' `gadak`
 key in the address, so the back swipe lands on the list instead of walking
 off the page, an issue's address can be pasted to a teammate on the tailnet,
 and the page installs to the Home Screen as a full-screen app with no browser
-chrome and no swipe to leave ([GDK-1970]).
+chrome and no swipe to leave ([GDK-1970]). With the keyboard up, the band it
+covers is one number the whole phone reads: the list, the palette and the tall
+sheets pad themselves out of it, so the last row under a search is reachable
+instead of hidden behind the keys ([GDK-1971]).
 
 **What the cache holds, and what it counts, answer to the origin.** A wiki page removed at the
 origin used to stay in the local cache for as long as its space did. A full
@@ -1733,3 +1736,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1966]: https://gadak.dev/backlog/#/?ks=GDK-1966
 [GDK-1969]: https://gadak.dev/backlog/#/?ks=GDK-1969
 [GDK-1970]: https://gadak.dev/backlog/#/?ks=GDK-1970
+[GDK-1971]: https://gadak.dev/backlog/#/?ks=GDK-1971

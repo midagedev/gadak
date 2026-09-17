@@ -55,5 +55,14 @@
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
+    /* GDK-1971: the one scroller every screen uses pays the keyboard band
+       as scrollable bottom padding — with the keys up, the band (bottom
+       ~300px of the viewport) is not part of the page, so without this the
+       last rows of any list are unreachable: the palette's tail, the last
+       comments. scroll-padding-bottom makes a scrollIntoView target land
+       above the band too. 0px with the keys down: no change (the rule
+       carried no bottom padding before this). */
+    padding-bottom: var(--keyboard-inset);
+    scroll-padding-bottom: var(--keyboard-inset);
   }
 </style>
