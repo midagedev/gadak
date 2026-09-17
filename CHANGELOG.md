@@ -15,6 +15,16 @@ the ids the issue actually offers. Typing a status name at the CLI still means
 what it did ([GDK-1982]). A write that the server refuses now says so in its
 log — that 400 was the one branch that left nothing behind.
 
+**One door on the phone's list, and it says search.** The header carried two
+controls that opened the same palette — the heading and a magnifier beside the
+create action — and neither closed it again. The heading is the only door now
+and it wears the palette's own magnifier, so the screen still says search
+without a second control, and a second tap on it closes what the first opened
+and puts the list back where it was ([GDK-1985], [GDK-1984]). The 44px it buys
+back goes to the view's name: in English and Japanese the longest
+built-in views stop shedding their count, and three more stop stepping down a
+size at all.
+
 ## v0.23.0
 
 **The phone drops its tab bar; the column has one owner.** The bottom bar is
@@ -1762,3 +1772,5 @@ priority sorting keyed on `priority_rank`.
 [GDK-1973]: https://gadak.dev/backlog/#/?ks=GDK-1973
 [GDK-1974]: https://gadak.dev/backlog/#/?ks=GDK-1974
 [GDK-1982]: https://gadak.dev/backlog/#/?ks=GDK-1982
+[GDK-1984]: https://gadak.dev/backlog/#/?ks=GDK-1984
+[GDK-1985]: https://gadak.dev/backlog/#/?ks=GDK-1985

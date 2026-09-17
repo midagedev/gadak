@@ -86,7 +86,7 @@ trigger would spend ~78px back; the heading slot spends none.
 │ unpaired / token rejected) │  until pairing succeeds
 └────────────────────────────┘
 ┌────────────────────────────┐
-│ My issues · 42 ▾      ⚙ ↻  │  heading = owner's name = the palette's trigger
+│ My issues · 42 ⌕    + ⚙ ↻  │  heading = owner's name = the palette's trigger
 ├────────────────────────────┤
 │ (what the owner draws)     │  scope list · documents plate · shell
 └────────────────────────────┘
@@ -107,14 +107,18 @@ view name would not fit whole; if 19 is still not enough the count hides
 
 **The palette is the heading, dormant on boot.** The 44pt control that is
 the list's `<h1>` is the trigger; tapping it turns the list body into the
-palette and focuses a field at the head. It never focuses on boot — the
-first paint is the owner's rows, so "what's on my plate" stays a glance
+palette, the field riding the head of the body with the keyboard down — a
+person who wants to type taps the field. Nothing is ever focused on open:
+the first paint is the owner's rows, so "what's on my plate" stays a glance
 with no taps (both research tracks: an autofocused field puts the keyboard
-over the first screen and kills the glance). The body swapping in place is
-the point: switching owners is not a screen change but a change in what the
-list shows. Search is not a screen any more — it is the palette with a
-query, drawing the same `Row`/`DocRow` into the same body and opening the
-same Detail.
+over the first screen and kills the glance). The heading is the only door,
+and it wears the magnifier the field wears, so the screen says search
+without paying a second 44pt control (GDK-1985, superseding GDK-1974's two
+doors); a second tap on it closes what the first opened. The body swapping
+in place is the point: switching owners is not a screen change but a change
+in what the list shows. Search is not a screen any more — it is the palette
+with a query, drawing the same `Row`/`DocRow` into the same body and
+opening the same Detail.
 
 **Owners.** A scope (the desk's built-in views, My views, Jira filters,
 Documents — the whole-mirror plate named **Updated** (`docs.tabUpdated`),
@@ -138,7 +142,7 @@ out; system back = the same edge; the root has no exit):
 |---|---|---|
 | PairGate | boot (no pairing) · token rejected | successful pair → the list |
 | List (owner = scope) | boot default · palette pick | — (root) |
-| Palette | the heading (44pt) | Cancel (44pt) · system back · picking an owner or a row |
+| Palette | the heading (44pt) | the heading again · Cancel (44pt) · system back · picking an owner or a row |
 | Shell (owner) | palette row *Terminal* | ← back in its header → the last scope |
 | Settings | gear in the list heading (44pt); from the shell, back to the list first | ← back button (top-left, 44pt) → the list |
 | Detail | row tap (list or palette results) · linked-issue tap · deep link | ← back button (top-left, 44pt) → what opened it |
@@ -190,9 +194,10 @@ Dimensions are mobile-owned (`@theme` override after the import):
   ("My issues ·42") on a *phone tool*. It is what makes a capture of this
   app unmistakably gadak and not a Tailwind template; if it reads as a
   newspaper gimmick in captures, the fallback is `.type-subject` on Detail
-  titles only. The heading is also a control, so it carries a muted chevron
-  after the count and measures 44pt — the padding that used to give the header
-  its height now lives inside the button, and the row count below is unchanged.
+  titles only. The heading is also a control, so it carries the palette's
+  muted magnifier after the count and measures 44pt — the padding that used
+  to give the header its height now lives inside the button, and the row
+  count below is unchanged.
 
 ### 3.3 Space & density
 4pt grid (4/8/12/16/24/32), 16px screen gutter. Issue rows are **56px**

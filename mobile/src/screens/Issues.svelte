@@ -107,23 +107,26 @@
   // never on the list's scroll path.
   let counts = $state(new Map<string, number | null>())
   /*
-   * Both doors to the palette pay the same toll (GDK-1974): the counts the
-   * owner list shows and the scroll position Cancel restores. `focus` is
-   * the door's meaning — the heading opens the owner list with the keyboard
-   * down, the header's magnifier (showSearch, below) is the search door.
+   * The door pays its toll before it opens (GDK-886/GDK-902): the counts
+   * the owner list shows and the scroll position Cancel restores. One door
+   * (GDK-1985, superseding GDK-1974's two): the heading is it, wearing the
+   * magnifier so the screen says search, and it toggles (GDK-1984) — a
+   * second tap closes what the first opened, so aria-expanded is true in
+   * more than name.
    */
-  function preparePalette(focus: boolean): void {
+  function preparePalette(): void {
     counts = new Map(scopes.map((s) => [s.id, scopeCount(app.issues, app.me, s, app.pages)]))
     savedScroll = scroller?.scrollTop ?? 0
-    openPalette(focus)
+    openPalette()
   }
-  /** The heading's tap: the owner list, with the keyboard down. */
+  /** The heading's tap: the owner list with the keyboard down — or, already
+   *  open, the close that reopens the list (GDK-1984). */
   function showPalette(): void {
-    preparePalette(false)
-  }
-  /** The magnifier's tap: the same palette, the field focused (GDK-1974). */
-  function showSearch(): void {
-    preparePalette(true)
+    if (app.palette) {
+      closePalette()
+      return
+    }
+    preparePalette()
   }
   function pick(id: string): void {
     setScope(id)
@@ -182,22 +185,12 @@
         <button class="scope" onclick={showPalette} aria-expanded={app.palette}>
           <span class="name type-subject">{heading}</span>
           <span class="count">·{view.total}</span>
-          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="m6 9 6 6 6-6" />
+          <svg class="glass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" />
           </svg>
         </button>
       </h1>
       <span class="spacer"></span>
-      <!-- The search door (GDK-1974): the heading opens the owner list, but
-           nothing on the screen said "search" — the header's right side was
-           only the create control and the gear. Same palette, same field;
-           this is the door that focuses it. The glyph is the one the
-           palette's own field wears (ui/Palette.svelte). -->
-      <button class="search" onclick={showSearch} aria-label={t('app.searchTitle')} aria-expanded={app.palette}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
-          <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" />
-        </svg>
-      </button>
       <button
         class="new"
         onclick={() => (createOpen = true)}
@@ -374,11 +367,15 @@
     font-size: var(--text-body);
     color: var(--color-text-muted);
   }
-  .chev {
+  /* The heading's glyph is the magnifier the palette's own field wears
+     (ui/Palette.svelte) — one door carrying the mark of what it opens, so
+     the screen says search without a second 44pt control (GDK-1985,
+     superseding GDK-1974's chevron-plus-header-magnifier pair). */
+  .glass {
     flex: none;
     align-self: center;
-    width: 16px;
-    height: 16px;
+    width: 17px;
+    height: 17px;
     color: var(--color-text-muted);
   }
   .spacer {
@@ -405,22 +402,6 @@
   .fresh svg {
     width: 14px;
     height: 14px;
-  }
-  /* The search door (GDK-1974): the same 44pt square as the create action
-     and the gear, in the muted weight they wear — it opens the palette's
-     field, it does not act on the tracker. */
-  .search {
-    flex: none;
-    align-self: center;
-    width: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--color-text-muted);
-  }
-  .search svg {
-    width: 19px;
-    height: 19px;
   }
   /* The create action (GDK-1497 A2): a 44pt square beside the sync state,
      drawn heavier than .fresh because it acts on the tracker, not the

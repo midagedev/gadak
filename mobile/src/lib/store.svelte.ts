@@ -200,19 +200,12 @@ export const app = $state({
   sprintsEntered: false,
   /**
    * The palette, in place of the list body (GDK-902). Dormant on boot and
-   * never focused until a door that means a query is tapped — an
-   * autofocused field puts the keyboard over the first screen and kills
-   * the glance.
+   * never focused on open (GDK-1985): the field rides the head of the body
+   * with the keyboard down — an autofocus would put the keyboard over the
+   * owner list and kill the glance, and a person who wants to type taps
+   * the field.
    */
   palette: false,
-  /**
-   * Whether the open palette's field takes focus on mount (GDK-1974). The
-   * heading opens the owner list with the keyboard down — a person tapping
-   * it wants a scope, not a keyboard — and the header's magnifier is the
-   * door that focuses. Written only by openPalette(focus), so it is always
-   * the answer to "which door opened this"; false again on close.
-   */
-  paletteFocus: false,
   /** The open push layer, or none. Mutually exclusive with `detail`. */
   layer: null as Layer | null,
   detail: null as DetailRef | null,
@@ -1381,20 +1374,18 @@ export function setOwner(owner: Owner): void {
 }
 
 /**
- * Opens the palette in place of the list body. `focus` decides whether the
- * field takes focus on mount (GDK-1974): false is the scope door — the
- * heading, which opens the owner list without raising the keyboard — and
- * true is the search door, the header's magnifier.
+ * Opens the palette in place of the list body. The heading is the only
+ * door (GDK-1985, superseding GDK-1974's two) and it never raises the
+ * keyboard: the field is at the head of the body, and a person who wants
+ * to type taps it.
  */
-export function openPalette(focus = false): void {
+export function openPalette(): void {
   app.palette = true
-  app.paletteFocus = focus
 }
 
 /** Closes it. The list restores the scroll position it had (DESIGN.md §2). */
 export function closePalette(): void {
   app.palette = false
-  app.paletteFocus = false
 }
 
 /**

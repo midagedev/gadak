@@ -34,7 +34,9 @@
    * in the field.
    *
    * The ordering rules live in lib/palette.ts (vitest); what is here is the
-   * I/O: the debounced request, its generation counter, and the focus.
+   * I/O: the debounced request and its generation counter. The field never
+   * takes focus on open (GDK-1985): it is visible at the head of the body
+   * with the keyboard down, and a person who wants to type taps it.
    */
   let {
     scopes,
@@ -60,21 +62,6 @@
   let searchFailed = $state(false)
   let searchGen = 0
   let expanded = $state(new Set<ScopeSection>())
-
-  /*
-   * Focus happens *here*, on mount, and nowhere else — and only for the
-   * door that means a query. The component only exists while the palette
-   * is open, so "never on boot" stays true whichever door opened it
-   * (DESIGN.md §2); the heading's open is the scope door, which must not
-   * put a keyboard over the owner list (GDK-1974), so it is the store's
-   * `paletteFocus` — set by whichever control opened the palette — that
-   * decides. An $effect body runs after the DOM is attached, inside the
-   * tap's own task, which is what WKWebView requires of a programmatic
-   * focus.
-   */
-  $effect(() => {
-    if (app.paletteFocus) inputEl?.focus()
-  })
 
   const mode = $derived(paletteMode(query))
 

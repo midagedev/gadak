@@ -71,7 +71,10 @@ const CEILINGS: Record<string, { lines: number; state: number }> = {
   // 2026-09-17, GDK-1974: the name steps down through lib/fit-heading
   // before it ellipsizes — the action is back on .head and the two step
   // rules ([data-fit='1'/'2']) joined .name. 528 → 542; $state unchanged.
-  'Issues.svelte': { lines: 548, state: 3 },
+  // 2026-09-17, GDK-1985: one door — the header's magnifier button and
+  // showSearch leave, the chevron becomes the field's own magnifier glyph,
+  // and the heading toggles (GDK-1984). 548 → 529; $state unchanged at 3.
+  'Issues.svelte': { lines: 529, state: 3 },
   // Measured 2026-09-16 at birth (GDK-1827): the sprint list is the first
   // screen with no local state at all — every row is derived from the store.
   'Sprints.svelte': { lines: 262, state: 0 },

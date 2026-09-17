@@ -13,6 +13,10 @@
 // every locale and pins that rule: a cut name is legal only at the ladder's
 // last step, and a name that fits whole at 19px must be whole.
 //
+// GDK-1985 (2026-09-17) superseded the search door: the heading is the one
+// door and it wears the magnifier, so the name slot took the door's 44px
+// back — the readings this gate prints are on that tree.
+//
 // The probe half prints the header row's box measurements — including the
 // `data-fit` step the walk landed on — for every (scope, locale) it runs,
 // the same debuggability stance viewport.spec takes with rowH: a moved
@@ -93,7 +97,6 @@ type Boxes = {
   count: number
   countText: string
   spacer: number
-  search: number
   fresh: number
   freshText: string
   newBtn: number
@@ -118,7 +121,6 @@ async function measure(page: import('@playwright/test').Page): Promise<Boxes> {
       count: width('h1 .count'),
       countText: (el('h1 .count')?.textContent ?? '').trim(),
       spacer: width('.head .spacer'),
-      search: width('.head button.search'),
       fresh: width('button.fresh'),
       freshText: (el('button.fresh')?.textContent ?? '').trim(),
       newBtn: width('.head button.new'),
@@ -172,7 +174,7 @@ for (const locale of WANTED) {
         `[heading] ${locale} · ${view.short}: .head ${b.head} | .scope ${b.scope}` +
           ` (.name ${b.name}/${b.nameScroll}${b.nameScroll > b.name ? ' ✂' : ''}` +
           ` "${b.nameText}") | data-fit ${JSON.stringify(b.fit)} | .count ${b.count}` +
-          ` (${b.countText}) | .spacer ${b.spacer} | .search ${b.search} | .new ${b.newBtn}` +
+          ` (${b.countText}) | .spacer ${b.spacer} | .new ${b.newBtn}` +
           ` | .gear ${b.gear} | .fresh ${b.fresh} | .head h=${b.headHeight} scroll=${b.headScroll}`,
       )
       // Capture only when a round asked for it (e2e/capture-guard.unit.ts): the
@@ -199,25 +201,31 @@ for (const locale of WANTED) {
         `${locale} · ${view.short} .name is cut at step ${JSON.stringify(b.fit)}` +
           `: scrollWidth ${b.nameScroll} > clientWidth ${b.name}`,
       ).toBe(true)
-      // Every name this fixture seeds is whole somewhere on the ladder —
-      // measured 2026-09-17: ja `未割り当ての新規` is 205px at 26px → 150px at
-      // 19px into a 119px slot, en `Unassigned new` 178px → 130px into the
-      // same slot; both need the count's width, so they sit at the last
-      // step with the count hidden and the words whole. "English never
-      // steps" is true of all-open (pinned below), not of every name.
+      // Every name this fixture seeds is whole somewhere on the ladder.
+      // Re-measured 2026-09-17 after GDK-1985 returned the search door's
+      // 44px to the name slot: the two longest names no longer reach the
+      // last step, so no seeded case hides its count any more — the count
+      // assertion below is unconditional. Pinned per locale because the
+      // two languages land on different steps: en `Unassigned new` is
+      // whole at 22px (step '1'), ja `未割り当ての新規` whole at 19px
+      // (step '2') with its count. "English never steps" is true of
+      // all-open (pinned below), not of every name.
       expect(
         b.nameScroll,
         `${locale} · ${view.short} .name is ellipsized: scrollWidth ${b.nameScroll}` +
           ` > clientWidth ${b.name}`,
       ).toBeLessThanOrEqual(b.name)
-      if (view.short === 'unassigned-new' && (locale === 'en' || locale === 'ja')) {
-        expect(b.fit, `${locale} · unassigned-new sits at the last step (longest name)`).toBe(
-          FIT_STEPS[3],
+      if (view.short === 'unassigned-new' && locale === 'en') {
+        expect(b.fit, 'en · unassigned-new whole at the 22px step (longest name)').toBe(
+          FIT_STEPS[1],
         )
-        expect(b.count, `${locale} · unassigned-new sheds the count at the last step`).toBe(0)
-      } else {
-        expect(b.count, `${locale} · ${view.short} keeps its count`).toBeGreaterThan(0)
       }
+      if (view.short === 'unassigned-new' && locale === 'ja') {
+        expect(b.fit, 'ja · unassigned-new whole at the 19px step (longest name)').toBe(
+          FIT_STEPS[2],
+        )
+      }
+      expect(b.count, `${locale} · ${view.short} keeps its count`).toBeGreaterThan(0)
       // English never steps on all-open — the ladder's floor, and the
       // before/after baseline for the round that built it.
       if (locale === 'en' && view.short === 'all-open') {
@@ -232,9 +240,12 @@ for (const locale of WANTED) {
         `${locale} · ${view.short} the header row overflows its line: scrollWidth` +
           ` ${b.headScroll} > ${b.head}`,
       ).toBeLessThanOrEqual(b.head + 1)
-      // The touch-target contract the fix must not pay its width from — the
-      // search door (GDK-1974) owes the same 44 as its older siblings.
-      expect(b.search, `${locale} · ${view.short} .search tap target`).toBeGreaterThanOrEqual(44)
+      // The touch-target contract the fix must not pay its width from —
+      // the create control and the gear owe the same 44 as each other. The
+      // search door is gone (GDK-1985: the heading is the only door and it
+      // wears the magnifier), which is where the name slot's 43px came
+      // from; the heading button itself carries the 44pt floor every
+      // button has (app.css, GDK-867).
       expect(b.newBtn, `${locale} · ${view.short} .new tap target`).toBeGreaterThanOrEqual(44)
       expect(b.gear, `${locale} · ${view.short} .gear tap target`).toBeGreaterThanOrEqual(44)
     })
