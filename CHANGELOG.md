@@ -22,6 +22,14 @@ field `disableStdin` had made read-only, and iOS does not keep a keyboard up
 for one of those. That textarea takes no focus on this screen now
 ([GDK-1986]).
 
+Korean typed there now arrives as words. Every 자모 had been reaching the
+shell on its own — `한글` became `ㅎㅏㄴㄱㅡㄹ` — because iOS assembles Hangul by
+rewriting the field's own text, and the field was being emptied after every
+keystroke, which left the keyboard nothing to rewrite. The field holds the run
+now and hands the shell the whole word at a boundary; while it holds one it is
+a strip above the keys, so what is still being assembled is visible rather than
+gone ([GDK-1988]).
+
 ## v0.23.1
 
 **A status the apps offered but the server refused.** On the built-in tracker
@@ -1796,3 +1804,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1985]: https://gadak.dev/backlog/#/?ks=GDK-1985
 [GDK-1986]: https://gadak.dev/backlog/#/?ks=GDK-1986
 [GDK-1987]: https://gadak.dev/backlog/#/?ks=GDK-1987
+[GDK-1988]: https://gadak.dev/backlog/#/?ks=GDK-1988

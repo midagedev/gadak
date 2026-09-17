@@ -42,7 +42,14 @@ const CEILINGS: Record<string, { lines: number; state: number }> = {
   // dead end — a pairing/scope refusal on a hosted page renders the
   // tailscale-serve sentence instead of the pairing road it cannot take.
   // 1611 → 1619; $state unchanged (the branch reads app.hosted, not state).
-  'Shell.svelte': { lines: 1619, state: 18 },
+  // Raised 2026-09-17 for GDK-1988 (한글 arrived as 자모): the field stops
+  // being a write-only sink and becomes a buffer — the hold/flush calls, the
+  // Backspace and key-bar boundaries, and the compose wrapper that rides the
+  // keyboard band so WebKit is not asked to compose under the keyboard, plus
+  // that strip's CSS. The rule itself is pure and lives in
+  // lib/terminal/hangul-hold.ts; what is here is the wiring. 1619 → 1686;
+  // $state unchanged (the strip is the field, so its content is the state).
+  'Shell.svelte': { lines: 1686, state: 18 },
   // Raised 2026-09-16 for GDK-1966 (hosted mode): the hosted connection
   // section (page host + the viewer sentence from GET viewer/) plus hosted
   // guards on the roster read, the scan entries, the terminal endpoint line

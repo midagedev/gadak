@@ -52,6 +52,8 @@
     type StickySlots,
   } from '../lib/terminal/keys'
   import { imeReduce, IME_INPUT_ATTRS, type ImeState } from '../lib/terminal/ime'
+  import { decideBoundary, decideInput } from '../lib/terminal/hangul-hold'
+  import { keyboardInset } from '../lib/keyboard'
   import { createRenderer, type PhoneTerminalRenderer } from '../lib/terminal/renderer'
   import { scrollGesture } from '../lib/terminal/scroll-gesture'
   import {
@@ -309,6 +311,9 @@
       imeEl?.focus()
       return
     }
+    // GDK-1988: a key-bar key is a word boundary. A live composition is the
+    // `commit-marked` step below; a held run has no composition to end.
+    if (!ime.composing) flushHeld()
     const steps = stepsForBarKey(key, ime.composing, sticky.activeModifiers())
     for (const step of steps) {
       if (step.op === 'commit-marked') {
@@ -350,7 +355,7 @@
           syncMods()
         }
       }
-      if (imeEl) imeEl.value = ''
+      clearIme()
       return
     }
     // Chrome fires input after compositionend with the same data; a PTY
@@ -360,22 +365,56 @@
       return
     }
     lastComposeEmit = ''
+    if (ev.kind === 'input') {
+      // GDK-1988: lib/terminal/hangul-hold.ts owns the rule.
+      const held = decideInput(ev.data, imeEl?.value ?? '')
+      if (held.hold) return markHeld()
+      sendBytes(bytesForText(held.send, encoderMods(active)))
+      if (spend) {
+        sticky.consume()
+        syncMods()
+      }
+      clearIme()
+      return
+    }
     if (out.emit) {
       sendBytes(bytesForText(out.emit, encoderMods(active)))
       if (spend) {
         sticky.consume()
         syncMods()
       }
-      if (imeEl) imeEl.value = ''
+      clearIme()
     }
+  }
+
+  /** The strip is the field itself, so what it holds is the only state. */
+  function markHeld(): void {
+    imeEl?.toggleAttribute('data-held', (imeEl?.value ?? '') !== '')
+  }
+
+  function clearIme(): void {
+    if (imeEl) imeEl.value = ''
+    markHeld()
+  }
+
+  /** A boundary that is not a character: the run goes out whole with no
+   *  modifiers — the contract glasskeys' `commit-marked` step already has. */
+  function flushHeld(): void {
+    const out = decideBoundary(imeEl?.value ?? '')
+    clearIme()
+    if (!out.hold) sendBytes(bytesForText(out.send, encoderMods([])))
   }
 
   function onImeKeydown(e: KeyboardEvent) {
     if (ime.composing || e.isComposing) return
+    // GDK-1988: a held run is local text nothing has seen. Let the textarea
+    // edit it — iOS takes a 자모 off the syllable there — rather than send a
+    // 0x7f that would delete a character the shell does have.
+    if (e.key === 'Backspace' && (imeEl?.value ?? '') !== '') return
     if (e.key === 'Enter') {
       e.preventDefault()
+      flushHeld()
       sendText('\r')
-      if (imeEl) imeEl.value = ''
       return
     }
     if (e.key === 'Backspace') {
@@ -1094,6 +1133,10 @@
 
   {#snippet footer()}
     <div class="dock">
+      <!-- GDK-1988: the field rides the band like the bar, so the keyboard
+           is never sitting on top of it, and becomes the strip while it
+           holds a run (lib/terminal/hangul-hold.ts). -->
+      <div class="compose" use:keyboardInset>
       <textarea
         class="ime"
         bind:this={imeEl}
@@ -1113,6 +1156,7 @@
         }}
         onkeydown={onImeKeydown}
       ></textarea>
+      </div>
       <KeyBar {mods} onkey={onBarKey} />
     </div>
   {/snippet}
@@ -1606,14 +1650,37 @@
   .dock {
     position: relative;
   }
-  .ime {
+  .compose {
     position: absolute;
-    width: 1px;
-    height: 16px;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .ime {
+    display: block;
+    width: 2px;
+    height: 18px;
+    min-height: 0;
+    margin: 0;
+    font-family: inherit;
     font-size: var(--text-body);
-    opacity: 0;
+    line-height: 1.3;
+    opacity: 0.01;
     border: 0;
     padding: 0;
     overflow: hidden;
+    resize: none;
+    pointer-events: auto;
+  }
+  .ime[data-held] {
+    width: 100%;
+    height: var(--spacing-control);
+    opacity: 1;
+    padding: 10px 16px;
+    background: var(--color-bg-panel);
+    border-top: 1px solid var(--color-border-subtle);
+    color: var(--color-text-primary);
   }
 </style>
