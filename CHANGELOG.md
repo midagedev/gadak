@@ -22,6 +22,14 @@ field `disableStdin` had made read-only, and iOS does not keep a keyboard up
 for one of those. That textarea takes no focus on this screen now
 ([GDK-1986]).
 
+The web UI in a phone browser had the same shape from the other side.
+`tailscale serve` makes `/` the door that needs no install, and there the pane
+took the keyboard for itself the moment its socket attached — a focus that
+lands outside any gesture, which iOS will not raise a keyboard for, and which
+then spends the focus change the user's own tap needed. The attach-time focus
+is for pointers that arrive with a keyboard now; a finger gets focus from its
+own tap, which is the path that was measured raising one ([GDK-1986]).
+
 Korean typed there now arrives as words. Every 자모 had been reaching the
 shell on its own — `한글` became `ㅎㅏㄴㄱㅡㄹ` — because iOS assembles Hangul by
 rewriting the field's own text, and the field was being emptied after every

@@ -25,6 +25,13 @@ async function bootPhone(page: Page): Promise<void> {
   await expect(page.getByTestId('issue-layout')).toBeVisible({ timeout: 30_000 })
 }
 
+/** Whether the pane's xterm helper textarea is the focused element. */
+const paneHoldsFocus = (page: Page): Promise<boolean> =>
+  page.evaluate(() => {
+    const ta = document.querySelector('[data-testid="terminal-pane"] textarea')
+    return !!ta && document.activeElement === ta
+  })
+
 async function openPane(page: Page): Promise<void> {
   // The sidebar's own verb: at this width the keyboard chord is not the
   // road a phone has, and this is the control a thumb reaches for.
@@ -92,4 +99,34 @@ test('the sheet stays inside the screen across the whole overlay regime (GDK-198
   // The sidebar is still standing beside it — that is what the overlay
   // regime is for, and the phone case is the one that gives it up.
   expect(left).toBeGreaterThan(0)
+})
+
+/*
+ * The second defect the header names: a surface a finger cannot type into.
+ *
+ * `hasTouch` is what makes `(pointer: coarse)` match in Chromium (measured:
+ * false by default, true with the flag), which is the one input the pane's
+ * focus policy reads. Playwright still cannot raise a software keyboard, so
+ * what is pinned here is the precondition iOS needs — that the tap is a
+ * focus change and not a no-op — not the keyboard itself.
+ */
+test.describe('a finger keeps its own focus change (GDK-1986)', () => {
+  test.use({ hasTouch: true })
+
+  test('the pane does not take the keyboard when the socket attaches', async ({ page }) => {
+    await bootPhone(page)
+    await openPane(page)
+
+    // The defect: `onAttached` focused the renderer unconditionally, so the
+    // helper textarea already held focus by the time the user could tap —
+    // and a focus that lands outside a gesture never raises an iOS keyboard.
+    // The tap that followed changed nothing, so nothing raised one either.
+    await expect
+      .poll(() => paneHoldsFocus(page), { timeout: 5_000 })
+      .toBe(false)
+
+    // xterm's own path, the one the device probe measured raising a keyboard.
+    await page.locator('[data-testid="terminal-pane"] .xterm-screen').tap()
+    await expect.poll(() => paneHoldsFocus(page)).toBe(true)
+  })
 })

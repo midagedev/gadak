@@ -43,6 +43,7 @@
     terminalSheetLeftCss,
   } from '../../lib/terminal/pane.svelte'
   import LayoutResizeHandle from '../shell/LayoutResizeHandle.svelte'
+  import { attachFocusAllowed } from '../../lib/terminal/focus-policy'
   import { terminalSessions } from '../../lib/terminal/sessions.svelte'
   import TerminalRoster from './TerminalRoster.svelte'
   import { config } from '../../lib/config'
@@ -198,7 +199,13 @@
       open: (id, handlers) => openSessionSocket(id, handlers),
       fittedSize,
       measurable: () => renderer !== null && paneLaidOut(),
-      onAttached: () => renderer?.focus(),
+      // GDK-1986: on a touch device this steal is pure harm — it cannot
+      // raise a software keyboard (a focus outside a gesture never does)
+      // and it spends the focus change the user's own tap needed. The
+      // predicate and the measurement behind it are in focus-policy.ts.
+      onAttached: () => {
+        if (attachFocusAllowed()) renderer?.focus()
+      },
       onBytes: (data) => renderer?.write(data),
       onExit: () => terminalSessions.select(null),
       onDropped: (reason) => {
