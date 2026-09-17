@@ -73,12 +73,16 @@ describe('builtinViews: my-work pack stances', () => {
     expect(view!.config.display.group_by).toBe('status_category')
     expect(view!.config.display.sort).toBe('priority')
     expect(view!.config.display.dir).toBe('asc')
-    // URL form: fl=mine, sc=inprogress,new, s=priority, d=asc.
+    // URL form: fl=mine, sc=inprogress,new — and no order params at all.
+    // Re-pinned 2026-09-18 (GDK-1992): priority asc became the catalog
+    // default, and configToParams omits a value that equals it. The order
+    // itself is unchanged and is pinned three lines up, on the config; what
+    // moved is only whether the URL has to say it.
     const params = configToParams(view!.config)
     expect(params.fl).toBe('mine')
     expect(params.sc).toBe('inprogress,new')
-    expect(params.s).toBe('priority')
-    expect(params.d).toBe('asc')
+    expect(params.s).toBeNull()
+    expect(params.d).toBeNull()
     // Copy keys resolve (missing keys render as the key itself).
     expect(view!.name.length).toBeGreaterThan(0)
     expect(view!.hint!.length).toBeGreaterThan(0)
@@ -99,7 +103,11 @@ describe('builtinViews: my-work pack stances', () => {
     const params = configToParams(view!.config)
     expect(params.fl).toBe('delegated')
     expect(params.sc).toBe('inprogress,new')
-    expect(params.d).toBe('asc')
+    // Re-pinned 2026-09-18 (GDK-1992): `updated` is no longer the catalog
+    // default, so this view's sort now earns a param — and `asc` is, so its
+    // direction no longer does. Same order, other side of the default.
+    expect(params.s).toBe('updated')
+    expect(params.d).toBeNull()
     expect(view!.name.length).toBeGreaterThan(0)
     expect(view!.hint!.length).toBeGreaterThan(0)
   })

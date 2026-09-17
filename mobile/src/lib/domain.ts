@@ -49,7 +49,10 @@ import {
   staleThresholdLearned,
   staleThresholdSamples,
   workAge,
+  DEFAULT_DIR,
+  DEFAULT_SORT,
   type AgeBasis,
+  type ViewDisplay,
 } from '../../../web/src/lib/view-config'
 import {
   changedSince,
@@ -64,6 +67,11 @@ import {
   resumeLabel,
   type ResumeDelta,
 } from '../../../web/src/lib/resume-card'
+import {
+  compareIssues,
+  isListSortKey,
+  type ListOrder,
+} from '../../../web/src/lib/issue-sort'
 import { isSamePerson, type PersonRef } from '../../../web/src/lib/person-match'
 import { builtinViews } from '../../../web/src/lib/builtin-views'
 import { highlightSegments } from '../../../web/src/lib/format'
@@ -246,14 +254,27 @@ function rankKey(i: IssueLite): number {
   return rank !== null && rank > 0 ? rank : Number.MAX_SAFE_INTEGER
 }
 
-/** priority_rank asc, then updated_at desc, then key for stability. */
-export function sortIssues(issues: IssueLite[]): IssueLite[] {
+/**
+ * The list order (GDK-1992).
+ *
+ * The axis is the view's, not the screen's: `compareIssues` is the desk's own
+ * comparator (`web/src/lib/issue-sort.ts`), so a view that says "oldest
+ * first" reads the same on both surfaces. It used to be fixed here — priority
+ * asc, then updated desc — which is what made *Handed off* come out
+ * newest-first on a phone when the view exists to read oldest-first, and made
+ * *Reopened* ignore the axis it is named for.
+ *
+ * `order` omitted is the catalog default, the same one `defaultDisplay()`
+ * hands a view that chose nothing. The trailing key compare is the phone's
+ * own: the sections are a keyed `#each`, so the order has to be total, and
+ * the desk neither needs it nor pays for it.
+ */
+export function sortIssues(issues: IssueLite[], order?: ListOrder | null): IssueLite[] {
+  const sort = order?.sort ?? DEFAULT_SORT
+  const dir = order?.dir ?? DEFAULT_DIR
   return [...issues].sort((a, b) => {
-    const r = rankKey(a) - rankKey(b)
-    if (r !== 0) return r
-    const u = (b.updated_at ?? '').localeCompare(a.updated_at ?? '')
-    if (u !== 0) return u
-    return a.issue_key.localeCompare(b.issue_key)
+    const c = compareIssues(a, b, sort, dir)
+    return c !== 0 ? c : a.issue_key.localeCompare(b.issue_key)
   })
 }
 
@@ -272,23 +293,37 @@ export interface ListSection {
   issues: IssueLite[]
 }
 
-/** Groups a sorted list into priority sections, in rank order. */
+/**
+ * Groups a list into priority sections, in rank order.
+ *
+ * It buckets, the way `groupByCategory` below already did — it used to walk
+ * the list and open a new section whenever the rank changed from the row
+ * before. That is the same thing only while the sort *is* priority, which it
+ * was, fixed, until GDK-1992. Under any other axis the ranks interleave, the
+ * walk emits the same rank several times, and `rank` is the key of a keyed
+ * `#each`: Svelte refused the whole screen with `each_key_duplicate`
+ * (measured 2026-09-18 on Reopened — a heading reading "Reopened ·95" over a
+ * list that could not render a single row).
+ *
+ * Rows keep the order they arrived in inside their bucket, so the view's
+ * sort is what orders the list and the sections are only where it is cut.
+ */
 export function groupByPriority(sorted: IssueLite[]): ListSection[] {
-  const sections: ListSection[] = []
+  const buckets = new Map<number, ListSection>()
   for (const issue of sorted) {
     const rank = rankKey(issue)
-    const last = sections[sections.length - 1]
-    if (last && last.rank === rank) {
-      last.issues.push(issue)
+    const hit = buckets.get(rank)
+    if (hit) {
+      hit.issues.push(issue)
     } else {
       // The desk's word, not the phone's (GDK-1945): Issues.svelte renders
       // this label raw, so an English literal here puts an English header
       // over translated rows. list.priorityNone is what the desk's own
       // priority picker and icon already say.
-      sections.push({ label: issue.priority ?? t('list.priorityNone'), rank, issues: [issue] })
+      buckets.set(rank, { label: issue.priority ?? t('list.priorityNone'), rank, issues: [issue] })
     }
   }
-  return sections
+  return [...buckets.values()].sort((a, b) => a.rank - b.rank)
 }
 
 /** The order work moves through the three categories. */
@@ -401,12 +436,50 @@ export interface Scope {
    */
   sprintId?: number
   /**
+   * The order the view asked for (GDK-1992) — the desk's `display.sort`/`dir`
+   * carried through, null when the scope has no stored view behind it (the
+   * sprint row, the document plates). `buildList` hands it to `sortIssues`;
+   * null there means the catalog default, which is what the desk gives a view
+   * that chose nothing.
+   *
+   * `display.group_by` is deliberately not read yet: the phone groups by
+   * priority everywhere but the sprint scope, and moving that is a change to
+   * the first screen rather than a defect (GDK-1993).
+   */
+  order: ListOrder | null
+  /**
    * Which reading stance a built-in belongs to (THEORY.md "Two stances"):
    * `mine` is the contributor's question, `team` the steward's. Only the
    * built-in section carries it, and only to wear the desk's own sub-labels
    * inside that section — grouping, never filtering.
    */
   stance?: 'mine' | 'team'
+}
+
+/**
+ * The order a stored view asked for (GDK-1992).
+ *
+ * Every `ViewConfig` carries a full `display` block — the desk has no "unset"
+ * there — so this is a straight read, and a view that chose nothing arrives
+ * carrying `defaultDisplay()`, which is the answer we want anyway. A `sort`
+ * the phone's comparator cannot answer (`relevance` needs search scores,
+ * `keys` a server order) falls to the default rather than pretending: the
+ * same stance `HONORED_AXES` takes toward a filter axis the row cannot
+ * answer.
+ */
+function orderOf(display: Partial<ViewDisplay> | null | undefined): ListOrder | null {
+  if (!display) return null
+  const sort = isListSortKey(display.sort) ? display.sort : DEFAULT_SORT
+  const dir = display.dir === 'asc' || display.dir === 'desc' ? display.dir : DEFAULT_DIR
+  return { sort, dir }
+}
+
+/** The order of the scope the fallback actually paints. Exported because the
+ *  screen builds an All open literal of its own when resolveScope finds
+ *  nothing, and a second spelling of the order there is a second owner. */
+export function allOpenOrder(): ListOrder | null {
+  const view = builtinViews().find((v) => v.id === 'all-open')
+  return view ? orderOf(view.config.display) : null
 }
 
 /**
@@ -598,6 +671,7 @@ export function buildScopes(
       name: view.name,
       filters,
       unsupported: unsupportedAxes(filters),
+      order: orderOf(view.config.display),
       stance: view.stance,
     })
   }
@@ -617,6 +691,9 @@ export function buildScopes(
       name: t('board.scopeActive'),
       filters: null,
       unsupported: [],
+      // No stored view behind this row, so no stored order: the catalog
+      // default. Its grouping is the scope's own (GDK-1867), below.
+      order: null,
       stance: 'team',
       sprintId: sprint.id,
     })
@@ -630,6 +707,7 @@ export function buildScopes(
       name: v.name,
       filters,
       unsupported: unsupportedAxes(filters),
+      order: orderOf(v.config?.display),
     })
   }
   for (const s of sources) {
@@ -644,6 +722,7 @@ export function buildScopes(
       name: s.name,
       filters,
       unsupported,
+      order: orderOf(s.config?.display),
     })
   }
   if (pages.length > 0) {
@@ -654,6 +733,8 @@ export function buildScopes(
       name: t('docs.tabUpdated'),
       filters: null,
       unsupported: [],
+      // Document plates never reach sortIssues (buildList returns early).
+      order: null,
       spaceKey: null,
     })
     const names = new Map<string, string>()
@@ -673,6 +754,7 @@ export function buildScopes(
         name: names.get(key)!,
         filters: null,
         unsupported: [],
+        order: null,
         spaceKey: key,
       })
     }
@@ -795,7 +877,9 @@ export function buildList(issues: IssueLite[], me: Me | null, scope: Scope): Iss
     // Only My issues gets the empty-plate fallback: it is the phone's default
     // scope, so an empty one is a first-run condition, not a chosen filter —
     // an empty saved view is what the developer asked for and stays empty.
-    const open = sortIssues(openIssues(issues))
+    // The fallback is All open under its own name, so it reads in All open's
+    // order — not in the order of the scope that could not be painted.
+    const open = sortIssues(openIssues(issues), allOpenOrder())
     return {
       sections: groupByPriority(open),
       total: open.length,
@@ -803,9 +887,10 @@ export function buildList(issues: IssueLite[], me: Me | null, scope: Scope): Iss
       fellBack: true,
     }
   }
-  const sorted = sortIssues(rows)
+  const sorted = sortIssues(rows, scope.order)
   // Grouping is the scope's, not the screen's: the sprint scope reads
-  // new → inprogress → done, every other scope reads by priority.
+  // new → inprogress → done, every other scope reads by priority. Unlike the
+  // order above, this does not yet follow `display.group_by` (GDK-1993).
   const sections = scope.sprintId != null ? groupByCategory(sorted) : groupByPriority(sorted)
   return { sections, total: rows.length, scopeId: scope.id, fellBack: false }
 }

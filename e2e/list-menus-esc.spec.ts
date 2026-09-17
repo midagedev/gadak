@@ -26,7 +26,7 @@ function columnsPanel(page: Page) {
 }
 
 function sortPanel(page: Page) {
-  return page.getByRole('button', { name: '↓ Desc', exact: true })
+  return page.getByTestId('sort-direction')
 }
 
 test.describe('list-header menus close on Esc', () => {

@@ -22,6 +22,7 @@
   } from '../lib/store.svelte'
   import { tick } from 'svelte'
   import {
+    allOpenOrder,
     buildList,
     buildScopes,
     hasIdentity,
@@ -92,6 +93,7 @@
       name: t('view.allOpen.name'),
       filters: null,
       unsupported: [],
+      order: allOpenOrder(),
     },
   )
   const isDocs = $derived(scope.kind === 'pages')

@@ -93,8 +93,13 @@ const CEILINGS: Record<string, { lines: number; state: number }> = {
   // opener appears — the template trades one button for another and the
   // CSS trades one rule block for another, with the measured reason the
   // set closes flush written where the number lives. $state unchanged.
-  // 529 → 590.
-  'Issues.svelte': { lines: 590, state: 3 },
+  // 529 → 590. Then 590 → 592 for GDK-1992: the emergency All open literal
+  // the screen builds when resolveScope finds nothing now carries that
+  // view's order, so it cannot read in a different order than the real All
+  // open row — one import line and one field line, no new $state. Measured
+  // FAIL-first at 592 > 590 before this re-pin.
+  // 529 → 592.
+  'Issues.svelte': { lines: 592, state: 3 },
   // Measured 2026-09-16 at birth (GDK-1827): the sprint list is the first
   // screen with no local state at all — every row is derived from the store.
   'Sprints.svelte': { lines: 262, state: 0 },

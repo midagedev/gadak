@@ -255,8 +255,12 @@
             {s.l}
           </button>
         {/each}
+        <!-- The control's identity is "direction", not which way it points
+             right now: a test that located it by its label broke the day the
+             catalog default flipped to asc (GDK-1992). -->
         <button
           type="button"
+          data-testid="sort-direction"
           class="ml-auto inline-flex h-control-sm items-center rounded px-2 text-body text-text-secondary transition-colors hover:bg-bg-hover"
           onclick={() => filters.toggleDir()}
           title={t('sort.direction')}

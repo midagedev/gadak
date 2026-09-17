@@ -181,6 +181,26 @@ export const SORT_KEY_VALUES = [
 export type SortKey = (typeof SORT_KEY_VALUES)[number]
 export type SortDir = 'asc' | 'desc'
 
+/**
+ * The catalog's own default order, named once (GDK-1992).
+ *
+ * It was spelled three times as a bare `'updated'` — in `defaultDisplay()`,
+ * in `configToParams` (which omits the param when the value equals it) and in
+ * `effectiveSort` (which reads "equals the default" as "unset" and promotes
+ * to relevance during search). Three copies of one decision is how a default
+ * becomes unmovable.
+ *
+ * `priority` asc since 2026-09-18: the list answers "what matters", not "what
+ * moved". The latter is what a generic activity feed defaults to, and it is
+ * the reading the phone had already rejected for a triage surface — it sorted
+ * by priority and ignored `display` outright, which is how four built-in
+ * views lost the order they were written with. With the two defaults agreed,
+ * a view that chose nothing reads the same on both surfaces and the phone can
+ * simply follow `display`.
+ */
+export const DEFAULT_SORT: SortKey = 'priority'
+export const DEFAULT_DIR: SortDir = 'asc'
+
 /* ── List columns (trailing fields shown on a row) ──
  *  Layout is "keep dense rows + field on/off" — only checked columns render on the right.
  *  Column set is part of display, so it serializes into URL and saved views (per-view columns).
@@ -488,8 +508,10 @@ export function defaultDisplay(): ViewDisplay {
     // layout (unset = list); filter changes — search included — leave it be.
     layout: 'list',
     group_by: 'status_category',
-    sort: 'updated',
-    dir: 'desc',
+    // Named above, beside SORT_KEY_VALUES: a default spelled here and
+    // compared against in configToParams is two owners of one decision.
+    sort: DEFAULT_SORT,
+    dir: DEFAULT_DIR,
     columns: defaultColumns(),
   }
 }
@@ -819,8 +841,8 @@ export function configToParams(config: ViewConfig): Record<string, string | null
   // none on a keys view). Explicit g=status_category on a keys view must
   // serialize or parseConfig would flatten it again.
   out[GROUP_KEY] = d.group_by !== defaultGroupBy(f) ? d.group_by : null
-  out[SORT_KEY] = d.sort !== 'updated' ? d.sort : null
-  out[DIR_KEY] = d.dir !== 'desc' ? d.dir : null
+  out[SORT_KEY] = d.sort !== DEFAULT_SORT ? d.sort : null
+  out[DIR_KEY] = d.dir !== DEFAULT_DIR ? d.dir : null
 
   // Columns: omit when default (clean URL); all-off preserved as 'none'.
   // A Jira-imported view may omit columns; treat that as the catalog default.

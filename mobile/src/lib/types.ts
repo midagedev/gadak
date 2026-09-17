@@ -233,8 +233,14 @@ export type PagesResponse = WebPagesResponse
  */
 export interface ViewConfigDoc {
   filters?: Partial<import('../../../web/src/lib/view-config').ViewFilters>
-  /** Grouping and sort. The phone keeps its own (priority sections) — DESIGN.md §5. */
-  display?: unknown
+  /**
+   * Grouping and sort. The phone reads `sort`/`dir` and hands them to the
+   * desk's own comparator (GDK-1992); grouping is still the phone's priority
+   * sections (GDK-1993). Typed as the owner's partial so a reader can see
+   * which two keys are read — the values are still validated at the boundary
+   * (`orderOf` in domain.ts), because this is a wire document.
+   */
+  display?: Partial<import('../../../web/src/lib/view-config').ViewDisplay>
 }
 
 /**

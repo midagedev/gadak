@@ -312,9 +312,12 @@ the transition *action* lives with compose and send.
   same guard, so a restored scope paints its own name on the first frame
   instead of flashing the default. `issues/delta/` is a v2 optimization once a mirror
   large enough to hurt is measured.
-- **Issues** is one list under one scope, sorted `priority_rank` asc (unset
-  ranks last), then `updated_at` desc, grouped by priority with the display
-  name as the section label (display-only; logic never keys on it). Scopes:
+- **Issues** is one list under one scope, sorted the way that scope's view
+  asked (GDK-1992; the catalog default is `priority` asc, unset ranks last,
+  ties by newest update), grouped by priority with the display name as the
+  section label (display-only; logic never keys on it). The band is a bucket,
+  not a run: a list ordered on any other axis interleaves the ranks, and the
+  band is a keyed `#each`. Scopes:
   the desk's five built-in views, applied in memory from the shared catalog
   (`web/src/lib/builtin-views.ts`) · the desk's saved views · the desk's
   imported Jira filters, read from `GET issues/views/` alongside bootstrap.
@@ -336,8 +339,18 @@ the transition *action* lives with compose and send.
   any Jira clause the desk's importer left in `unsupported[]` means the phone
   **cannot** honor that view: the row is offered disabled with a reason,
   never painted as the full list under someone else's name (decision 0007).
-  Sort and grouping stay the phone's priority sections in this round; a view's
-  `display` block is deliberately ignored.
+  **The order is the view's** (GDK-1992): `display.sort`/`dir` go straight to
+  the desk's own comparator (`web/src/lib/issue-sort.ts`), so a view written
+  to read oldest-first reads oldest-first here too. It used to be fixed —
+  priority asc, then updated desc — which silently reversed *Handed off* and
+  made *Reopened* ignore the axis it is named for. The catalog default moved
+  to priority asc the same day so the two surfaces agree on what a view that
+  chose nothing means; a `sort` the phone cannot answer (`relevance` needs
+  search scores, `keys` a server order) falls back to that default rather
+  than pretending. **Grouping is still the phone's** — priority bands
+  everywhere but the sprint scope, and `display.group_by` is not read yet
+  (GDK-1993): moving that axis changes the first screen, which is a decision
+  rather than a defect.
 - **Picker counts** (GDK-886) are one in-memory pass per row, taken when the
   sheet opens — never on the list's scroll path. A view matching zero issues
   shows `0` and stays selectable; a disabled row shows no count. The endpoint

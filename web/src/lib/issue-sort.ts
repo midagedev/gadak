@@ -54,6 +54,12 @@ export const LIST_SORT_KEYS = [
 ] as const
 export type ListSortKey = (typeof LIST_SORT_KEYS)[number]
 
+/** One view's order — the pair `display` carries and `sortIssues` needs. */
+export interface ListOrder {
+  sort: SortKey
+  dir: SortDir
+}
+
 export function isListSortKey(value: unknown): value is ListSortKey {
   return typeof value === 'string' && (LIST_SORT_KEYS as readonly string[]).includes(value)
 }

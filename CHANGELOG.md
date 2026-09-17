@@ -58,6 +58,16 @@ already focused; the heading still opens the list of views with the keyboard
 down. Manual sync keeps its door in Settings, where the last sync time
 already lived ([GDK-1990]).
 
+And the list under that header now reads the way the view was written. Four of
+the five built-in views carry an order — *Handed off* reads the quietest first,
+*Reopened* by how many times work came back — and the phone had been sorting
+every one of them the same way, so the delegation ledger came out newest-first
+and the reopen count ordered nothing. The order is the view's now, decided by
+the same comparator the desktop sorts with rather than a second copy of the
+rule. The two surfaces also had different ideas of what "no order chosen"
+means: the desktop opened on what had moved, the phone on what mattered. It is
+what mattered on both ([GDK-1992]).
+
 ## v0.23.1
 
 **A status the apps offered but the server refused.** On the built-in tracker
@@ -1835,3 +1845,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1988]: https://gadak.dev/backlog/#/?ks=GDK-1988
 [GDK-1989]: https://gadak.dev/backlog/#/?ks=GDK-1989
 [GDK-1990]: https://gadak.dev/backlog/#/?ks=GDK-1990
+[GDK-1992]: https://gadak.dev/backlog/#/?ks=GDK-1992

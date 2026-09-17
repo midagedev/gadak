@@ -846,7 +846,10 @@ describe('status_changed sort key', () => {
     })
     // Non-default sort earns the param (the configToParams rule).
     expect(paramsOf(c).get('s')).toBe('status_changed')
-    expect(paramsOf(c).get('d')).toBe('asc')
+    // Re-pinned 2026-09-18 (GDK-1992): `asc` became the catalog default
+    // direction, so it no longer earns a param. The round trip below is the
+    // assertion that matters — an omitted default must come back as itself.
+    expect(paramsOf(c).get('d')).toBeNull()
     expect(roundTrip(c)).toEqual(c)
   })
 

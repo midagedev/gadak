@@ -18,6 +18,7 @@ import { issues } from './issues.svelte'
 import { me } from './me.svelte'
 import type { IssueLite, Member, PageLite, SearchMatch } from '../lib/types'
 import {
+  DEFAULT_SORT,
   cloneFilters,
   configToParams,
   defaultColumns,
@@ -155,13 +156,15 @@ class FiltersStore {
   }
 
   /**
-   * Sort actually applied. With a query and default sort (updated), auto-promote
-   *  to relevance. (An explicit other sort wins — but updated is indistinguishable
-   *  from "unset", so during search we treat it as relevance. Sort UI shows this too.)
+   * Sort actually applied. With a query and the catalog default sort,
+   *  auto-promote to relevance. (An explicit other sort wins — but the default
+   *  is indistinguishable from "unset", which is exactly what configToParams
+   *  encodes by omitting the param, so during search we treat it as relevance.
+   *  Sort UI shows this too.)
    */
   get effectiveSort(): SortKey {
     const { filters: f, display: d } = this.#config
-    if (d.sort !== 'updated') return d.sort
+    if (d.sort !== DEFAULT_SORT) return d.sort
     // keys-only: keep the given order. q→relevance must not fire here.
     if (f.keys.length && !f.q.trim()) return 'keys'
     if (f.q.trim()) return 'relevance'

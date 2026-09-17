@@ -22,6 +22,7 @@ function scope(over: Partial<Scope> & Pick<Scope, 'id' | 'name'>): Scope {
     kind: 'issues',
     filters: null,
     unsupported: [],
+    order: null,
     ...over,
   }
 }

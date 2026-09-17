@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import {
+  DEFAULT_SORT,
   GROUP_BY_VALUES,
   SORT_KEY_VALUES,
   defaultGroupBy,
@@ -51,6 +52,9 @@ describe('sort allowlist is the URL contract (GDK-825)', () => {
   })
 
   test('a value outside the registry never parses', () => {
-    expect(parseConfig(new URLSearchParams('s=not-a-sort')).display.sort).toBe('updated')
+    // Re-pinned 2026-09-18 (GDK-1992): the fallback is the catalog default,
+    // read from its one owner rather than spelled again here — that spelling
+    // is what made the default hard to move in the first place.
+    expect(parseConfig(new URLSearchParams('s=not-a-sort')).display.sort).toBe(DEFAULT_SORT)
   })
 })
