@@ -126,11 +126,14 @@ func (s *server) handleTransition(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 	s.mutate(w, r, key, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
 		res, err := transition.Apply(ctx, c, s.config(), transition.Request{
-			Key:        key,
-			Target:     body.TransitionID,
-			Resolution: body.Resolution,
-			Fields:     body.Fields,
-			Comment:    body.Comment,
+			Key: key,
+			// The body field is named transition_id and every real caller (web,
+			// phone, MIRROR.md curl) sends the id of an object out of GET
+			// transitions/ — the machine path, not a human's identifier (GDK-1982).
+			TransitionID: body.TransitionID,
+			Resolution:   body.Resolution,
+			Fields:       body.Fields,
+			Comment:      body.Comment,
 			// The mirror tiebreak the CLI write already carries (GDK-1521):
 			// two same-named destinations fold, and this surface must pick
 			// the one the project actually uses, not payload order.

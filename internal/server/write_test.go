@@ -344,12 +344,19 @@ func TestTransitionRESTWithoutExtrasOmitsFieldsAndUpdate(t *testing.T) {
 	}
 }
 
-func TestTransitionRESTCategoryAlreadyThereIsNoop(t *testing.T) {
+// GDK-1982 narrowed the REST surface to the machine path: transition_id is
+// an id out of GET transitions/, matched exactly — never a category token,
+// so the category no-op this test used to pin is unreachable here (it stays
+// covered where it lives, in the transition package's category-token
+// tests). What the surface must pin instead is the other half of that
+// contract: a picked id does not fold either. A human sending "done" to an
+// already-done issue is a no-op; a machine sending transition 31 is saying
+// which object it picked, and the write fires — no category read, no no-op.
+func TestTransitionRESTPickedIDDoesNotFoldWhenAlreadyThere(t *testing.T) {
 	f, h, _ := writable(t)
-	f.transitionsJSON = `{"transitions":[]}`
 	f.issueStatusJSON = `{"fields":{"status":{"id":"10001","name":"완료","statusCategory":{"key":"done"}},"assignee":null}}`
 	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/transition/",
-		`{"transition_id":"done","comment":"retry"}`)
+		`{"transition_id":"31","comment":"retry"}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 	}
@@ -359,64 +366,69 @@ func TestTransitionRESTCategoryAlreadyThereIsNoop(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &wrap); err != nil {
 		t.Fatalf("decode %s: %v", rec.Body.String(), err)
 	}
-	if wrap.Changed {
-		t.Fatalf("already done must report changed=false: %s", rec.Body.String())
+	if !wrap.Changed {
+		t.Fatalf("a picked id must report changed=true even when the issue is already there: %s", rec.Body.String())
 	}
-	if f.called("POST /issue/NMB-1/transitions") {
-		t.Fatalf("must not POST; body %s", f.bodies["POST /issue/NMB-1/transitions"])
+	if !f.called("POST /issue/NMB-1/transitions") {
+		t.Fatal("a picked id must fire — the machine path has no category no-op")
 	}
 }
 
-// TestTransitionRESTPicksInUseMirrorStatus — the REST write carries the
-// same mirror tiebreak the CLI does (GDK-1521). The payload is the GDK-1356
-// fold shape, identical to the one the claim and transition package tests
-// resolve: two transitions onto statuses that display the same name in the
-// same category, so they fold, and the pick inside the group is StatusUse.
-// Destination 10099 is the cutover phantom with zero issues; 3 is the one
-// the fixture mirror holds an issue in (NMB-1 itself). Payload order — what
-// a surface passing no StatusUse gets — answers 81.
+// GDK-1982: the REST write no longer speaks the identifier vocabulary, so
+// the mirror tiebreak (GDK-1521) is unreachable from this surface — a
+// machine caller sends the id of the object it picked and resolution never
+// reaches the fold. The owner test of the tiebreak itself stays where the
+// vocabulary lives (TestMirrorStatusUsePrefersInUseDestination). What this
+// surface must pin is that a same-named-destination list does not confuse
+// the exact match: transition 11 and 81 both display "In Progress", and
+// picking 81 fires 81 — not 11, not a fold.
 //
-// FAIL-first: against the pre-fix server this test fired transition 81.
-func TestTransitionRESTPicksInUseMirrorStatus(t *testing.T) {
+// FAIL-first: against the pre-fix server a category token was the only way
+// in, and this list shape existed to exercise the tiebreak; an id pick of
+// 81 resolved through Target and could be refused outright where 81 was
+// also a status id elsewhere in the workflow (the GDK-1982 defect).
+func TestTransitionRESTPickedIDIsExactOnFoldedNames(t *testing.T) {
 	f, h, _ := writable(t)
 	f.transitionsJSON = `{"transitions":[
 		{"id":"81","name":"Phantom start","to":{"id":"10099","name":"In Progress","statusCategory":{"key":"indeterminate"}}},
 		{"id":"11","name":"Start","to":{"id":"3","name":"In Progress","statusCategory":{"key":"indeterminate"}}}]}`
-	// The issue starts outside the in-progress category, else the category
-	// token is the no-op it is designed to be and no pick happens at all.
-	f.issueStatusJSON = `{"fields":{"status":{"id":"10016","name":"Backlog","statusCategory":{"key":"new"}},"assignee":null}}`
-	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/transition/", `{"transition_id":"inprogress"}`)
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/transition/", `{"transition_id":"81"}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 	}
-	if raw := string(f.bodies["POST /issue/NMB-1/transitions"]); raw != `{"transition":{"id":"11"}}` {
-		t.Fatalf("POST body %s, want transition 11 — the destination the mirror holds in use, not payload order's 81", raw)
+	if raw := string(f.bodies["POST /issue/NMB-1/transitions"]); raw != `{"transition":{"id":"81"}}` {
+		t.Fatalf("POST body %s, want exactly transition 81 — the picked id, not the folded group's pick", raw)
 	}
 }
 
-// GDK-341: the REST surface resolves the same identifiers as the CLI —
-// target status id, name, category — and refuses garbage with the resolver's
-// candidate list. The fake serves one transition: id 31 → 완료 (10001, done).
-func TestTransitionRESTResolvesCLIIdentifiers(t *testing.T) {
-	for _, ident := range []string{"10001", "완료로", "완료", "done"} {
-		f, h, _ := writable(t)
-		rec := send(t, h, http.MethodPost, apiBase+"NMB-1/transition/",
-			`{"transition_id":`+strconv.Quote(ident)+`}`)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("%q: status %d: %s", ident, rec.Code, rec.Body.String())
-		}
-		if raw := string(f.bodies["POST /issue/NMB-1/transitions"]); raw != `{"transition":{"id":"31"}}` {
-			t.Fatalf("%q resolved to %q, want transition 31", ident, raw)
-		}
+// GDK-341 made the REST surface resolve identifiers like the CLI; GDK-1982
+// narrowed it: the body field is named transition_id, and every real caller
+// (web write.svelte.ts, phone Detail.svelte, MIRROR.md curl) sends the id of
+// an object out of GET transitions/. The identifier vocabulary — names,
+// status ids, category tokens — stays on the CLI, where a human types it;
+// feeding any of it to the machine path is now a 400 that names the offered
+// ids, so a curl user is told to re-list rather than left guessing. The
+// fake serves one transition: id 31 → 완료 (10001, done).
+func TestTransitionRESTIsTheMachineIDContract(t *testing.T) {
+	f, h, _ := writable(t)
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/transition/", `{"transition_id":"31"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("offered id: status %d: %s", rec.Code, rec.Body.String())
+	}
+	if raw := string(f.bodies["POST /issue/NMB-1/transitions"]); raw != `{"transition":{"id":"31"}}` {
+		t.Fatalf("POST body %s, want exactly transition 31", raw)
 	}
 
-	_, h, _ := writable(t)
-	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/transition/", `{"transition_id":"nonsense"}`)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("unresolvable identifier: status %d, want 400: %s", rec.Code, rec.Body.String())
-	}
-	if !strings.Contains(rec.Body.String(), "완료로") {
-		t.Fatalf("refusal must name the candidates: %s", rec.Body.String())
+	for _, ident := range []string{"10001", "완료로", "완료", "done", "nonsense"} {
+		_, h, _ := writable(t)
+		rec := send(t, h, http.MethodPost, apiBase+"NMB-1/transition/",
+			`{"transition_id":`+strconv.Quote(ident)+`}`)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("%q: status %d, want 400 — the machine path does not reinterpret: %s", ident, rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), "완료로 (id 31") {
+			t.Fatalf("%q: refusal must name the offered ids: %s", ident, rec.Body.String())
+		}
 	}
 }
 
@@ -434,8 +446,10 @@ const requiredResolutionJSON = `{"transitions":[
 func TestTransitionRESTResolutionNameUsesAllowedValues(t *testing.T) {
 	f, h, _ := writable(t)
 	f.transitionsJSON = requiredResolutionJSON
+	// GDK-1982: the identifier is the offered id — the resolution machinery
+	// this test measures is untouched by which vocabulary chose the transition.
 	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/transition/",
-		`{"transition_id":"done","resolution":"Won't Do"}`)
+		`{"transition_id":"41","resolution":"Won't Do"}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 	}
@@ -460,7 +474,8 @@ func TestTransitionRESTResolutionNameUsesAllowedValues(t *testing.T) {
 func TestTransitionRESTRequiredResolutionRefusesWithoutValue(t *testing.T) {
 	f, h, _ := writable(t)
 	f.transitionsJSON = requiredResolutionJSON
-	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/transition/", `{"transition_id":"done"}`)
+	// GDK-1982: offered id, as every real caller sends it.
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/transition/", `{"transition_id":"41"}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status %d, want 400: %s", rec.Code, rec.Body.String())
 	}

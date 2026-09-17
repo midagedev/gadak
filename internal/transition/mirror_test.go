@@ -44,9 +44,11 @@ func backloggedStatus() jira.Status {
 }
 
 // TestMirrorStatusUsePrefersInUseDestination is the owner test of the tiebreak
-// the three write surfaces share (GDK-1521): the folded payload resolved
+// the write surfaces share (GDK-1521): the folded payload resolved
 // against a real mirror seeded with one NMB issue in status 3. The counts come
-// from the mirror, not a stub — this is the read all three surfaces inject.
+// from the mirror, not a stub — this is the read the surfaces inject. (Since
+// GDK-1982 the REST surface sends picked ids and never reaches the fold; the
+// CLI and claim paths still do.)
 //
 // FAIL-first: pre-GDK-1521 this function lived beside the CLI only, and the
 // same Apply with no StatusUse fired 81 — pinned by the without-tiebreak half

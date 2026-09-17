@@ -74,7 +74,9 @@ func failOriginClient(w http.ResponseWriter, err error) {
 // the message it shows, `jira_errors` for Jira's per-field rejections, and
 // `message` for a Confluence/origin snippet. Confluence and Linear sentinels
 // share this mapper with Jira so a wiki write does not become 502 jira_unavailable.
-func failJira(w http.ResponseWriter, r *http.Request, cfg *config.Config, err error) {
+// It returns the status it wrote so mutate can log the failure (GDK-1982);
+// callers that only answer keep ignoring it.
+func failJira(w http.ResponseWriter, r *http.Request, cfg *config.Config, err error) int {
 	err = origin.FoldPairedError(cfg, err)
 	var apiErr *jira.APIError
 	var confErr *confluence.APIError
@@ -83,17 +85,21 @@ func failJira(w http.ResponseWriter, r *http.Request, cfg *config.Config, err er
 	case errors.As(err, &pairErr):
 		// Folded pairing sentence — do not collapse it to jira_unavailable.
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": pairErr.Error()})
+		return http.StatusBadGateway
 	case errors.Is(err, origin.ErrWorkspaceFrozen):
 		// GDK-507 (b): the client mint refused before anything left the
 		// process. Same code the sync gate uses, so the web copy that
 		// carries the unfreeze sentence applies to writes too.
 		fail(w, http.StatusConflict, "workspace_frozen")
+		return http.StatusConflict
 	case errors.Is(err, jira.ErrAuth), errors.Is(err, confluence.ErrAuth), errors.Is(err, linear.ErrAuth):
 		// Stored token is wrong or expired — distinct from never having one
 		// (credential_required), so the UI can say "replace your token".
 		fail(w, http.StatusConflict, "credential_rejected")
+		return http.StatusConflict
 	case errors.Is(err, sync.ErrNotFound), errors.Is(err, confluence.ErrNotFound):
 		fail(w, http.StatusNotFound, "not_found")
+		return http.StatusNotFound
 	case errors.As(err, &apiErr):
 		status := apiErr.Status
 		if status < 400 || status > 499 {
@@ -113,6 +119,7 @@ func failJira(w http.ResponseWriter, r *http.Request, cfg *config.Config, err er
 			body["jira_errors"] = apiErr.Errors
 		}
 		writeJSON(w, status, body)
+		return status
 	case errors.As(err, &confErr):
 		status := confErr.Status
 		if status < 400 || status > 499 {
@@ -126,20 +133,24 @@ func failJira(w http.ResponseWriter, r *http.Request, cfg *config.Config, err er
 			"error":   "origin_rejected",
 			"message": msg,
 		})
+		return status
 	case errors.Is(err, origin.ErrUnsupported):
 		// Origin is up and answered "I cannot do that". Not 502, and not
 		// a code that says the origin is down — the sentence stays in
 		// `error` (same shape as link.go).
 		log.Printf("server: write refused origin capability: %v", err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return http.StatusBadRequest
 	case transition.IsRefused(err):
 		// Caller-side refusal (bad identifier, missing required screen
 		// field, unknown resolution). Origin was not written. Same 400
 		// shape handleTransition used to forge as jira.APIError.
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return http.StatusBadRequest
 	default:
 		log.Printf("server: %s %s: %v", r.Method, r.URL.Path, err)
 		fail(w, http.StatusBadGateway, "jira_unavailable")
+		return http.StatusBadGateway
 	}
 }
 
@@ -269,7 +280,14 @@ func (s *server) mutate(w http.ResponseWriter, r *http.Request, key string,
 	}
 	extra, err := fn(r.Context(), c)
 	if err != nil {
-		failJira(w, r, s.config(), err)
+		status := failJira(w, r, s.config(), err)
+		// A refused or failed write must be visible where it happens
+		// (GDK-1982): a 400 refusal — the transition ambiguity this fix
+		// grew out of — was the one branch failJira never logged, so in
+		// production it left nothing in the journal at all. Verb, route,
+		// key, status, refusal text; never a body, token or header value.
+		// A successful write keeps its single existing line below.
+		log.Printf("server: write failed %s %s key=%s status=%d: %v", r.Method, r.URL.Path, key, status, err)
 		return
 	}
 	if err := sync.RefreshIssue(r.Context(), cfg, s.db, key, src); err != nil {

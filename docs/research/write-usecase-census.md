@@ -152,7 +152,7 @@ Core: `transition.Apply` `internal/transition/apply.go:94` — **already one own
 
 | Axis | Difference | Verdict |
 | --- | --- | --- |
-| 입력 파싱·정규화 | CLI: positional target (words joined), `--resolution`, `--field key=JSON`, `-m`/`-`, `--batch -`, `--dry-run` (batch only). HTTP: `{transition_id, fields, comment, resolution}`. Empty HTTP body → `transition_id_required`. `transition_id` is a name; Apply accepts id/status-id/name/category (GDK-341). | extra CLI batch/dry-run/list: 의도. Identifier vocabulary: 동일 |
+| 입력 파싱·정규화 | CLI: positional target (words joined), `--resolution`, `--field key=JSON`, `-m`/`-`, `--batch -`, `--dry-run` (batch only). HTTP: `{transition_id, fields, comment, resolution}`. Empty HTTP body → `transition_id_required`. `transition_id` is the id of an object out of `GET {key}/transitions/` and is matched exactly, never re-read as a status id, a name or a category token (GDK-1982); the CLI's positional target keeps that human vocabulary (GDK-341). | extra CLI batch/dry-run/list: 의도. Identifier vocabulary: **의도된 분기** — 기계가 고른 id와 사람이 친 말은 같은 리졸버를 쓰지 않는다 |
 | 사전 검증 | Same `Apply` (required screen fields, resolution catalog, category no-op GDK-632). CLI with no target lists transitions (`listTransitions` `agent.go:2159`) instead of usage (GDK-466). REST listing is `GET {key}/transitions/` (`handleTransitions:509`), a separate read. | 의도 (CLI UX vs REST GET) |
 | origin 호출 | 동일: `transition.Apply` → `Writer.Transition`. | 동일 |
 | 미러 갱신 | REST `mutate` **always** `RefreshIssue`, including `Changed=false`. CLI `emitTransitionResult` (`agent.go:2114`): noop + text prints `already %s` and **does not refresh**; noop + `--json` does refresh. | noop refresh: **드리프트** (version bump / delta on REST, not on CLI text) |

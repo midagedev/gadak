@@ -2,6 +2,19 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## Unreleased
+
+**A status the apps offered but the server refused.** On the built-in tracker
+a workflow that has been migrated carries two statuses named the same, and the
+transition ids it hands out then overlap with status ids — so the Done the web
+and phone apps showed was answered with "a bare number is ambiguous" every
+time, and Done was the one transition no button could apply. The id a client
+picked out of the transition list is now matched exactly and never re-read as a
+status id, a name or a category token; a stale list is refused by name, with
+the ids the issue actually offers. Typing a status name at the CLI still means
+what it did ([GDK-1982]). A write that the server refuses now says so in its
+log — that 400 was the one branch that left nothing behind.
+
 ## v0.23.0
 
 **The phone drops its tab bar; the column has one owner.** The bottom bar is
@@ -1748,3 +1761,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1972]: https://gadak.dev/backlog/#/?ks=GDK-1972
 [GDK-1973]: https://gadak.dev/backlog/#/?ks=GDK-1973
 [GDK-1974]: https://gadak.dev/backlog/#/?ks=GDK-1974
+[GDK-1982]: https://gadak.dev/backlog/#/?ks=GDK-1982

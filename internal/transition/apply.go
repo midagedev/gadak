@@ -38,11 +38,19 @@ type Origin interface {
 // id; a name is resolved from the transition's allowedValues, else the
 // origin's resolution catalog.
 type Request struct {
-	Key        string
-	Target     string
-	Resolution string
-	Fields     map[string]any
-	Comment    string
+	Key    string
+	Target string
+	// TransitionID is the machine path (GDK-1982): an id the caller read from
+	// Transitions() and handed back. It is matched against that list exactly and
+	// never reinterpreted as a target status id, a name or a category token —
+	// a client that picked a transition object by its id has no ambiguity to
+	// resolve, and the refusal that guards a human's bare number (pick.go) must
+	// not reach it. At most one of Target and TransitionID is set; TransitionID
+	// wins when both are.
+	TransitionID string
+	Resolution   string
+	Fields       map[string]any
+	Comment      string
 	// StatusUse is an optional read of the local mirror: how many issues sit
 	// in statusID right now. It is consulted only to break a tie between two
 	// destination statuses that display the same name in the same category
@@ -108,7 +116,7 @@ func Apply(ctx context.Context, o Origin, cfg *config.Config, req Request) (Resu
 	if err != nil {
 		return Result{}, err
 	}
-	id, noop, pickErr, err := resolveTransition(ctx, o, req.Key, req.Target, list, req.StatusUse)
+	id, noop, pickErr, err := resolveTransition(ctx, o, req.Key, req.Target, req.TransitionID, list, req.StatusUse)
 	if err != nil {
 		return Result{}, err
 	}
@@ -156,7 +164,9 @@ func Preview(ctx context.Context, o Origin, key, target string, statusUse func(s
 	if err != nil {
 		return "", false, err
 	}
-	id, noop, pickErr, err := resolveTransition(ctx, o, key, target, list, statusUse)
+	// Preview is the CLI dry-run, whose target is human vocabulary; the
+	// machine path (TransitionID) has nothing to preview.
+	id, noop, pickErr, err := resolveTransition(ctx, o, key, target, "", list, statusUse)
 	if err != nil {
 		return "", false, err
 	}
@@ -170,17 +180,30 @@ func Preview(ctx context.Context, o Origin, key, target string, statusUse func(s
 }
 
 // resolveTransition is the one owner of "what does this target mean right
-// now". It gates a category-token target on the origin's current status in
-// BOTH pick outcomes: a miss (the workflow offers nothing toward that
-// category — the GDK-500 no-op) and a hit (a self-loop workflow keeps a
-// done→done transition available while the issue is already done, so a retry
-// would fire again and double-post its comment — GDK-632, caught on a real
-// site). That same read is what tells the pick which duplicate destination
-// the issue already sits in (GDK-1356), so the fold costs no extra call.
+// now". The machine path (transitionID, GDK-1982) is answered before any of
+// it: an id the caller read from this very list is matched byte for byte —
+// no category read, no StatusUse, no no-op fold — and a miss is a Refused
+// naming the id sent and the ids offered, so a stale list tells its holder
+// to re-list. Everything else is the human vocabulary of Target: it gates a
+// category-token target on the origin's current status in BOTH pick
+// outcomes: a miss (the workflow offers nothing toward that category — the
+// GDK-500 no-op) and a hit (a self-loop workflow keeps a done→done
+// transition available while the issue is already done, so a retry would
+// fire again and double-post its comment — GDK-632, caught on a real site).
+// That same read is what tells the pick which duplicate destination the
+// issue already sits in (GDK-1356), so the fold costs no extra call.
 // Category targets cost one IssueStatus read per write; named/id targets
 // never pay it. pickErr is non-nil only when the pick missed and the miss is
 // not a no-op; err is an origin failure.
-func resolveTransition(ctx context.Context, o Origin, key, target string, list []jira.Transition, statusUse func(string) int) (id string, noop bool, pickErr, err error) {
+func resolveTransition(ctx context.Context, o Origin, key, target, transitionID string, list []jira.Transition, statusUse func(string) int) (id string, noop bool, pickErr, err error) {
+	if transitionID != "" {
+		for _, t := range list {
+			if t.ID == transitionID {
+				return t.ID, false, nil, nil
+			}
+		}
+		return "", false, notOfferedTransition(key, transitionID, list), nil
+	}
 	opt := PickOptions{StatusUse: statusUse}
 	if token, isCategory := StatusCategoryToken(target); isCategory {
 		st, ok, nerr := currentStatus(ctx, o, key)
@@ -214,6 +237,18 @@ func currentStatus(ctx context.Context, o Origin, key string) (jira.Status, bool
 		return jira.Status{}, false, err
 	}
 	return st, true, nil
+}
+
+// notOfferedTransition is the machine path's miss (GDK-1982): the id came
+// from a list this origin answered, so a miss means the caller is holding a
+// stale one. It names the id sent and the ids offered in the format every
+// other miss already uses, and mirrors noTransitionMatch's empty-list case.
+func notOfferedTransition(key, want string, list []jira.Transition) error {
+	if len(list) == 0 {
+		return &Refused{Msg: fmt.Sprintf("%s has no available transitions for this credential", key)}
+	}
+	return &Refused{Msg: fmt.Sprintf("transition id %q is not offered on %s — available: %s",
+		want, key, JoinTransitions(list))}
 }
 
 func byID(list []jira.Transition, id string) jira.Transition {
