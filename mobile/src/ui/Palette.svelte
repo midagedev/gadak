@@ -34,9 +34,13 @@
    * in the field.
    *
    * The ordering rules live in lib/palette.ts (vitest); what is here is the
-   * I/O: the debounced request and its generation counter. The field never
-   * takes focus on open (GDK-1985): it is visible at the head of the body
-   * with the keyboard down, and a person who wants to type taps it.
+   * I/O: the debounced request and its generation counter. The field does
+   * not take focus when the heading opened this (GDK-1985): the body rides
+   * at the head with the keyboard down, and an autofocus there would put
+   * the keyboard over the owner list. The header's search button is the
+   * door that asked to type, and it is the one that sets `paletteFocus`
+   * (GDK-1990) — read once here, then cleared, so a re-render is not a
+   * second focus.
    */
   let {
     scopes,
@@ -58,6 +62,21 @@
   let recents = $state(recentSearches())
   let debounce: ReturnType<typeof setTimeout> | null = null
   let inputEl = $state<HTMLInputElement | null>(null)
+
+  /*
+   * GDK-1990: the search door's focus, taken on arrival.
+   *
+   * An action, not an `$effect` — the difference is the one GDK-692 is
+   * about. The flag is set by `openPalette(true)` before this body exists,
+   * so what has to happen is "when the node appears, focus it once", which
+   * is exactly a mount hook; an effect would have to assign `$state` in its
+   * body to avoid firing twice, and that assign is the banned shape. The
+   * flag is cleared by `closePalette`, so it never outlives the open that
+   * set it.
+   */
+  function focusOnOpen(node: HTMLInputElement, wanted: boolean): void {
+    if (wanted) node.focus()
+  }
   let searching = $state(false)
   let searchFailed = $state(false)
   let searchGen = 0
@@ -157,6 +176,7 @@
     <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" />
   </svg>
   <input
+    use:focusOnOpen={app.paletteFocus}
     bind:this={inputEl}
     bind:value={query}
     oninput={onInput}

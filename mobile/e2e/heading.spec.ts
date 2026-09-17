@@ -97,8 +97,8 @@ type Boxes = {
   count: number
   countText: string
   spacer: number
-  fresh: number
-  freshText: string
+  search: number
+  searchText: string
   newBtn: number
   gear: number
   headHeight: number
@@ -121,8 +121,8 @@ async function measure(page: import('@playwright/test').Page): Promise<Boxes> {
       count: width('h1 .count'),
       countText: (el('h1 .count')?.textContent ?? '').trim(),
       spacer: width('.head .spacer'),
-      fresh: width('button.fresh'),
-      freshText: (el('button.fresh')?.textContent ?? '').trim(),
+      search: width('.head button.search'),
+      searchText: (el('.head button.search')?.textContent ?? '').trim(),
       newBtn: width('.head button.new'),
       gear: width('.head button.gear'),
       headHeight: Math.round(el('.head')?.getBoundingClientRect().height ?? -1),
@@ -174,8 +174,9 @@ for (const locale of WANTED) {
         `[heading] ${locale} · ${view.short}: .head ${b.head} | .scope ${b.scope}` +
           ` (.name ${b.name}/${b.nameScroll}${b.nameScroll > b.name ? ' ✂' : ''}` +
           ` "${b.nameText}") | data-fit ${JSON.stringify(b.fit)} | .count ${b.count}` +
-          ` (${b.countText}) | .spacer ${b.spacer} | .new ${b.newBtn}` +
-          ` | .gear ${b.gear} | .fresh ${b.fresh} | .head h=${b.headHeight} scroll=${b.headScroll}`,
+          ` (${b.countText}) | .spacer ${b.spacer} | .search ${b.search}` +
+          ` | .new ${b.newBtn} | .gear ${b.gear} | .head h=${b.headHeight}` +
+          ` scroll=${b.headScroll}`,
       )
       // Capture only when a round asked for it (e2e/capture-guard.unit.ts): the
       // env read sits beside the call, which is the shape that guard reads.
@@ -184,12 +185,13 @@ for (const locale of WANTED) {
         mkdirSync(shotDir, { recursive: true })
         await page.screenshot({ path: `${shotDir}/heading-${locale}-${view.short}.png` })
       }
-      // The refresh control is a glyph and only a glyph (GDK-1974, 2026-09-17):
-      // the words are gone by contract — deleted from the template, not hidden
-      // at the squeeze — so text content is a contract reading in every
-      // locale, en included. A `syncLabel`-shaped regression shows up as text
-      // here long before it shows up as a wrapped row.
-      expect(b.freshText, `${locale} · ${view.short} .fresh carries text`).toBe('')
+      // Every header control is a glyph and only a glyph (GDK-1974, and the
+      // search door that took the refresh control's slot in GDK-1990): the
+      // words are gone by contract — deleted from the template, not hidden at
+      // the squeeze — so text content is a contract reading in every locale,
+      // en included. A `syncLabel`-shaped regression shows up as text here
+      // long before it shows up as a wrapped row.
+      expect(b.searchText, `${locale} · ${view.short} .search carries text`).toBe('')
       expect(b.name, `${locale} · ${view.short} .name clientWidth`).toBeGreaterThan(0)
       const whole = b.nameScroll <= b.name
       // The rule this file exists for (GDK-1974): the name gives up size
@@ -234,7 +236,7 @@ for (const locale of WANTED) {
       // One line in every language (GDK-1936, revised 2026-09-16): the row's
       // height is asserted, not any one child's — a wrap shows up here as
       // scroll the row cannot hold.
-      expect(b.fresh, `${locale} · ${view.short} .fresh is visible`).toBeGreaterThan(0)
+      expect(b.search, `${locale} · ${view.short} .search is visible`).toBeGreaterThan(0)
       expect(
         b.headScroll,
         `${locale} · ${view.short} the header row overflows its line: scrollWidth` +
@@ -248,6 +250,9 @@ for (const locale of WANTED) {
       // button has (app.css, GDK-867).
       expect(b.newBtn, `${locale} · ${view.short} .new tap target`).toBeGreaterThanOrEqual(44)
       expect(b.gear, `${locale} · ${view.short} .gear tap target`).toBeGreaterThanOrEqual(44)
+      // GDK-1990: the search door is the third, and it is a full square —
+      // the refresh control it replaced was the one narrow box in the row.
+      expect(b.search, `${locale} · ${view.short} .search tap target`).toBeGreaterThanOrEqual(44)
     })
   }
 }
@@ -268,11 +273,13 @@ for (const locale of WANTED) {
  *   glyph widths  .new 20  .gear 19  .fresh 14
  *   gaps          .scope->.new 79 (a 73px .spacer inside)  .new->.gear 6
  *
- * The cluster is deliberately NOT three 44px boxes: .fresh is narrow on
- * purpose (GDK-1974 — "every px it spends is a px the name does not get"),
- * and measured here, widening it to 44 costs the ja name a whole fit step.
- * What makes the three read as a set is one glyph size and a gap structure
- * that separates the set from the door, not equal boxes.
+ * The cluster was deliberately NOT three 44px boxes while the refresh
+ * control was in it: that box was narrow on purpose (GDK-1974 — "every px
+ * it spends is a px the name does not get"), and widening it to 44 cost the
+ * ja name a whole fit step. GDK-1990 made them equal the other way — the
+ * refresh control left and the search door took its slot — so the even
+ * rhythm below is now geometry rather than a hand-placed margin. The width
+ * that bought it back is in the `.actions` comment in Issues.svelte.
  */
 test('header hierarchy (GDK-1989)', async ({ page }) => {
   await seedScope(page, 'en', 'builtin:all-open')
@@ -313,12 +320,12 @@ test('header hierarchy (GDK-1989)', async ({ page }) => {
       glyph: {
         newBtn: Math.round(el('.head button.new svg')?.getBoundingClientRect().width ?? -1),
         gear: Math.round(el('.head button.gear svg')?.getBoundingClientRect().width ?? -1),
-        fresh: Math.round(el('button.fresh svg')?.getBoundingClientRect().width ?? -1),
+        search: Math.round(el('.head button.search svg')?.getBoundingClientRect().width ?? -1),
       },
       centres: {
         newBtn: glyphCentre('.head button.new svg'),
         gear: glyphCentre('.head button.gear svg'),
-        fresh: glyphCentre('button.fresh svg'),
+        search: glyphCentre('.head button.search svg'),
       },
       spacerPresent: el('.head .spacer') !== null,
       boxes: {
@@ -354,7 +361,7 @@ test('header hierarchy (GDK-1989)', async ({ page }) => {
   // 3. The three right-hand controls are one set: one glyph size. Their
   //    BOXES stay unequal on purpose (see the header comment).
   expect(h.glyph.gear, '.gear glyph matches .new').toBe(h.glyph.newBtn)
-  expect(h.glyph.fresh, '.fresh glyph matches .new').toBe(h.glyph.newBtn)
+  expect(h.glyph.search, '.search glyph matches .new').toBe(h.glyph.newBtn)
 
   // 4. The set is separated from the door by more than it is from itself.
   //    Measured from the heading's own slot, not from the rule's right edge:
@@ -374,11 +381,11 @@ test('header hierarchy (GDK-1989)', async ({ page }) => {
   //    all three, the narrow refresh box pulled its glyph 9px closer to the
   //    gear than the gear sits to the create control, which is the stagger
   //    that reads as "the buttons are placed at random".
-  const d1 = h.centres.gear - h.centres.newBtn
-  const d2 = h.centres.fresh - h.centres.gear
+  const d1 = h.centres.newBtn - h.centres.search
+  const d2 = h.centres.gear - h.centres.newBtn
   expect(
     Math.abs(d1 - d2),
-    `glyph rhythm: centres ${h.centres.newBtn}/${h.centres.gear}/${h.centres.fresh}` +
+    `glyph rhythm: centres ${h.centres.search}/${h.centres.newBtn}/${h.centres.gear}` +
       ` give gaps ${d1} and ${d2}`,
   ).toBeLessThanOrEqual(4)
 

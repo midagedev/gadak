@@ -87,9 +87,14 @@ const CEILINGS: Record<string, { lines: number; state: number }> = {
   // their own wrapper. Mostly comment and CSS — the round's own recurrence
   // layer is in e2e/heading.spec.ts, not here. Then 559 → 579 for the vision
   // round's two axes (the rule's ink is the strong border, not the row
-  // separator's; the set's last gap is 8px, not 2), both comment. $state
-  // unchanged. 529 → 579.
-  'Issues.svelte': { lines: 579, state: 3 },
+  // separator's; the set's last gap is 8px, not 2), both comment. Then
+  // 579 → 590 for GDK-1990: the search door takes the refresh control's
+  // slot, so the heading's glyph goes back to a chevron and a second
+  // opener appears — the template trades one button for another and the
+  // CSS trades one rule block for another, with the measured reason the
+  // set closes flush written where the number lives. $state unchanged.
+  // 529 → 590.
+  'Issues.svelte': { lines: 590, state: 3 },
   // Measured 2026-09-16 at birth (GDK-1827): the sprint list is the first
   // screen with no local state at all — every row is derived from the store.
   'Sprints.svelte': { lines: 262, state: 0 },

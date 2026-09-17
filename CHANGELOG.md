@@ -41,7 +41,14 @@ stopped early — and the magnifier wears the heading's own ink. The three
 controls at the right end are one set: one glyph size across all three, held
 close to each other and well clear of the heading, with the dead space that
 used to sit between them gone so the heading takes the room instead
-([GDK-1989]).
+([GDK-1989]). Search is one of those three now: it has a control of its own
+again, in the slot the manual refresh glyph gave up — a fourth button would
+have taken 46px from the heading, which is every Japanese view name a size
+smaller and three of five without their count, while replacing one costs
+nothing. Tapping it opens the same palette the heading does, with the field
+already focused; the heading still opens the list of views with the keyboard
+down. Manual sync keeps its door in Settings, where the last sync time
+already lived ([GDK-1990]).
 
 ## v0.23.1
 
@@ -1819,3 +1826,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1987]: https://gadak.dev/backlog/#/?ks=GDK-1987
 [GDK-1988]: https://gadak.dev/backlog/#/?ks=GDK-1988
 [GDK-1989]: https://gadak.dev/backlog/#/?ks=GDK-1989
+[GDK-1990]: https://gadak.dev/backlog/#/?ks=GDK-1990

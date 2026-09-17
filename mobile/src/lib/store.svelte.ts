@@ -199,13 +199,18 @@ export const app = $state({
    */
   sprintsEntered: false,
   /**
-   * The palette, in place of the list body (GDK-902). Dormant on boot and
-   * never focused on open (GDK-1985): the field rides the head of the body
-   * with the keyboard down — an autofocus would put the keyboard over the
-   * owner list and kill the glance, and a person who wants to type taps
-   * the field.
+   * The palette, in place of the list body (GDK-902). Dormant on boot.
    */
   palette: false,
+  /**
+   * Whether this open should focus the field (GDK-1990). The heading's own
+   * tap never does — an autofocus there would put the keyboard over the
+   * owner list and kill the glance, which is what GDK-1985 measured. The
+   * search button in the header is the door that means "I want to type",
+   * and it is the only caller that sets this. One-shot: the palette clears
+   * it when it has acted, so a re-render is not a second focus.
+   */
+  paletteFocus: false,
   /** The open push layer, or none. Mutually exclusive with `detail`. */
   layer: null as Layer | null,
   detail: null as DetailRef | null,
@@ -1374,18 +1379,21 @@ export function setOwner(owner: Owner): void {
 }
 
 /**
- * Opens the palette in place of the list body. The heading is the only
- * door (GDK-1985, superseding GDK-1974's two) and it never raises the
- * keyboard: the field is at the head of the body, and a person who wants
- * to type taps it.
+ * Opens the palette in place of the list body. Two doors land here and they
+ * land differently (GDK-1990, re-judging GDK-1985's one): the heading opens
+ * the owner list with the keyboard down, and the header's search button
+ * opens the same body with the field focused. `focus` is what separates
+ * them; the heading passes nothing.
  */
-export function openPalette(): void {
+export function openPalette(focus = false): void {
   app.palette = true
+  app.paletteFocus = focus
 }
 
 /** Closes it. The list restores the scroll position it had (DESIGN.md §2). */
 export function closePalette(): void {
   app.palette = false
+  app.paletteFocus = false
 }
 
 /**

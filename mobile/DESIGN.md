@@ -86,7 +86,7 @@ trigger would spend ~78px back; the heading slot spends none.
 │ unpaired / token rejected) │  until pairing succeeds
 └────────────────────────────┘
 ┌────────────────────────────┐
-│ My issues · 42 ⌕    + ⚙ ↻  │  heading = owner's name = the palette's trigger
+│ My issues · 42 ⌄   ⌕ + ⚙   │  heading = owner's name = the palette's trigger
 ├────────────────────────────┤
 │ (what the owner draws)     │  scope list · documents plate · shell
 └────────────────────────────┘
@@ -111,10 +111,17 @@ palette, the field riding the head of the body with the keyboard down — a
 person who wants to type taps the field. Nothing is ever focused on open:
 the first paint is the owner's rows, so "what's on my plate" stays a glance
 with no taps (both research tracks: an autofocused field puts the keyboard
-over the first screen and kills the glance). The heading is the only door,
-and it wears the magnifier the field wears, so the screen says search
-without paying a second 44pt control (GDK-1985, superseding GDK-1974's two
-doors); a second tap on it closes what the first opened. The body swapping
+over the first screen and kills the glance). Two controls open it and they
+land differently (GDK-1990): the heading opens the owner list exactly as
+above, and the header's magnifier — the one the field wears — opens the
+same body with the field already focused, because a person who reached for
+a magnifier has said they want to type. A second tap on either closes what
+it opened. The magnifier is a control rather than a mark on the heading
+because the row carries three 44pt squares and not four: measured at 402, a
+fourth takes 46px from the heading's slot, which drops every Japanese view
+name a size step and takes the count off three of five. It fits by
+replacing, not by adding — the manual refresh glyph gave up the slot and
+keeps its door in Settings. The body swapping
 in place is the point: switching owners is not a screen change but a change
 in what the list shows. Search is not a screen any more — it is the palette
 with a query, drawing the same `Row`/`DocRow` into the same body and
@@ -194,10 +201,13 @@ Dimensions are mobile-owned (`@theme` override after the import):
   ("My issues ·42") on a *phone tool*. It is what makes a capture of this
   app unmistakably gadak and not a Tailwind template; if it reads as a
   newspaper gimmick in captures, the fallback is `.type-subject` on Detail
-  titles only. The heading is also a control, so it carries the palette's
-  muted magnifier after the count and measures 44pt — the padding that used
-  to give the header its height now lives inside the button, and the row
-  count below is unchanged.
+  titles only. The heading is also a control, so it carries a chevron after
+  the count, a rule under it, and measures 44pt — the padding that used to
+  give the header its height now lives inside the button, and the row count
+  below is unchanged. The rule is what says "control" (GDK-1989: the glyph
+  alone failed twice), and it is drawn in the strong border ink, never the
+  subtle one the list rows are ruled with, or it reads as a divider that
+  stopped early.
 
 ### 3.3 Space & density
 4pt grid (4/8/12/16/24/32), 16px screen gutter. Issue rows are **56px**

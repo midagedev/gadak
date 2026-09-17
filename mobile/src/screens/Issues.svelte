@@ -108,16 +108,21 @@
   let counts = $state(new Map<string, number | null>())
   /*
    * The door pays its toll before it opens (GDK-886/GDK-902): the counts
-   * the owner list shows and the scroll position Cancel restores. One door
-   * (GDK-1985, superseding GDK-1974's two): the heading is it, wearing the
-   * magnifier so the screen says search, and it toggles (GDK-1984) — a
-   * second tap closes what the first opened, so aria-expanded is true in
-   * more than name.
+   * the owner list shows and the scroll position Cancel restores.
+   *
+   * Two doors, and they land differently (GDK-1990, re-judging GDK-1985's
+   * one): the heading opens the owner list with the keyboard down, the
+   * header's magnifier opens the same body with the field focused. Both
+   * toggle (GDK-1984) — a second tap closes what the first opened, so
+   * aria-expanded is true in more than name. The heading wears a chevron
+   * again, because a magnifier in two places would be one glyph meaning
+   * two things; what it did not have in GDK-1974 is the rule under it
+   * (GDK-1989), which is why the chevron went unseen then.
    */
-  function preparePalette(): void {
+  function preparePalette(focus: boolean): void {
     counts = new Map(scopes.map((s) => [s.id, scopeCount(app.issues, app.me, s, app.pages)]))
     savedScroll = scroller?.scrollTop ?? 0
-    openPalette()
+    openPalette(focus)
   }
   /** The heading's tap: the owner list with the keyboard down — or, already
    *  open, the close that reopens the list (GDK-1984). */
@@ -126,7 +131,15 @@
       closePalette()
       return
     }
-    preparePalette()
+    preparePalette(false)
+  }
+  /** The header magnifier's tap: the same body, ready to type. */
+  function showSearch(): void {
+    if (app.palette) {
+      closePalette()
+      return
+    }
+    preparePalette(true)
   }
   function pick(id: string): void {
     setScope(id)
@@ -185,12 +198,23 @@
         <button class="scope" onclick={showPalette} aria-expanded={app.palette}>
           <span class="name type-subject">{heading}</span>
           <span class="count">·{view.total}</span>
-          <svg class="glass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" />
+          <svg class="glass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m6 9 6 6 6-6" />
           </svg>
         </button>
       </h1>
       <div class="actions">
+      <!-- GDK-1990: search has a control of its own, in the slot the refresh
+           glyph gave up. A fourth 44px control would have cost the heading
+           46px, and that measured as every ja view name dropping a size step
+           and three of five losing their count. Manual sync keeps its door
+           in Settings (`sync.now` there), the app syncs on its own, and the
+           list's own render-failure retry is untouched. -->
+      <button class="search" onclick={showSearch} aria-expanded={app.palette} aria-label={t('palette.entryLabel')}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" />
+        </svg>
+      </button>
       <button
         class="new"
         onclick={() => (createOpen = true)}
@@ -217,11 +241,6 @@
         {#if app.offline}
           <span class="dot" aria-label={t('app.offline')}></span>
         {/if}
-      </button>
-      <button class="fresh" onclick={() => void sync()} aria-label={t('sync.now')}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class:spin={app.syncing} aria-hidden="true">
-          <path d="M21 12a9 9 0 1 1-2.6-6.3" /><path d="M21 3v6h-6" />
-        </svg>
       </button>
       </div>
     </div>
@@ -411,50 +430,50 @@
     color: var(--color-text-primary);
   }
   /* GDK-1989: the three actions are one set — one glyph size, held close,
-     and separated from the door by more than they are from each other. Their
-     BOXES stay unequal on purpose: `.fresh` is narrow by GDK-1974's decision
-     below, and squaring it to 44 costs the ja name a whole fit step. */
+     and separated from the door by more than they are from each other.
+     GDK-1990 made the boxes equal too, by swapping the one narrow control
+     out rather than by widening it: a fourth box, or a wider third, is what
+     costs the heading a fit step.
+
+     The set closes to a flush row and its margin halves (GDK-1990), and
+     that is not taste — it is the 11px the new 44pt box would otherwise
+     have taken from the heading. Measured at 402 across the seeded view
+     names: at gap 2 / margin 12 the heading's slot is 216 and `Unassigned
+     new` falls to the ladder's last step and loses its count; at gap 0 /
+     margin 6 it is 226 and every name lands exactly where it landed before
+     this control existed. Three 44pt boxes flush against each other still
+     read as three — the glyphs are 19px centred in them, so there is 25px
+     of air between neighbours — and nothing can be mis-tapped into, because
+     there is no dead space between them to miss into. */
   .actions {
     flex: none;
     display: flex;
     align-items: center;
-    gap: 2px;
-    margin-left: 12px;
+    gap: 0;
+    margin-left: 6px;
   }
-  .fresh {
-    /* GDK-1974 (2026-09-17): the stamp's words are gone for good — the row
-       could not hold them beside a third header control (GDK-1936 shed them
-       only at the squeeze; this is the permanent version of that). The glyph
-       is the control; it keeps the 44pt floor every button has (app.css,
-       GDK-867) and takes only the width its glyph needs, because unlike its
-       square siblings it was never sized by words — every px it spends is a
-       px the name does not get. The last-sync time it used to say lives in
-       Settings (`sync.settledOk` there). */
+  /* The search door (GDK-1990), in the slot the refresh glyph gave up. Same
+     44pt square as its two neighbours: with the narrow box gone the set is
+     three equal ones, so the even glyph rhythm the vision round had to
+     hand-correct (a 6px margin before a 27px box) is the geometry's own
+     answer now. Muted like the gear — it opens something, it does not act
+     on the tracker. The last-sync time the refresh control used to carry
+     lives in Settings (`sync.settledOk` there), beside the manual sync. */
+  .search {
     flex: none;
-    white-space: nowrap;
     align-self: center;
+    width: 44px;
     display: flex;
     align-items: center;
-    padding: 0 4px;
+    justify-content: center;
     color: var(--color-text-muted);
   }
-  .fresh svg {
+  .search svg {
     width: 19px;
     height: 19px;
   }
-  /* The set's last gap is 8px, not the 2px between the other two (vision
-     verdict, 2026-09-18): `.fresh` is a narrow box by GDK-1974's decision
-     above, so at an even 2px its glyph's centre sat 37px from the gear's
-     while the gear's sat 46px from the create control's — a visible
-     stagger in the one row this round exists to settle. The extra 6px goes
-     before it, never after: the cluster is right-anchored and the refresh
-     glyph's right edge is what makes the row's 16px margin match the
-     heading's on the left. */
-  .actions .fresh {
-    margin-left: 6px;
-  }
-  /* The create action (GDK-1497 A2): a 44pt square beside the sync state,
-     drawn heavier than .fresh because it acts on the tracker, not the
+  /* The create action (GDK-1497 A2): a 44pt square in the set, drawn
+     heavier than its neighbours because it acts on the tracker, not the
      mirror. */
   .new {
     flex: none;
@@ -470,7 +489,7 @@
     height: 19px;
   }
   /* Same 44pt square as the create action, drawn in the muted weight the
-     sync state wears: it opens a screen, it does not act on the tracker. */
+     search door wears: it opens a screen, it does not act on the tracker. */
   .gear {
     position: relative;
     flex: none;
@@ -509,14 +528,6 @@
     transform: rotate(-45deg);
   }
 
-  .fresh svg.spin {
-    animation: spin 1.2s linear infinite;
-  }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
   .offline,
   .note {
     margin: 0 0 8px;
