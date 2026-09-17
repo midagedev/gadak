@@ -190,7 +190,7 @@
           </svg>
         </button>
       </h1>
-      <span class="spacer"></span>
+      <div class="actions">
       <button
         class="new"
         onclick={() => (createOpen = true)}
@@ -223,6 +223,7 @@
           <path d="M21 12a9 9 0 1 1-2.6-6.3" /><path d="M21 3v6h-6" />
         </svg>
       </button>
+      </div>
     </div>
     {#if offlineBanner}
       <p class="offline">{t('app.offlineBanner')}</p>
@@ -320,18 +321,46 @@
     padding: 4px 0;
     min-width: 0;
   }
+  /* GDK-1989: the heading takes the room the row has left, so a long ko/ja
+     name steps down later than it used to — the 73px a `.spacer` element
+     held was space the name could not reach, because the door was sized by
+     its content and nothing let it grow. */
   h1 {
     margin: 0;
+    flex: 1 1 auto;
     min-width: 0;
   }
+  /* The door draws a surface (GDK-1989, the third pass on GDK-1974/1985).
+     Two rounds put a mark ON the door — a chevron, then the magnifier — and
+     neither made the door look like one: a 163x44 button with a transparent
+     background, no border and no shadow, whose only signal was a 17px glyph
+     in the same muted ink as the passive count beside it. A rule under the
+     text is the one surface that says "control" without saying "field":
+     the heading stays a heading (DESIGN.md §2, GDK-885), and `max-content`
+     keeps the rule exactly as wide as the name, so it never reads as the
+     header's own divider.
+
+     The rule is `--color-border-strong`, not `--color-border-subtle`, and
+     that is the whole point of it (vision verdict, 2026-09-18): at subtle
+     the rule was pixel-identical to the row separators stacked below it —
+     same rgb(213,201,178), 1.43:1 on the header ground — so it read as a
+     divider that stopped early rather than as a control. Strong measures
+     1.97:1 in light and 2.21:1 in dark. The ceiling is 3:1: past that it
+     starts reading as a text input's underline, which is the failure the
+     `max-content` width and the heading's own weight exist to avoid. */
   .scope {
     display: flex;
     align-items: baseline;
     gap: 6px;
     padding: 0;
+    width: max-content;
     min-width: 0;
     max-width: 100%;
     color: var(--color-text-primary);
+    border-bottom: 1px solid var(--color-border-strong);
+  }
+  .scope[aria-expanded='true'] {
+    border-bottom-color: var(--color-text-primary);
   }
   .name {
     font-size: var(--text-heading);
@@ -374,12 +403,23 @@
   .glass {
     flex: none;
     align-self: center;
-    width: 17px;
-    height: 17px;
-    color: var(--color-text-muted);
+    width: 19px;
+    height: 19px;
+    /* GDK-1989: the heading's ink, not the count's. Muted put the door's
+       only mark at the same weight as the number beside it and as the two
+       least important controls in the row. */
+    color: var(--color-text-primary);
   }
-  .spacer {
-    flex: 1 1 auto;
+  /* GDK-1989: the three actions are one set — one glyph size, held close,
+     and separated from the door by more than they are from each other. Their
+     BOXES stay unequal on purpose: `.fresh` is narrow by GDK-1974's decision
+     below, and squaring it to 44 costs the ja name a whole fit step. */
+  .actions {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: 12px;
   }
   .fresh {
     /* GDK-1974 (2026-09-17): the stamp's words are gone for good — the row
@@ -392,7 +432,6 @@
        Settings (`sync.settledOk` there). */
     flex: none;
     white-space: nowrap;
-    margin-left: auto;
     align-self: center;
     display: flex;
     align-items: center;
@@ -400,8 +439,19 @@
     color: var(--color-text-muted);
   }
   .fresh svg {
-    width: 14px;
-    height: 14px;
+    width: 19px;
+    height: 19px;
+  }
+  /* The set's last gap is 8px, not the 2px between the other two (vision
+     verdict, 2026-09-18): `.fresh` is a narrow box by GDK-1974's decision
+     above, so at an even 2px its glyph's centre sat 37px from the gear's
+     while the gear's sat 46px from the create control's — a visible
+     stagger in the one row this round exists to settle. The extra 6px goes
+     before it, never after: the cluster is right-anchored and the refresh
+     glyph's right edge is what makes the row's 16px margin match the
+     heading's on the left. */
+  .actions .fresh {
+    margin-left: 6px;
   }
   /* The create action (GDK-1497 A2): a 44pt square beside the sync state,
      drawn heavier than .fresh because it acts on the tracker, not the
@@ -416,8 +466,8 @@
     color: var(--color-text-primary);
   }
   .new svg {
-    width: 20px;
-    height: 20px;
+    width: 19px;
+    height: 19px;
   }
   /* Same 44pt square as the create action, drawn in the muted weight the
      sync state wears: it opens a screen, it does not act on the tracker. */

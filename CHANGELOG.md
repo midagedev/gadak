@@ -30,6 +30,19 @@ now and hands the shell the whole word at a boundary; while it holds one it is
 a strip above the keys, so what is still being assembled is visible rather than
 gone ([GDK-1988]).
 
+**The phone's list header says where to tap.** The heading is the door into
+search and into every other view, and it drew nothing of its own: a 163x44
+button with no background, no border and no shadow, whose only sign of being
+a control was a small magnifier in the same muted ink as the count beside it.
+Two earlier rounds changed that glyph and neither landed. A rule runs under
+the heading now — in the stronger of the two border inks, not the one the
+list rows below are ruled with, which is what made it read as a divider that
+stopped early — and the magnifier wears the heading's own ink. The three
+controls at the right end are one set: one glyph size across all three, held
+close to each other and well clear of the heading, with the dead space that
+used to sit between them gone so the heading takes the room instead
+([GDK-1989]).
+
 ## v0.23.1
 
 **A status the apps offered but the server refused.** On the built-in tracker
@@ -1805,3 +1818,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1986]: https://gadak.dev/backlog/#/?ks=GDK-1986
 [GDK-1987]: https://gadak.dev/backlog/#/?ks=GDK-1987
 [GDK-1988]: https://gadak.dev/backlog/#/?ks=GDK-1988
+[GDK-1989]: https://gadak.dev/backlog/#/?ks=GDK-1989

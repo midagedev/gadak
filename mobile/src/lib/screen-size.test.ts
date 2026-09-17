@@ -81,7 +81,15 @@ const CEILINGS: Record<string, { lines: number; state: number }> = {
   // 2026-09-17, GDK-1985: one door — the header's magnifier button and
   // showSearch leave, the chevron becomes the field's own magnifier glyph,
   // and the heading toggles (GDK-1984). 548 → 529; $state unchanged at 3.
-  'Issues.svelte': { lines: 529, state: 3 },
+  // Raised 2026-09-18 for GDK-1989 (the header's hierarchy, third pass on
+  // GDK-1974/1985): the door draws a rule and takes the row's leftover room,
+  // the `.spacer` element goes, and the three actions become one set in
+  // their own wrapper. Mostly comment and CSS — the round's own recurrence
+  // layer is in e2e/heading.spec.ts, not here. Then 559 → 579 for the vision
+  // round's two axes (the rule's ink is the strong border, not the row
+  // separator's; the set's last gap is 8px, not 2), both comment. $state
+  // unchanged. 529 → 579.
+  'Issues.svelte': { lines: 579, state: 3 },
   // Measured 2026-09-16 at birth (GDK-1827): the sprint list is the first
   // screen with no local state at all — every row is derived from the store.
   'Sprints.svelte': { lines: 262, state: 0 },

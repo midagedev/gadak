@@ -251,3 +251,139 @@ for (const locale of WANTED) {
     })
   }
 }
+
+/*
+ * GDK-1989: the header's hierarchy, as numbers.
+ *
+ * Three rounds landed on one symptom — "the door into search is not visible"
+ * (GDK-1974 chevron, GDK-1985 magnifier, this one) — because the mark on the
+ * door was the only axis anyone measured. Nothing read the door's *surface*,
+ * the ink it shares with passive text, or whether the three right-hand
+ * controls read as one set. This is that axis.
+ *
+ * FAIL-first, measured on HEAD at 402x874 before the fix (2026-09-18):
+ *   button.scope  background rgba(0,0,0,0)  border-bottom 0px none
+ *   svg.glass     #635A4F (contrast 5.90)  ==  .count, .gear, .fresh
+ *   .name         #1C1812 (contrast 15.41) ==  .new
+ *   glyph widths  .new 20  .gear 19  .fresh 14
+ *   gaps          .scope->.new 79 (a 73px .spacer inside)  .new->.gear 6
+ *
+ * The cluster is deliberately NOT three 44px boxes: .fresh is narrow on
+ * purpose (GDK-1974 — "every px it spends is a px the name does not get"),
+ * and measured here, widening it to 44 costs the ja name a whole fit step.
+ * What makes the three read as a set is one glyph size and a gap structure
+ * that separates the set from the door, not equal boxes.
+ */
+test('header hierarchy (GDK-1989)', async ({ page }) => {
+  await seedScope(page, 'en', 'builtin:all-open')
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await page.locator('.pane:not(.off) h1 button.scope').waitFor()
+  await page.locator('.pane:not(.off) button.row').first().waitFor()
+  const h = await page.evaluate(() => {
+    const el = (sel: string): HTMLElement | null =>
+      document.querySelector<HTMLElement>(`.pane:not(.off) ${sel}`)
+    const box = (sel: string) => {
+      const e = el(sel)
+      if (!e) return null
+      const b = e.getBoundingClientRect()
+      return { left: Math.round(b.left), right: Math.round(b.right), w: Math.round(b.width) }
+    }
+    const glyphCentre = (sel: string): number => {
+      const e = el(sel)
+      if (!e) return -1
+      const b = e.getBoundingClientRect()
+      return Math.round((b.left + b.right) / 2)
+    }
+    const scope = el('h1 button.scope')
+    const cs = scope ? getComputedStyle(scope) : null
+    return {
+      surface: {
+        bottomWidth: Math.round(parseFloat(cs?.borderBottomWidth ?? '0')),
+        bottomStyle: cs?.borderBottomStyle ?? 'none',
+        bottomColor: cs?.borderBottomColor ?? '',
+        rowSeparator: getComputedStyle(
+          document.querySelector('.pane:not(.off) button.row')!,
+        ).borderBottomColor,
+      },
+      ink: {
+        name: el('h1 .name') ? getComputedStyle(el('h1 .name')!).color : '',
+        glass: el('svg.glass') ? getComputedStyle(el('svg.glass')!).color : '',
+        count: el('h1 .count') ? getComputedStyle(el('h1 .count')!).color : '',
+      },
+      glyph: {
+        newBtn: Math.round(el('.head button.new svg')?.getBoundingClientRect().width ?? -1),
+        gear: Math.round(el('.head button.gear svg')?.getBoundingClientRect().width ?? -1),
+        fresh: Math.round(el('button.fresh svg')?.getBoundingClientRect().width ?? -1),
+      },
+      centres: {
+        newBtn: glyphCentre('.head button.new svg'),
+        gear: glyphCentre('.head button.gear svg'),
+        fresh: glyphCentre('button.fresh svg'),
+      },
+      spacerPresent: el('.head .spacer') !== null,
+      boxes: {
+        scope: box('h1 button.scope'),
+        h1: box('.head h1'),
+        actions: box('.head .actions'),
+        newBtn: box('.head button.new'),
+        gear: box('.head button.gear'),
+      },
+    }
+  })
+  console.log(`[hierarchy] ${JSON.stringify(h)}`)
+
+  // 1. The door draws a surface. A rule under the text, not a fill and not a
+  //    field shape — the heading stays a heading (DESIGN.md §2, GDK-885).
+  expect(h.surface.bottomStyle, 'button.scope draws a bottom rule').not.toBe('none')
+  expect(h.surface.bottomWidth, 'button.scope bottom rule width').toBeGreaterThanOrEqual(1)
+  //    And it is NOT the ink the list rows below it are ruled with. At
+  //    --color-border-subtle the rule was pixel-identical to five stacked
+  //    row separators (1.43:1 on the header ground) and read as a divider
+  //    that stopped early — the exact way the two earlier rounds failed.
+  expect(
+    h.surface.bottomColor,
+    `button.scope rule is the row separator ink (${h.surface.bottomColor})`,
+  ).not.toBe(h.surface.rowSeparator)
+
+  // 2. The door's mark carries the heading's ink, not the count's. On HEAD
+  //    the magnifier was the same muted ink as the passive count beside it
+  //    and as the least important control in the row.
+  expect(h.ink.glass, 'svg.glass wears the heading ink').toBe(h.ink.name)
+  expect(h.ink.glass, 'svg.glass is not the count ink').not.toBe(h.ink.count)
+
+  // 3. The three right-hand controls are one set: one glyph size. Their
+  //    BOXES stay unequal on purpose (see the header comment).
+  expect(h.glyph.gear, '.gear glyph matches .new').toBe(h.glyph.newBtn)
+  expect(h.glyph.fresh, '.fresh glyph matches .new').toBe(h.glyph.newBtn)
+
+  // 4. The set is separated from the door by more than it is from itself.
+  //    Measured from the heading's own slot, not from the rule's right edge:
+  //    the heading takes the row's leftover width, so the distance from the
+  //    underline to the first glyph is slack, and the gap that says "these
+  //    three belong together" is the one between the two slots.
+  const doorToSet = h.boxes.actions!.left - h.boxes.h1!.right
+  const insideSet = h.boxes.gear!.left - h.boxes.newBtn!.right
+  expect(
+    doorToSet,
+    `the set is grouped: slot gap ${doorToSet} must exceed set-internal ${insideSet}`,
+  ).toBeGreaterThan(insideSet)
+  expect(insideSet, 'the set is held close').toBeLessThanOrEqual(4)
+
+  // 6. The set has an even rhythm. The three boxes are unequal on purpose,
+  //    so the reading that matters is where the GLYPHS sit: at one gap for
+  //    all three, the narrow refresh box pulled its glyph 9px closer to the
+  //    gear than the gear sits to the create control, which is the stagger
+  //    that reads as "the buttons are placed at random".
+  const d1 = h.centres.gear - h.centres.newBtn
+  const d2 = h.centres.fresh - h.centres.gear
+  expect(
+    Math.abs(d1 - d2),
+    `glyph rhythm: centres ${h.centres.newBtn}/${h.centres.gear}/${h.centres.fresh}` +
+      ` give gaps ${d1} and ${d2}`,
+  ).toBeLessThanOrEqual(4)
+
+  // 5. One mechanism for one gap. `.spacer` and `.fresh { margin-left: auto }`
+  //    both made the same space on HEAD, and the 73px it held was space the
+  //    name could not use because the door was sized by its content.
+  expect(h.spacerPresent, '.head .spacer is gone — the door takes the room').toBe(false)
+})
