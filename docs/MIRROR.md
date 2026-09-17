@@ -19,10 +19,17 @@ it refuses, naming both schema versions and both ways out in the error
 (`SchemaForwardRefusedError`). That refusal is what keeps the installed
 release working. To migrate anyway, set `GADAK_DEV_MIGRATE=1`; to experiment
 without deciding for the release, work on a copy of the profile directory as
-the error's one-liner shows. Release builds migrate on open as they always
+the error's one-liner shows. The same override now governs the built-in
+origin's persist: a dev build without it refuses to move the workspace's
+`origin/issuetap.db` forward too (`PersistForwardRefusedError`, GDK-1967),
+so refusing one file can no longer migrate another behind it. Release builds
+migrate on open as they always
 did. Sharing is the exception now, not the default: with `GADAK_HOME` unset
 a dev build lives in `~/.gadak-dev`, the release in `~/.gadak`, and
-`gadak doctor` prints `home` with the reason (`dev build` or `GADAK_HOME`).
+`gadak doctor` prints `home` with the reason (`dev build` or `GADAK_HOME`),
+plus one `schemas` line with have/head pairs for all three versioned files —
+the mirror, local.db and the persist — read without opening anything, so
+doctor itself never migrates what it is diagnosing.
 Point a dev build at the real home only on purpose, with `GADAK_HOME`.
 
 Four layers. Use the lowest one that answers the question:

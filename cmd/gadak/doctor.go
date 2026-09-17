@@ -29,6 +29,7 @@ import (
 	"github.com/midagedev/gadak/internal/skillinstall"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
+	issuetap "github.com/midagedev/issuetap"
 )
 
 // doctorBanner is the first line of every doctor dump so a user pasting into a
@@ -171,6 +172,13 @@ type doctorReport struct {
 	// remediation the notice dropped. Nil in the healthy shapes (current
 	// or older local.db, or none yet): no skew, nothing to say.
 	LocalSchemaSkew *doctorLocalSchema `json:"local_schema_skew,omitempty"`
+
+	// localDBSchema is local.db's on-disk PRAGMA user_version when the file
+	// exists — the local half of the `schemas` line (GDK-1967), collected
+	// before any open so the refusal paths report it too. Unexported: the
+	// JSON contract for that line is the workspace section's persist pair;
+	// local's skew already has its own field above.
+	localDBSchema *int
 }
 
 // doctorPriorityEntropy is the one-fact view of the open-issue priority
@@ -277,6 +285,16 @@ type doctorWorkspace struct {
 	LocalIssues         int    `json:"local_issues"`
 	Inconsistent        bool   `json:"inconsistent"`
 	Frozen              bool   `json:"frozen"`
+	// PersistSchema is the persist file's PRAGMA user_version, read over a
+	// read-only connection (origin.PersistUserVersion — never through
+	// issuetap, so doctor cannot be the process that migrates anything).
+	// Nil when there is no persist file to read. With PersistSchemaHead it
+	// is the persist half of the `schemas` line (GDK-1967): the pair names
+	// both sides of a dev-build refusal without a second command.
+	PersistSchema *int `json:"persist_schema,omitempty"`
+	// PersistSchemaHead is the persist schema stamp this build writes
+	// (issuetap.PersistSchemaVersion), whatever workspace kind this is.
+	PersistSchemaHead int `json:"persist_schema_head,omitempty"`
 }
 
 // doctorSkill answers "is my agent's skill current?" without the user having
@@ -476,6 +494,11 @@ func collectDoctor() doctorReport {
 
 	mirrorWal, mirrorShm := probeDoctorHome(&rep)
 	probeDoctorConfig(&rep)
+	// The persist schema head is a property of this build, not of the
+	// workspace, so it is set here rather than inside probeDoctorConfig:
+	// it must stand even when config.json will not load and the no-config
+	// default Workspace above survives (GDK-1967).
+	rep.Workspace.PersistSchemaHead = issuetap.PersistSchemaVersion()
 	rep.BinaryPath, rep.BinarySignature = collectBuildIdentity()
 
 	// Agent wiring is independent of the mirror, and the mirror branch below
@@ -517,6 +540,16 @@ func collectDoctor() doctorReport {
 		rep.Mirror.ChangedAt = at.UTC().Format(time.RFC3339)
 	}
 	rep.MirrorHolders = listMirrorHolders(path)
+
+	// The local.db half of the `schemas` line, read before the open below
+	// can move anything — the refusal paths return before the probes run,
+	// and the line exists to name all three files exactly there (GDK-1967).
+	// Same read LocalSchemaSkew owns; the stat is only the exists/absent
+	// distinction its zero-on-missing return cannot carry.
+	if _, err := os.Stat(store.LocalPath(path)); err == nil {
+		have, _, _ := store.LocalSchemaSkew(path)
+		rep.localDBSchema = &have
+	}
 
 	// The user's workspace mirror: the dev-lockout policy applies — a dev build
 	// must not migrate a release-written file just because doctor looked.
@@ -707,6 +740,14 @@ func probeDoctorConfig(rep *doctorReport) {
 				rep.Workspace.PreUpgradeCopy = tildeHome(persist + ".pre-v2.bak")
 				rep.Workspace.PreUpgradeCopyBytes = fi.Size()
 			}
+		}
+		// The persist's own schema stamp, read-only (GDK-1967): doctor must
+		// never be the process that migrates it, and a missing file reads
+		// as absent rather than as a verdict doctor cannot stand behind.
+		// (The head is set in collectDoctor — it is this build's stamp, not
+		// a workspace fact, and must survive a config that will not load.)
+		if v, ok := origin.PersistUserVersion(persist); ok {
+			rep.Workspace.PersistSchema = &v
 		}
 	}
 }
@@ -1298,6 +1339,9 @@ func formatDoctorText(r doctorReport) string {
 			line("mirror", r.Mirror.Status)
 		}
 	}
+	// Next to the mirror line: the three versioned files a build can refuse
+	// or be refused by, as have/head pairs (GDK-1967).
+	line("schemas", formatDoctorSchemas(r))
 	if r.Mirror.Version != "" {
 		line("mirror_version", formatDoctorMirrorVersion(r.Mirror))
 	}
@@ -1707,6 +1751,32 @@ func parseLsofHolders(out []byte, selfPID int) []doctorMirrorProcess {
 		procs = append(procs, doctorMirrorProcess{PID: pid, Command: byPID[pid]})
 	}
 	return procs
+}
+
+// formatDoctorSchemas renders the three versioned files this build could
+// refuse to migrate or be refused by — the mirror, local.db, and the
+// built-in origin's persist — as have/head pairs (GDK-1967). "-" is "no
+// file to read": a mirror doctor refused to open still reports the error's
+// have, and a workspace with no persist says absent rather than dropping
+// the segment. The heads are this build's own stamps, so a `1/3` persist
+// beside a dev version string is the whole diagnosis of the lockout.
+func formatDoctorSchemas(r doctorReport) string {
+	mirror := "-"
+	if r.SchemaVersion != nil {
+		mirror = strconv.Itoa(*r.SchemaVersion)
+	}
+	local := "-"
+	if r.localDBSchema != nil {
+		local = strconv.Itoa(*r.localDBSchema)
+	}
+	persist := "-"
+	if r.Workspace.PersistSchema != nil {
+		persist = strconv.Itoa(*r.Workspace.PersistSchema)
+	}
+	return fmt.Sprintf("mirror %s/%d · local %s/%d · persist %s/%d",
+		mirror, store.MirrorSchemaVersion(),
+		local, store.LocalSchemaVersion(),
+		persist, r.Workspace.PersistSchemaHead)
 }
 
 func formatDoctorWorkspace(w doctorWorkspace) string {

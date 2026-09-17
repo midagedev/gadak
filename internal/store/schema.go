@@ -5,6 +5,13 @@ package store
 // plus a documented row in specs/000-product/data-model.md.
 var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48, schemaV49, schemaV50, schemaV51, schemaV52, schemaV53}
 
+// MirrorSchemaVersion is the mirror schema level this build writes
+// (len(migrations)) — the head of a have/head pair. `gadak doctor` prints it
+// beside the file's own stamp so a dev-build refusal names both sides
+// without a second command (GDK-1967); issuetap.PersistSchemaVersion is the
+// persist side's twin.
+func MirrorSchemaVersion() int { return len(migrations) }
+
 // itemsFTSCreate is the canonical items_fts DDL, spliced into schemaV1 so a
 // fresh database is born matching it (GDK-444: an inline copy in V1 lagged at
 // three columns and every new mirror's first Open logged a rebuild). Editing

@@ -2,10 +2,12 @@ package origin
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,6 +19,7 @@ import (
 	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/linear"
 	"github.com/midagedev/gadak/internal/pairing"
+	"github.com/midagedev/gadak/internal/store"
 	issuetap "github.com/midagedev/issuetap"
 )
 
@@ -100,6 +103,30 @@ func PersistPath(dir string) string {
 // directory. Empty dir yields empty path.
 func LegacyYAMLPath(dir string) string {
 	return joinRel(dir, LegacyYAMLRel)
+}
+
+// PersistUserVersion reads the persist file's schema stamp (PRAGMA
+// user_version) over a read-only connection — never through issuetap, so no
+// caller of this can itself migrate anything (GDK-1967: doctor prints the
+// stamp, and the dev-migration log line names the versions it is about to
+// move). ok is false when the file is missing or its stamp unreadable.
+func PersistUserVersion(path string) (version int, ok bool) {
+	if path == "" {
+		return 0, false
+	}
+	if _, err := os.Stat(path); err != nil {
+		return 0, false
+	}
+	db, err := sql.Open("sqlite", "file:"+path+"?mode=ro")
+	if err != nil {
+		return 0, false
+	}
+	defer db.Close()
+	var v int
+	if err := db.QueryRowContext(context.Background(), "PRAGMA user_version").Scan(&v); err != nil {
+		return 0, false
+	}
+	return v, true
 }
 
 func joinRel(dir, rel string) string {
@@ -614,6 +641,31 @@ func openBuiltInSession(cfg *config.Config) (*session, error) {
 	return s, nil
 }
 
+// PersistForwardRefusedError means this open refused to migrate the
+// built-in origin's persist forward because the binary is a dev build and
+// the file may still belong to an installed release (GDK-1967) — the
+// persist-side twin of store.SchemaForwardRefusedError, wrapped around
+// issuetap's own refusal so the message names the build, the override and
+// the copy recipe in gadak's words. The file was left exactly as the
+// release wrote it. Recognise it with errors.As.
+type PersistForwardRefusedError struct {
+	Path         string // the persist file
+	Have         int    // schema version found in the file
+	Want         int    // schema version this build writes
+	BuildVersion string // the dev build's own version string
+}
+
+func (e *PersistForwardRefusedError) Error() string {
+	bv := e.BuildVersion
+	if bv == "" {
+		bv = "unversioned"
+	}
+	return fmt.Sprintf("%s: this is a dev build (%s); the origin persist is at schema %d, this build writes %d. "+
+		"Migrating it forward would lock the installed release out of this workspace. "+
+		"Either set GADAK_DEV_MIGRATE=1 and re-run to migrate it anyway, or work on a copy: %s",
+		e.Path, bv, e.Have, e.Want, store.DevCopyHint(filepath.Dir(filepath.Dir(e.Path))))
+}
+
 // constructBuiltIn embeds issuetap over persist. actor is the process's
 // resolved acting identity (GDK-586): when set, the session's transport
 // stamps X-Issuetap-Actor on every request so writes attribute to the
@@ -623,10 +675,29 @@ func openBuiltInSession(cfg *config.Config) (*session, error) {
 // non-empty: passing it explicitly keeps the persist file's own locale
 // field from winning — gadak owns the workspace language; the persist is
 // the origin's state.
+//
+// The dev-build lockout has one owner: the process default open policy
+// main installed (GDK-1687). The persist is the origin's original record,
+// so the same refusal that guards gadak.db guards issuetap.db here, with
+// the same GADAK_DEV_MIGRATE override (GDK-1967) — the incident was a dev
+// build that refused the mirror and in the same boot moved the persist
+// 1→3, crash-looping the installed release.
 func constructBuiltIn(persist string, projects []string, actor config.ResolvedActor, locale string, maxAttachment int64) (*session, error) {
 	sessionsConstructed.Add(1)
 	if err := os.MkdirAll(filepath.Dir(persist), 0o700); err != nil {
 		return nil, fmt.Errorf("origin: persist dir: %w", err)
+	}
+
+	opts := store.DefaultOpenOptions()
+	devBuild := opts.ForwardMigration == store.RefuseForward
+	override := os.Getenv("GADAK_DEV_MIGRATE") == "1"
+	if devBuild && override {
+		// The override is about to migrate the persist under a dev build —
+		// say so the way the store's own override does (store.go), one
+		// stderr line, so the migration leaves a trail.
+		if have, ok := PersistUserVersion(persist); ok && have < issuetap.PersistSchemaVersion() {
+			log.Printf("origin: migrating persist %s %d→%d under GADAK_DEV_MIGRATE", persist, have, issuetap.PersistSchemaVersion())
+		}
 	}
 
 	fixturePath, fixtureBytes := selectBuiltInSeed(persist, projects)
@@ -646,8 +717,21 @@ func constructBuiltIn(persist string, projects []string, actor config.ResolvedAc
 		// depends on the disk and on who can reach this origin — a paired
 		// home serve has more than one actor behind it (GDK-1617).
 		MaxAttachmentBytes: maxAttachment,
+		// The lockout half of the policy above: issuetap refuses a persist
+		// stamped below this build's head before any write, leaving the
+		// file exactly as the release wrote it.
+		RefuseForwardMigration: devBuild && !override,
 	})
 	if err != nil {
+		var refused *issuetap.PersistForwardRefusedError
+		if errors.As(err, &refused) {
+			return nil, &PersistForwardRefusedError{
+				Path:         refused.Path,
+				Have:         refused.Have,
+				Want:         refused.Want,
+				BuildVersion: opts.BuildVersion,
+			}
+		}
 		return nil, fmt.Errorf("origin: issuetap: %w", err)
 	}
 

@@ -134,19 +134,27 @@ func (e *SchemaForwardRefusedError) Error() string {
 		e.Path, bv, e.Have, e.Head, hold, e.copyHint())
 }
 
-// copyHint is the "work on a copy" recipe, derived from the mirror's layout
-// so it stays true without naming files that may not exist: a named profile
-// is self-contained under profiles/<name> (its config.json travels with the
-// directory), and the root profile's directory is itself a whole GADAK_HOME.
-// The copy is still behind, so the recipe carries the same override once —
-// after it, the copy is at head and opens without it.
+// copyHint is the "work on a copy" recipe for the mirror's own directory.
 func (e *SchemaForwardRefusedError) copyHint() string {
-	dir := filepath.Dir(e.Path)
-	if filepath.Base(filepath.Dir(dir)) == "profiles" {
-		name := filepath.Base(dir)
-		return fmt.Sprintf("cp -R %s %s-dev && GADAK_DEV_MIGRATE=1 gadak --workspace %s-dev status", dir, dir, name)
+	return DevCopyHint(filepath.Dir(e.Path))
+}
+
+// DevCopyHint is the "work on a copy" recipe for a versioned file a dev
+// build refused to migrate forward, derived from the workspace directory
+// that owns it so it stays true without naming files that may not exist: a
+// named profile is self-contained under profiles/<name> (its config.json
+// travels with the directory), and the root profile's directory is itself
+// a whole GADAK_HOME. rootDir is the directory to copy — the mirror's own,
+// or the persist's workspace (its origin/ parent). The copy is still
+// behind, so the recipe carries the same override once — after it, the
+// copy is at head and opens without it. Shared by the mirror and persist
+// refusals (GDK-1967) so the prose has one owner.
+func DevCopyHint(rootDir string) string {
+	if filepath.Base(filepath.Dir(rootDir)) == "profiles" {
+		name := filepath.Base(rootDir)
+		return fmt.Sprintf("cp -R %s %s-dev && GADAK_DEV_MIGRATE=1 gadak --workspace %s-dev status", rootDir, rootDir, name)
 	}
-	return fmt.Sprintf("cp -R %s %s-dev && GADAK_HOME=%s-dev GADAK_DEV_MIGRATE=1 gadak status", dir, dir, dir)
+	return fmt.Sprintf("cp -R %s %s-dev && GADAK_HOME=%s-dev GADAK_DEV_MIGRATE=1 gadak status", rootDir, rootDir, rootDir)
 }
 
 // DB is a handle on the mirror. Safe for concurrent use; writes are serialized.
@@ -200,6 +208,13 @@ func defaultOpenOptions() OpenOptions {
 	defer defaultOpenMu.RUnlock()
 	return defaultOpen
 }
+
+// DefaultOpenOptions is the process default Open and OpenArtifact apply —
+// the policy a binary's main installed at boot (GDK-1687). The built-in
+// origin reads it too, so "is this a dev build refusing forward moves" has
+// one answer for both of a workspace's versioned files, gadak.db and
+// issuetap.db, instead of two judgments that can drift (GDK-1967).
+func DefaultOpenOptions() OpenOptions { return defaultOpenOptions() }
 
 // OpenWith is Open with an explicit open policy. Everything else — directory
 // and file modes, local.db handling, the too-new refusal — is exactly Open's.

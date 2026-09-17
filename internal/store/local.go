@@ -47,6 +47,11 @@ const localRetention = 180 * 24 * time.Hour
 // PRAGMA user_version on local.db.
 var localMigrations = []string{localSchemaV1, localSchemaV2, localSchemaV3, localSchemaV4, localSchemaV5, localSchemaV6, localSchemaV7, localSchemaV8, localSchemaV9, localSchemaV10, localSchemaV11, localSchemaV12}
 
+// LocalSchemaVersion is the local.db schema level this build writes
+// (len(localMigrations)) — the local half of doctor's have/head schema line
+// (GDK-1967), and the `want` LocalSchemaSkew reports.
+func LocalSchemaVersion() int { return len(localMigrations) }
+
 // localSessionsVersion is the migration that created local.sessions; its Go
 // hook (migrateLocal) backfills the table from the person visits already on
 // disk, so the boundary does not reset to "no previous session" the first
