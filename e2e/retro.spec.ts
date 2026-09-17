@@ -188,7 +188,11 @@ test.describe('retro by sprint', () => {
     await expect(page.getByTestId('retro-table')).not.toContainText('in sprint ·')
 
     await page.getByTestId('retro-range').filter({ hasText: 'By sprint' }).click()
-    // Sprint 41 and the running Sprint 42; Sprint 43 starts in the future.
+    // Sprint 41 and the running Sprint 42; Sprint 43 starts after the
+    // fixture's clock. e2e/serve.sh pins the serve to the seed mirror's
+    // latest write (GADAK_CLOCK), so this cut is identical whatever day
+    // the suite runs — the wall date no longer reaches the report
+    // (GDK-1975).
     await expect(page.getByTestId('retro-week')).toHaveCount(2)
     await expect(page.getByTestId('retro-week').first()).toContainText('Sprint 41')
     await expect(page.getByTestId('retro-week').last()).toContainText('Sprint 42')

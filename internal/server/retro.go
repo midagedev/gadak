@@ -6,8 +6,9 @@ package server
 // under apiBase beside bootstrap/, so the whole mirror REST (loopback UI and
 // serve-scope Bearer alike, mirror_gate.go serveScopeAdmits) reaches it —
 // a top-level /api/v1/retro/ would sit outside every admitted prefix. No
-// ETag: the document moves with the wall clock (the partial bucket ends at
-// now), so a conditional GET would be a lie half the time.
+// ETag: the document moves with the serve's clock (the partial bucket ends
+// at now — the wall, or GADAK_CLOCK's pinned instant for a fixture,
+// GDK-1975), so a conditional GET would be a lie half the time.
 
 import (
 	"errors"
@@ -15,7 +16,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/midagedev/gadak/internal/retro"
 	"github.com/midagedev/gadak/internal/store"
@@ -94,7 +94,7 @@ func (s *server) handleRetro(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer db.Close()
-	rep, err := retro.Compute(r.Context(), db, store.FeedIdentityOf(s.config()), since, time.Now(), opts)
+	rep, err := retro.Compute(r.Context(), db, store.FeedIdentityOf(s.config()), since, s.now(), opts)
 	if err != nil {
 		// A workspace with no sprints, or several boards and no choice, is
 		// the caller asking for a report that cannot be built — 409, with

@@ -687,6 +687,7 @@ file wins; local-only rows stay (`cmd/gadak/import.go` `applyPersonalExport`).
 | Unattended setup (agents, CI, provisioning) | `gadak init` flags/env — see below |
 | Profile selection (the disk directory; serve mounts it as a workspace) | CLI `--profile` / `GADAK_PROFILE` (separate home directory) |
 | `GADAK_HOME` override | Environment variable |
+| Serve clock pin (demos, e2e fixtures) | Environment variable `GADAK_CLOCK` (RFC3339) — freezes the serve's request-path clock at that instant so a static fixture computes the same report every day; `/healthz` reports the source as `clock.source` |
 | Binary version string in UI | `server.Version`, wired from `cmd/gadak` ldflags by goreleaser (`main.version`); dev builds show `0.0.0-dev` |
 | Team views / field map / group rules (between people) | `gadak team export` / `gadak team import` (see above) |
 | Sync loop process | Start/stop `gadak serve` (default when credentialed; `--no-sync` opts out) or `gadak sync --watch` |

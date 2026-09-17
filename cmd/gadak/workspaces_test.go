@@ -245,8 +245,12 @@ func TestHealthzIdentity(t *testing.T) {
 		Digest    string `json:"digest"`
 		Home      string `json:"home"`
 		Workspace string `json:"workspace"`
-		StartedAt int64  `json:"startedAt"`
-		Pid       int    `json:"pid"`
+		Clock     struct {
+			Source string `json:"source"`
+			Now    string `json:"now"`
+		} `json:"clock"`
+		StartedAt int64 `json:"startedAt"`
+		Pid       int   `json:"pid"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
 		t.Fatalf("decode: %v (%s)", err, rec.Body.String())
@@ -264,6 +268,10 @@ func TestHealthzIdentity(t *testing.T) {
 	}
 	if doc.Workspace != "default" {
 		t.Fatalf("workspace %q, want the root profile's display name", doc.Workspace)
+	}
+	// GDK-1975: the clock member names which "now" the request path runs on.
+	if (doc.Clock.Source != "wall" && doc.Clock.Source != "pinned") || doc.Clock.Now == "" {
+		t.Fatalf("clock %+v, want source wall|pinned and a non-empty instant", doc.Clock)
 	}
 	if doc.StartedAt <= 0 || doc.StartedAt > time.Now().UnixMilli() {
 		t.Fatalf("startedAt %d is not an epoch-ms process start", doc.StartedAt)

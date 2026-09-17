@@ -368,6 +368,23 @@ SQL
 fi
 
 export GADAK_HOME="$HOME_DIR"
+
+# GDK-1975: pin the serve's request-path clock to the fixture's own latest
+# write, so every computed answer — retro by-sprint, burn-up, flow, JQL
+# now-clauses — matches the committed mirror whatever day the suite runs
+# (Sprint 43 starts 2026-09-17; on the wall that date arrived, and the retro
+# spec saw three columns where the fixture promises two). Computed from the
+# seed db actually served (GADAK_SEED_DB may point at the Linear fixture),
+# so the fixture and its clock move in one commit; the same MAX(updated_at)
+# anchor the Go fixture tests use (internal/snapshot fixtureNow). Not one
+# of the GADAK_E2E_* names unset above: GADAK_CLOCK is a real runtime name
+# the serve reads (internal/server serverClock), so it must survive into
+# the exec. sqlite3 is already load-bearing for the seed path above; if it
+# is somehow missing, the literal below (the fixture's value at GDK-1975)
+# keeps the serve pinned rather than silently on the wall.
+FIXTURE_CLOCK="$(sqlite3 "$SEED_DB" "SELECT max(updated_at) FROM items" 2>/dev/null || true)"
+export GADAK_CLOCK="${FIXTURE_CLOCK:-2026-09-10T00:00:00.143Z}"
+
 WORKTREE="$(git rev-parse --show-toplevel)"
 DIGEST="$SERVED"
 # The shell the pane's sessions get is not a git fact, so served-digest.sh

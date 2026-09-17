@@ -7,7 +7,6 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/midagedev/gadak/internal/retro"
 	"github.com/midagedev/gadak/internal/store"
@@ -272,7 +271,7 @@ func (s *server) handleSprintBurnup(w http.ResponseWriter, r *http.Request) {
 	// Straight off the live handle, like handleSprints: the answer reads
 	// mirror tables only, so it has no need of the local.db view the retro
 	// report's ReadOnly() exists to attach.
-	doc, err := s.db.SprintBurnup(r.Context(), id, time.Now())
+	doc, err := s.db.SprintBurnup(r.Context(), id, s.now())
 	if errors.Is(err, store.ErrSprintNotFound) {
 		fail(w, http.StatusNotFound, "sprint_not_found")
 		return

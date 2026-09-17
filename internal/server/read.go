@@ -176,7 +176,7 @@ const sessionBoundaryHeader = "X-Gadak-Session-Boundary"
 // error is logged and leaves it absent: the strip is an enrichment and never
 // fails the response it rides on (flowFields' rule).
 func (s *server) setSessionBoundary(w http.ResponseWriter, r *http.Request) {
-	end, err := s.db.LastSessionEnd(r.Context(), time.Now(), retro.SessionGap)
+	end, err := s.db.LastSessionEnd(r.Context(), s.now(), retro.SessionGap)
 	if err != nil {
 		log.Printf("server: last session end: %v", err)
 		return
@@ -283,7 +283,7 @@ func (s *server) flowFields(ctx context.Context, version int64) *flowOut {
 	}
 	s.flowMu.Unlock()
 
-	p85, samples, err := s.cycleTimeP85(ctx, time.Now().Add(-90*24*time.Hour))
+	p85, samples, err := s.cycleTimeP85(ctx, s.now().Add(-90*24*time.Hour))
 	if err != nil {
 		log.Printf("server: flow cycle p85: %v", err)
 		return nil
@@ -652,7 +652,7 @@ func (s *server) handleDetail(w http.ResponseWriter, r *http.Request) {
 		Created:    d.Created,
 		Changelog:  d.History,
 		Categories: cats,
-		Now:        time.Now(),
+		Now:        s.now(),
 	})
 
 	desc := adf.Present(d.DescriptionADF, d.DescriptionText, dialect)

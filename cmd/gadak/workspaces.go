@@ -54,7 +54,8 @@ func healthzCommit() string {
 // that only checks the status code will happily adopt whichever server is
 // listening on the port it was told to poll — the incident behind GDK-1789 —
 // so every field a poller needs to tell servers apart lives here: which
-// binary (version, commit, digest), what it serves (home, workspace), and
+// binary (version, commit, digest), what it serves (home, workspace), on
+// which clock (GDK-1975's "clock" member: wall or a GADAK_CLOCK pin), and
 // since when (startedAt, pid).
 func healthzDoc() map[string]any {
 	home := ""
@@ -68,6 +69,7 @@ func healthzDoc() map[string]any {
 		"digest":    buildDigest,
 		"home":      home,
 		"workspace": config.NormalizeProfile(config.Profile()),
+		"clock":     server.HealthzClock(),
 		"startedAt": processStartedAt,
 		"pid":       os.Getpid(),
 	}

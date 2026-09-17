@@ -60,12 +60,30 @@ func (s *server) health(ctx context.Context, st store.SyncState) syncHealth {
 	// attached so the chip can warn without a second clock. It does not change
 	// overall: settledLabel treats overall==warning as a delayed *mirror*,
 	// which an expiring token is not.
+	//
+	// The read below stays on time.Now, deliberately outside s.now(): the
+	// Jira token expires in real time, and a pinned fixture clock must not
+	// hide it (the exception and its reason live in wallClockAllowlist,
+	// clock_gate_test.go).
 	return syncHealth{
 		Overall:     overall,
 		CheckedAt:   store.Now(),
 		Sources:     sources,
 		TokenExpiry: s.config().TokenExpiryAt(time.Now().UTC()),
 	}
+}
+
+// HealthzClock is the /healthz "clock" member (GDK-1975): which clock the
+// request path runs on, and the instant it reads — so a harness serving a
+// pinned fixture can tell, and a human debugging "why is Sprint 42 still
+// running" can see the serve is answering as of the fixture's date.
+// ISOMilli is the same RFC3339 layout every other timestamp here carries.
+func HealthzClock() map[string]any {
+	serverClock()
+	if clockAt != nil {
+		return map[string]any{"source": "pinned", "now": clockAt.UTC().Format(config.ISOMilli)}
+	}
+	return map[string]any{"source": "wall", "now": time.Now().UTC().Format(config.ISOMilli)}
 }
 
 func (s *server) sourceHealth(key, label string, st store.SyncState) syncSource {

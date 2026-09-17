@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/midagedev/gadak/internal/jql"
 	"github.com/midagedev/gadak/internal/store"
@@ -44,7 +43,7 @@ func (s *server) handleJql(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := jql.Parse(input, jql.Opts{Now: time.Now(), Email: me.Email, AccountID: me.AccountID})
+	res := jql.Parse(input, jql.Opts{Now: s.now(), Email: me.Email, AccountID: me.AccountID})
 	if res.Error == "" {
 		// Six narrow columns, not the whole IssueLite set (GDK-756; CLI GDK-748).
 		if people, err := s.db.QueryActorPeople(r.Context()); err == nil {

@@ -53,6 +53,10 @@ var envLiterals = map[string]struct{}{
 	"GADAK_TERMINAL":         {},
 	"GADAK_TERMINAL_SESSION": {},
 	"GADAK_DEV_MIGRATE":      {},
+	// GADAK_CLOCK pins the serve's request-path clock at one frozen instant
+	// — fixture clock for demos and e2e (GDK-1975), read where the server
+	// is constructed (internal/server serverClock).
+	"GADAK_CLOCK": {},
 }
 
 // envHarness are names this repository's own harness exports into the

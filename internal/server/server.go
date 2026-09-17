@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -75,6 +76,16 @@ type server struct {
 
 	mu     sync.Mutex
 	cached *derivedView
+
+	// clock is the request path's single owner of "now" (GDK-1975): every
+	// computed answer that depends on the current instant — retro buckets,
+	// sprint burn-up, JQL now-clauses, flow p85, the session strip, detail
+	// lifecycle spans — reads s.now(), so GADAK_CLOCK can pin a static
+	// fixture at one instant instead of letting the wall move it past its
+	// own dates. Wall (time.Now) unless pinned; tests may pin directly.
+	// Auth and lifetimes stay on the wall: wallClockAllowlist in
+	// clock_gate_test.go enumerates the exceptions and their reasons.
+	clock func() time.Time
 
 	// flowMu guards the flowFields memo (GDK-1429): bootstrap and every delta
 	// each walked the done issues' cycle-percentile SQL, so a warm tab polling
@@ -226,7 +237,7 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
-	s := &server{db: db, cache: cache, profile: profile}
+	s := &server{db: db, cache: cache, profile: profile, clock: serverClock()}
 	s.cfg.Store(cfg)
 	s.jobsCtx, s.jobsCancel = context.WithCancel(context.Background())
 
@@ -443,6 +454,46 @@ func newServer(db *store.DB, cfg *config.Config, cache *attachcache.Cache, profi
 // Handler that opened a given DB before closing it. Production is nil.
 var testRegisterHandler func(*Handler)
 
+// clockOnce resolves GADAK_CLOCK once per process: one serve, one clock,
+// and /healthz can report which without re-parsing.
+var (
+	clockOnce sync.Once
+	clockFn   func() time.Time
+	clockAt   *time.Time // the pinned instant; nil while on the wall
+)
+
+// serverClock is the clock every server in this process answers with. The
+// default is the wall. GADAK_CLOCK (RFC3339) pins and freezes it at that
+// instant — what a static fixture wants: e2e/serve.sh pins it to the seed
+// mirror's MAX(items.updated_at), so the fixture and its "today" move in
+// one commit and a suite run weeks later computes the same report
+// (GDK-1975; the Go-test shape of the same rule is internal/snapshot's
+// fixtureNow). Resolution happens once per process (one serve, one clock,
+// and /healthz reports which without re-parsing); the parse itself is
+// parseClock, kept callable so the fallbacks are testable.
+func serverClock() func() time.Time {
+	clockOnce.Do(func() {
+		clockFn, clockAt = parseClock(os.Getenv("GADAK_CLOCK"))
+	})
+	return clockFn
+}
+
+// parseClock resolves GADAK_CLOCK's value: empty is the wall; a valid
+// RFC3339 instant is a clock frozen at that instant; anything else is one
+// stderr line and the wall — the fall-back-and-say-so rule warnUnknownGADAK
+// follows. at is non-nil only in the frozen case (HealthzClock's "pinned").
+func parseClock(raw string) (fn func() time.Time, at *time.Time) {
+	if raw == "" {
+		return time.Now, nil
+	}
+	parsed, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "gadak: GADAK_CLOCK %q is not RFC3339; serving on the wall clock\n", raw)
+		return time.Now, nil
+	}
+	return func() time.Time { return parsed }, &parsed
+}
+
 // closeWait is how long Close waits for in-flight startSyncJob goroutines.
 // Same bound as the HTTP server's shutdown window in cmd/gadak/serve.go
 // (the 3-second context.WithTimeout around srv.Shutdown). Past this, Close
@@ -566,6 +617,17 @@ func webConfigJSON(cfg *config.Config, prefix string, phoneURLs []string) ([]byt
 }
 
 func (s *server) config() *config.Config { return s.cfg.Load() }
+
+// now is the request path's clock (GDK-1975): computed answers read this,
+// never time.Now, so a pinned fixture (GADAK_CLOCK) serves the same
+// document every day it is opened. Auth and lifetime code must not call it
+// — token expiry and pairing are real time (clock_gate_test.go).
+func (s *server) now() time.Time {
+	if s.clock == nil {
+		return time.Now()
+	}
+	return s.clock()
+}
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
