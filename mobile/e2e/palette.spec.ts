@@ -48,12 +48,17 @@ test('the phone has no tab bar', async ({ page }) => {
   await expect(page.locator('button.tab')).toHaveCount(0)
 })
 
-test('the palette is dormant on boot and focuses only when the heading is tapped', async ({
+test('the palette is dormant on boot, and the heading opens it without the keyboard', async ({
   page,
 }) => {
   // Protects DESIGN.md §2: "It never focuses on boot — the first paint is
   // the owner's rows, so 'what's on my plate' stays a glance with no taps."
   // An autofocused field puts the keyboard over the first screen.
+  //
+  // GDK-1974: the heading is the scope door, and a person who tapped it to
+  // change scope was getting the keyboard in their face. Opening the owner
+  // list must not focus the field — the keyboard is what the search door
+  // (button.search, the test below) is for.
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await waitPaired(page)
 
@@ -62,6 +67,26 @@ test('the palette is dormant on boot and focuses only when the heading is tapped
   expect(activeOnBoot, 'nothing is focused on boot').toBe('BODY')
 
   await page.locator('h1 button.scope').click()
+  const field = page.locator('.palette-field input')
+  await expect(field).toBeVisible()
+  await expect(field).not.toBeFocused()
+  const activeOnScope = await page.evaluate(
+    () => document.activeElement?.tagName ?? null,
+  )
+  expect(activeOnScope, 'the heading tap does not focus the field').not.toBe('INPUT')
+})
+
+test('the magnifier is the search door: it opens the palette with the field focused', async ({
+  page,
+}) => {
+  // GDK-1974: nothing on the list screen said "search" — the only door was
+  // the heading, and the header's right side held only the create control
+  // and the gear. The magnifier (button.search, left of button.new) is the
+  // door that means a query: the same palette, the field focused on mount.
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await waitPaired(page)
+
+  await page.locator('button.search').click()
   const field = page.locator('.palette-field input')
   await expect(field).toBeVisible()
   await expect(field).toBeFocused()

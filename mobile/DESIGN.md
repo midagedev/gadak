@@ -100,6 +100,11 @@ trigger would spend ~78px back; the heading slot spends none.
             └─► linked issue / mentioned issue (replaces, back → owner)
 ```
 
+The heading's name is 26px and steps down to 22 then 19 when a language's
+view name would not fit whole; if 19 is still not enough the count hides
+(the palette rows carry every count), and it ellipsizes only past that
+(GDK-1974).
+
 **The palette is the heading, dormant on boot.** The 44pt control that is
 the list's `<h1>` is the trigger; tapping it turns the list body into the
 palette and focuses a field at the head. It never focuses on boot — the

@@ -79,12 +79,15 @@ async function armWrites(page: Page): Promise<void> {
   })
 }
 
-/** Search → row → detail, the pane's own road to any key (a7-captures). */
+/** Search → row → detail, the pane's own road to any key (a7-captures).
+ * GDK-1974: the magnifier is this road's door — the heading's open no
+ * longer focuses the field, and this helper types into it. */
 async function openIssue(page: Page, key: string): Promise<void> {
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await page.locator('h1 button.scope').waitFor()
   await page.locator('.pane:not(.off) button.row').first().waitFor()
-  await page.locator('h1 button.scope').click()
+  await page.locator('button.search').click()
+  await page.locator('.palette-field input').waitFor()
   await page.locator('.pane:not(.off) input').first().fill(key)
   const row = page.locator('.pane:not(.off) button.row', { hasText: key }).first()
   await row.waitFor()

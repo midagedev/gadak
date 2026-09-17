@@ -55,7 +55,7 @@ lane rather than in it, so it no longer reads as the sheet leaving
 ([GDK-1969]) — the status sheet opens with
 the current status above the choices, and the priority group header and the
 two terminal-pairing refusals speak the phone's language instead of English
-([GDK-1964], [GDK-1965], [GDK-1945]).
+([GDK-1964], [GDK-1965], [GDK-1945]). A magnifier in the list header opens the search field directly — the heading still opens the owner list with the keyboard down — and the last-synced words left the header for Settings; a view name that would not fit whole steps down in size, then sheds its count, before it is ever cut ([GDK-1974]).
 
 And the phone is a browser on the tailnet: a serve bound to a Tailscale
 address now answers its own MagicDNS name and any `--public-url` it is given,
@@ -1741,3 +1741,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1970]: https://gadak.dev/backlog/#/?ks=GDK-1970
 [GDK-1971]: https://gadak.dev/backlog/#/?ks=GDK-1971
 [GDK-1972]: https://gadak.dev/backlog/#/?ks=GDK-1972
+[GDK-1974]: https://gadak.dev/backlog/#/?ks=GDK-1974

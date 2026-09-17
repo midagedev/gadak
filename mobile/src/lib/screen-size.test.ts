@@ -56,7 +56,17 @@ const CEILINGS: Record<string, { lines: number; state: number }> = {
   // then lowered when the revision moved the measurement out to
   // lib/fit-heading.ts (an action, because an $effect writing $state is what
   // GDK-692 forbids) and the wrap came back out. 482 → 497 → 496.
-  'Issues.svelte': { lines: 498, state: 3 },
+  // Raised 2026-09-17 (GDK-1974 search door, 2026-09-17): the header's
+  // magnifier button — template, glyph, and its 44pt rule — beside the
+  // create control, plus the two doors (showPalette/showSearch over one
+  // preparePalette core). 498 → 538.
+  // 2026-09-17, GDK-1974: the stamp words and lib/fit-heading left the
+  // header; re-pinned to the measured count. 538 → 528; $state unchanged
+  // at 3 (paletteFocus lives in the store, not here).
+  // 2026-09-17, GDK-1974: the name steps down through lib/fit-heading
+  // before it ellipsizes — the action is back on .head and the two step
+  // rules ([data-fit='1'/'2']) joined .name. 528 → 542; $state unchanged.
+  'Issues.svelte': { lines: 548, state: 3 },
   // Measured 2026-09-16 at birth (GDK-1827): the sprint list is the first
   // screen with no local state at all — every row is derived from the store.
   'Sprints.svelte': { lines: 262, state: 0 },

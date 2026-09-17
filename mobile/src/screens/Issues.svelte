@@ -9,7 +9,6 @@
   import CreateSheet from '../ui/CreateSheet.svelte'
   import SprintLine from '../ui/SprintLine.svelte'
   import { t } from '../lib/i18n'
-  import { fitHeading } from '../lib/fit-heading'
   import {
     app,
     closePalette,
@@ -37,6 +36,7 @@
     type Scope,
   } from '../lib/domain'
   import { pickActiveSprint } from '../lib/sprint'
+  import { fitHeading } from '../lib/fit-heading'
 
   // The desktop has no name for its list screen: its main column is titled by
   // the current view's name. The phone adopts that — the heading is the
@@ -106,10 +106,24 @@
   // GDK-886: counts are one pass per row, taken when the palette opens —
   // never on the list's scroll path.
   let counts = $state(new Map<string, number | null>())
-  function showPalette(): void {
+  /*
+   * Both doors to the palette pay the same toll (GDK-1974): the counts the
+   * owner list shows and the scroll position Cancel restores. `focus` is
+   * the door's meaning — the heading opens the owner list with the keyboard
+   * down, the header's magnifier (showSearch, below) is the search door.
+   */
+  function preparePalette(focus: boolean): void {
     counts = new Map(scopes.map((s) => [s.id, scopeCount(app.issues, app.me, s, app.pages)]))
     savedScroll = scroller?.scrollTop ?? 0
-    openPalette()
+    openPalette(focus)
+  }
+  /** The heading's tap: the owner list, with the keyboard down. */
+  function showPalette(): void {
+    preparePalette(false)
+  }
+  /** The magnifier's tap: the same palette, the field focused (GDK-1974). */
+  function showSearch(): void {
+    preparePalette(true)
   }
   function pick(id: string): void {
     setScope(id)
@@ -142,9 +156,6 @@
       : '',
   )
 
-  const syncLabel = $derived(
-    app.syncing ? 'syncing' : app.lastSyncAt ? relTime(app.lastSyncAt.toISOString(), app.now) : '—',
-  )
   const bootKind = $derived(
     issuesBootKind({
       loaded: app.loaded,
@@ -177,6 +188,16 @@
         </button>
       </h1>
       <span class="spacer"></span>
+      <!-- The search door (GDK-1974): the heading opens the owner list, but
+           nothing on the screen said "search" — the header's right side was
+           only the create control and the gear. Same palette, same field;
+           this is the door that focuses it. The glyph is the one the
+           palette's own field wears (ui/Palette.svelte). -->
+      <button class="search" onclick={showSearch} aria-label={t('app.searchTitle')} aria-expanded={app.palette}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" />
+        </svg>
+      </button>
       <button
         class="new"
         onclick={() => (createOpen = true)}
@@ -208,7 +229,6 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class:spin={app.syncing} aria-hidden="true">
           <path d="M21 12a9 9 0 1 1-2.6-6.3" /><path d="M21 3v6h-6" />
         </svg>
-        <span class="stamp">{syncLabel}</span>
       </button>
     </div>
     {#if offlineBanner}
@@ -327,10 +347,31 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* The name keeps its words and gives up size first (GDK-1974): a language
+     whose view name would not fit whole steps down one size at a time, the
+     step chosen after layout by lib/fit-heading (`data-fit` on .head). Only
+     past the last step does the ellipsis above become the answer. */
+  .head:global([data-fit='1']) .name {
+    /* midpoint between --text-heading and --text-title; a step, not a new type size (GDK-1974) */
+    font-size: 22px;
+    line-height: 1.25;
+  }
+  .head:global([data-fit='2']) .name,
+  .head:global([data-fit='3']) .name {
+    font-size: var(--text-title);
+    line-height: var(--text-title--line-height);
+  }
+  /* The last step: 19px still could not hold the words, so the count is
+     what gives (the palette rows carry every count; GDK-1974, 2026-09-17). */
+  .head:global([data-fit='3']) .count {
+    display: none;
+  }
   .count {
     flex: none;
     font-family: var(--font-mono);
-    font-size: var(--text-title);
+    /* GDK-1974 (2026-09-17): one size down — the name pays for a third
+       header control otherwise. */
+    font-size: var(--text-body);
     color: var(--color-text-muted);
   }
   .chev {
@@ -343,34 +384,43 @@
   .spacer {
     flex: 1 1 auto;
   }
-  /* The name had to ellipsize with the stamp's words in the row, so they go.
-     The glyph is the control; the words were the nicety (GDK-1936). `tight`
-     is put on by lib/fit-heading's action after layout, so the selector is
-     global — Svelte cannot see a class no template writes. */
-  .head:global(.tight) .fresh .stamp {
-    display: none;
-  }
   .fresh {
-    /* GDK-1936: the stamp is never the element that folds. One breath
-       (nowrap), no width traded for the heading's — its old default shrink
-       is what bent the text into two lines. When the row cannot hold the
-       words the glyph stays and the words go (see `.head.tight` below);
-       the button keeps its 44pt either way. */
+    /* GDK-1974 (2026-09-17): the stamp's words are gone for good — the row
+       could not hold them beside a third header control (GDK-1936 shed them
+       only at the squeeze; this is the permanent version of that). The glyph
+       is the control; it keeps the 44pt floor every button has (app.css,
+       GDK-867) and takes only the width its glyph needs, because unlike its
+       square siblings it was never sized by words — every px it spends is a
+       px the name does not get. The last-sync time it used to say lives in
+       Settings (`sync.settledOk` there). */
     flex: none;
     white-space: nowrap;
     margin-left: auto;
     align-self: center;
     display: flex;
     align-items: center;
-    gap: 4px;
     padding: 0 4px;
     color: var(--color-text-muted);
-    font-size: var(--text-micro);
-    font-variant-numeric: tabular-nums;
   }
   .fresh svg {
     width: 14px;
     height: 14px;
+  }
+  /* The search door (GDK-1974): the same 44pt square as the create action
+     and the gear, in the muted weight they wear — it opens the palette's
+     field, it does not act on the tracker. */
+  .search {
+    flex: none;
+    align-self: center;
+    width: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-muted);
+  }
+  .search svg {
+    width: 19px;
+    height: 19px;
   }
   /* The create action (GDK-1497 A2): a 44pt square beside the sync state,
      drawn heavier than .fresh because it acts on the tracker, not the
