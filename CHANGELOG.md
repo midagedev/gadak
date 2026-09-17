@@ -2,7 +2,7 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
-## Unreleased
+## v0.23.1
 
 **A status the apps offered but the server refused.** On the built-in tracker
 a workflow that has been migrated carries two statuses named the same, and the
