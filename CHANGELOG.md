@@ -2,7 +2,7 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
-## Unreleased
+## v0.23.0
 
 **The phone drops its tab bar; the column has one owner.** The bottom bar is
 gone. Tap the list heading and the palette opens in its place — recent issues,
