@@ -6,7 +6,7 @@
  * import time, which a plain .test.ts cannot evaluate.
  */
 
-import { LAYOUT_NARROW_MAX_PX } from '../viewport-regime'
+import { LAYOUT_NARROW_MAX_PX, LAYOUT_SIDEBAR_PX } from '../viewport-regime'
 
 /*
  * GDK-1194 (2026-08-30): the split is horizontal — a dock across the bottom
@@ -117,4 +117,27 @@ export const TERMINAL_OVERLAY_MAX_PX = LAYOUT_NARROW_MAX_PX
  */
 export function terminalIsNarrow(viewportPx: number): boolean {
   return viewportPx <= TERMINAL_OVERLAY_MAX_PX
+}
+
+/*
+ * The sheet's left edge (GDK-1987, 2026-09-17).
+ *
+ * The overlay is `right: 0` with `min-width: TERMINAL_MIN_WIDTH_PX`, and its
+ * left used to be the sidebar's width outright — "a sheet over the content
+ * track, the sidebar stays clickable", which is what terminalIsNarrow's
+ * comment describes and which is right at 900px: 208px of sidebar still
+ * leaves the sheet 692. The regime had no floor, though, and a phone browser
+ * is inside it. Measured at 402x874: left resolved to 208, the viewport could
+ * only offer 194, the 320px min-width won, and the box ran to x=610 — 208px
+ * of the shell off the right edge of a page that does not scroll sideways.
+ *
+ * So the sidebar keeps whatever it can afford and no more. `100vw` may
+ * overshoot by a classic scrollbar's width; that only makes the left smaller,
+ * and with both edges anchored the used width is viewport-minus-left, so the
+ * box cannot overflow — it just yields another few px of sidebar. Reading the
+ * var rather than a number keeps a dragged sidebar (GDK-759) honoured, which
+ * a breakpoint on 528 could not do.
+ */
+export function terminalSheetLeftCss(): string {
+  return `max(0px, min(var(--layout-sidebar, ${LAYOUT_SIDEBAR_PX}px), 100vw - ${TERMINAL_MIN_WIDTH_PX}px))`
 }

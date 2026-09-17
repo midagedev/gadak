@@ -51,6 +51,7 @@ sidebar-sections.spec.ts     # favorites POST via the UI; afterEach DELETEs each
 terminal-burst.spec.ts       # opens panes and asserts the drain count; afterEach drainTerminalSessions
 terminal-link-focus.spec.ts  # opens panes; afterEach drainTerminalSessions
 terminal-modes.spec.ts       # opens panes; afterEach drainTerminalSessions
+terminal-phone.spec.ts       # opens panes at phone/overlay widths; afterEach drainTerminalSessions
 terminal-settings.spec.ts    # PUT SETTINGS_URL terminal block; afterEach PUT restores the pre-test body
 terminal-strip.spec.ts       # POST issue binds + panes; afterEach drainTerminalSessions
 terminal-theme.spec.ts       # PUT SETTINGS_URL terminal theme; afterEach PUT restores + drainTerminalSessions

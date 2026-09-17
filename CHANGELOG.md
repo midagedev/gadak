@@ -2,6 +2,17 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## Unreleased
+
+**The terminal fits the phone's screen.** Under 900px the pane becomes an
+overlay sheet, and that sheet was `width: 100%` on a box already anchored to
+both edges — an over-constrained box drops its right anchor, so the sheet ran
+past the right edge by exactly the sidebar's width at every width the shape
+paints at. On a phone that was the whole thing: a 401px shell starting 208px
+in, of which 193px was all the screen could show, on a page that does not
+scroll sideways. The sheet now takes the width that is left over and the
+sidebar keeps only what fits beside it ([GDK-1987]).
+
 ## v0.23.1
 
 **A status the apps offered but the server refused.** On the built-in tracker
@@ -1774,3 +1785,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1982]: https://gadak.dev/backlog/#/?ks=GDK-1982
 [GDK-1984]: https://gadak.dev/backlog/#/?ks=GDK-1984
 [GDK-1985]: https://gadak.dev/backlog/#/?ks=GDK-1985
+[GDK-1987]: https://gadak.dev/backlog/#/?ks=GDK-1987

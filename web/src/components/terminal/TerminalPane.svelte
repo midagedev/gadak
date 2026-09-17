@@ -40,6 +40,7 @@
     TERMINAL_MIN_WIDTH_PX,
     terminalChrome,
     terminalHeightGrip,
+    terminalSheetLeftCss,
   } from '../../lib/terminal/pane.svelte'
   import LayoutResizeHandle from '../shell/LayoutResizeHandle.svelte'
   import { terminalSessions } from '../../lib/terminal/sessions.svelte'
@@ -436,12 +437,12 @@
 </script>
 
 <aside
-  class="flex min-h-0 w-full min-w-0 flex-row overflow-hidden bg-bg-base {overlay
+  class="flex min-h-0 min-w-0 flex-row overflow-hidden bg-bg-base {overlay
     ? 'terminal-sheet fixed top-0 right-0 bottom-0 h-full border-l border-border-strong'
-    : 'relative border-t border-border-strong'}"
+    : 'w-full relative border-t border-border-strong'}"
   class:select-none={dragging}
   style={overlay
-    ? `left: var(--layout-sidebar, 272px); z-index: 48; min-width: ${TERMINAL_MIN_WIDTH_PX}px`
+    ? `left: ${terminalSheetLeftCss()}; z-index: 48; min-width: ${TERMINAL_MIN_WIDTH_PX}px`
     : `height: ${heightPx}px; min-height: ${TERMINAL_MIN_HEIGHT_PX}px`}
   role="region"
   aria-label={t('terminal.title')}
