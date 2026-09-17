@@ -16,6 +16,7 @@ import {
   watchChromeVars,
 } from '../../../../web/src/lib/terminal/protocol'
 import { installCjkMetricFaces } from '../../../../web/src/lib/terminal/cjk-metric'
+import { neutraliseHelperTextarea } from './helper-textarea'
 import type { CursorKeyMode } from './keys'
 import type { BufferType, MouseTrackingMode } from './scroll-gesture'
 
@@ -261,6 +262,14 @@ export async function createRenderer(): Promise<PhoneTerminalRenderer> {
         term.element.style.height = '100%'
         term.element.style.width = '100%'
       }
+      // GDK-1986: xterm is the renderer here, never the input surface — the
+      // screen's own .ime field takes keystrokes and `disableStdin` above
+      // says so. Its own helper textarea did not know that, and the focus
+      // call in its mousedown handler took the field's focus away from the
+      // synthesized mouse event iOS sends after a tap — which put the
+      // just-raised keyboard back down. Both device traces, and why `inert`
+      // alone did not close it, are in lib/terminal/helper-textarea.ts.
+      neutraliseHelperTextarea(host)
       exposeTerm(term)
     },
     write(data: Uint8Array | string) {

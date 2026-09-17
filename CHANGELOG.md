@@ -13,6 +13,15 @@ in, of which 193px was all the screen could show, on a page that does not
 scroll sideways. The sheet now takes the width that is left over and the
 sidebar keeps only what fits beside it ([GDK-1987]).
 
+**The keyboard stays up when you tap the terminal.** It had been rising and
+going away again about half a second later, so the phone's shell could be read
+but not typed into. Keystrokes there come from the screen's own field — xterm
+paints and nothing else — but xterm's own hidden textarea had never been told
+that, and the mouse event iOS synthesises after a tap sent the focus to it: a
+field `disableStdin` had made read-only, and iOS does not keep a keyboard up
+for one of those. That textarea takes no focus on this screen now
+([GDK-1986]).
+
 ## v0.23.1
 
 **A status the apps offered but the server refused.** On the built-in tracker
@@ -1785,4 +1794,5 @@ priority sorting keyed on `priority_rank`.
 [GDK-1982]: https://gadak.dev/backlog/#/?ks=GDK-1982
 [GDK-1984]: https://gadak.dev/backlog/#/?ks=GDK-1984
 [GDK-1985]: https://gadak.dev/backlog/#/?ks=GDK-1985
+[GDK-1986]: https://gadak.dev/backlog/#/?ks=GDK-1986
 [GDK-1987]: https://gadak.dev/backlog/#/?ks=GDK-1987
