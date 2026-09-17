@@ -96,6 +96,17 @@ export interface SettingsDraft {
    */
   ui: GadakSettings['ui']
   uiTouched: boolean
+  /**
+   * The declared-name field (GDK-1973): a person's name on the built-in
+   * tracker, '' when no person block is stored. An agent block leaves it
+   * empty — the UI never overwrites an agent's identity unless the person
+   * types a name over it.
+   */
+  actorName: string
+  /** Which block GET carried: 'person', 'agent', or none. Decides what an
+   *  emptied field means on save — only a person's block is cleared by an
+   *  empty name; an agent's (or no block) is preserved by omitting the key. */
+  actorKind: '' | 'agent' | 'person'
 }
 
 /** Preset values in seconds. 0 = server default; -1 = custom number entry. */
@@ -205,6 +216,8 @@ export function toDraft(s: GadakSettings, features: FeatureFlags = NO_FEATURES):
     terminalFontFamily: s.ui?.tokens?.fonts?.['mono-terminal'] ?? '',
     ui: s.ui,
     uiTouched: false,
+    actorName: s.actor?.kind === 'person' ? (s.actor.name ?? '') : '',
+    actorKind: s.actor?.kind === 'person' ? 'person' : s.actor ? 'agent' : '',
   }
 }
 
@@ -292,12 +305,37 @@ export function confluenceTurnOnClick(
 }
 
 /**
+ * The identity field's PUT shape (GDK-1973): a typed name sends the person
+ * verb; an emptied field clears a person's block ({}); everything else — no
+ * block, an agent's block, or an origin where the field is not editable —
+ * omits the key, which the server preserves.
+ */
+export function actorPayload(
+  d: Pick<SettingsDraft, 'actorName' | 'actorKind'>,
+  editable: boolean,
+): GadakSettings['actor'] {
+  if (!editable) return undefined
+  const name = d.actorName.trim()
+  if (name) return { name, kind: 'person' }
+  if (d.actorKind === 'person') return {}
+  return undefined
+}
+
+/**
  * Form model → PUT payload (full replace). Do not send runtime/site.
  *
  * `projectsPickerReady` decides which of the two project fields is the record:
  * the picker once the site answered, the manual text box while it has not.
+ * `actorEditable` is the identity field's visibility predicate (origin is the
+ * built-in tracker); false keeps the actor key out of the payload entirely,
+ * so a workspace where the account is the identity never sends a block the
+ * server would have to refuse.
  */
-export function toSettings(d: SettingsDraft, projectsPickerReady: boolean): GadakSettings {
+export function toSettings(
+  d: SettingsDraft,
+  projectsPickerReady: boolean,
+  actorEditable = false,
+): GadakSettings {
   const groupLabels: Record<string, string> = {}
   const groupColors: Record<string, string> = {}
   for (const row of d.groups) {
@@ -313,6 +351,7 @@ export function toSettings(d: SettingsDraft, projectsPickerReady: boolean): Gada
   }
   const hours = Number(d.staleText)
   const scrollback = Number(d.terminalScrollbackText)
+  const actor = actorPayload(d, actorEditable)
   return {
     projects: projectsPickerReady ? [...d.projects] : splitCsv(d.projectsText),
     // `enabled` is what lets the Sources tab turn the source on at all; the
@@ -359,5 +398,6 @@ export function toSettings(d: SettingsDraft, projectsPickerReady: boolean): Gada
       cursorBlink: d.terminalCursorBlink,
     },
     ...(d.uiTouched ? { ui: withTerminalTokens(d.ui, d.terminalFontSizeText, d.terminalFontFamily) } : {}),
+    ...(actor !== undefined ? { actor } : {}),
   }
 }

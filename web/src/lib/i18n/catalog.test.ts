@@ -149,7 +149,9 @@ function webCitedKeys(includeTests = true): Set<string> {
  *
  * The 2026-09-16 phone write-feedback round (GDK-1964/1965/1945) added five
  * under the same contract — three write-flow words the desk's write flow has
- * its own keys for, two Settings terminal-offer refusals — 25 → 30.
+ * its own keys for, two Settings terminal-offer refusals — 25 → 30. The
+ * declared-name round (GDK-1973) added the hosted sentence that replaces
+ * hostedNoViewer once a name is set — 30 → 31.
  */
 const ALLOWED_PHONE_ONLY = new Map<string, string>([
   // ── phone affordances wearing a shared prefix; eventual home app.* ──
@@ -171,6 +173,7 @@ const ALLOWED_PHONE_ONLY = new Map<string, string>([
   ['settings.hostedTitle', 'hosted-connection section title (Settings, GDK-1966)'],
   ['settings.hostedViewer', 'viewer identity from tailscale serve headers (Settings, GDK-1966)'],
   ['settings.hostedNoViewer', 'no-identity degradation sentence when reached without tailscale serve (Settings, GDK-1966)'],
+  ['settings.hostedDeclared', 'declared-name sentence that replaces the row above once a name is set (Settings, GDK-1973)'],
   ['settings.hostedUnreachable', 'page not served by gadak serve (PairGate, GDK-1966)'],
   ['settings.hostedAddHome', 'home-screen install hint (Settings, GDK-1970)'],
   // ── phone detail screen: the desk panel renders these facts under its own

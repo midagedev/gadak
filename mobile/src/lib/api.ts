@@ -32,6 +32,20 @@ export function configureApi(s: ApiSession): void {
 }
 
 /**
+ * The declared name (GDK-1973) rides every request once set — pushed here by
+ * the store, which owns its persistence, because this module must not import
+ * the store: the store imports this module, and the reverse edge would be a
+ * cycle. Null (or empty) sends no header, which is the workspace-default
+ * attribution the server falls back to.
+ */
+let actorName: string | null = null
+
+export function setApiActorName(name: string | null): void {
+  const trimmed = name?.trim() ?? ''
+  actorName = trimmed !== '' ? trimmed : null
+}
+
+/**
  * The shared pair (code, status) is pinned to the desk's declaration
  * (GDK-1132): `implements Pick<WebApiError, …>` is type-only, so nothing of
  * the desktop's module loads here, but a rename on the desk breaks this
@@ -97,13 +111,28 @@ export function absoluteApiUrl(
  * exists. The flag is about a *JSON* body on purpose (GDK-1872): a multipart
  * upload rides `RequestOpts.form`, and its Content-Type cannot be written
  * here because only the runtime knows the boundary it generated.
+ *
+ * `actorName` (GDK-1973) is the declared name a person typed in Settings:
+ * percent-encoded because header values are bytes and the name is text —
+ * the server decodes before matching it against the tracker's actor block.
+ * Absent (null/empty/whitespace) sends no header at all, so the server's
+ * workspace-default attribution stands.
  */
-export function apiHeaders(token: string | null, hasJsonBody: boolean): Record<string, string> {
+export function apiHeaders(
+  token: string | null,
+  hasJsonBody: boolean,
+  actorName?: string | null,
+): Record<string, string> {
   const h: Record<string, string> = {}
   if (token) h['Authorization'] = `Bearer ${token}`
   if (hasJsonBody) h['Content-Type'] = 'application/json'
+  const name = actorName?.trim() ?? ''
+  if (name !== '') h[ACTOR_NAME_HEADER] = encodeURIComponent(name)
   return h
 }
+
+/** The declared-name header (GDK-1973) — the value is percent-encoded text. */
+export const ACTOR_NAME_HEADER = 'X-Gadak-Actor-Name'
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>
 
@@ -186,7 +215,7 @@ async function dial(path: string, opts: RequestOpts): Promise<Response> {
     throw new ApiError('endpoint_out_of_scope', 0)
   }
   const doFetch = opts.fetchFn ?? (await pickFetch())
-  const headers = apiHeaders(s.token, opts.body !== undefined)
+  const headers = apiHeaders(s.token, opts.body !== undefined, actorName)
   if (opts.etag) headers['If-None-Match'] = opts.etag
   let res: Response
   try {

@@ -36,6 +36,24 @@
   import { trapFocus } from '../../lib/focus-trap'
   import { ESC_TIER, isEscapeKey, onEscape } from '../../lib/dom-actions'
   import { ADD_BTN, COPY_BTN, INPUT } from './controls'
+  import { config, ORIGIN_GADAK } from '../../lib/config'
+  import type { SettingsDraft } from './draft'
+
+  let {
+    draft = $bindable(),
+    onSaveIdentity,
+    identitySaving = false,
+  }: {
+    draft: SettingsDraft
+    onSaveIdentity: () => void
+    identitySaving?: boolean
+  } = $props()
+
+  /** The identity block shows only where its field can write: a gadak
+   *  origin, local or paired. On Jira/Linear the account is the identity
+   *  and the block is absent, not disabled. Read once at setup —
+   *  config.json is awaited before the app mounts. */
+  const identityHere = config().originType === ORIGIN_GADAK
 
   let rows = $state<WorkspaceInfo[]>([])
   let loading = $state(true)
@@ -264,6 +282,40 @@
 </script>
 
 <div class="flex flex-col gap-2.5" data-testid="workspaces-tab">
+  {#if identityHere}
+    <!-- The declared-name field (GDK-1973): on the built-in tracker a person
+         can say who they are, and writes from this UI are recorded under that
+         name. It has its own Save on purpose — the verb applies immediately
+         and must not sweep other tabs' unsaved edits through the footer's
+         full-document PUT (or wait behind them). -->
+    <section class="flex flex-col gap-1.5" data-testid="identity" aria-labelledby="identity-title">
+      <h3 id="identity-title" class="text-body font-medium text-text-primary">
+        {t('settings.identityTitle')}
+      </h3>
+      <form
+        class="flex flex-wrap items-end gap-2"
+        onsubmit={(e) => {
+          e.preventDefault()
+          onSaveIdentity()
+        }}
+        data-testid="identity-form"
+      >
+        <input
+          class={INPUT}
+          bind:value={draft.actorName}
+          placeholder={t('settings.identityPlaceholder')}
+          aria-labelledby="identity-title"
+          data-testid="identity-name"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button type="submit" class={ADD_BTN} disabled={identitySaving} data-testid="identity-save">
+          {t(identitySaving ? 'common.saving' : 'common.save')}
+        </button>
+      </form>
+      <p class="text-micro leading-relaxed text-text-muted">{t('settings.identityHint')}</p>
+    </section>
+  {/if}
   {#if remoteBlocked}
     <p
       class="rounded border border-border-subtle bg-bg-elevated px-2 py-1.5 text-micro leading-relaxed text-text-secondary"

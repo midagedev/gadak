@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import { apiUrl, absoluteApiUrl, apiHeaders, request, ApiError, errorMessage, isPairingDead, type FetchLike } from './api'
+import {
+  apiUrl,
+  absoluteApiUrl,
+  apiHeaders,
+  request,
+  setApiActorName,
+  ApiError,
+  errorMessage,
+  isPairingDead,
+  type FetchLike,
+} from './api'
 
 function fakeFetch(status: number, body: unknown, headers: Record<string, string> = {}): {
   fn: FetchLike
@@ -60,10 +70,45 @@ describe('apiHeaders', () => {
   it('marks JSON only when a body rides along', () => {
     expect(apiHeaders(null, true)['Content-Type']).toBe('application/json')
   })
+  // GDK-1973: the declared name rides every dial once set, percent-encoded
+  // (header values are bytes, the name is text), and absent when unset —
+  // the server's workspace-default attribution stands.
+  it('carries the declared name, encoded, only when non-empty', () => {
+    expect(apiHeaders(null, false, 'Dana')['X-Gadak-Actor-Name']).toBe('Dana')
+    expect(apiHeaders(null, false, 'Kim Cheolsu')['X-Gadak-Actor-Name']).toBe('Kim%20Cheolsu')
+    expect(apiHeaders(null, false, '김철수')['X-Gadak-Actor-Name']).toBe(
+      encodeURIComponent('김철수'),
+    )
+  })
+  it('sends no declared-name header for null, empty, and whitespace', () => {
+    expect(apiHeaders(null, false, null)).toEqual({})
+    expect(apiHeaders(null, false, '')).toEqual({})
+    expect(apiHeaders(null, false, '   ')).toEqual({})
+  })
 })
 
 describe('request', () => {
   const session = { endpoint: '', token: 'STD-token' }
+
+  it('threads the pushed declared name onto the dial, and drops it when cleared', async () => {
+    // GDK-1973: the store pushes the name through setApiActorName (it cannot
+    // ride the session — the store owns persistence), and dial is what
+    // carries it onto every request. Clearing with '' must remove it again.
+    const { fn, calls } = fakeFetch(200, {})
+    setApiActorName('Dana Kim')
+    try {
+      await request('auth/me/', { session, fetchFn: fn })
+      expect((calls[0]!.init.headers as Record<string, string>)['X-Gadak-Actor-Name']).toBe(
+        'Dana%20Kim',
+      )
+      await request('auth/me/', { session, fetchFn: fn })
+      expect(calls).toHaveLength(2)
+    } finally {
+      setApiActorName('')
+    }
+    await request('auth/me/', { session, fetchFn: fn })
+    expect((calls[2]!.init.headers as Record<string, string>)['X-Gadak-Actor-Name']).toBeUndefined()
+  })
 
   it('returns the envelope with the ETag on 200', async () => {
     const { fn } = fakeFetch(200, { issues: [] }, { ETag: '"sv-7"' })

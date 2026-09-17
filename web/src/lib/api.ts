@@ -1279,6 +1279,16 @@ export interface GadakSettings {
     tokensByTheme?: Record<string, UITokens>
     dataColors?: Record<string, Record<string, string>>
   }
+  /**
+   * The workspace's default acting identity (GDK-1973): who writes from
+   * this UI are recorded as on the built-in tracker. GET carries it only
+   * where the field is editable (a gadak origin, and only when a block is
+   * stored). PUT is omit-to-preserve: `{name, kind: 'person'}` declares a
+   * person's name (the server derives the slug and keeps the trailer),
+   * `{}` clears the block, and any other shape (an agent block echoed back)
+   * is left as stored.
+   */
+  actor?: { slug?: string; name?: string; kind?: string; trailer?: boolean }
 }
 
 /** One token block of `ui` (internal/config/uitokens.go UITokens): colors

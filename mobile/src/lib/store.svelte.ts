@@ -2,7 +2,7 @@
 // issue snapshot, and navigation. Screens mutate state only through the
 // exported functions.
 
-import { configureApi, request, isPairingDead, ApiError } from './api'
+import { configureApi, request, isPairingDead, setApiActorName, ApiError } from './api'
 import { t } from './i18n'
 import { VISIT_DEBOUNCE_MS } from '../../../web/src/lib/history'
 import { setDemoSession } from './demo'
@@ -30,6 +30,7 @@ import {
 import { tokenGet, tokenSet, tokenDel } from './secure'
 import { runtimeMode } from './runtime'
 import {
+  ACTOR_NAME_KEY,
   CACHE_KEY,
   FIELD_SPECS_KEY,
   HOST_SCOPED_KEYS,
@@ -247,6 +248,15 @@ export const app = $state({
    * own value — a phone that never opted out holds the default here.
    */
   terminalFontSize: 13,
+  /**
+   * The declared name (GDK-1973): what a person typed under "You on this
+   * tracker" in Settings, attributing this phone's writes on the active
+   * serve. Restored on boot from the host-scoped gadak.actorName key and
+   * pushed onto every request through setApiActorName — attribution only,
+   * never authority (the server's terminal gate ignores it by test). Empty
+   * means the workspace-default attribution stands.
+   */
+  actorName: '',
   /** Ticks every 30s so relative times stay honest while the app is open. */
   now: new Date(),
 
@@ -410,6 +420,31 @@ function scopedKey(base: string): string {
   return hostKey(base, getActiveHostId())
 }
 
+/* ── declared name (GDK-1973) ── */
+
+/**
+ * The server's cap on a self-declared name (internal/server/viewer.go
+ * declaredActorMaxRunes): over the cap the server *ignores* the declaration
+ * — a truncated name would be a different person's attribution — so the
+ * phone caps at the field instead: what the person sees typed is always
+ * exactly what will be sent, and the ignore case cannot arrive.
+ */
+const ACTOR_NAME_MAX_RUNES = 64
+
+/**
+ * The Settings identity field's one verb (GDK-1973): trim, cap, persist
+ * under the host-scoped key, and push onto every request from here on. An
+ * empty name removes the key and clears the header — the workspace-default
+ * attribution stands again.
+ */
+export function setActorName(name: string): void {
+  const capped = [...name.trim()].slice(0, ACTOR_NAME_MAX_RUNES).join('')
+  app.actorName = capped
+  setApiActorName(capped)
+  if (capped === '') drop(scopedKey(ACTOR_NAME_KEY))
+  else writeJSON(scopedKey(ACTOR_NAME_KEY), capped)
+}
+
 /* ── boot ── */
 
 /**
@@ -548,7 +583,12 @@ export async function boot(): Promise<void> {
  * serve once, then enter paired with a RAM-only meta labelled by the host the
  * page was opened at. There is no token — same-origin needs no Bearer under
  * the loopback trust model (decision 0003 addendum 2026-09-16) — and nothing
- * is ever written: no roster, no meta, no Keychain. A dead probe leaves the
+ * of the pairing is ever written: no roster, no meta, no Keychain. The one
+ * key hosted does keep is the declared name (GDK-1973),
+ * gadak.actorName in this browser's own localStorage at the serve origin —
+ * the explicit exception, because the name is typed on this page and has
+ * nowhere else to live; enterPaired restores it through the same line the
+ * paired app uses. A dead probe leaves the
  * app unpaired under `app.hosted`, which PairGate answers with the hosted
  * unreachable sentence instead of the pairing form (nothing can be paired
  * from a page the serve is not serving).
@@ -572,6 +612,13 @@ async function enterPaired(meta: PairMeta, token: string): Promise<void> {
   app.meta = meta
   app.rejected = false
   configureApi({ endpoint: meta.endpoint, token })
+  // The declared name (GDK-1973) is restored before the first sync: its
+  // header must ride the bootstrap itself, not appear a round-trip late.
+  // Hosted enters here too (with no roster), so its bare-key name restores
+  // through the same line.
+  const storedName = readJSON<string>(scopedKey(ACTOR_NAME_KEY))
+  app.actorName = typeof storedName === 'string' ? storedName : ''
+  setApiActorName(app.actorName)
   const cached = readJSON<Snapshot>(scopedKey(CACHE_KEY))
   if (cached) {
     app.issues = cached.issues
@@ -979,6 +1026,11 @@ function resetSessionState(): void {
   app.palette = false
   app.layer = null
   app.terminal = null
+  // The declared name belongs to the host being left (GDK-1973): the next
+  // enterPaired restores its own, and the header must not ride requests
+  // between the two.
+  app.actorName = ''
+  setApiActorName(null)
   // The boundary and the threshold belong to the host being left, not to the
   // next one (GDK-1495): a strip latched on one workspace must not speak on
   // another's pool.

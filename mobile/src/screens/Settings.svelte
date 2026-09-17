@@ -13,11 +13,13 @@
     switchHost,
     removeRosterHost,
     setTerminalFontSize,
+    setActorName,
   } from '../lib/store.svelte'
   import { TERMINAL_FONT_SIZES } from '../lib/termprefs'
   import { relTime, hasIdentity, offerExpiry } from '../lib/domain'
   import { decodeOffer, OfferError, OfferScopeError } from '../lib/offer'
   import { ApiError, errorMessage, request } from '../lib/api'
+  import { showToast } from '../lib/toast.svelte'
   import { runtimeMode } from '../lib/runtime'
   import { getActiveHostId, listHosts, type KnownHost } from '../lib/hosts'
   import type { ViewerDoc } from '../lib/types'
@@ -104,6 +106,25 @@
       alive = false
     }
   })
+
+  /* ── declared name (GDK-1973) ──
+     The field says who writes from this phone. Its verb is local:
+     setActorName trims, caps at the server's rune limit, persists under
+     the host-scoped key, and pushes the header onto every request from
+     here on — no round-trip to await, so the toast is the whole
+     confirmation. Shown only where the phone has no identity of its own:
+     hosted without a verified tailscale viewer (the markup gates it), and
+     a paired serve whose me carries no identity — a built-in origin, the
+     same condition the no-identity sentence above the field keys on. */
+  let actorField = $state(app.actorName)
+
+  function saveIdentity(): void {
+    setActorName(actorField)
+    actorField = app.actorName
+    if (app.actorName !== '') {
+      showToast(t('settings.identitySaved', { name: app.actorName }), 'success')
+    }
+  }
 
   /* ── host roster (GDK-1097 B2) ──
      Every host this phone paired with, one active. A row tap switches;
@@ -323,6 +344,30 @@
   {/snippet}
 
   <div class="page">
+    <!-- The declared-name fields (GDK-1973), one owner for both branches
+         below: title, one input, the hint, Save. The verb is local (see
+         saveIdentity above) — the next request carries the header, which
+         is what the e2e intercept asserts. -->
+    {#snippet identityFields()}
+      <section data-testid="identity">
+        <h3>{t('settings.identityTitle')}</h3>
+        <input
+          class="name"
+          bind:value={actorField}
+          placeholder={t('settings.identityPlaceholder')}
+          aria-label={t('settings.identityTitle')}
+          data-testid="identity-name"
+          autocomplete="off"
+          autocapitalize="words"
+          enterkeyhint="done"
+          spellcheck="false"
+        />
+        <p class="sub">{t('settings.identityHint')}</p>
+        <button class="act" data-testid="identity-save" onclick={saveIdentity}>
+          {t('common.save')}
+        </button>
+      </section>
+    {/snippet}
     {#if app.demo}
       <!-- Demo session (GDK-1051): the honest version of "Paired server" —
            nothing is paired. Exit is not the two-step unpair: it deletes
@@ -351,6 +396,13 @@
                 login: viewer.login || '',
               })}
             </p>
+          {:else if app.actorName}
+            <!-- The no-viewer sentence, replaced by what the declared name
+                 made true: writes are recorded under a name chosen here, and
+                 the sentence says itself that it is not verified. -->
+            <p class="sub" data-testid="hosted-declared">
+              {t('settings.hostedDeclared', { name: app.actorName })}
+            </p>
           {:else}
             <p class="sub">{t('settings.hostedNoViewer')}</p>
           {/if}
@@ -358,6 +410,13 @@
             <p class="sub" data-testid="hosted-add-home">{t('settings.hostedAddHome')}</p>
           {/if}
         </section>
+        {#if viewer?.source !== 'tailscale'}
+          <!-- Hidden through tailscale serve: the viewer there IS the
+               identity, verified — a declared name beside it would be a
+               second, weaker name for the same person. Everywhere else on a
+               hosted page the serve has nothing but this field. -->
+          {@render identityFields()}
+        {/if}
       {/if}
       {#if roster.length === 0 && !app.hosted}
         <!-- No roster yet (a pre-GDK-1097 pairing): the paired server is
@@ -565,6 +624,15 @@
         {/if}
       </section>
 
+      {#if !app.hosted && !hasIdentity(app.me)}
+        <!-- A paired serve whose me carries no identity is a built-in
+             origin — the same condition the no-identity sentence above
+             keys on. There the workspace default is nobody, and this
+             field is the only way to say who writes. (Hosted renders its
+             own copy above, beside the connection block.) -->
+        {@render identityFields()}
+      {/if}
+
       {#if !app.hosted}
         <!-- Hidden on a hosted page (GDK-1966): nothing was paired, so
              there is nothing to unpair and nothing to warn about. -->
@@ -694,6 +762,25 @@
   }
   textarea::placeholder {
     font-family: var(--font-sans);
+    color: var(--color-text-muted);
+  }
+  /* The declared-name field (GDK-1973): the same control dialect as the
+     offer textarea and CreateSheet's inputs — hairline border, panel
+     background, body text in the sans face (a name is not code) — over the
+     44pt floor. */
+  .name {
+    min-height: var(--spacing-control);
+    padding: 6px 12px;
+    background: var(--color-bg-panel);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 6px;
+    font: inherit;
+  }
+  .name:focus {
+    outline: none;
+    border-color: var(--color-border-strong);
+  }
+  .name::placeholder {
     color: var(--color-text-muted);
   }
   .error {

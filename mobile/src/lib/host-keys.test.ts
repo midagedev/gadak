@@ -43,8 +43,10 @@ describe('hostKey — composition', () => {
   // (gadak.sprints, the sprint line's rows) — the sprint of one workspace
   // must not name the sprint of another. GDK-1870 added the ninth
   // (gadak.field-specs): two sites configure different custom fields, and an
-  // alias discovered on one names nothing on the other.
-  it('scopes exactly the nine session documents', () => {
+  // alias discovered on one names nothing on the other. GDK-1973 added the
+  // tenth (gadak.actorName, the declared name): the name that attributes
+  // this phone's writes belongs to the serve it was declared against.
+  it('scopes exactly the ten session documents', () => {
     expect([...HOST_SCOPED_KEYS].sort()).toEqual(
       [
         'gadak.pairing.meta',
@@ -56,6 +58,7 @@ describe('hostKey — composition', () => {
         'gadak.issues.scope',
         'gadak.drafts.v1',
         'gadak.field-specs',
+        'gadak.actorName',
       ].sort(),
     )
   })

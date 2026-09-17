@@ -1,5 +1,5 @@
 <script module lang="ts">
-  import { isDesktop } from '../../lib/config'
+  import { config, isDesktop, ORIGIN_GADAK } from '../../lib/config'
   import { isVisibleSettingsTab, visibleSettingsTabs } from '../../lib/integrations'
   import { SETTINGS_TABS, type SettingsTab } from '../../lib/settings-tabs'
 
@@ -126,11 +126,20 @@
   const showIntegrations = TABS.some(([id]) => id === 'integrations')
   const showDevices = TABS.some(([id]) => id === 'devices')
 
+  /** The identity field's editability (GDK-1973): the same predicate the
+   *  Workspaces tab's block uses to show itself. Read once at setup —
+   *  config.json is awaited before the app mounts, and switching origin is a
+   *  new workspace, not a settings edit. */
+  const actorEditable = config().originType === ORIGIN_GADAK
+
   let loading = $state(true)
   /** Settings reads the local config over loopback; inside the grace it must
    *  paint nothing at all, the same as every column view (GDK-1481). */
   const loadingGrace = createSkeletonGrace(() => loading)
   let saving = $state(false)
+  /** The identity field's Save runs on its own — not the footer's `saving`,
+   *  which ends in a reload this save must not trigger. */
+  let identitySaving = $state(false)
   let error = $state<string | null>(null)
 
   /** Everything the form edits. Replaced wholesale by a load, mutated in place
@@ -184,7 +193,7 @@
 
   /** Form state → PUT payload (full replace). Do not send runtime/site. */
   function build(): GadakSettings {
-    return toSettings(draft, projectsPickerReady)
+    return toSettings(draft, projectsPickerReady, actorEditable)
   }
 
   onMount(async () => {
@@ -335,6 +344,30 @@
     }
   }
 
+  /** The identity field's own Save (GDK-1973): the same full-document PUT as
+   *  the footer — the endpoint is a full replace, so a targeted `{actor}`
+   *  payload would wipe everything else — but applied without the reload:
+   *  the field's held value is its own confirmation, and a reload would
+   *  throw away unsaved edits sitting in other tabs. The draft's kind is
+   *  corrected in place so a later footer Save sends the same verb. */
+  async function saveIdentity() {
+    if (identitySaving) return
+    identitySaving = true
+    error = null
+    try {
+      await api.putSettings(build())
+      const name = draft.actorName.trim()
+      draft.actorKind = name ? 'person' : ''
+      // The toast names the name; a clear has none to name — the emptied
+      // field is its own confirmation there.
+      if (name) write.toast(t('settings.identitySaved', { name }), 'success')
+    } catch (e) {
+      error = e instanceof Error ? e.message : t('settings.saveFailed')
+    } finally {
+      identitySaving = false
+    }
+  }
+
   function openJiraKey() {
     onclose()
     write.openSettings()
@@ -480,7 +513,7 @@
         {:else if tab === 'devices' && showDevices}
           <DevicesTab />
         {:else if tab === 'workspaces'}
-          <WorkspacesTab />
+          <WorkspacesTab bind:draft onSaveIdentity={saveIdentity} {identitySaving} />
         {:else if tab === 'about'}
           <AboutTab {runtime} />
         {:else}

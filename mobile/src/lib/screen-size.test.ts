@@ -50,7 +50,12 @@ const CEILINGS: Record<string, { lines: number; state: number }> = {
   // Raised 2026-09-17 (GDK-1970 install hint, 2026-09-17): the home-screen
   // install sentence + its standalone guard. 827 → 837; $state unchanged
   // (display-mode is read once, not state).
-  'Settings.svelte': { lines: 837, state: 15 },
+  // Raised 2026-09-17 (GDK-1973 declared name): the identity snippet
+  // (title, field, hint, Save) rendered in both the paired and hosted
+  // branches, the hostedDeclared arm beside the no-viewer sentence, the
+  // local save verb, and the field's control CSS. 837 → 924; $state
+  // 15 → 16 (the field's draft).
+  'Settings.svelte': { lines: 924, state: 16 },
   'PageDetail.svelte': { lines: 522, state: 8 },
   // 2026-09-16, GDK-1936: raised to 497 when the header learned to wrap,
   // then lowered when the revision moved the measurement out to

@@ -1,7 +1,7 @@
-// Host-scoped cache keys (GDK-1097 B2). The nine localStorage documents a
+// Host-scoped cache keys (GDK-1097 B2). The ten localStorage documents a
 // paired session owns — the pairing metas, the issue snapshot, views,
 // pages, sprints, the scope, the composer drafts (GDK-1863), the discovered
-// field specs (GDK-1870) — are namespaced
+// field specs (GDK-1870), the declared name (GDK-1973) — are namespaced
 // per roster host so two hosts never read each other's cache:
 // 'gadak.snapshot' becomes 'gadak.snapshot@<hostId>'
 // once a host is active. A null host id keeps the bare key, which is the
@@ -26,6 +26,15 @@ export const DRAFTS_KEY = 'gadak.drafts.v1'
  *  labels and their order. A host document: two sites configure different
  *  fields, and the aliases of one mean nothing on the other. */
 export const FIELD_SPECS_KEY = 'gadak.field-specs'
+/**
+ * The declared name a person typed in Settings (GDK-1973). A host document
+ * for the same reason the scope is: the name that attributes this phone's
+ * writes belongs to the serve it was declared against, and a second host's
+ * name would attribute to the wrong tracker. On a hosted page (no roster)
+ * it stays at the bare key — the browser's own localStorage at the serve
+ * origin, the one place a hosted page may keep anything.
+ */
+export const ACTOR_NAME_KEY = 'gadak.actorName'
 
 /**
  * Every key that is namespaced per host. The unpaired marker is a
@@ -41,6 +50,7 @@ export const HOST_SCOPED_KEYS = [
   SCOPE_KEY,
   DRAFTS_KEY,
   FIELD_SPECS_KEY,
+  ACTOR_NAME_KEY,
 ] as const
 
 /** Namespaced form of a base key: the bare key for a null host (legacy). */

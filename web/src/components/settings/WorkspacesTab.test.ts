@@ -273,7 +273,10 @@ describe('GDK-1096 workspaces tab is wired into the dialog', () => {
     expect(readFileSync(SETTINGS_TABS_TS, 'utf8')).toMatch(/'fields',\n\s+'workspaces',/)
     expect(dialog).toMatch(/workspaces: t\('settings\.tabWorkspaces'\)/)
     expect(dialog).toMatch(/tab === 'workspaces'/)
-    expect(dialog).toMatch(/<WorkspacesTab \/>/)
+    // GDK-1973: the mount grew the identity field's own verb — the tab's
+    // draft is bound and the declared-name Save is handed in — so the pin
+    // is the mounted tag with those props, not the bare one.
+    expect(dialog).toMatch(/<WorkspacesTab bind:draft onSaveIdentity=\{saveIdentity\} \{identitySaving\} \/>/)
   })
 
   test('visible under serve (not a desktop-only tab)', () => {

@@ -332,6 +332,14 @@ type settingsDoc struct {
 	// always populates it (empty object = nothing overridden).
 	UI *config.UIConfig `json:"ui,omitempty"`
 
+	// Actor is the workspace's default acting identity (GDK-1973): who
+	// writes from the settings UI are recorded as on the built-in tracker.
+	// Pointer for the omit-to-preserve rule; GET populates it only where
+	// the UI can edit it (a gadak origin — elsewhere the account is the
+	// identity). PUT implements exactly the two verbs `gadak me` owns:
+	// {name, kind:"person"} sets a declared name, {} clears the block.
+	Actor *config.ActorConfig `json:"actor,omitempty"`
+
 	// UIWarnings carries the write-time token warnings of THIS PUT back to
 	// the caller: judgment violations now save, so the warning is
 	// the payload's own diagnostics — why the saved look will render the way
@@ -576,6 +584,46 @@ func (s *server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// The actor block (GDK-1973) carries the same omit-to-preserve contract,
+	// with exactly the two verbs `gadak me` owns. A name plus kind:"person"
+	// is the set — the registry setter derives the slug and the stored
+	// trailer rides along, so a person's save cannot flip the attribution
+	// line back on (the shape meSet marshals). An all-empty block is the
+	// clear. Anything else — an agent block echoed back by a client that
+	// GET the document, a slug this UI cannot type — is not this endpoint's
+	// verb and leaves the stored block standing, which is what keeps the
+	// endpoint a person verb rather than a general actor writer.
+	if in.Actor != nil {
+		if prev.OriginType() != config.OriginGadak {
+			fail(w, http.StatusBadRequest, "actor_not_gadak_origin")
+			return
+		}
+		var raw json.RawMessage
+		name := strings.TrimSpace(in.Actor.Name)
+		switch {
+		case name != "" && in.Actor.Kind == config.ActorKindPerson:
+			block := config.ActorConfig{Name: name, Kind: config.ActorKindPerson}
+			if prev.Actor != nil {
+				block.Trailer = prev.Actor.Trailer
+			}
+			b, err := json.Marshal(block)
+			if err != nil {
+				serverError(w, r, err)
+				return
+			}
+			raw = b
+		case name == "" && in.Actor.Slug == "":
+			raw = json.RawMessage("{}")
+		}
+		if raw != nil {
+			if setting, ok := config.SettingByPath("actor"); ok {
+				if err := setting.Set(&next, raw); err != nil {
+					fail(w, http.StatusBadRequest, err.Error())
+					return
+				}
+			}
+		}
+	}
 	next.BodyFields = in.BodyFields
 	next.EditableFields = in.EditableFields
 	next.Members = in.Members
@@ -681,6 +729,15 @@ func settings(cfg *config.Config) settingsDoc {
 	}
 	if cfg.Confluence != nil {
 		doc.Confluence = &settingsConfluenceDoc{Spaces: strs(cfg.Confluence.Spaces)}
+	}
+	// The actor block rides the document only where the settings UI can
+	// edit it: a gadak origin. Elsewhere the account is the identity and
+	// the CLI (`gadak me`, `gadak config get actor`) stays the block's
+	// surface — carrying it would only hand an echo-back PUT a body the
+	// handler above must refuse.
+	if cfg.OriginType() == config.OriginGadak && cfg.Actor != nil {
+		a := *cfg.Actor
+		doc.Actor = &a
 	}
 	return doc
 }

@@ -1000,6 +1000,28 @@ export const settings = {
     ko: '워크스페이스',
     ja: 'ワークスペース',
   },
+  // GDK-1973: the declared-name field on the built-in tracker. ko/ja are
+  // lead-written — inserted verbatim, never edited here.
+  'settings.identityTitle': {
+    en: 'You on this tracker',
+    ko: '이 트래커에서의 나',
+    ja: 'このトラッカーでのあなた',
+  },
+  'settings.identityHint': {
+    en: 'Writes from here are recorded under this name. Leave it empty to write as the workspace default.',
+    ko: '여기서 쓰는 글은 이 이름으로 남습니다. 비워 두면 워크스페이스 기본 이름으로 남습니다.',
+    ja: 'ここからの書き込みはこの名前で記録されます。空のままならワークスペースの既定の名前で記録されます。',
+  },
+  'settings.identityPlaceholder': {
+    en: 'Your name',
+    ko: '이름',
+    ja: '名前',
+  },
+  'settings.identitySaved': {
+    en: 'Saved. Writes are recorded as {name}.',
+    ko: '저장했습니다. 쓰기는 {name} 이름으로 남습니다.',
+    ja: '保存しました。書き込みは {name} の名前で記録されます。',
+  },
   'settings.workspacesIntro': {
     en: 'Each workspace is its own local copy, served at /w/<name>/. Creating one seeds a built-in tracker; removing one deletes this machine’s copy of it.',
     ko: '각 워크스페이스는 자체 로컬 사본을 가지며 /w/<name>/ 으로 서빙됩니다. 만들면 내장 트래커가 시드되고, 지우면 이 머신의 사본이 삭제됩니다.',
@@ -1483,6 +1505,13 @@ export const settings = {
     en: 'No viewer identity — this serve is reached directly, not through tailscale serve. Writes attribute to the workspace owner.',
     ko: '보는 사람 정보가 없습니다. tailscale serve를 거치지 않고 바로 붙은 연결이라, 쓰기는 워크스페이스 소유자 이름으로 남습니다.',
     ja: '閲覧者情報がありません。tailscale serve を経由しない直接接続のため、書き込みはワークスペース所有者の名前で記録されます。',
+  },
+  // GDK-1973: the same no-viewer connection once a name is declared here.
+  // ko/ja are lead-written — inserted verbatim, never edited here.
+  'settings.hostedDeclared': {
+    en: 'Reached directly, not through tailscale serve. Writes are recorded as {name}, a name you chose here; it is not verified.',
+    ko: 'tailscale serve를 거치지 않고 바로 붙은 연결입니다. 쓰기는 여기서 직접 정한 이름 {name}으로 남으며, 검증된 이름은 아닙니다.',
+    ja: 'tailscale serve を経由しない直接接続です。書き込みはここで自分で決めた名前 {name} で記録されます。検証された名前ではありません。',
   },
   'settings.hostedUnreachable': {
     en: 'This page is not served by gadak serve — open the address the desktop shows under "Open on your phone".',
