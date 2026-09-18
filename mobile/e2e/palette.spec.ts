@@ -210,6 +210,51 @@ test('a Detail opened from the palette goes back to the palette, query intact', 
   await expect(page.locator('.palette-field input')).toHaveValue('tenant')
 })
 
+/*
+ * GDK-1997. The detail layer keeps its DOM for the length of the fly-out
+ * after `app.detail` goes null, and a prop in Svelte 5 is a getter — so
+ * `issueKey` was still `app.detail.key` while the store had already moved
+ * on. `screens/Detail.svelte` re-reads that prop in its fetch continuation
+ * (`if (key === issueKey)`, the guard that drops a response for an issue the
+ * screen has left), so closing a detail whose request is still in flight
+ * threw `Cannot read properties of null (reading 'key')` onto the page.
+ *
+ * The delay is the whole test. Without it the response has landed before the
+ * back gesture and nothing re-reads the prop; the defect reached us as one
+ * red CI run (35303892257, mobile/e2e/palette.spec.ts:195) in twenty-five
+ * green ones on an unchanged tree, because the runner is slower than this
+ * machine. FAIL-first with the delay, on the pre-fix source, every run:
+ *
+ *	Error: the page reported 1 uncaught error(s):
+ *	  Cannot read properties of null (reading 'key')
+ *
+ * The assertion is the fixture's own `pageErrors` collector (helpers.ts:40),
+ * which is why this test has no expectation of its own about the error: an
+ * uncaught error anywhere in the run fails the test that was open.
+ */
+test('closing a detail whose request is still in flight throws nothing', async ({ page }) => {
+  await page.route('**/api/v1/issues/*/', async (route) => {
+    await new Promise((r) => setTimeout(r, 700))
+    await route.fallback()
+  })
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await waitPaired(page)
+
+  await openPalette(page)
+  await page.locator('.palette-field input').fill('tenant')
+  await page.locator('.pane:not(.off) button.row').first().waitFor()
+  await page.locator('.pane:not(.off) button.row').first().click()
+  await page.locator('.detail-layer').first().waitFor()
+
+  // Back before the detail response lands.
+  await page.goBack()
+  await expect(page.locator('.detail-layer')).toHaveCount(0)
+  // Long enough for the in-flight response to arrive and its continuation
+  // to run, which is when the read happened.
+  await page.waitForTimeout(1500)
+  await expect(page.locator('.palette-field input')).toHaveValue('tenant')
+})
+
 test('a sheet in the column clears the home indicator on its own', async ({ page }) => {
   // GDK-902 2026-09-15. The tab bar used to stand between a sheet in the
   // column and the home indicator, so app.css exempted it from the bottom

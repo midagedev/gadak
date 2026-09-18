@@ -75,7 +75,11 @@ going back to the desktop and saving a view there. The toggles are found in
 the list itself and one that would change nothing is not offered, so a
 one-project workspace is never asked about projects. Nothing is saved — the
 narrowing goes when you pick another view, which is how a phone you took out
-to find one thing should behave ([GDK-1994]).
+to find one thing should behave ([GDK-1994]). And opening one of the
+palette's results and leaving again before it had loaded no longer breaks the
+screen: the layer that plays the closing animation outlives the issue it is
+drawing by the length of that animation, and it was still asking the app which
+issue that was after the app had moved on ([GDK-1997]).
 The sheet's last two rows are what the list is cut by and what it is ordered
 by, and the cut is now the view's the way the order already was: the desktop's
 own grouper moved out of the code the desktop's list is wired into, so both
@@ -1900,3 +1904,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1992]: https://gadak.dev/backlog/#/?ks=GDK-1992
 [GDK-1993]: https://gadak.dev/backlog/#/?ks=GDK-1993
 [GDK-1994]: https://gadak.dev/backlog/#/?ks=GDK-1994
+[GDK-1997]: https://gadak.dev/backlog/#/?ks=GDK-1997

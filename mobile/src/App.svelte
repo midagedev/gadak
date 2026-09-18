@@ -15,6 +15,36 @@
   import PageDetail from './screens/PageDetail.svelte'
   import ToastHost from './ui/ToastHost.svelte'
 
+  /*
+   * The detail the layer is painting, which outlives `app.detail` by the
+   * length of the fly-out (GDK-1997).
+   *
+   * A prop in Svelte 5 is a getter, so `issueKey={app.detail.key}` is not
+   * read once at render — it is read whenever the child reads `issueKey`.
+   * The layer keeps its DOM for the 200ms outro after the detail closes,
+   * and `screens/Detail.svelte` re-reads the prop in the continuation of
+   * its own fetch (`if (key === issueKey)`, the guard that drops a response
+   * for an issue the screen has moved off). Close the detail while that
+   * request is still in flight and the continuation reads `.key` on null:
+   * `Cannot read properties of null (reading 'key')`, an uncaught error on
+   * the page. It is a race, so it surfaced as one CI failure in twenty-five
+   * green runs on an unchanged tree, and reproduces every time with the
+   * detail response delayed 700ms.
+   *
+   * Guarding the continuations is the wrong layer — there are a dozen of
+   * them across two screens and the next one added would not know. This is
+   * the one place the child's view of "which issue" is decided, so it is
+   * the place that has to keep answering after the store has moved on: the
+   * last non-null detail, held here, handed down as a plain value.
+   */
+  let lastDetail: { kind: 'issue' | 'page'; key: string } | null = null
+  function shownDetail(): { kind: 'issue' | 'page'; key: string } {
+    if (app.detail) lastDetail = { kind: app.detail.kind, key: app.detail.key }
+    // Non-null by construction: every caller is inside `{#if app.detail}`,
+    // so the first evaluation always happens with a detail open.
+    return lastDetail as { kind: 'issue' | 'page'; key: string }
+  }
+
   // Vocabulary has one owner (DESIGN.md §3.6): pick the locale once, before
   // the first render, so every t() below reads the same catalog table.
   initLocale()
@@ -162,15 +192,16 @@
     </div>
   {/if}
   {#if app.detail}
+    {@const d = shownDetail()}
     <div
       class="detail-layer"
       transition:fly={{ x: reduceMotion ? 0 : 80, duration: reduceMotion ? 0 : 200, opacity: 0.4 }}
     >
-      {#key `${app.detail.kind}:${app.detail.key}`}
-        {#if app.detail.kind === 'issue'}
-          <Detail issueKey={app.detail.key} />
+      {#key `${d.kind}:${d.key}`}
+        {#if d.kind === 'issue'}
+          <Detail issueKey={d.key} />
         {:else}
-          <PageDetail pageKey={app.detail.key} />
+          <PageDetail pageKey={d.key} />
         {/if}
       {/key}
     </div>
