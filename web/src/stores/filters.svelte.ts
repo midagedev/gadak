@@ -41,7 +41,6 @@ import {
   normalizeKeys,
   orderColumns,
   parseView,
-  prioritySortRank,
   type NormalizedKeys,
   type ColumnKey,
   type FlagField,
@@ -56,6 +55,7 @@ import {
   type ViewFilters,
 } from '../lib/view-config'
 import { compareIssues } from '../lib/issue-sort'
+import { groupIssues } from '../lib/issue-group'
 import { assignedTo, delegatedBy, type PersonRef } from '../lib/person-match'
 import { inRange as calendarInRange, localZone, type CalendarZone } from '../lib/calendar'
 import * as api from '../lib/api'
@@ -671,7 +671,6 @@ function mergeConfig(c: ViewConfig): ViewConfig {
   return base
 }
 
-const IN_RANK: Record<StatusCategory, number> = { inprogress: 0, new: 1, done: 2 }
 
 /** Row fields the static filter/facet machinery already owns — dynamic axes must not duplicate them. */
 const STATIC_FIELD_NAMES = [
@@ -1027,72 +1026,6 @@ export function sortIssues(
 
 /* ── Grouping ── */
 
-function groupKeyOf(
-  issue: IssueLite,
-  by: GroupBy,
-): { key: string; label: string; prefix?: string } {
-  switch (by) {
-    case 'status_category': {
-      const category = effectiveCategory(issue)
-      const label = categoryLabel(category)
-      return { key: category, label }
-    }
-    case 'status':
-      return {
-        key: issue.status_id || issue.status || '(none)',
-        label: issue.status || t('group.noStatus'),
-      }
-    case 'assignee':
-      return personIdentity(issue, 'assignee')
-        ? {
-            key: personIdentity(issue, 'assignee')!,
-            label: issue.assignee || issue.assignee_email || personIdentity(issue, 'assignee')!,
-          }
-        : { key: '', label: t('common.unassigned') }
-    case 'priority':
-      return { key: issue.priority || '', label: issue.priority || t('group.noPriority') }
-    case 'severity':
-      return { key: issue.severity || '', label: issue.severity || t('group.noSeverity') }
-    case 'team_group':
-      return issue.team_group
-        ? { key: issue.team_group, label: issue.team_group }
-        : { key: '', label: t('common.unclassified') }
-    case 'product':
-      // Group→product mapping is org-specific; read from runtime config.
-      return config().productByGroup[issue.team_group ?? ''] ?? { key: '', label: t('group.noProduct') }
-    case 'issue_type':
-      return {
-        key: issue.issue_type_id || issue.issue_type || '',
-        label: issue.issue_type || t('group.noType'),
-      }
-    case 'development_test_result': {
-      const result = issue.development_test_result?.trim()
-      return result ? { key: result, label: result } : { key: 'none', label: t('group.none') }
-    }
-    case 'qa_impact':
-      return issue.qa_impact_state
-        ? { key: issue.qa_impact_state, label: issue.qa_impact_label }
-        : { key: '', label: t('group.qaIrrelevant') }
-    case 'source_project':
-      return {
-        key: issue.source_project || '',
-        label: issue.source_project || t('group.noProject'),
-      }
-    case 'epic': {
-      const epicKey = issue.epic_key
-      if (!epicKey) return { key: '', label: t('group.noEpic') }
-      // The epic is mirrored like any other issue, so its summary is already in
-      // the pool — key alone when it is not (partial mirror / narrowed project set).
-      const epic = issues.pool.get(epicKey)
-      return epic
-        ? { key: epicKey, label: epic.summary, prefix: epicKey }
-        : { key: epicKey, label: epicKey }
-    }
-    default:
-      return { key: '', label: '' }
-  }
-}
-
 function emptyCounts(): GroupCounts {
   return { total: 0, category: { new: 0, inprogress: 0, done: 0 }, severity: {} }
 }
@@ -1104,102 +1037,26 @@ function accCounts(counts: GroupCounts, issue: IssueLite): void {
 }
 
 /**
- * Actor group keys — the one multi-membership axis (GDK-590). An issue a bot
- * and a human both touched lands in both buckets: "throughput per bot this
- * sprint" must not silently pick a winner. Keys are account ids; labels come
- * from the member catalog, with the id itself as the fallback so an
- * email-hidden actor still gets a readable (if blunt) header.
+ * The desk's grouping: the shared grouper (`lib/issue-group.ts`, GDK-1993)
+ * plus the counts under each header, which are this surface's alone — the
+ * phone's sections carry no such line, and they accumulate over items rather
+ * than describing the axis.
+ *
+ * The three reaches that used to live inside the grouper are supplied here,
+ * which is what let it leave the store at all: an epic's summary comes from
+ * the issue pool, an actor's name from the member catalog, and the
+ * group→product map from runtime config.
  */
-function actorGroupKeys(issue: IssueLite): { key: string; label: string; prefix?: string }[] {
-  const ids = issue.actor_ids ?? []
-  if (ids.length === 0) return [{ key: '', label: t('group.noActor') }]
-  return ids.map((id) => {
-    const m = issues.memberOfAccountId(id)
-    return { key: id, label: m?.name ?? id }
-  })
-}
-
 export function buildGroups(list: IssueLite[], by: GroupBy): IssueGroup[] {
-  if (by === 'none') {
+  return groupIssues(list, by, {
+    epicSummary: (key) => issues.pool.get(key)?.summary,
+    actorName: (id) => issues.memberOfAccountId(id)?.name,
+    productByGroup: config().productByGroup,
+  }).map((g) => {
     const counts = emptyCounts()
-    for (const it of list) accCounts(counts, it)
-    return [{ key: '', label: '', items: list, counts }]
-  }
-  const map = new Map<string, IssueGroup>()
-  for (const it of list) {
-    const entries = by === 'actor' ? actorGroupKeys(it) : [groupKeyOf(it, by)]
-    for (const { key, label, prefix } of entries) {
-      let g = map.get(key)
-      if (!g) {
-        g = { key, label, prefix, items: [], counts: emptyCounts() }
-        map.set(key, g)
-      }
-      g.items.push(it)
-      accCounts(g.counts, it)
-    }
-  }
-  const groups = [...map.values()]
-  // Group sort: empty keys last; status/priority/severity by work order; else by name.
-  groups.sort((a, b) => {
-    const ae = a.key === ''
-    const be = b.key === ''
-    if (ae !== be) return ae ? 1 : -1
-    if (by === 'priority') {
-      const ar = rankOf(a.items[0])
-      const br = rankOf(b.items[0])
-      return ar - br
-    }
-    if (by === 'severity') {
-      const severityRank: Record<string, number> = {
-        Critical: 0,
-        Major: 1,
-        Minor: 2,
-        Trivial: 3,
-      }
-      return (severityRank[a.key] ?? 99) - (severityRank[b.key] ?? 99)
-    }
-    if (by === 'status_category') {
-      const ar = IN_RANK[a.key as StatusCategory]
-      const br = IN_RANK[b.key as StatusCategory]
-      return ar - br
-    }
-    if (by === 'product') {
-      const productRank: Record<string, number> = {
-        cloud: 0,
-        crown: 1,
-        batch: 2,
-        backoffice: 3,
-      }
-      return (productRank[a.key] ?? 99) - (productRank[b.key] ?? 99)
-    }
-    if (by === 'development_test_result') {
-      const resultRank: Record<string, number> = { fail: 0, none: 1, pass: 2 }
-      return (resultRank[a.key.toLowerCase()] ?? 99) - (resultRank[b.key.toLowerCase()] ?? 99)
-    }
-    if (by === 'qa_impact') {
-      const impactRank: Record<string, number> = {
-        blocking: 0,
-        retest: 1,
-        linked: 2,
-        verified: 3,
-      }
-      return (impactRank[a.key] ?? 99) - (impactRank[b.key] ?? 99)
-    }
-    if (by === 'status') {
-      const ac = IN_RANK[effectiveCategory(a.items[0])]
-      const bc = IN_RANK[effectiveCategory(b.items[0])]
-      if (ac !== bc) return ac - bc
-    }
-    // Epics sort by key so one project's epics stay adjacent; summaries would
-    // interleave projects and the order would move whenever an epic is renamed.
-    if (by === 'epic') return a.key < b.key ? -1 : a.key > b.key ? 1 : 0
-    return a.label < b.label ? -1 : a.label > b.label ? 1 : 0
+    for (const it of g.items) accCounts(counts, it)
+    return { key: g.key, label: g.label, prefix: g.prefix, items: g.items, counts }
   })
-  return groups
-}
-
-function rankOf(issue: IssueLite | undefined): number {
-  return prioritySortRank(issue?.priority_rank)
 }
 
 /* ── Active chips ── */

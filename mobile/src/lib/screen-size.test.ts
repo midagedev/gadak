@@ -110,7 +110,15 @@ const CEILINGS: Record<string, { lines: number; state: number }> = {
   // second way out. $state is unchanged at 3: the narrow and the sheet flag
   // live in the store, where the palette's own flag already did, and the
   // facets are $derived rather than held.
-  'Issues.svelte': { lines: 684, state: 3 },
+  // Raised 2026-09-18 for GDK-1993, 684 → 728 (FAIL-first read
+  // "Issues.svelte: 721 lines > ceiling 684"). The grouping axis joins the
+  // order as something the view owns and the session can override, so the
+  // screen gains the override object it hands `buildList`, the two painted
+  // values the sheet ticks against, and the narrowing of the catalog default
+  // to an axis the phone's row can actually bucket. The rows themselves are
+  // in ui/ListSheet.svelte; $state is still 3. The ungrouped cut also has no
+  // header to draw, which is the one branch the list body gained.
+  'Issues.svelte': { lines: 728, state: 3 },
   // Measured 2026-09-16 at birth (GDK-1827): the sprint list is the first
   // screen with no local state at all — every row is derived from the store.
   'Sprints.svelte': { lines: 262, state: 0 },

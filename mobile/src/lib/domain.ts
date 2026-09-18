@@ -50,8 +50,11 @@ import {
   staleThresholdSamples,
   workAge,
   DEFAULT_DIR,
+  DEFAULT_GROUP_BY,
   DEFAULT_SORT,
+  defaultGroupBy,
   type AgeBasis,
+  type GroupBy,
   type ViewDisplay,
 } from '../../../web/src/lib/view-config'
 import {
@@ -72,6 +75,7 @@ import {
   isListSortKey,
   type ListOrder,
 } from '../../../web/src/lib/issue-sort'
+import { groupIssues, isLiteGroupBy } from '../../../web/src/lib/issue-group'
 import { isSamePerson, type PersonRef } from '../../../web/src/lib/person-match'
 import { builtinViews } from '../../../web/src/lib/builtin-views'
 import { highlightSegments } from '../../../web/src/lib/format'
@@ -279,82 +283,50 @@ export function sortIssues(issues: IssueLite[], order?: ListOrder | null): Issue
 }
 
 /**
- * One group header plus its rows. Named for what it is rather than for one
- * of its two groupings (GDK-1867): the list groups by priority everywhere
- * except inside the sprint scope, where it groups by status category, and
- * the screen paints both through the same header. `rank` is the render
- * order and the keyed-each key; `label` is a display string and logic never
- * reads it.
+ * One group header plus its rows.
+ *
+ * `key` is the bucket's identity — the desk's own group key — and it is the
+ * keyed-each key on the screen. It was a number (the priority rank) until
+ * GDK-1993, which is a key only while the axis is priority: an assignee, an
+ * epic or a status has no rank, and two buckets sharing one number is the
+ * `each_key_duplicate` crash GDK-1992 measured on Reopened. `label` is a
+ * display string and logic never reads it.
  */
 export interface ListSection {
+  /** Bucket identity, from the shared grouper. Empty = the "none" bucket. */
+  key: string
   /** Display label — never used as a key by logic. */
   label: string
-  rank: number
   issues: IssueLite[]
-}
-
-/**
- * Groups a list into priority sections, in rank order.
- *
- * It buckets, the way `groupByCategory` below already did — it used to walk
- * the list and open a new section whenever the rank changed from the row
- * before. That is the same thing only while the sort *is* priority, which it
- * was, fixed, until GDK-1992. Under any other axis the ranks interleave, the
- * walk emits the same rank several times, and `rank` is the key of a keyed
- * `#each`: Svelte refused the whole screen with `each_key_duplicate`
- * (measured 2026-09-18 on Reopened — a heading reading "Reopened ·95" over a
- * list that could not render a single row).
- *
- * Rows keep the order they arrived in inside their bucket, so the view's
- * sort is what orders the list and the sections are only where it is cut.
- */
-export function groupByPriority(sorted: IssueLite[]): ListSection[] {
-  const buckets = new Map<number, ListSection>()
-  for (const issue of sorted) {
-    const rank = rankKey(issue)
-    const hit = buckets.get(rank)
-    if (hit) {
-      hit.issues.push(issue)
-    } else {
-      // The desk's word, not the phone's (GDK-1945): Issues.svelte renders
-      // this label raw, so an English literal here puts an English header
-      // over translated rows. list.priorityNone is what the desk's own
-      // priority picker and icon already say.
-      buckets.set(rank, { label: issue.priority ?? t('list.priorityNone'), rank, issues: [issue] })
-    }
-  }
-  return [...buckets.values()].sort((a, b) => a.rank - b.rank)
 }
 
 /** The order work moves through the three categories. */
 const CATEGORY_ORDER = ['new', 'inprogress', 'done'] as const
 
 /**
- * Groups a sorted list by status category, in the order work moves through
- * it: new → inprogress → done (GDK-1867). The sprint scope's grouping — a
- * sprint is read as "what is left, what is moving, what landed", which
- * priority order cannot say.
+ * The list cut into headed sections (GDK-1993).
  *
- * The bucket is `effectiveCategory`, the desk's alias table, never the
- * status display name: `status = 'In Progress'` is silently zero rows on a
- * Korean account. Labels are `category.*` from the shared catalog, so the
- * headers are the desk's own three words in all three languages. A category
- * with no rows is absent rather than an empty header.
+ * The axis and the header order are the desk's, through `groupIssues` —
+ * the same move GDK-1992 made for the comparator, and for the same reason:
+ * the phone used to bucket by priority everywhere but the sprint scope and
+ * ignore `display.group_by` entirely, so the two surfaces disagreed about
+ * what a view *is*. Rows keep the order they arrived in inside a bucket, so
+ * the view's sort orders the list and the sections are only where it is cut.
+ *
+ * The epic lookup is the phone's own snapshot: an epic is mirrored like any
+ * other issue, so its summary is usually in hand, and when it is not the
+ * header is the key — the grouper's own fallback, not a phone rule.
  */
-export function groupByCategory(sorted: IssueLite[]): ListSection[] {
-  const buckets = new Map<(typeof CATEGORY_ORDER)[number], IssueLite[]>()
-  for (const issue of sorted) {
-    const cat = effectiveCategory(issue)
-    const rows = buckets.get(cat)
-    if (rows) rows.push(issue)
-    else buckets.set(cat, [issue])
-  }
-  const sections: ListSection[] = []
-  CATEGORY_ORDER.forEach((cat, rank) => {
-    const rows = buckets.get(cat)
-    if (rows && rows.length > 0) sections.push({ label: categoryLabel(cat), rank, issues: rows })
-  })
-  return sections
+export function groupList(sorted: IssueLite[], by: GroupBy, pool: IssueLite[] = []): ListSection[] {
+  const summaries = new Map(pool.map((i) => [i.issue_key, i.summary]))
+  return groupIssues(sorted, by, { epicSummary: (key) => summaries.get(key) }).map((g) => ({
+    key: g.key,
+    // The desk's words, not the phone's (GDK-1945): Issues.svelte renders
+    // this label raw, so every one of them comes from the shared grouper,
+    // which reads the shared catalog.
+    label: g.label,
+    issues: g.items,
+  }))
 }
 
 /* ── Scopes: the heading is the current scope's name (DESIGN.md §2) ── */
@@ -430,9 +402,8 @@ export interface Scope {
    * Sprint this scope selects, by `sprint_id` (GDK-1867) — never by
    * `sprint_name`, which is a display string an origin renames under you.
    * Present only on the active-sprint row, and it is the one discriminator
-   * that row needs: it selects the rows *and* switches the list's grouping
-   * to status category, because a sprint is read as what is left / moving /
-   * landed rather than by priority.
+   * that row needs: it selects the rows, and the `groupBy` below says how
+   * they are cut.
    */
   sprintId?: number
   /**
@@ -441,12 +412,21 @@ export interface Scope {
    * sprint row, the document plates). `buildList` hands it to `sortIssues`;
    * null there means the catalog default, which is what the desk gives a view
    * that chose nothing.
-   *
-   * `display.group_by` is deliberately not read yet: the phone groups by
-   * priority everywhere but the sprint scope, and moving that is a change to
-   * the first screen rather than a defect (GDK-1993).
    */
   order: ListOrder | null
+  /**
+   * The axis the view groups by (GDK-1993) — `display.group_by` carried
+   * through, the same way `order` carries `display.sort`/`dir`. Null when
+   * the scope has no stored view behind it, and then the catalog default
+   * answers; the sprint row is the one scope that names its own, because a
+   * sprint is read as what is left / moving / landed (GDK-1867).
+   *
+   * An axis the phone's row cannot bucket (`severity`, `team_group`,
+   * `product`, `qa_impact`, `development_test_result`, `actor`) falls to the
+   * catalog default rather than painting a screen of "(none)" — the same
+   * stance `orderOf` takes toward a sort key the comparator cannot answer.
+   */
+  groupBy: GroupBy | null
   /**
    * Which reading stance a built-in belongs to (THEORY.md "Two stances"):
    * `mine` is the contributor's question, `team` the steward's. Only the
@@ -472,6 +452,28 @@ function orderOf(display: Partial<ViewDisplay> | null | undefined): ListOrder | 
   const sort = isListSortKey(display.sort) ? display.sort : DEFAULT_SORT
   const dir = display.dir === 'asc' || display.dir === 'desc' ? display.dir : DEFAULT_DIR
   return { sort, dir }
+}
+
+/**
+ * The grouping a stored view asked for, or null when there is no view.
+ *
+ * `defaultGroupBy` is the desk's own rule and is read rather than re-spelled:
+ * a keys view stays flat so `views open --keys` first-seen order is the
+ * painted order, and everything else falls to the catalog axis.
+ */
+function groupOf(
+  display: Partial<ViewDisplay> | null | undefined,
+  filters: Partial<ViewFilters> | null | undefined,
+): GroupBy | null {
+  if (!display) return null
+  return isLiteGroupBy(display.group_by) ? display.group_by : defaultGroupBy(filters)
+}
+
+/** The grouping of the scope the fallback actually paints — pair of
+ *  `allOpenOrder`, and exported for the same reason. */
+export function allOpenGroupBy(): GroupBy | null {
+  const view = builtinViews().find((v) => v.id === 'all-open')
+  return view ? groupOf(view.config.display, view.config.filters) : null
 }
 
 /** The order of the scope the fallback actually paints. Exported because the
@@ -842,6 +844,7 @@ export function buildScopes(
       filters,
       unsupported: unsupportedAxes(filters),
       order: orderOf(view.config.display),
+      groupBy: groupOf(view.config.display, view.config.filters),
       stance: view.stance,
     })
   }
@@ -862,8 +865,11 @@ export function buildScopes(
       filters: null,
       unsupported: [],
       // No stored view behind this row, so no stored order: the catalog
-      // default. Its grouping is the scope's own (GDK-1867), below.
+      // default. Its grouping is the scope's own and is named here rather
+      // than left to the catalog (GDK-1867): a sprint is read as what is
+      // left, what is moving, what landed, which priority cannot say.
       order: null,
+      groupBy: 'status_category',
       stance: 'team',
       sprintId: sprint.id,
     })
@@ -878,6 +884,7 @@ export function buildScopes(
       filters,
       unsupported: unsupportedAxes(filters),
       order: orderOf(v.config?.display),
+      groupBy: groupOf(v.config?.display, v.config?.filters),
     })
   }
   for (const s of sources) {
@@ -893,6 +900,7 @@ export function buildScopes(
       filters,
       unsupported,
       order: orderOf(s.config?.display),
+      groupBy: groupOf(s.config?.display, s.config?.filters),
     })
   }
   if (pages.length > 0) {
@@ -903,8 +911,10 @@ export function buildScopes(
       name: t('docs.tabUpdated'),
       filters: null,
       unsupported: [],
-      // Document plates never reach sortIssues (buildList returns early).
+      // Document plates never reach sortIssues or the grouper (buildList
+      // returns early).
       order: null,
+      groupBy: null,
       spaceKey: null,
     })
     const names = new Map<string, string>()
@@ -925,6 +935,7 @@ export function buildScopes(
         filters: null,
         unsupported: [],
         order: null,
+        groupBy: null,
         spaceKey: key,
       })
     }
@@ -1026,6 +1037,19 @@ export function bodyParagraphs(text: string): string[] {
   return trimmed.split(/\n{2,}/)
 }
 
+/**
+ * What the session chose, over what the view asked for (GDK-1993/1994).
+ *
+ * Every field is optional and absent means "the view's answer" — the sheet
+ * writes only what the reader actually touched, so a narrowed list still
+ * reads in its view's own order and cut.
+ */
+export interface ListOverride {
+  narrow?: Partial<ViewFilters> | null
+  order?: ListOrder | null
+  groupBy?: GroupBy | null
+}
+
 export interface IssueListView {
   sections: ListSection[]
   total: number
@@ -1057,11 +1081,12 @@ export function buildList(
   issues: IssueLite[],
   me: Me | null,
   scope: Scope,
-  narrow: Partial<ViewFilters> | null = null,
+  over: ListOverride = {},
 ): IssueListView {
   if (scope.kind === 'pages') {
     return { sections: [], total: 0, scopeId: scope.id, fellBack: false }
   }
+  const narrow = over.narrow
   const narrowed = (rows: IssueLite[]): IssueLite[] =>
     narrow && Object.keys(narrow).length > 0 ? applyFilters(rows, narrow, me) : rows
   const rows = scopeIssues(issues, me, scope)
@@ -1072,21 +1097,27 @@ export function buildList(
     // scope, so an empty one is a first-run condition, not a chosen filter —
     // an empty saved view is what the developer asked for and stays empty.
     // The fallback is All open under its own name, so it reads in All open's
-    // order — not in the order of the scope that could not be painted.
-    const open = sortIssues(narrowed(openIssues(issues)), allOpenOrder())
+    // order and cut — not in those of the scope that could not be painted.
+    // The session's own choice still outranks both: falling back is not a
+    // scope change (setScope is what clears the override), and a reader who
+    // just asked for `updated desc` did not stop asking for it because the
+    // view they were in came out empty.
+    const open = sortIssues(narrowed(openIssues(issues)), over.order ?? allOpenOrder())
     return {
-      sections: groupByPriority(open),
+      sections: groupList(open, over.groupBy ?? allOpenGroupBy() ?? DEFAULT_GROUP_BY, issues),
       total: open.length,
       scopeId: SCOPE_ALL_OPEN,
       fellBack: true,
     }
   }
   const painted = narrowed(rows)
-  const sorted = sortIssues(painted, scope.order)
-  // Grouping is the scope's, not the screen's: the sprint scope reads
-  // new → inprogress → done, every other scope reads by priority. Unlike the
-  // order above, this does not yet follow `display.group_by` (GDK-1993).
-  const sections = scope.sprintId != null ? groupByCategory(sorted) : groupByPriority(sorted)
+  const sorted = sortIssues(painted, over.order ?? scope.order)
+  // Both axes are the view's (GDK-1992 for the order, GDK-1993 for the cut),
+  // and the session's own choice in the "this list" sheet outranks them for
+  // as long as the scope is up. The whole snapshot is handed down as the
+  // pool, not the painted rows: an epic header wants that epic's summary
+  // even when the epic itself is not in the list.
+  const sections = groupList(sorted, over.groupBy ?? scope.groupBy ?? DEFAULT_GROUP_BY, issues)
   return { sections, total: painted.length, scopeId: scope.id, fellBack: false }
 }
 

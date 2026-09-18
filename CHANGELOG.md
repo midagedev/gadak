@@ -78,6 +78,17 @@ one-project workspace is never asked about projects. Nothing is saved — the
 narrowing goes when you pick another view, which is how a phone you took out
 to find one thing should behave ([GDK-1994]).
 
+The sheet's last two rows are what the list is cut by and what it is ordered
+by, and the cut is now the view's the way the order already was: the desktop's
+own grouper moved out of the code the desktop's list is wired into, so both
+screens run the one function rather than each keeping an opinion
+([GDK-1993]). The phone had been sectioning by priority whatever the view
+said. Two things follow from having one owner. A section is keyed by what it
+is rather than by a rank, because an assignee or an epic has no rank — that
+was the shape of the crash the previous round found, and eight axes is the
+same crash with more ways in. And a sprint now reads the desktop's order —
+what is moving, then what is left, then what landed.
+
 ## v0.23.1
 
 **A status the apps offered but the server refused.** On the built-in tracker
@@ -1856,4 +1867,5 @@ priority sorting keyed on `priority_rank`.
 [GDK-1989]: https://gadak.dev/backlog/#/?ks=GDK-1989
 [GDK-1990]: https://gadak.dev/backlog/#/?ks=GDK-1990
 [GDK-1992]: https://gadak.dev/backlog/#/?ks=GDK-1992
+[GDK-1993]: https://gadak.dev/backlog/#/?ks=GDK-1993
 [GDK-1994]: https://gadak.dev/backlog/#/?ks=GDK-1994

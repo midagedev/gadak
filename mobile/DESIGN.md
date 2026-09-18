@@ -91,7 +91,7 @@ trigger would spend ~78px back; the heading slot spends none.
 │ (what the owner draws)     │  scope list · documents plate · shell
 └────────────────────────────┘
      ├─► This list (sheet, from the chevron) — the scope row (→ Palette) ·
-     │     the narrowing toggles · clear
+     │     the narrowing toggles · the cut · the order · clear
      ├─► Palette (in place: the list body becomes the ranking)
      │     empty query: recent issues · Built-in views · My views ·
      │                  Jira filters · Documents · Terminal
@@ -146,12 +146,18 @@ scrim, no apply button, no chips, no save. The rows are discovered from the
 list in hand and one rule decides every one of them — **a toggle that cannot
 change the list is not offered** (it matches nothing, or it matches
 everything) — which is what keeps the sheet Mail-short instead of the desk's
-facet browser. The narrow is session RAM: it is cleared when the owner
-changes and never stored, because a triage phone narrows to find something
-and then leaves. Authoring the result as a view is the desk's (§1). The
-heading says a narrow is on with one dot beside the chevron and with the
-count, which is already the narrowed number; a chip row would cost the list a
-row of density, and §3.3 spends that on the list.
+facet browser. Under the toggles are the desk's other two view controls as
+rows (GDK-1993): **what the list is cut by**, and **what it is ordered by**,
+with direction as one row under the keys. Every word in them is the desk's —
+axes that are fields wear `fieldLabel`, the same owner the desk's own
+breakdown bar reads — so the two surfaces cannot end up calling one axis two
+names. All three are session RAM: they are cleared when the owner changes and
+never stored, because a triage phone narrows to find something and then
+leaves, and because a narrow carried into another view would disagree with
+the count the picker just showed for it. Authoring the result as a view is
+the desk's (§1). The heading says a narrow is on with one dot beside the
+chevron and with the count, which is already the narrowed number; a chip row
+would cost the list a row of density, and §3.3 spends that on the list.
 
 **Owners.** A scope (the desk's built-in views, My views, Jira filters,
 Documents — the whole-mirror plate named **Updated** (`docs.tabUpdated`),
@@ -374,10 +380,21 @@ the transition *action* lives with compose and send.
   to priority asc the same day so the two surfaces agree on what a view that
   chose nothing means; a `sort` the phone cannot answer (`relevance` needs
   search scores, `keys` a server order) falls back to that default rather
-  than pretending. **Grouping is still the phone's** — priority bands
-  everywhere but the sprint scope, and `display.group_by` is not read yet
-  (GDK-1993): moving that axis changes the first screen, which is a decision
-  rather than a defect.
+  than pretending. **The cut is the view's too** (GDK-1993): `display.group_by`
+  runs through the desk's own grouper (`web/src/lib/issue-group.ts`), which
+  left the desk's rune store for the same reason the comparator did. The
+  phone used to bucket by priority everywhere but the sprint scope and ignore
+  the axis entirely, so the two surfaces disagreed about what a view *is*.
+  An axis the row cannot bucket (`severity`, `team_group`, `product`,
+  `qa_impact`, `development_test_result`, `actor`) falls to the catalog
+  default rather than painting a screen of "(none)", the same stance the
+  order takes. Two consequences worth naming: the section key is the desk's
+  group key, a string, because an assignee or an epic has no rank and a
+  numeric key across eight axes is the `each_key_duplicate` crash with more
+  ways in; and the sprint scope's headers read the desk's order — in
+  progress, then new, then done — which is the stronger reading of GDK-1867's
+  own sentence anyway. **The reader can override both**, for as long as the
+  scope is up, from the rows in the "this list" sheet (§2).
 - **Picker counts** (GDK-886) are one in-memory pass per row, taken when the
   sheet opens — never on the list's scroll path. A view matching zero issues
   shows `0` and stays selectable; a disabled row shows no count. The endpoint

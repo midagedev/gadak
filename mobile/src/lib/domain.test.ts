@@ -11,7 +11,7 @@ import {
   docSnippet,
   docsSpaceScopeId,
   effectiveCategory,
-  groupByPriority,
+  groupList,
   dueDateLabel,
   foldVisit,
   matchLocal,
@@ -121,7 +121,7 @@ describe('sortIssues', () => {
   })
 })
 
-describe('groupByPriority', () => {
+describe('groupList by priority', () => {
   it('sections a sorted list in rank order with display labels', () => {
     const sorted = sortIssues([
       issue({ issue_key: 'STD-20', priority_rank: 1, priority: 'Highest' }),
@@ -129,11 +129,29 @@ describe('groupByPriority', () => {
       issue({ issue_key: 'STD-22', priority_rank: 2, priority: 'High' }),
       issue({ issue_key: 'STD-23', priority_rank: 0, priority: null }),
     ])
-    const sections = groupByPriority(sorted)
+    const sections = groupList(sorted, 'priority')
     expect(sections.map((s) => [s.label, s.issues.length])).toEqual([
       ['Highest', 1],
       ['High', 2],
       ['No priority', 1],
+    ])
+  })
+
+  it('heads an epic cut with the epic’s own summary, and with the key when the snapshot has not got it', () => {
+    // The one lookup seam the phone owns (GDK-1993): `groupIssues` asks
+    // `epicSummary` for the header, and what the phone hands it is the
+    // snapshot in memory. An epic is mirrored like any other issue, so the
+    // summary is usually in hand; when it is not, the header is the key —
+    // the grouper's own fallback, which is what keeps a missing epic from
+    // rendering a blank heading over real rows.
+    const rows = [
+      issue({ issue_key: 'STD-30', epic_key: 'STD-1' }),
+      issue({ issue_key: 'STD-31', epic_key: 'STD-2' }),
+    ]
+    const pool = [...rows, issue({ issue_key: 'STD-1', summary: 'The pairing road' })]
+    expect(groupList(rows, 'epic', pool).map((s) => [s.key, s.label])).toEqual([
+      ['STD-1', 'The pairing road'],
+      ['STD-2', 'STD-2'],
     ])
   })
 })

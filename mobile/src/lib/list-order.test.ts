@@ -17,6 +17,8 @@
 import { describe, it, expect } from 'vitest'
 import { buildList, buildScopes, openIssues, type Scope } from './domain'
 import { compareIssues } from '../../../web/src/lib/issue-sort'
+import { GROUPABLE_ON_LITE } from '../../../web/src/lib/issue-group'
+import { DEFAULT_GROUP_BY } from '../../../web/src/lib/view-config'
 import { builtinViews } from '../../../web/src/lib/builtin-views'
 import type { IssueLite, Me } from './types'
 
@@ -159,10 +161,18 @@ describe('the list reads in the view’s order (GDK-1992)', () => {
     const scope = scopeOf('delegated')
     const selected = rows.filter((r) => r.reporter_id === 'acct-1' && r.assignee_id !== 'acct-1')
     expect(phoneCount(scope)).toBe(selected.length)
-    // The defect in one line: the old fixed order put the newest update at
-    // the top of the band this list exists to read oldest-first.
+    // The defect in one line: the list exists to read oldest-first and the
+    // old fixed order put the newest update on top.
+    //
+    // Re-pinned 2026-09-18 (GDK-1993), 'STD-3' → 'STD-2'. It was STD-3 while
+    // the phone cut by priority whatever the view said: STD-3 holds rank 1
+    // and got a band to itself above the rest, so the band was answering and
+    // the sort was not. Under the view's own cut these rows are one bucket
+    // and `updated asc` leads with the quietest, which is STD-2 — the claim
+    // this test is named for, now actually measured. FAIL-first read
+    // `expected 'STD-2' to be 'STD-3'`.
     expect(phoneSections(scope)).toEqual(deskSections(scope, selected))
-    expect(phoneSections(scope).flat()[0]).toBe('STD-3')
+    expect(phoneSections(scope).flat()[0]).toBe('STD-2')
   })
 
   it('Reopened reads by reopen count, the axis it is named for', () => {
@@ -208,24 +218,52 @@ describe('the list reads in the view’s order (GDK-1992)', () => {
     }
   })
 
-  it('a section is a bucket, so its key cannot repeat', () => {
-    // The crash GDK-1992 uncovered: groupByPriority used to open a new
-    // section whenever the rank changed from the row before, which is only
-    // the same thing while the sort IS priority. Under `updated asc` the
-    // ranks interleave, the same rank is emitted twice, and `rank` is the key
-    // of a keyed `#each` — Svelte refused the whole screen with
-    // `each_key_duplicate`, so Reopened painted a heading reading "·95" over
-    // a list with no rows in it.
-    const byScope = buildScopes([], [], me)
-      .filter((s) => s.section === 'builtin')
-      .map((s) => [s.id, buildList(rows, me, s).sections.map((x) => x.rank)] as const)
-    // Uniqueness first, across every scope — that is the one that crashed.
-    for (const [id, ranks] of byScope) {
-      expect(new Set(ranks).size, `${id} section keys`).toBe(ranks.length)
+  it('a section is a bucket, so its key cannot repeat — on any axis', () => {
+    // The crash GDK-1992 uncovered: the old grouper opened a new section
+    // whenever the priority rank changed from the row before, which is the
+    // same thing as bucketing only while the sort IS priority. Under
+    // `updated asc` the ranks interleave, the same rank is emitted twice, and
+    // it was the key of a keyed `#each` — Svelte refused the whole screen
+    // with `each_key_duplicate`, so Reopened painted a heading reading "·95"
+    // over a list with no rows in it.
+    //
+    // Widened 2026-09-18 (GDK-1993) from "every built-in scope" to "every
+    // built-in scope × every axis the phone can bucket". The key stopped
+    // being the priority rank that round, because an assignee, an epic and a
+    // status have no rank — a numeric key across eight axes is that same
+    // crash class with more ways in. FAIL-first was the number itself,
+    // measured 2026-09-18 by putting `String(rankKey(...))` back as the
+    // section key: `builtin:all-open / assignee section keys: expected 2 to
+    // be 3` — three assignees collapsed onto two rank numbers, which is a
+    // duplicate key in a keyed `#each`.
+    for (const scope of buildScopes([], [], me).filter((s) => s.section === 'builtin')) {
+      for (const by of GROUPABLE_ON_LITE) {
+        const sections = buildList(rows, me, scope, { groupBy: by }).sections
+        const keys = sections.map((x) => x.key)
+        expect(new Set(keys).size, `${scope.id} / ${by} section keys`).toBe(keys.length)
+        // And every row is painted exactly once, whatever the cut. `actor`
+        // is the desk's one multi-membership axis and the phone does not
+        // offer it, so here a row belongs to one bucket by construction.
+        const painted = sections.flatMap((x) => x.issues.map((i) => i.issue_key))
+        expect(new Set(painted).size, `${scope.id} / ${by} rows`).toBe(painted.length)
+      }
     }
-    // And in rank order, which is what makes the bands readable.
-    for (const [id, ranks] of byScope) {
-      expect([...ranks].sort((a, b) => a - b), `${id} band order`).toEqual(ranks)
+  })
+
+  it('the cut is the view’s, and the catalog answers a view that chose none', () => {
+    // The GDK-1993 half of GDK-1992's claim: `display.group_by` reaches the
+    // screen the way `display.sort`/`dir` already did. `my-work` is the one
+    // built-in that names an axis explicitly; the rest inherit the catalog's.
+    for (const scope of buildScopes([], [], me).filter((s) => s.section === 'builtin')) {
+      const view = builtinViews().find((v) => scope.id.endsWith(v.id))
+      if (!view) {
+        // The active-sprint row has no stored view and names its own axis.
+        expect(scope.groupBy, `${scope.id} grouping`).toBe('status_category')
+        continue
+      }
+      expect(scope.groupBy, `${scope.id} grouping`).toBe(
+        view.config.display.group_by ?? DEFAULT_GROUP_BY,
+      )
     }
   })
 })

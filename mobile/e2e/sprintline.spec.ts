@@ -45,11 +45,17 @@ test('tapping the line scopes the queue to that sprint, grouped by category', as
   await expect(heading.locator('.name')).toHaveText('Active sprint')
   await expect(heading.locator('.count')).toHaveText('·20')
 
-  // Grouped in the order work moves, not by priority. The fixture has rows
-  // in all three categories (10 new · 4 in progress · 6 done).
+  // Grouped by status category, not by priority. The fixture has rows in all
+  // three (10 new · 4 in progress · 6 done).
+  //
+  // Re-pinned 2026-09-18 (GDK-1993): the header order is the desk's now, not
+  // the phone's — in progress first, because the two surfaces stopped keeping
+  // separate groupers and the desk's reading of "what is moving, what is
+  // left, what landed" leads with what is moving. FAIL-first read
+  // `Expected "New" … Received "In progress"` on the first header.
   const groups = page.locator('.pane:not(.off) .section .label')
-  await expect(groups).toHaveText(['New', 'In progress', 'Done'])
-  await expect(page.locator('.pane:not(.off) .section .n')).toHaveText(['10', '4', '6'])
+  await expect(groups).toHaveText(['In progress', 'New', 'Done'])
+  await expect(page.locator('.pane:not(.off) .section .n')).toHaveText(['4', '10', '6'])
 
   // The line is still there, now marked as the current scope.
   await expect(page.locator(`.pane:not(.off) ${LINE}`)).toHaveAttribute('aria-current', 'true')

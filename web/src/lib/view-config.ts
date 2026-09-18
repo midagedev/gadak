@@ -200,6 +200,15 @@ export type SortDir = 'asc' | 'desc'
  */
 export const DEFAULT_SORT: SortKey = 'priority'
 export const DEFAULT_DIR: SortDir = 'asc'
+/**
+ * The catalog's grouping axis, named here for the same reason as the two
+ * above (GDK-1993): `defaultDisplay()` spelled it, `defaultGroupBy` spelled
+ * it again as the non-keys branch, and `configToParams` compared against a
+ * third copy. It is `status_category` and did not move — unlike the order,
+ * the two surfaces never disagreed about the cut; the phone simply was not
+ * reading it.
+ */
+export const DEFAULT_GROUP_BY: GroupBy = 'status_category'
 
 /* ── List columns (trailing fields shown on a row) ──
  *  Layout is "keep dense rows + field on/off" — only checked columns render on the right.
@@ -507,7 +516,7 @@ export function defaultDisplay(): ViewDisplay {
     // Layout belongs to the view (GDK-1249): applying a view takes its
     // layout (unset = list); filter changes — search included — leave it be.
     layout: 'list',
-    group_by: 'status_category',
+    group_by: DEFAULT_GROUP_BY,
     // Named above, beside SORT_KEY_VALUES: a default spelled here and
     // compared against in configToParams is two owners of one decision.
     sort: DEFAULT_SORT,
@@ -524,7 +533,7 @@ export function defaultDisplay(): ViewDisplay {
  * and SidebarNav calls configToParams on those at boot.
  */
 export function defaultGroupBy(filters: { keys?: readonly string[] } | null | undefined): GroupBy {
-  return (filters?.keys?.length ?? 0) > 0 ? 'none' : 'status_category'
+  return (filters?.keys?.length ?? 0) > 0 ? 'none' : DEFAULT_GROUP_BY
 }
 
 export function emptyConfig(): ViewConfig {

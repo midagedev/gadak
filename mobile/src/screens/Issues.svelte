@@ -20,6 +20,8 @@
     openListSheet,
     openPalette,
     openSettings,
+    setListGroupBy,
+    setListOrder,
     setNarrow,
     setScope,
     showOfflineBanner,
@@ -27,6 +29,7 @@
   } from '../lib/store.svelte'
   import { tick } from 'svelte'
   import {
+    allOpenGroupBy,
     allOpenOrder,
     buildList,
     buildScopes,
@@ -43,12 +46,24 @@
     SCOPE_ACTIVE_SPRINT,
     SCOPE_ALL_OPEN,
     SCOPE_MY_WORK,
+    type ListOverride,
     type NarrowRow,
     type NarrowSection,
     type Scope,
   } from '../lib/domain'
   import { pickActiveSprint } from '../lib/sprint'
   import { fitHeading } from '../lib/fit-heading'
+  import { isLiteGroupBy, type LiteGroupBy } from '../../../web/src/lib/issue-group'
+  import type { ListOrder } from '../../../web/src/lib/issue-sort'
+  import { DEFAULT_DIR, DEFAULT_GROUP_BY, DEFAULT_SORT } from '../../../web/src/lib/view-config'
+
+  /** The catalog default, narrowed to what the phone can bucket — it is
+   *  `status_category`, which is on that list, and this is where a future
+   *  catalog default that is not would be caught rather than rendered. */
+  const DEFAULT_GROUP_BY_LITE: LiteGroupBy = isLiteGroupBy(DEFAULT_GROUP_BY)
+    ? DEFAULT_GROUP_BY
+    : 'status_category'
+  const asLiteGroupBy = (v: unknown): LiteGroupBy | null => (isLiteGroupBy(v) ? v : null)
 
   // The desktop has no name for its list screen: its main column is titled by
   // the current view's name. The phone adopts that — the heading is the
@@ -105,13 +120,22 @@
       filters: null,
       unsupported: [],
       order: allOpenOrder(),
+      groupBy: allOpenGroupBy(),
     },
   )
+  /* What the session chose over what the view asked for (GDK-1993/1994).
+     Each field is null/empty until a row in the sheet is touched, so an
+     untouched list reads exactly as its view was written. */
+  const over = $derived<ListOverride>({
+    narrow: app.narrow,
+    groupBy: app.listGroupBy,
+    order: app.listOrder,
+  })
   const isDocs = $derived(scope.kind === 'pages')
   const docRows = $derived(isDocs ? scopePages(app.pages, scope) : [])
   const view = $derived(isDocs
     ? { sections: [], total: docRows.length, scopeId: scope.id, fellBack: false }
-    : buildList(app.issues, app.me, scope, app.narrow))
+    : buildList(app.issues, app.me, scope, over))
   // The heading must never wear a name the list is not showing: when the
   // fallback fires it says All open, and the note below says why.
   const heading = $derived(view.fellBack ? t('view.allOpen.name') : scope.name)
@@ -174,6 +198,15 @@
     app.listSheet ? narrowFacets(scopeIssues(app.issues, app.me, scope) ?? [], app.me) : [],
   )
   const narrowActive = $derived(narrowCount(app.narrow) > 0)
+  /* What the list is actually painted with, so the sheet ticks the row the
+     screen is obeying rather than the row the session happened to set: the
+     session's choice, else the view's, else the catalog's (GDK-1993). */
+  const paintedGroupBy = $derived<LiteGroupBy>(
+    asLiteGroupBy(app.listGroupBy ?? scope.groupBy) ?? DEFAULT_GROUP_BY_LITE,
+  )
+  const paintedOrder = $derived<ListOrder>(
+    app.listOrder ?? scope.order ?? { sort: DEFAULT_SORT, dir: DEFAULT_DIR },
+  )
   function toggle(row: NarrowRow): void {
     setNarrow(toggleNarrow(app.narrow, row))
   }
@@ -327,7 +360,11 @@
       total={view.total}
       {facets}
       narrow={app.narrow}
+      groupBy={paintedGroupBy}
+      order={paintedOrder}
       ontoggle={toggle}
+      ongroup={setListGroupBy}
+      onorder={setListOrder}
       onclear={clearNarrow}
       onchangeview={changeView}
       onclose={closeListSheet}
@@ -392,11 +429,18 @@
       {/if}
     </EmptyState>
   {:else}
-    {#each view.sections as section (section.rank)}
-      <div class="section">
-        <span class="label">{section.label}</span>
-        <span class="n">{section.issues.length}</span>
-      </div>
+    {#each view.sections as section (section.key)}
+      <!-- The ungrouped cut is one nameless bucket holding everything
+           (GDK-1993), which is how an ungrouped list stays the same code
+           path as a grouped one — it just has no header to draw. Every
+           other bucket has a label, including the leftovers: the unassigned
+           pile is named, not blank. -->
+      {#if section.label}
+        <div class="section">
+          <span class="label">{section.label}</span>
+          <span class="n">{section.issues.length}</span>
+        </div>
+      {/if}
       {#each section.issues as issue (issue.issue_key)}
         <Row {issue} showAssignee={view.scopeId !== SCOPE_MY_WORK} />
       {/each}

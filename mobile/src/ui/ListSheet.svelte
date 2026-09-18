@@ -3,6 +3,9 @@
   import CurrentTick from './detail/CurrentTick.svelte'
   import { t } from '../lib/i18n'
   import { narrowCount, narrowHas, type NarrowRow, type NarrowSection } from '../lib/domain'
+  import { GROUPABLE_ON_LITE, type LiteGroupBy } from '../../../web/src/lib/issue-group'
+  import { LIST_SORT_KEYS, type ListOrder, type ListSortKey } from '../../../web/src/lib/issue-sort'
+  import { fieldLabel } from '../lib/i18n'
   import type { ViewFilters } from '../lib/types'
 
   /*
@@ -27,7 +30,11 @@
     total,
     facets,
     narrow,
+    groupBy,
+    order,
     ontoggle,
+    ongroup,
+    onorder,
     onclear,
     onchangeview,
     onclose,
@@ -37,13 +44,45 @@
     total: number
     facets: NarrowSection[]
     narrow: Partial<ViewFilters>
+    /** The cut and the order actually painted — the view's, or the session's. */
+    groupBy: LiteGroupBy
+    order: ListOrder
     ontoggle: (row: NarrowRow) => void
+    ongroup: (by: LiteGroupBy) => void
+    onorder: (order: ListOrder) => void
     onclear: () => void
     onchangeview: () => void
     onclose: () => void
   } = $props()
 
   const narrowed = $derived(narrowCount(narrow) > 0)
+
+  /*
+   * The cut and the order are the desk's two view-settings controls, brought
+   * over as rows (GDK-1993). Every word is the desk's: axes that are fields
+   * wear `fieldLabel` — the same owner the desk's own breakdown bar reads, so
+   * "Category" here and "Category" there cannot drift — and only the two with
+   * no field twin carry a key of their own.
+   */
+  const GROUP_LABEL: Record<LiteGroupBy, () => string> = {
+    none: () => t('group.sectionNone'),
+    status_category: () => fieldLabel('status_category'),
+    status: () => fieldLabel('status'),
+    assignee: () => fieldLabel('assignee'),
+    priority: () => fieldLabel('priority'),
+    issue_type: () => fieldLabel('issue_type'),
+    source_project: () => fieldLabel('source_project'),
+    epic: () => t('group.byEpic'),
+  }
+  const SORT_LABEL: Record<ListSortKey, () => string> = {
+    updated: () => t('sort.updated'),
+    created: () => t('sort.created'),
+    status_changed: () => t('sort.statusChanged'),
+    started: () => t('sort.started'),
+    due: () => t('sort.due'),
+    priority: () => t('sort.priority'),
+    reopen_count: () => t('sort.reopenCount'),
+  }
 </script>
 
 <Sheet title={t('app.narrowTitle')} {onclose}>
@@ -77,6 +116,39 @@
     {#if facets.length === 0}
       <p class="none">{t('app.narrowNothing')}</p>
     {/if}
+
+    <p class="axis">{t('group.breakdown')}</p>
+    {#each GROUPABLE_ON_LITE as by (by)}
+      {@const on = groupBy === by}
+      <button class="t-row" class:current={on} aria-current={on ? 'true' : undefined} onclick={() => ongroup(by)}>
+        <span class="t-text"><span class="t-name">{GROUP_LABEL[by]()}</span></span>
+        {#if on}<CurrentTick />{/if}
+      </button>
+    {/each}
+
+    <p class="axis">{t('sort.label')}</p>
+    {#each LIST_SORT_KEYS as key (key)}
+      {@const on = order.sort === key}
+      <button
+        class="t-row"
+        class:current={on}
+        aria-current={on ? 'true' : undefined}
+        onclick={() => onorder({ sort: key, dir: order.dir })}
+      >
+        <span class="t-text"><span class="t-name">{SORT_LABEL[key]()}</span></span>
+        {#if on}<CurrentTick />{/if}
+      </button>
+    {/each}
+    <!-- Direction is the sort's property, not a ninth key, so it is one row
+         under the list rather than a section of its own. -->
+    <button
+      class="t-row"
+      data-testid="sort-direction"
+      onclick={() => onorder({ sort: order.sort, dir: order.dir === 'desc' ? 'asc' : 'desc' })}
+    >
+      <span class="t-text"><span class="t-name">{t('sort.direction')}</span></span>
+      <span class="count">{order.dir === 'desc' ? t('sort.desc') : t('sort.asc')}</span>
+    </button>
 
     {#if narrowed}
       <div class="sheet-foot">

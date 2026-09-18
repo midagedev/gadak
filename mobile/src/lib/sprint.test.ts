@@ -323,14 +323,22 @@ describe('the sprint scope (GDK-1867)', () => {
     expect(rows?.map((i) => i.issue_key).sort()).toEqual(['STD-1', 'STD-2', 'STD-3'])
   })
 
-  it('groups new → inprogress → done, not by priority', () => {
+  it('groups by status category, not by priority', () => {
+    // Re-pinned 2026-09-18 (GDK-1993): the header order is the desk's now,
+    // through the shared grouper — in progress, then new, then done. The
+    // phone used to read new → inprogress → done, and one of the two had to
+    // give when the two surfaces stopped keeping separate groupers. FAIL-first
+    // read `expected [ 'new', 'inprogress', 'done' ] to deeply equal
+    // [ 'inprogress', 'new', 'done' ]`. What GDK-1867 wanted is unchanged: a
+    // sprint reads as what is moving, what is left, what landed — and leading
+    // with what is moving is the stronger reading of that sentence anyway.
     const view = buildList(issues, null, sprintScope())
     expect(view.total).toBe(3)
     expect(view.fellBack).toBe(false)
-    expect(view.sections.map((s) => s.rank)).toEqual([0, 1, 2])
+    expect(view.sections.map((s) => s.key)).toEqual(['inprogress', 'new', 'done'])
     expect(view.sections.map((s) => s.issues.map((i) => i.issue_key))).toEqual([
-      ['STD-2'],
       ['STD-3'],
+      ['STD-2'],
       ['STD-1'],
     ])
   })
@@ -338,7 +346,7 @@ describe('the sprint scope (GDK-1867)', () => {
   it('omits a category with no rows rather than drawing an empty header', () => {
     const only = [issue({ issue_key: 'STD-6', sprint_id: 42, status_category: 'done' })]
     const view = buildList(only, null, sprintScope())
-    expect(view.sections.map((s) => s.rank)).toEqual([2])
+    expect(view.sections.map((s) => s.key)).toEqual(['done'])
   })
 
   it('an empty sprint stays empty — it does not fall back to All open', () => {

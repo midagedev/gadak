@@ -86,6 +86,60 @@ test('picking another view drops the narrow', async ({ page }) => {
   await expect(page.locator('h1 button.scope .narrowed')).toHaveCount(0)
 })
 
+test('the cut and the order are rows too, and they repaint the list', async ({ page }) => {
+  // GDK-1993: the grouping axis is the view's, the way the order already
+  // was — and the sheet can override both for as long as the scope is up.
+  // The headers are the proof: the same rows cut a different way.
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await waitPaired(page)
+
+  const headers = page.locator('.pane:not(.off) .section .label')
+  const before = await headers.allInnerTexts()
+  expect(before.length, 'the list is grouped at all').toBeGreaterThan(0)
+
+  const sheet = await openListSheet(page)
+  // Every axis the phone can bucket is offered; "No sections" is one of them.
+  const flat = sheet.getByRole('button', { name: 'No sections' })
+  await flat.click()
+  await expect(headers).toHaveCount(0)
+
+  // And the order row repaints without changing the cut.
+  await sheet.getByRole('button', { name: 'Created' }).click()
+  await expect(sheet.getByRole('button', { name: 'Created' })).toHaveAttribute(
+    'aria-current',
+    'true',
+  )
+  const dir = sheet.getByTestId('sort-direction')
+  const shown = (await dir.innerText()).trim()
+  await dir.click()
+  await expect(dir).not.toHaveText(shown)
+})
+
+test('picking another view drops the cut and the order with the narrow', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await waitPaired(page)
+
+  let sheet = await openListSheet(page)
+  await sheet.getByRole('button', { name: 'No sections' }).click()
+  await expect(page.locator('.pane:not(.off) .section .label')).toHaveCount(0)
+
+  await sheet.locator('button.scope-row').click()
+  const current = (await page.locator('h1 button.scope .name').innerText()).trim()
+  await page
+    .locator('button.palette-row:not([disabled])')
+    .filter({ hasNotText: current })
+    .first()
+    .click()
+  await expect(page.locator('.palette-field input')).toHaveCount(0)
+
+  sheet = await openListSheet(page)
+  // The new owner's own cut is back — not the one set on the list just left.
+  await expect(sheet.getByRole('button', { name: 'No sections' })).not.toHaveAttribute(
+    'aria-current',
+    'true',
+  )
+})
+
 test('system back closes the sheet before anything else', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await waitPaired(page)

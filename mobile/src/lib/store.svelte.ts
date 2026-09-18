@@ -47,6 +47,8 @@ import { loadSprints } from './sprint'
 import { applyTerminalFontSize, readTerminalFontSize, writeTerminalFontSize } from './termprefs'
 import { probeShellPairing } from './terminal/api'
 import { serveTokenOf, terminalTokenOf, OfferScopeError, type OfferToken } from './offer'
+import type { GroupBy } from '../../../web/src/lib/view-config'
+import type { ListOrder } from '../../../web/src/lib/issue-sort'
 import type {
   BootstrapResponse,
   CredentialDoc,
@@ -233,6 +235,15 @@ export const app = $state({
    * the picker just showed for that view.
    */
   narrow: {} as Partial<ViewFilters>,
+  /**
+   * The session's own cut and order (GDK-1993), the sheet's other two rows.
+   * Null means "the view's own", which is the answer for every list nobody
+   * has touched — the sheet writes here only when a reader picks something,
+   * so a view's authored order and grouping are never quietly replaced by a
+   * phone default. Cleared with `narrow` for the same reason.
+   */
+  listGroupBy: null as GroupBy | null,
+  listOrder: null as ListOrder | null,
   /** The open push layer, or none. Mutually exclusive with `detail`. */
   layer: null as Layer | null,
   detail: null as DetailRef | null,
@@ -1048,6 +1059,8 @@ function resetSessionState(): void {
   // values are that workspace's ids.
   app.listSheet = false
   app.narrow = {}
+  app.listGroupBy = null
+  app.listOrder = null
   app.layer = null
   app.terminal = null
   // The declared name belongs to the host being left (GDK-1973): the next
@@ -1496,6 +1509,8 @@ export function setScope(id: string): void {
   // would make the new heading's count disagree with the count the picker
   // row just showed for that same scope.
   app.narrow = {}
+  app.listGroupBy = null
+  app.listOrder = null
   if (!app.demo) writeJSON(scopedKey(SCOPE_KEY), id)
 }
 
@@ -1516,6 +1531,16 @@ export function setNarrow(next: Partial<ViewFilters>): void {
 
 export function clearNarrow(): void {
   app.narrow = {}
+}
+
+/** The sheet's cut row. Null puts the view's own axis back. */
+export function setListGroupBy(by: GroupBy | null): void {
+  app.listGroupBy = by
+}
+
+/** The sheet's order row. Null puts the view's own order back. */
+export function setListOrder(order: ListOrder | null): void {
+  app.listOrder = order
 }
 
 /* ── search recents ── */

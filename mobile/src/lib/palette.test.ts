@@ -23,6 +23,7 @@ function scope(over: Partial<Scope> & Pick<Scope, 'id' | 'name'>): Scope {
     filters: null,
     unsupported: [],
     order: null,
+    groupBy: null,
     ...over,
   }
 }

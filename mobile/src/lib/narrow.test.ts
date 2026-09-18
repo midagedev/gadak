@@ -165,7 +165,7 @@ describe('where the narrow lands in buildList (GDK-1994)', () => {
     const scope = scopeOf('all-open')
     expect(buildList(rows, me, scope).total).toBe(3)
     const narrow: Partial<ViewFilters> = { priority: ['2'] }
-    const view = buildList(rows, me, scope, narrow)
+    const view = buildList(rows, me, scope, { narrow })
     expect(view.total).toBe(1)
     expect(view.sections.flatMap((s) => s.issues.map((i) => i.issue_key))).toEqual(['STD-1'])
   })
@@ -176,7 +176,7 @@ describe('where the narrow lands in buildList (GDK-1994)', () => {
     // question nobody asked, under a name they did not choose.
     const scope = scopeOf(SCOPE_MY_WORK.split(':')[1])
     expect(buildList(rows, me, scope).fellBack).toBe(false)
-    const view = buildList(rows, me, scope, { issue_type: ['nothing-matches'] })
+    const view = buildList(rows, me, scope, { narrow: { issue_type: ['nothing-matches'] } })
     expect(view.fellBack).toBe(false)
     expect(view.scopeId).toBe(SCOPE_MY_WORK)
     expect(view.total).toBe(0)
@@ -184,6 +184,6 @@ describe('where the narrow lands in buildList (GDK-1994)', () => {
 
   it('an empty narrow paints exactly the view’s own list', () => {
     const scope = scopeOf('all-open')
-    expect(buildList(rows, me, scope, {})).toEqual(buildList(rows, me, scope))
+    expect(buildList(rows, me, scope, { narrow: {} })).toEqual(buildList(rows, me, scope))
   })
 })
