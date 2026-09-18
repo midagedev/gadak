@@ -82,6 +82,46 @@ func ResolveLinkType(token string, catalog []jira.IssueLinkType) (lt jira.IssueL
 	}
 }
 
+// LinkTypeByID answers the machine path: the client picked a row out of the
+// catalog this server handed it, so the id and the direction it sends back
+// are an identity already decided, not words a person typed (GDK-1983).
+// Exact id match only, no fuzzy fold over names and descriptions — that fold
+// is what can refuse a choice the UI itself offered, because Jira lets two
+// types carry the same inward or outward phrase and does not enforce
+// uniqueness. A miss is a refusal that calls the id by its name, never a
+// guess at what was meant.
+//
+// It is the same rule CLAUDE.md states for transitions after GDK-1982: a
+// client that chose from the catalog is not re-interpreted by the human
+// vocabulary resolver. The human path stays where people type — the CLI, and
+// any older client still sending `type`.
+//
+// direction is which end the requesting issue takes, and it is required: the
+// caller that knows the id knows it, and an absent one is a client bug rather
+// than a default worth inventing. "inward" means the phrase displayed on the
+// requesting issue is the type's inward description, which is what the
+// caller's inwardDescription result has always meant.
+func LinkTypeByID(id, direction string, catalog []jira.IssueLinkType) (lt jira.IssueLinkType, inwardDescription bool, err error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return jira.IssueLinkType{}, false, fmt.Errorf("empty link type id")
+	}
+	switch strings.TrimSpace(direction) {
+	case "inward":
+		inwardDescription = true
+	case "outward":
+		inwardDescription = false
+	default:
+		return jira.IssueLinkType{}, false, fmt.Errorf("link direction %q is neither \"inward\" nor \"outward\"", direction)
+	}
+	for _, t := range catalog {
+		if strings.TrimSpace(t.ID) == id {
+			return t, inwardDescription, nil
+		}
+	}
+	return jira.IssueLinkType{}, false, fmt.Errorf("no link type id %q — available: %s", id, formatLinkTypes(catalog))
+}
+
 // LinkPhrase is the sentence one link row prints for a direction: the type's
 // own description ("blocks" / "is blocked by"), or "" when the pair does not
 // name one. The mirror's links.direction is the wire pair ("Blocks outward")

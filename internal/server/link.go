@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/midagedev/gadak/internal/fields"
+	"github.com/midagedev/gadak/internal/jira"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/sync"
 )
@@ -43,15 +44,29 @@ func (s *server) handleLinkTypes(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) handleLink(w http.ResponseWriter, r *http.Request) {
 	var body struct {
+		// Type is the human path: a phrase or an id, folded over the
+		// catalog by origin.ResolveLinkType. The CLI types it and so did
+		// every client before GDK-1983.
 		Type string `json:"type"`
-		Key  string `json:"key"`
+		// TypeID and Direction are the machine path: the identity a client
+		// picked out of the catalog this server handed it. When TypeID is
+		// present the phrase fold is not run at all — see
+		// origin.LinkTypeByID for why re-reading a chosen identity is the
+		// defect class (GDK-1982, GDK-1983).
+		TypeID    string `json:"type_id"`
+		Direction string `json:"direction"`
+		Key       string `json:"key"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		fail(w, http.StatusBadRequest, "invalid_body")
 		return
 	}
 	token := strings.TrimSpace(body.Type)
-	if token == "" {
+	typeID := strings.TrimSpace(body.TypeID)
+	// Either path names the type; neither does not. A client on the machine
+	// path sends no `type` at all, so this guard asks for a type rather than
+	// for one spelling of it (GDK-1983).
+	if token == "" && typeID == "" {
 		fail(w, http.StatusBadRequest, "type_required")
 		return
 	}
@@ -90,7 +105,13 @@ func (s *server) handleLink(w http.ResponseWriter, r *http.Request) {
 		failJira(w, r, s.config(), err)
 		return
 	}
-	lt, inwardDescription, err := origin.ResolveLinkType(token, catalog)
+	var lt jira.IssueLinkType
+	var inwardDescription bool
+	if typeID != "" {
+		lt, inwardDescription, err = origin.LinkTypeByID(typeID, body.Direction, catalog)
+	} else {
+		lt, inwardDescription, err = origin.ResolveLinkType(token, catalog)
+	}
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return

@@ -268,3 +268,96 @@ func TestResolveLinkTypeMatchesCLI(t *testing.T) {
 		t.Fatalf("ambiguous: %v", err)
 	}
 }
+
+// GDK-1983: a phrase two types share is a choice the UI offers and the server
+// refuses. Jira lets every type carry free-text inward/outward descriptions
+// and enforces no uniqueness across types, so "blocks" naming both a Blocks
+// and a Gates type is an ordinary custom catalog — and the phrase fold has
+// nothing left to decide between them. Neither site measured on 2026-09-17
+// has such a pair today, which is why this arrived as a latent defect rather
+// than a report; the catalog below is the one that makes it live.
+//
+// The fix is not "send the id" — the phrase carries (type, direction) as a
+// pair, and internal/server/link.go reads the direction out of it to decide
+// which end the requesting issue takes. It is "send the identity and the
+// direction separately", which is what the machine path does.
+//
+// FAIL-first, measured 2026-09-18 with the machine branch taken out of
+// internal/server/link.go — which is what the tree looked like before this
+// change, since a client had no way to send an identity at all:
+//
+//	machine path status 400: {"error":"empty link type"}
+//
+// The first half is red by construction on both sources and stays that way:
+// it is the assertion that the phrase fold refuses what it cannot decide,
+// which is correct behaviour and the reason the second half has to exist.
+func TestLinkRESTAmbiguousPhraseRefusesAndTheChosenIDDoesNot(t *testing.T) {
+	ambiguous := `{"issueLinkTypes":[` +
+		`{"id":"10000","name":"Blocks","outward":"blocks","inward":"is blocked by"},` +
+		`{"id":"10100","name":"Gates","outward":"blocks","inward":"is gated by"}]}`
+
+	// The human path cannot answer, and says so rather than guessing.
+	f, h, _ := writable(t)
+	f.linkTypesJSON = ambiguous
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/link/", `{"type":"blocks","key":"NMB-2"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("phrase path status %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "ambiguous") {
+		t.Errorf("phrase refusal must name the ambiguity: %s", rec.Body.String())
+	}
+
+	// The machine path carries the identity the client was handed, so there
+	// is nothing to be ambiguous about.
+	f2, h2, _ := writable(t)
+	f2.linkTypesJSON = ambiguous
+	rec = send(t, h2, http.MethodPost, apiBase+"NMB-1/link/",
+		`{"type_id":"10100","direction":"outward","key":"NMB-2"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("machine path status %d: %s", rec.Code, rec.Body.String())
+	}
+	id, outward, inward := postedIssueLink(t, f2)
+	if id != "10100" || outward != "NMB-2" || inward != "NMB-1" {
+		t.Errorf("id=%q outward=%q inward=%q, want 10100 / NMB-2 / NMB-1", id, outward, inward)
+	}
+
+	// The other direction puts the requesting issue on the other end, which
+	// is the whole reason the phrase was carrying two things.
+	f3, h3, _ := writable(t)
+	f3.linkTypesJSON = ambiguous
+	rec = send(t, h3, http.MethodPost, apiBase+"NMB-1/link/",
+		`{"type_id":"10100","direction":"inward","key":"NMB-2"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("inward status %d: %s", rec.Code, rec.Body.String())
+	}
+	id, outward, inward = postedIssueLink(t, f3)
+	if id != "10100" || outward != "NMB-1" || inward != "NMB-2" {
+		t.Errorf("id=%q outward=%q inward=%q, want 10100 / NMB-1 / NMB-2", id, outward, inward)
+	}
+}
+
+// The machine path refuses what it cannot answer exactly, and the refusal
+// calls the id by its name — it never falls back to the phrase fold, because
+// falling back is the behaviour this separation exists to remove.
+func TestLinkRESTMachinePathRefusesAnUnknownIDAndABadDirection(t *testing.T) {
+	_, h, _ := writable(t)
+	rec := send(t, h, http.MethodPost, apiBase+"NMB-1/link/",
+		`{"type_id":"99999","direction":"outward","key":"NMB-2"}`)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "99999") {
+		t.Errorf("unknown id → %d %s; want 400 naming the id", rec.Code, rec.Body.String())
+	}
+
+	_, h2, _ := writable(t)
+	rec = send(t, h2, http.MethodPost, apiBase+"NMB-1/link/",
+		`{"type_id":"10000","key":"NMB-2"}`)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "direction") {
+		t.Errorf("missing direction → %d %s; want 400 naming the direction", rec.Code, rec.Body.String())
+	}
+
+	// And a body with neither spelling still asks for a type.
+	_, h3, _ := writable(t)
+	rec = send(t, h3, http.MethodPost, apiBase+"NMB-1/link/", `{"key":"NMB-2"}`)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "type_required") {
+		t.Errorf("no type → %d %s; want 400 type_required", rec.Code, rec.Body.String())
+	}
+}

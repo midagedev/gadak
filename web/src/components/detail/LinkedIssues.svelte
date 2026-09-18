@@ -57,17 +57,42 @@
   let keyQuery = $state('')
   let busy = $state(false)
 
-  function linkTypeOptions(rows: IssueLinkType[]): { value: string; label: string }[] {
-    const out: { value: string; label: string }[] = []
+  /*
+   * One option per (type, direction) the catalog offers, carrying the
+   * identity and not the words (GDK-1983).
+   *
+   * The phrase is what a person reads and it used to be what was sent, which
+   * made the server fold it back over the whole catalog to find out which
+   * type and which direction it meant. Jira lets every type carry free-text
+   * inward/outward descriptions and enforces no uniqueness between types, so
+   * two types can name the same phrase — and then the fold has nothing left
+   * to decide with and refuses a choice this very list offered. That is the
+   * GDK-1982 class: a machine re-reading an identity a machine already
+   * chose.
+   *
+   * The phrase carried two things, not one, which is why the fix is not "send
+   * the id": the server reads the direction out of it to decide which end the
+   * requesting issue takes. Both travel now, separately.
+   *
+   * The `value` is the option's index, not the phrase and not the id: the
+   * whole point is that two options can be indistinguishable by phrase, and
+   * a `<select>` value has to tell them apart. Nothing reads it but the
+   * lookup below.
+   */
+  type LinkChoice = { value: string; label: string; typeId: string; direction: 'inward' | 'outward' }
+
+  function linkTypeOptions(rows: IssueLinkType[]): LinkChoice[] {
+    const out: LinkChoice[] = []
     for (const row of rows) {
+      const id = (row.id || '').trim()
       const outward = (row.outward || row.name || row.id).trim()
       const inward = (row.inward || '').trim()
-      if (outward) out.push({ value: outward, label: outward })
+      if (outward) out.push({ value: '', label: outward, typeId: id, direction: 'outward' })
       if (inward && inward.toLowerCase() !== outward.toLowerCase()) {
-        out.push({ value: inward, label: inward })
+        out.push({ value: '', label: inward, typeId: id, direction: 'inward' })
       }
     }
-    return out
+    return out.map((o, i) => ({ ...o, value: String(i) }))
   }
 
   const typeOptions = $derived(linkTypeOptions(types))
@@ -101,7 +126,11 @@
   function setTypes(rows: IssueLinkType[]) {
     types = rows
     // Same turn as types so bind:value={selectedType} matches an option.
-    if (!selectedType) selectedType = linkTypeOptions(rows)[0]?.value ?? ''
+    // The option value is an index into this catalog (GDK-1983), so a
+    // selection made against an older one has to be dropped rather than
+    // kept: an index that no longer names a row would submit nothing.
+    const options = linkTypeOptions(rows)
+    if (!options.some((o) => o.value === selectedType)) selectedType = options[0]?.value ?? ''
   }
 
   async function loadTypes(k: string) {
@@ -152,9 +181,9 @@
   async function submit() {
     const from = issueKey
     if (!from) return
-    const token = selectedType.trim()
+    const choice = typeOptions.find((o) => o.value === selectedType)
     const to = keyQuery.trim().toUpperCase()
-    if (!token || !to) return
+    if (!choice || !to) return
     if (to === from.toUpperCase()) {
       write.toast(t('detail.linkSelf'), 'error')
       return
@@ -169,7 +198,7 @@
     }
     busy = true
     try {
-      await createIssueLink(from, token, to)
+      await createIssueLink(from, to, { typeId: choice.typeId, direction: choice.direction })
       keyQuery = ''
       invalidate(from)
       invalidate(to)

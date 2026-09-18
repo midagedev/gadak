@@ -912,15 +912,24 @@ export function getIssueLinkTypes(issueKey: string): Promise<{ link_types: Issue
 }
 
 /** POST <key>/link/ — `type` is name, inward/outward description, or id. */
+/**
+ * Create a link, naming the type by the identity the catalog gave (GDK-1983).
+ *
+ * `type_id` + `direction` rather than the phrase: the server folds a phrase
+ * back over the whole catalog to recover both, and two types may carry the
+ * same phrase, so the fold can refuse a choice the UI itself offered. The
+ * phrase path is still accepted there — the CLI types words — but a client
+ * that picked a row out of the catalog sends the row.
+ */
 export function createIssueLink(
   issueKey: string,
-  type: string,
   otherKey: string,
+  type: { typeId: string; direction: 'inward' | 'outward' },
 ): Promise<IssueWriteResponse> {
   return jsonW<IssueWriteResponse>(`${encodeURIComponent(issueKey)}/link/`, {
     method: 'POST',
     headers: JSON_HEADERS,
-    body: JSON.stringify({ type, key: otherKey }),
+    body: JSON.stringify({ type_id: type.typeId, direction: type.direction, key: otherKey }),
   })
 }
 

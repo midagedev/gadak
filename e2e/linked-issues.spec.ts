@@ -247,10 +247,15 @@ test.describe('linked issues', () => {
     })
 
     let created = false
-    let posted: { type?: string; key?: string } | null = null
+    let posted: { type?: string; type_id?: string; direction?: string; key?: string } | null = null
     await page.route(`**/api/v1/issues/${KEY}/link/`, async (route) => {
       if (route.request().method() !== 'POST') return route.continue()
-      posted = route.request().postDataJSON() as { type?: string; key?: string }
+      posted = route.request().postDataJSON() as {
+        type?: string
+        type_id?: string
+        direction?: string
+        key?: string
+      }
       created = true
       await fulfillJSON(route, { issue })
     })
@@ -282,11 +287,19 @@ test.describe('linked issues', () => {
 
     const typeSelect = form.getByTestId('linked-issues-type')
     await expect(typeSelect).toBeEnabled()
-    await typeSelect.selectOption('blocks')
+    // By label, because the option's value is now an index: two catalog
+    // types may print the same phrase, and the value is what tells them apart
+    // (GDK-1983). What a person picks is the phrase.
+    await typeSelect.selectOption({ label: 'blocks' })
     await form.getByTestId('linked-issues-key').fill(TYPED_KEY)
     await form.getByTestId('linked-issues-submit').click()
 
-    await expect.poll(() => posted?.type).toBe('blocks')
+    // The identity the catalog gave, not the words on it (GDK-1983): the
+    // server folds a phrase back over the catalog to recover the type and the
+    // direction, and that fold can refuse a phrase two types share.
+    await expect.poll(() => posted?.type_id).toBe('10000')
+    await expect.poll(() => posted?.direction).toBe('outward')
+    await expect.poll(() => posted?.type).toBeUndefined()
     await expect.poll(() => posted?.key).toBe(TYPED_KEY)
     await expect(links.getByText(SERVER_KEY)).toBeVisible()
     await expect(links.getByText(TYPED_KEY)).toHaveCount(0)
