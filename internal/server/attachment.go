@@ -424,6 +424,12 @@ func (s *server) warmAttachments(cfg *config.Config, owner string, atts []detail
 	if s.cache == nil || !cfg.HasCredential() {
 		return
 	}
+	// Same defensive shape as startSyncJob (onboarding.go): a detail answered
+	// during shutdown warms nothing, so no goroutine is born after jobsCancel
+	// and outside jobsWG's count (GDK-2000).
+	if s.jobsCtx != nil && s.jobsCtx.Err() != nil {
+		return
+	}
 	var pending []detailAttachment
 	for _, a := range atts {
 		if (a.IsImage || a.IsVideo) && !s.cache.Has(s.attachmentCacheKey(owner, a.ID)) {
@@ -439,16 +445,35 @@ func (s *server) warmAttachments(cfg *config.Config, owner string, atts []detail
 	if len(pending) > maxWarm {
 		pending = pending[:maxWarm]
 	}
+	// Detached from the request, but not from the server (GDK-2000): the fetch
+	// rides jobsCtx so jobsCancel aborts a mid-flight origin read instead of
+	// leaving it parked past Shutdown against a mirror the caller may close —
+	// the rule the terminal socket already follows (terminal.go, GDK-915).
+	// nil jobsCtx is a server built without a lifecycle; warming still works
+	// there, uncancelled, exactly like startSyncJob's fallback.
+	ctx := s.jobsCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	jobs := make(chan detailAttachment)
 	for i := 0; i < workers; i++ {
+		// Counted before started (GDK-2000): Shutdown's jobsWG.Wait covers
+		// these workers, not only startSyncJob's.
+		s.jobsWG.Add(1)
 		go func() {
+			defer s.jobsWG.Done()
 			for a := range jobs {
+				if ctx.Err() != nil {
+					// Cancellation already arrived: touch nothing — the mirror
+					// may be closed by the time this job was picked up.
+					continue
+				}
 				// Detached from the request: the browser may have moved on already.
 				id := a.ID
 				ck := s.attachmentCacheKey(owner, id)
 				log.Printf("server: attachment warm miss id=%s item=%s: %s", id, owner, s.cache.MissReason(ck, id))
 				if err := s.cache.Fill(ck, func() (io.ReadCloser, attachcache.Meta, error) {
-					res, err := s.fetchAttachmentFor(context.Background(), cfg, owner, id, nil, page)
+					res, err := s.fetchAttachmentFor(ctx, cfg, owner, id, nil, page)
 					if err != nil {
 						return nil, attachcache.Meta{}, err
 					}
@@ -463,10 +488,21 @@ func (s *server) warmAttachments(cfg *config.Config, owner string, atts []detail
 			}
 		}()
 	}
+	s.jobsWG.Add(1)
 	go func() {
+		defer s.jobsWG.Done()
 		defer close(jobs)
 		for _, a := range pending {
-			jobs <- a
+			// The workers as written never stop receiving, so the send would
+			// land; the select makes the feeder's exit unconditional on
+			// cancellation instead of resting on that property — a worker
+			// that ever returned early must not park this feeder (and its
+			// jobsWG count) past Shutdown.
+			select {
+			case jobs <- a:
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 }
