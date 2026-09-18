@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48, schemaV49, schemaV50, schemaV51, schemaV52, schemaV53}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48, schemaV49, schemaV50, schemaV51, schemaV52, schemaV53, schemaV54}
 
 // MirrorSchemaVersion is the mirror schema level this build writes
 // (len(migrations)) — the head of a have/head pair. `gadak doctor` prints it
@@ -1157,3 +1157,20 @@ INSERT OR IGNORE INTO local.api_usage (day, requests, throttled, server_errors, 
 // holds a mirror whose local.db has no localSchemaV12 one version below it,
 // the same hold personalStateCopyVersion takes for the v26 copy.
 const apiUsageCopyVersion = 53
+
+// schemaV54 grows items_fts by the script_runs column (Latin and digit runs
+// glued to CJK, GDK-1978). The DDL change itself is owned by itemsFTSCreate:
+// repairItemsFTS rebuilds the index at Open when the stored CREATE differs,
+// and that rebuild — not this statement — is the migration for databases
+// created before the column existed. This entry exists so PRAGMA user_version
+// (and with it sync_state.schema_version) moves to the documented level; the
+// body is a no-op on purpose.
+//
+// It is also the half GDK-1978 landed without, and the half that matters
+// here. Two items_fts shapes both stamped 53 are indistinguishable to the
+// version gate, so neither SchemaTooNewError nor RefuseForward fires and a
+// release binary rebuilds the index down to five columns on open — which is
+// GDK-1978's fix silently undone, with the same sentence unfindable in
+// Japanese again and nothing said. v25 and v50 took this entry for the same
+// reason; script_runs is the one that skipped it (GDK-1999).
+const schemaV54 = `SELECT 1`

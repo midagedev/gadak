@@ -667,7 +667,7 @@ tokens, so `MATCH` silently returns 0 rows, and it wrecks English precision
 (`ency` → 0.342). English is deliberately not n-grammed — `ency` does not
 match `idempotency`.
 
-`script_runs` (v50 / GDK-1978) is the mirror image of `cjk_bigram`, and it
+`script_runs` (v54 / GDK-1978, stamped by GDK-1999) is the mirror image of `cjk_bigram`, and it
 exists because `unicode61` counts Han, kana and Hangul as token characters
 exactly like letters. A Latin or digit run with no separator before it is
 therefore not a token at all — it is swallowed into the CJK token in front of
