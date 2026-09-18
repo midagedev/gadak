@@ -2,7 +2,7 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
-## Unreleased
+## v0.24.0
 
 **The terminal works on a phone.** Under 900px the pane becomes an
 overlay sheet, and that sheet was `width: 100%` on a box already anchored to

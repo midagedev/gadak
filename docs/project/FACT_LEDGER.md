@@ -60,8 +60,8 @@ storage and type, attribution, MCP clients, read exceptions, deletions).
 
 ## 3. Status
 
-- **Status: 0.23, still 0.x.** (`tools/doc-checks.sh` check 6 asserts the
-  minor version appears as `Status: 0.23` / `상태: 0.23` / `状態: 0.23` in all
+- **Status: 0.24, still 0.x.** (`tools/doc-checks.sh` check 6 asserts the
+  minor version appears as `Status: 0.24` / `상태: 0.24` / `状態: 0.24` in all
   three READMEs, and re-asserts on every tag.)
 - Sync, read API, write-through, desktop, web, CLI and MCP are verified
   against a live site.
@@ -69,7 +69,7 @@ storage and type, attribution, MCP clients, read exceptions, deletions).
 ## 3a. The phone app (beta, 2026-09-16)
 
 The iOS app (`mobile/`, Tauri v2 + Svelte) reaches the landing page and the
-three READMEs for 0.23. It reverses the 2026-09-02 call that kept it off every
+three READMEs for 0.24. It reverses the 2026-09-02 call that kept it off every
 public surface (`docs/project/MEDIA.md`, the removed `hero.mp4` row); what
 changed is that the phone now reads the whole cache and writes the one-line
 edits (GDK-1875), so there is something to show. Every edition that shows it
@@ -526,7 +526,7 @@ landing (`site/src/i18n.ts`) and all three READMEs.
   (it asks them to self-censor a harmless number), the separate
   what-to-send-about-an-agent paragraph, and the numbered bug-report list on
   the landings. The deployment type in a bug report is now "Cloud or Server".
-- **Every edition carries status where a first-time reader finds it**: 0.23
+- **Every edition carries status where a first-time reader finds it**: 0.24
   / 0.x, one maintainer, Apache-2.0, and the work that stays in Jira. The
   three-promise compatibility contract is README material, not landing
   material (§11).
