@@ -52,6 +52,15 @@ type ptyProc struct {
 	// caller of proc.Write/resize get the same answer without repeating it.
 	closed atomic.Bool
 
+	// holdMu guards the size the hold loop is defending and whether one is
+	// running. One loop per proc, never one per call: a pane dragged across
+	// the screen resizes many times a second, and a goroutine each would be
+	// a crowd re-applying each other's stale sizes.
+	holdMu      sync.Mutex
+	holdCols    uint16
+	holdRows    uint16
+	holdRunning bool
+
 	// resizeExit records which exit the last resize took (GDK-1192): the
 	// read-back loop has two silent success paths — matched and trusted-but-
 	// unverified — that a CI failure log cannot otherwise tell apart, and the
@@ -116,6 +125,34 @@ var (
 // resizeReadBackAttempts bounds the set → read-back loop below.
 const resizeReadBackAttempts = 5
 
+// resizeHoldSchedule is how long after a verified resize the owner keeps
+// asking the kernel whether the size is still there, and the gaps it waits
+// between asks. Cumulative 3s.
+//
+// It exists because the read-back is not durable (GDK-1192). Two macOS CI
+// runs, 34969829676 and 35091105299, were recovered from the attempts API
+// and say the same thing to the field: `LastResizeExit:matched/1` — the set
+// returned nil and TIOCGWINSZ on the same master immediately answered
+// 132x43 — and then the master reads the session's *creation* size, 80x24,
+// with nothing in this package having written a size in between. This
+// package has exactly one writer of the window size, the call above.
+//
+// The schedule is measured, not chosen: in both runs the child's first
+// answer after the resize was already the old size, and the probe interval
+// is two seconds, so the revert happens inside two seconds of a set that
+// read back correct. Three covers it with room. No theory of why darwin's
+// ptmx undoes it is written here — `reverted@…` in the exit string is what
+// the next occurrence will say instead of a guess.
+var resizeHoldSchedule = []time.Duration{
+	25 * time.Millisecond,
+	50 * time.Millisecond,
+	100 * time.Millisecond,
+	200 * time.Millisecond,
+	400 * time.Millisecond,
+	800 * time.Millisecond,
+	1425 * time.Millisecond,
+}
+
 // recordResizeExit names the branch the last resize left by, so the next CI
 // recurrence's Info() line says which of the silent exits it took.
 func (p *ptyProc) recordResizeExit(s string) {
@@ -173,6 +210,7 @@ func (p *ptyProc) resize(cols, rows uint16) error {
 		}
 		if got.Cols == cols && got.Rows == rows {
 			p.recordResizeExit(fmt.Sprintf("matched/%d", attempt+1))
+			p.holdSize(cols, rows)
 			break
 		}
 		if attempt+1 >= resizeReadBackAttempts {
@@ -186,6 +224,60 @@ func (p *ptyProc) resize(cols, rows uint16) error {
 		return ErrSessionClosed
 	}
 	return err
+}
+
+// holdSize keeps the size that was just verified, for as long as
+// resizeHoldSchedule says. A later resize replaces what is being defended
+// rather than starting a second loop.
+//
+// A proc with no master file has nothing to hold: that is the unit tests'
+// bare ptyProc, and it is also the honest answer.
+func (p *ptyProc) holdSize(cols, rows uint16) {
+	if p.f == nil {
+		return
+	}
+	p.holdMu.Lock()
+	p.holdCols, p.holdRows = cols, rows
+	if p.holdRunning {
+		p.holdMu.Unlock()
+		return
+	}
+	p.holdRunning = true
+	p.holdMu.Unlock()
+	go p.holdLoop()
+}
+
+func (p *ptyProc) holdLoop() {
+	defer func() {
+		p.holdMu.Lock()
+		p.holdRunning = false
+		p.holdMu.Unlock()
+	}()
+	started := time.Now()
+	for _, gap := range resizeHoldSchedule {
+		time.Sleep(gap)
+		if p.closed.Load() {
+			return
+		}
+		p.holdMu.Lock()
+		cols, rows := p.holdCols, p.holdRows
+		p.holdMu.Unlock()
+		got, err := ptyGetsize(p.f)
+		if err != nil {
+			// The same reasoning the read-back loop uses: an unreadable
+			// size is not evidence the size is gone.
+			return
+		}
+		if got.Cols == cols && got.Rows == rows {
+			continue
+		}
+		since := time.Since(started).Round(time.Millisecond)
+		if err := ptySetsize(p.f, &pty.Winsize{Cols: cols, Rows: rows}); err != nil {
+			p.recordResizeExit(fmt.Sprintf("reverted@%s→reapply-error:%v", since, err))
+			return
+		}
+		p.recordResizeExit(fmt.Sprintf("reverted@%s→reapplied", since))
+	}
 }
 
 // winsize reads the size the kernel holds for the pty back from the master

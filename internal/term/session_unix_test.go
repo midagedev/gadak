@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -1172,6 +1173,137 @@ func TestResizeReissuesUntilTheKernelReadsItBack(t *testing.T) {
 	}
 	if e := p.lastResizeExit(); e != "matched/1" {
 		t.Errorf("lastResizeExit = %q; want matched/1", e)
+	}
+}
+
+// GDK-1192: the read-back is not durable. Two macOS CI runs (34969829676,
+// 35091105299) recorded `LastResizeExit:matched/1` — set returned nil, the
+// master read the new size back at once — and then the same master read the
+// session's creation size, with nothing in this package having written one in
+// between. The child's first answer after the resize was already the old size
+// in both, so the revert lands inside two seconds of a verified set.
+//
+// So the owner holds the size after verifying it, and says so. The seams make
+// the kernel misbehave on cue in the one way the runners did: agree at set
+// time, disagree afterwards.
+//
+// FAIL-first (2026-09-18, with the holdSize call removed from resize):
+//
+//	the size was never put back: kernel reads 80x24 after 1 Setsize calls
+func TestResizeHoldsTheSizeAfterTheKernelTakesItBack(t *testing.T) {
+	origSet, origGet, origHold := ptySetsize, ptyGetsize, resizeHoldSchedule
+	t.Cleanup(func() { ptySetsize, ptyGetsize, resizeHoldSchedule = origSet, origGet, origHold })
+	// Short and few: this test is about the loop, not about the wall clock.
+	resizeHoldSchedule = []time.Duration{5 * time.Millisecond, 5 * time.Millisecond, 5 * time.Millisecond}
+
+	var mu sync.Mutex
+	sets := 0
+	live := pty.Winsize{Cols: 80, Rows: 24}
+	reverted := false
+	ptySetsize = func(_ *os.File, ws *pty.Winsize) error {
+		mu.Lock()
+		defer mu.Unlock()
+		sets++
+		live = *ws
+		return nil
+	}
+	ptyGetsize = func(_ *os.File) (*pty.Winsize, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if !reverted && sets > 0 && live.Cols == 132 {
+			// The first read is the verification, and it agrees. The kernel
+			// takes it back immediately after.
+			reverted = true
+			got := live
+			live = pty.Winsize{Cols: 80, Rows: 24}
+			return &got, nil
+		}
+		got := live
+		return &got, nil
+	}
+
+	// A file, because a proc with no master has nothing to hold. Anything
+	// the seams ignore will do.
+	f, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = f.Close() })
+	p := &ptyProc{f: f}
+	t.Cleanup(func() { p.closed.Store(true) })
+
+	if err := p.resize(132, 43); err != nil {
+		t.Fatalf("resize = %v; want nil (the read-back agreed)", err)
+	}
+	if e := p.lastResizeExit(); e != "matched/1" {
+		t.Fatalf("lastResizeExit right after the set = %q; want matched/1", e)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		mu.Lock()
+		cols, rows, n := live.Cols, live.Rows, sets
+		mu.Unlock()
+		// The exit string is part of the condition, not a later assertion:
+		// holdLoop records it after the set returns, so a wait that stops at
+		// the size alone can read the string one instant too early.
+		if cols == 132 && rows == 43 && n == 2 && strings.HasPrefix(p.lastResizeExit(), "reverted@") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the size was never put back: kernel reads %dx%d after %d Setsize calls, exit %q", cols, rows, n, p.lastResizeExit())
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	if e := p.lastResizeExit(); !strings.Contains(e, "→reapplied") {
+		t.Errorf("lastResizeExit = %q; want it to name the revert and the re-apply", e)
+	}
+	if !strings.HasPrefix(p.lastResizeExit(), "reverted@") {
+		t.Errorf("lastResizeExit = %q; want it to start with reverted@", p.lastResizeExit())
+	}
+}
+
+// A newer resize replaces what the hold loop is defending, and does not
+// start a second loop that would fight it.
+func TestResizeHoldDefendsTheLatestSizeOnly(t *testing.T) {
+	origSet, origGet, origHold := ptySetsize, ptyGetsize, resizeHoldSchedule
+	t.Cleanup(func() { ptySetsize, ptyGetsize, resizeHoldSchedule = origSet, origGet, origHold })
+	resizeHoldSchedule = []time.Duration{20 * time.Millisecond, 20 * time.Millisecond, 20 * time.Millisecond}
+
+	var mu sync.Mutex
+	live := pty.Winsize{Cols: 80, Rows: 24}
+	ptySetsize = func(_ *os.File, ws *pty.Winsize) error {
+		mu.Lock()
+		defer mu.Unlock()
+		live = *ws
+		return nil
+	}
+	ptyGetsize = func(_ *os.File) (*pty.Winsize, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		got := live
+		return &got, nil
+	}
+	f, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = f.Close() })
+	p := &ptyProc{f: f}
+	t.Cleanup(func() { p.closed.Store(true) })
+
+	if err := p.resize(132, 43); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.resize(100, 30); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(120 * time.Millisecond)
+	mu.Lock()
+	cols, rows := live.Cols, live.Rows
+	mu.Unlock()
+	if cols != 100 || rows != 30 {
+		t.Errorf("kernel reads %dx%d; want 100x30 — the hold must defend the latest size, not an earlier one", cols, rows)
 	}
 }
 
