@@ -9,7 +9,7 @@ export const list = {
   'filter.add': {
     en: '+ Filter',
     ko: '+ 필터',
-    ja: '+ フィルター',
+    ja: '+フィルター',
   },
   'filter.properties': {
     en: 'Properties',
@@ -49,12 +49,12 @@ export const list = {
   'filter.jqlNotAvailable': {
     en: 'JQL needs the app or gadak serve.',
     ko: 'JQL은 앱 또는 gadak serve가 필요합니다.',
-    ja: 'JQL にはアプリまたは gadak serve が必要です。',
+    ja: 'JQLにはアプリまたはgadak serveが必要です。',
   },
   'filter.jqlFailed': {
     en: 'Could not reach JQL. Check the connection and try again.',
     ko: 'JQL에 연결하지 못했습니다. 연결을 확인한 뒤 다시 시도하세요.',
-    ja: 'JQL に到達できませんでした。接続を確認して再試行してください。',
+    ja: 'JQLに到達できませんでした。接続を確認して再試行してください。',
   },
   'view.copyLink': {
     en: 'Copy link to this view',
@@ -68,7 +68,7 @@ export const list = {
   'filter.jqlCopiedPartial': {
     en: 'Copied the app link too: the Jira link cannot carry {omitted}.',
     ko: 'Jira 링크가 {omitted}을 담지 못해 앱 링크까지 복사했습니다.',
-    ja: 'Jira のリンクは {omitted} を運べないので、アプリのリンクも一緒にコピーしました。',
+    ja: 'Jiraのリンクは{omitted}を運べないので、アプリのリンクも一緒にコピーしました。',
   },
   // GDK-1861: the emit failed, so there is no origin address at all. Without
   // this the app link was copied under "Copied" — the same words a built-in
@@ -77,12 +77,12 @@ export const list = {
   'filter.originLinkFailed': {
     en: 'Copied the app link only: {tracker} could not give an address for this view.',
     ko: '앱 링크만 복사했습니다 — {tracker}에서 이 뷰의 주소를 만들지 못했습니다.',
-    ja: 'アプリのリンクだけコピーしました。{tracker} でこのビューのアドレスを作れませんでした。',
+    ja: 'アプリのリンクだけコピーしました。{tracker}でこのビューのアドレスを作れませんでした。',
   },
   'filter.jqlApplied': {
     en: 'JQL filter applied.',
     ko: 'JQL 필터를 적용했습니다.',
-    ja: 'JQL フィルターを適用しました。',
+    ja: 'JQLフィルターを適用しました。',
   },
   'filter.jqlPartial': {
     en: 'Applied, except: {clauses}',
@@ -92,7 +92,7 @@ export const list = {
   'filter.jqlParseFailed': {
     en: 'Could not parse that JQL',
     ko: 'JQL을 해석하지 못했습니다',
-    ja: 'その JQL を解析できませんでした',
+    ja: 'そのJQLを解析できませんでした',
   },
   // Catch of emitJql/parseJql: json() throws ApiError on 4xx/5xx, fetch throws
   // on a dead connection. Patterned on write.jiraUnavailable.
@@ -100,7 +100,7 @@ export const list = {
   'filter.notJql': {
     en: 'URL has no jql= parameter.',
     ko: 'URL에 jql= 파라미터가 없습니다.',
-    ja: 'URL に jql= パラメータがありません。',
+    ja: 'URLにjql=パラメータがありません。',
   },
   'filter.remove': {
     en: 'Remove filter',
@@ -145,7 +145,7 @@ export const list = {
   'filter.keysCapped': {
     en: 'key list has {given} values; the limit is {limit}. Showing {shown} keys.',
     ko: '키 목록에 값이 {given}개입니다. 한도는 {limit}개입니다. {shown}개 키를 표시합니다.',
-    ja: 'キー一覧は {given}件です。上限は {limit}件です。{shown}件のキーを表示しています。',
+    ja: 'キー一覧は{given}件です。上限は{limit}件です。{shown}件のキーを表示しています。',
   },
   // GDK-771: every visible axis excludes via the per-value ⊘ (tri-state
   // rows replaced the GDK-438 modal toggle and the GDK-474 "No exclude"
@@ -153,27 +153,27 @@ export const list = {
   'filter.excludeValue': {
     en: 'Exclude {value} (Alt-click)',
     ko: '{value} 제외 (Alt+클릭)',
-    ja: '{value} を除外 (Alt+クリック)',
+    ja: '{value}を除外(Alt+クリック)',
   },
   'filter.chipCreatedRange': {
     en: 'Created {from}–{to}',
     ko: '생성 {from}~{to}',
-    ja: '作成 {from}–{to}',
+    ja: '作成{from}–{to}',
   },
   'filter.chipUpdatedRange': {
     en: 'Updated {from}–{to}',
     ko: '갱신 {from}~{to}',
-    ja: '更新 {from}–{to}',
+    ja: '更新{from}–{to}',
   },
   'filter.chipDueRange': {
     en: 'Due {from}–{to}',
     ko: '기한 {from}~{to}',
-    ja: '期限 {from}–{to}',
+    ja: '期限{from}–{to}',
   },
   'filter.chipResolvedRange': {
     en: 'Resolved {from}–{to}',
     ko: '해결 {from}~{to}',
-    ja: '解決 {from}–{to}',
+    ja: '解決{from}–{to}',
   },
   'filter.dateFrom': {
     en: 'From',
@@ -306,12 +306,12 @@ export const list = {
   'sort.desc': {
     en: '↓ Desc',
     ko: '↓ 내림',
-    ja: '↓ 降順',
+    ja: '↓降順',
   },
   'sort.asc': {
     en: '↑ Asc',
     ko: '↑ 오름',
-    ja: '↑ 昇順',
+    ja: '↑昇順',
   },
   'columns.exposed': {
     en: 'Visible columns',
@@ -337,7 +337,7 @@ export const list = {
   'list.bodyMatchCount': {
     en: '{n} body match · “{q}”|{n} body matches · “{q}”',
     ko: '본문 일치 {n}건 · ‘{q}’',
-    ja: '本文一致 {n}件 · 「{q}」',
+    ja: '本文一致{n}件·「{q}」',
   },
   'list.emptyTitle': {
     en: 'No issues',
@@ -361,7 +361,7 @@ export const list = {
   'list.noIdentityFilter': {
     en: 'This serve has no identity to filter by.',
     ko: '이 serve에는 거를 계정 정보가 없습니다.',
-    ja: 'この serve には絞り込みに使うアカウント情報がありません。',
+    ja: 'このserveには絞り込みに使うアカウント情報がありません。',
   },
   'list.emptyLocalTitle': {
     en: 'No issues yet',
@@ -371,7 +371,7 @@ export const list = {
   'list.emptyLocalHint': {
     en: 'The first one is yours to write — c, or New issue in the sidebar.',
     ko: '첫 이슈를 만들어 보세요 — c 키, 또는 사이드바의 새 이슈.',
-    ja: '最初の課題を作成しましょう — c キー、またはサイドバーの新規課題。',
+    ja: '最初の課題を作成しましょう— cキー、またはサイドバーの新規課題。',
   },
   'list.emptyRunSync': {
     en: 'Sync now',
@@ -381,7 +381,7 @@ export const list = {
   'list.emptySyncHint': {
     en: 'Or keep the server running with gadak serve for automatic updates.',
     ko: '자동 갱신이 필요하면 gadak serve로 서버를 실행하세요.',
-    ja: '自動更新には gadak serve でサーバーを起動してください。',
+    ja: '自動更新にはgadak serveでサーバーを起動してください。',
   },
   // GDK-835: list-body render crash. Names the next action the way the
   // other list dead ends do — not "Something went wrong".
@@ -398,7 +398,7 @@ export const list = {
   'list.bodyOnlyTitle': {
     en: 'No issues match — found in body',
     ko: '조건에 맞는 이슈는 없고, 본문에서 찾았습니다',
-    ja: '一致する課題はありません — 本文で見つかりました',
+    ja: '一致する課題はありません—本文で見つかりました',
   },
   'list.bodyOnlyHint': {
     en: 'See the “Body matches” section above.',
@@ -423,7 +423,7 @@ export const list = {
   'list.noMatchQueryHint': {
     en: 'Press Enter to search descriptions and comments too.',
     ko: 'Enter를 누르면 본문과 코멘트까지 찾습니다.',
-    ja: 'Enter を押すと本文とコメントも検索します。',
+    ja: 'Enterを押すと本文とコメントも検索します。',
   },
   // GDK-478: Enter ran body search and the extra/docs groups are also empty.
   'list.noMatchBodyHint': {
@@ -460,27 +460,27 @@ export const list = {
   'list.moreCount': {
     en: '+{n} more',
     ko: '외 {n}개',
-    ja: 'ほか {n}件',
+    ja: 'ほか{n}件',
   },
   'list.commentCount': {
     en: '{n} comment|{n} comments',
     ko: '코멘트 {n}개',
-    ja: 'コメント {n}件',
+    ja: 'コメント{n}件',
   },
   'list.reopenCount': {
     en: 'Reopened {n}×',
     ko: '재오픈 {n}회',
-    ja: '再オープン {n}回',
+    ja: '再オープン{n}回',
   },
   'list.reopenCountReason': {
     en: 'Reopened {n}× · {reason}',
     ko: '재오픈 {n}회 · {reason}',
-    ja: '再オープン {n}回 · {reason}',
+    ja: '再オープン{n}回· {reason}',
   },
   'list.staleDays': {
     en: '{n} day in this status|{n} days in this status',
     ko: '이 상태로 {n}일째',
-    ja: 'このステータスで {n}日',
+    ja: 'このステータスで{n}日',
   },
   // Session strip ([list]) — one quiet line above the list saying what
   // changed since the previous session (spec r2-session; THEORY.md "Session
@@ -489,7 +489,7 @@ export const list = {
   'list.sessionSince': {
     en: 'Since last session {ago}',
     ko: '지난 세션 이후 {ago}',
-    ja: '前回のセッション以降 {ago}',
+    ja: '前回のセッション以降{ago}',
   },
   'list.sessionChanged': {
     en: '{n} issue changed|{n} issues changed',
@@ -503,7 +503,7 @@ export const list = {
   'list.sessionMine': {
     en: '{k} of them assigned here',
     ko: '그중 내게 배정된 {k}건',
-    ja: 'うち自分の担当が {k}件',
+    ja: 'うち自分の担当が{k}件',
   },
   // Hover title when the threshold was learned, not set — the row names its
   // rule (G7): what the 85% line is and where it came from.
@@ -513,19 +513,19 @@ export const list = {
   'list.staleDaysLearned': {
     en: '{n} day in this status — longer than 85% of the {s} issues finished in the last 90 days ({p} days)|{n} days in this status — longer than 85% of the {s} issues finished in the last 90 days ({p} days)',
     ko: '이 상태로 {n}일째 — 최근 90일간 완료된 {s}건의 85%보다 깁니다 ({p}일)',
-    ja: 'このステータスで {n}日 — 直近90日に完了した {s}件の85%より長くかかっています ({p}日)',
+    ja: 'このステータスで{n}日—直近90日に完了した{s}件の85%より長くかかっています({p}日)',
   },
   // The started-clock twins (2026-09-07): when the mirror knows when work
   // started (started_at), the age is work item age, and the title says so.
   'list.staleDaysStarted': {
     en: '{n} day since work started|{n} days since work started',
     ko: '착수 후 {n}일째',
-    ja: '着手から {n}日',
+    ja: '着手から{n}日',
   },
   'list.staleDaysStartedLearned': {
     en: '{n} day since work started — longer than 85% of the {s} issues finished in the last 90 days ({p} days)|{n} days since work started — longer than 85% of the {s} issues finished in the last 90 days ({p} days)',
     ko: '착수 후 {n}일째 — 최근 90일간 완료된 {s}건의 85%보다 깁니다 ({p}일)',
-    ja: '着手から {n}日 — 直近90日に完了した {s}件の85%より長くかかっています ({p}日)',
+    ja: '着手から{n}日—直近90日に完了した{s}件の85%より長くかかっています({p}日)',
   },
   'list.staleDaysShort': {
     en: '{n}d',
@@ -535,12 +535,12 @@ export const list = {
   'list.createdAt': {
     en: 'Created {time}',
     ko: '생성 {time}',
-    ja: '作成 {time}',
+    ja: '作成{time}',
   },
   'list.dueAt': {
     en: 'Due {date}',
     ko: '기한 {date}',
-    ja: '期限 {date}',
+    ja: '期限{date}',
   },
   'list.categoryTitle': {
     en: 'Category: {label} ({status})',
@@ -550,7 +550,7 @@ export const list = {
   'list.categoryFilter': {
     en: 'Filter by category {label}',
     ko: '분류 {label} 필터',
-    ja: 'カテゴリ {label} で絞る',
+    ja: 'カテゴリ{label}で絞る',
   },
   'list.fieldValue': {
     en: '{field}: {value}',
@@ -560,7 +560,7 @@ export const list = {
   'list.priorityLabel': {
     en: 'Priority {label}',
     ko: '우선순위 {label}',
-    ja: '優先度 {label}',
+    ja: '優先度{label}',
   },
   'list.priorityNone': {
     en: 'No priority',
@@ -570,7 +570,7 @@ export const list = {
   'list.qaBlock': {
     en: 'QA blocked',
     ko: 'QA 차단',
-    ja: 'QA ブロック',
+    ja: 'QAブロック',
   },
   'list.qaRetest': {
     en: 'Retest',
@@ -580,24 +580,24 @@ export const list = {
   'list.qaDone': {
     en: 'QA done',
     ko: 'QA 완료',
-    ja: 'QA 完了',
+    ja: 'QA完了',
   },
   'list.qaRun': {
     en: 'QA run',
     ko: 'QA 차수',
-    ja: 'QA ラン',
+    ja: 'QAラン',
   },
   'list.qaPending': {
     en: 'QA pending',
     ko: 'QA 대기',
-    ja: 'QA 待ち',
+    ja: 'QA待ち',
   },
   'list.searchPlaceholder': {
     en: 'Search this list — key, title, @assignee…',
     ko: '이 목록에서 검색 — 키·제목·@담당자…',
     // Three characters shorter than the literal rendering: at the 1024px
     // search take the input clipped the ko-length string mid-word (@担当|者).
-    ja: '一覧を検索 — キー・タイトル・@担当者…',
+    ja: '一覧を検索—キー・タイトル・@担当者…',
   },
   'list.searchPlaceholderShort': {
     en: 'Search this list…',
@@ -607,27 +607,27 @@ export const list = {
   'list.searchHelp': {
     en: 'Searches this list (key, title, assignee, labels). Example: @dana or is:unassigned. Paste JQL to apply it. Enter searches body and comments here.',
     ko: '이 목록을 검색합니다 (키·제목·담당자·라벨). 예: @dana 또는 is:unassigned. JQL을 붙여넣으면 적용됩니다. Enter로 본문·코멘트를 검색합니다.',
-    ja: 'この一覧を検索します（キー、タイトル、担当者、ラベル）。例: @dana または is:unassigned。JQL を貼ると適用されます。Enter で本文とコメントを検索します。',
+    ja: 'この一覧を検索します（キー、タイトル、担当者、ラベル）。例: @danaまたはis:unassigned。JQLを貼ると適用されます。Enterで本文とコメントを検索します。',
   },
   'list.searchHelpShortcuts': {
     en: 'Full syntax is in the keyboard cheat sheet (?)',
     ko: '전체 문법은 키보드 치트시트(?)에 있습니다',
-    ja: '構文の全体はキーボードチートシート (?) にあります',
+    ja: '構文の全体はキーボードチートシート(?)にあります',
   },
   'list.searchClear': {
     en: 'Clear (Esc)',
     ko: '지우기 (Esc)',
-    ja: 'クリア (Esc)',
+    ja: 'クリア(Esc)',
   },
   'list.searchOpen': {
     en: 'Open with Enter',
     ko: 'Enter로 열기',
-    ja: 'Enter で開く',
+    ja: 'Enterで開く',
   },
   'omnibox.issueMissing': {
     en: '{key} is not in the mirror.',
     ko: '캐시에 {key}가 없습니다.',
-    ja: '{key} はキャッシュにありません。',
+    ja: '{key}はキャッシュにありません。',
   },
   'list.searchFailed': {
     en: 'Could not search body text. Check the connection and try again.',
@@ -642,7 +642,7 @@ export const list = {
   'app.searchIdleHint': {
     en: 'Keys and summaries answer instantly from the {n}-issue snapshot; the server adds comment matches.',
     ko: '키와 요약은 이슈 {n}건의 스냅샷에서 즉시 답하고, 코멘트 일치는 서버가 더합니다.',
-    ja: 'キーと要約は {n}件の課題スナップショットから即座に答え、コメントの一致はサーバーが加えます。',
+    ja: 'キーと要約は{n}件の課題スナップショットから即座に答え、コメントの一致はサーバーが加えます。',
   },
   // A deployment with no server FTS (static snapshot). Not a failure: the
   // network is fine, and title/key search still ran.
@@ -664,12 +664,12 @@ export const list = {
   'list.docMatchCount': {
     en: '{n} document · “{q}”|{n} documents · “{q}”',
     ko: '문서 {n}건 · ‘{q}’',
-    ja: 'ドキュメント {n}件 · 「{q}」',
+    ja: 'ドキュメント{n}件·「{q}」',
   },
   'list.docOnlyTitle': {
     en: 'No issues match — found in documents',
     ko: '조건에 맞는 이슈는 없고, 문서에서 찾았습니다',
-    ja: '一致する課題はありません — ドキュメントで見つかりました',
+    ja: '一致する課題はありません—ドキュメントで見つかりました',
   },
   'list.docOnlyHint': {
     en: 'See the “Documents” section above.',
@@ -741,7 +741,7 @@ export const list = {
   'triage.commentOn': {
     en: 'Comment on {key}',
     ko: '{key}에 코멘트',
-    ja: '{key} にコメント',
+    ja: '{key}にコメント',
   },
   /* ── Board layout (GDK-1175) ── */
   'board.label': {
@@ -802,7 +802,7 @@ export const list = {
   'board.scopeEnds': {
     en: 'ends {date}',
     ko: '{date} 종료',
-    ja: '{date} に終了',
+    ja: '{date}に終了',
   },
   // The sprint strip (GDK-1709). The days line is a sentence, not a "D-6":
   // the abbreviation is a Korean office idiom that neither English nor
@@ -810,12 +810,12 @@ export const list = {
   'board.sprintDaysLeft': {
     en: '{n} day left|{n} days left',
     ko: '{n}일 남음',
-    ja: '残り {n} 日',
+    ja: '残り{n}日',
   },
   'board.sprintOneDayLeft': {
     en: '1 day left',
     ko: '하루 남음',
-    ja: '残り 1 日',
+    ja: '残り1日',
   },
   'board.sprintEndsToday': {
     en: 'ends today',
@@ -825,7 +825,7 @@ export const list = {
   'board.sprintEndedAgo': {
     en: 'ended {n} day ago|ended {n} days ago',
     ko: '{n}일 전 종료',
-    ja: '{n} 日前に終了',
+    ja: '{n}日前に終了',
   },
   'board.sprintEndedYesterday': {
     en: 'ended yesterday',
@@ -836,17 +836,17 @@ export const list = {
   'board.sprintBreakdown': {
     en: 'done {done} · in progress {inprogress} · to do {todo}',
     ko: '완료 {done} · 진행 중 {inprogress} · 할 일 {todo}',
-    ja: '完了 {done}・進行中 {inprogress}・未着手 {todo}',
+    ja: '完了{done}・進行中{inprogress}・未着手{todo}',
   },
   'board.sprintProgress': {
     en: '{done} of {total} done',
     ko: '{total}건 중 {done}건 완료',
-    ja: '{total}件中 {done}件が完了',
+    ja: '{total}件中{done}件が完了',
   },
   'board.sprintPoints': {
     en: '{done} / {total} pt',
     ko: '{done} / {total} 포인트',
-    ja: '{done} / {total} ポイント',
+    ja: '{done} / {total}ポイント',
   },
   'board.sprintGoal': {
     en: 'Sprint goal',
@@ -894,7 +894,7 @@ export const list = {
   'board.burnupTitle': {
     en: 'Burn-up — scope {scope}, completed {done} ({date})',
     ko: '번업 — 범위 {scope}, 완료 {done} ({date})',
-    ja: 'バーンアップ — スコープ {scope}、完了 {done}（{date}）',
+    ja: 'バーンアップ—スコープ{scope}、完了{done}（{date}）',
   },
   'board.burnupNoHistory': {
     en: 'This tracker keeps no change history, so the burn-up cannot be drawn.',
@@ -911,12 +911,12 @@ export const list = {
   'board.carriedOver': {
     en: 'Carried over from {n} sprint|Carried over from {n} sprints',
     ko: '스프린트 {n}개에서 이월',
-    ja: '{n} スプリントから持ち越し',
+    ja: '{n}スプリントから持ち越し',
   },
   'board.carriedOverOnce': {
     en: 'Carried over from one sprint',
     ko: '스프린트 하나에서 이월',
-    ja: '1 スプリントから持ち越し',
+    ja: '1スプリントから持ち越し',
   },
   'board.columnEmpty': {
     en: 'Nothing here',

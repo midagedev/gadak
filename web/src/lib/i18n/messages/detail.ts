@@ -48,7 +48,7 @@ export const detail = {
   'detail.runInShell': {
     en: "Place at this issue's shell prompt — does not run it",
     ko: '이 이슈의 셸 프롬프트에 놓기 — 실행하지는 않습니다',
-    ja: 'この課題のシェルのプロンプトに置く — 実行はしません',
+    ja: 'この課題のシェルのプロンプトに置く—実行はしません',
   },
   'detail.placeFailed': {
     en: 'Could not place the command in the shell.',
@@ -58,19 +58,19 @@ export const detail = {
   'detail.noShellForIssue': {
     en: 'No shell here is attached to {key}. Run `gadak claim {key}` in the terminal pane to bind one.',
     ko: '여기에는 {key}에 붙어 있는 셸이 없습니다. 터미널 패널에서 `gadak claim {key}`를 실행하면 붙습니다.',
-    ja: 'ここには {key} に紐づいたシェルがありません。ターミナルパネルで `gadak claim {key}` を実行すると紐づきます。',
+    ja: 'ここには{key}に紐づいたシェルがありません。ターミナルパネルで`gadak claim {key}`を実行すると紐づきます。',
   },
   // The header's shell verb (GDK-1388): enter the shell bound to this issue,
   // or open a new one bound to it from its first prompt.
   'detail.openShell': {
     en: 'Open a shell for {key}',
     ko: '{key}의 셸 열기',
-    ja: '{key} のシェルを開く',
+    ja: '{key}のシェルを開く',
   },
   'detail.enterShell': {
     en: 'Show the shell on {key}',
     ko: '{key}에 붙은 셸 보기',
-    ja: '{key} のシェルを表示',
+    ja: '{key}のシェルを表示',
   },
   /* The mark's wording is the feature. A session binding is runtime state
      that dies with the serve, so what is actually known is "no shell *here*
@@ -84,12 +84,12 @@ export const detail = {
   'detail.unattendedHint': {
     en: 'In progress, but no shell this serve knows about is attached to it. A shell on another machine — or one from before this serve restarted — is not visible here.',
     ko: '진행 중이지만 이 serve가 아는 셸 중 이 이슈에 붙은 것이 없습니다. 다른 기기에서 도는 셸이나 이 serve가 재시작되기 전의 셸은 여기서 보이지 않습니다.',
-    ja: '進行中ですが、この serve が把握しているシェルの中にこの課題へ紐づいたものはありません。別のマシンで動いているシェルや、この serve の再起動前のシェルはここには見えません。',
+    ja: '進行中ですが、このserveが把握しているシェルの中にこの課題へ紐づいたものはありません。別のマシンで動いているシェルや、このserveの再起動前のシェルはここには見えません。',
   },
   'detail.qaImpact': {
     en: 'QA impact',
     ko: 'QA 영향',
-    ja: 'QA 影響',
+    ja: 'QA影響',
   },
   'detail.comments': {
     en: 'Comments',
@@ -112,17 +112,17 @@ export const detail = {
   'detail.resume.sinceOpened': {
     en: 'Since last opened {ago}',
     ko: '마지막 열람 {ago}',
-    ja: '最終閲覧 {ago}',
+    ja: '最終閲覧{ago}',
   },
   'detail.resume.statusChanges': {
     en: '{n} status change|{n} status changes',
     ko: '상태 변경 {n}건',
-    ja: 'ステータス変更 {n}件',
+    ja: 'ステータス変更{n}件',
   },
   'detail.resume.newComments': {
     en: '{n} new comment|{n} new comments',
     ko: '새 코멘트 {n}건',
-    ja: '新着コメント {n}件',
+    ja: '新着コメント{n}件',
   },
   'detail.resume.assigneeChanged': {
     en: 'assignee changed',
@@ -132,7 +132,7 @@ export const detail = {
   'detail.resume.otherChanges': {
     en: '{n} other change|{n} other changes',
     ko: '기타 변경 {n}건',
-    ja: 'その他の変更 {n}件',
+    ja: 'その他の変更{n}件',
   },
   /* The phone's card carries an explicit × (GDK-1495 A4 vision FIX): the
    * desk's card is dismissed by leaving the issue, the phone's sits in the
@@ -181,12 +181,12 @@ export const detail = {
   'detail.epicProgress': {
     en: '{done} of {total} done',
     ko: '{total}건 중 {done}건 완료',
-    ja: '{total}件中 {done}件完了',
+    ja: '{total}件中{done}件完了',
   },
   'detail.epicShowAll': {
     en: 'Show {n} more',
     ko: '{n}건 더 보기',
-    ja: 'さらに {n}件表示',
+    ja: 'さらに{n}件表示',
   },
   'detail.epicShowLess': {
     en: 'Show fewer',
@@ -211,12 +211,12 @@ export const detail = {
   'detail.prs': {
     en: 'Linked PRs',
     ko: '연결 PR',
-    ja: 'リンクされた PR',
+    ja: 'リンクされたPR',
   },
   'detail.noPrs': {
     en: 'No linked PRs',
     ko: '연결된 PR 없음',
-    ja: 'リンクされた PR はありません',
+    ja: 'リンクされたPRはありません',
   },
   // GDK-555: connected workspace with an empty list — PRs exist on Jira's
   // GitHub app and are mirrored only when config.json `devStatus` is on.
@@ -224,7 +224,7 @@ export const detail = {
   'detail.prsNotMirrored': {
     en: "PRs are mirrored via devStatus; writes go through Jira's GitHub app",
     ko: 'PR은 devStatus로 캐시됩니다. 쓰기는 Jira의 GitHub 앱을 통합니다',
-    ja: 'PR は devStatus でキャッシュされます。書き込みは Jira の GitHub アプリ経由です',
+    ja: 'PRはdevStatusでキャッシュされます。書き込みはJiraのGitHubアプリ経由です',
   },
   // Who attached the link (dev-panel actor) — distinct from the PR's author.
   'detail.prLinkedBy': {
@@ -258,7 +258,7 @@ export const detail = {
   'detail.openJira': {
     en: 'Open in {tracker}',
     ko: '{tracker} 원본 열기',
-    ja: '{tracker} で開く',
+    ja: '{tracker}で開く',
   },
   'detail.copyLink': {
     en: 'Copy link',
@@ -285,7 +285,7 @@ export const detail = {
   'detail.originLinkCopied': {
     en: '{tracker} link copied',
     ko: '{tracker} 링크를 복사했습니다',
-    ja: '{tracker} のリンクをコピーしました',
+    ja: '{tracker}のリンクをコピーしました',
   },
   // Toast copy rule (GDK-1588, which reversed GDK-1226's no-period rule): a
   // toast ends in a sentence terminator, an ellipsis, or an interpolation /
@@ -296,7 +296,7 @@ export const detail = {
   'clipboard.copyFailed': {
     en: 'Could not copy — the clipboard refused the write.',
     ko: '복사하지 못했습니다 — 클립보드가 쓰기를 거부했습니다.',
-    ja: 'コピーできませんでした — クリップボードが書き込みを拒否しました。',
+    ja: 'コピーできませんでした—クリップボードが書き込みを拒否しました。',
   },
   'detail.reopened': {
     en: 'Reopened',
@@ -306,19 +306,19 @@ export const detail = {
   'detail.reopenTimes': {
     en: 'Reopened ×{n}',
     ko: '재오픈 ×{n}',
-    ja: '再オープン ×{n}',
+    ja: '再オープン×{n}',
   },
   // GDK-590 durations chip — the same spans the CLI's durations line prints.
   // Rendered only when the changelog can answer; absent spans drop their part.
   'detail.waitSpan': {
     en: 'Waited {span}',
     ko: '대기 {span}',
-    ja: '待機 {span}',
+    ja: '待機{span}',
   },
   'detail.progressSpan': {
     en: 'In progress {span}',
     ko: '진행 {span}',
-    ja: '進行中 {span}',
+    ja: '進行中{span}',
   },
   // Coaching, M1 (THEORY.md "Opening an issue", G7): the durations chip's
   // hover-only baseline — the learned team p85 the stale mark already uses.
@@ -326,17 +326,17 @@ export const detail = {
   'detail.teamP85': {
     en: 'team p85 {d}d (issues finished in the last 90 days)',
     ko: '팀 p85 {d}일 (최근 90일간 완료된 이슈)',
-    ja: 'チーム p85 {d}日（直近90日に完了した課題）',
+    ja: 'チームp85 {d}日（直近90日に完了した課題）',
   },
   'detail.priorityShort': {
     en: 'Prio {p}',
     ko: '우선순위 {p}',
-    ja: '優先度 {p}',
+    ja: '優先度{p}',
   },
   'detail.severityShort': {
     en: 'Sev {s}',
     ko: '심각도 {s}',
-    ja: '重大度 {s}',
+    ja: '重大度{s}',
   },
   'detail.refs': {
     en: 'References',
@@ -351,7 +351,7 @@ export const detail = {
   'detail.refNotMirrored': {
     en: 'workspace {workspace} is not mirrored on this machine',
     ko: '이 컴퓨터에 {workspace} 워크스페이스 캐시가 없습니다',
-    ja: 'このマシンに {workspace} ワークスペースのキャッシュがありません',
+    ja: 'このマシンに{workspace}ワークスペースのキャッシュがありません',
   },
   'detail.linked': {
     en: 'Linked',
@@ -414,7 +414,7 @@ export const detail = {
   'detail.commentRestrictedBadge': {
     en: 'Restricted · {value}',
     ko: '제한 · {value}',
-    ja: '制限 · {value}',
+    ja: '制限· {value}',
   },
   'detail.commentRestrictedTitle': {
     en: 'Visible only to the {type} “{value}”.',
@@ -432,7 +432,7 @@ export const detail = {
   'detail.moveToDoneWhy': {
     en: 'The latest comment says done; the status is still {status}',
     ko: '마지막 코멘트는 완료를 말하는데 상태는 아직 {status}',
-    ja: '最新のコメントは完了を示しているが、ステータスはまだ {status}',
+    ja: '最新のコメントは完了を示しているが、ステータスはまだ{status}',
   },
   // Coaching, M3 (THEORY.md "Just before moving to in-progress", G6): the
   // count is the whole message — no warning icon, no confirm. {n} is the
@@ -440,7 +440,7 @@ export const detail = {
   'detail.wipCount': {
     en: 'in progress: {n}',
     ko: '진행 중 {n}건',
-    ja: '進行中 {n}件',
+    ja: '進行中{n}件',
   },
   'detail.wipCountWhy': {
     en: 'Open in-progress issues assigned to this account',
@@ -452,17 +452,17 @@ export const detail = {
   'detail.priorityShare': {
     en: '{n} of the {total} open issues in this view ({pct}%)',
     ko: '이 뷰의 미해결 이슈 {total}건 중 {n}건 ({pct}%)',
-    ja: 'このビューの未解決課題 {total}件のうち {n}件（{pct}%）',
+    ja: 'このビューの未解決課題{total}件のうち{n}件（{pct}%）',
   },
   'detail.enlarge': {
     en: 'Enlarge {name}',
     ko: '{name} 크게 보기',
-    ja: '{name} を拡大',
+    ja: '{name}を拡大',
   },
   'detail.play': {
     en: 'Play {name}',
     ko: '{name} 재생',
-    ja: '{name} を再生',
+    ja: '{name}を再生',
   },
   'detail.artifact': {
     en: 'Artifact',
@@ -472,12 +472,12 @@ export const detail = {
   'detail.artifactExpand': {
     en: 'Expand {name}',
     ko: '{name} 펼치기',
-    ja: '{name} を開く',
+    ja: '{name}を開く',
   },
   'detail.artifactDownload': {
     en: 'Download {name}',
     ko: '{name} 내려받기',
-    ja: '{name} をダウンロード',
+    ja: '{name}をダウンロード',
   },
   /*
    * Phone attachment affordances (GDK-1503). The packaged app has no opener
@@ -498,7 +498,7 @@ export const detail = {
   'detail.attachmentLoadFailed': {
     en: 'Could not load — tap to retry',
     ko: '불러오지 못했습니다 — 다시 누르면 재시도합니다',
-    ja: '読み込めませんでした — タップで再試行します',
+    ja: '読み込めませんでした—タップで再試行します',
   },
   // The chip's title, and the only promise the phone can keep for a file it
   // cannot open or save: the link goes to the clipboard.
@@ -670,7 +670,7 @@ export const detail = {
   'docs.filterPlaceholder': {
     en: 'Filter — Enter searches everything',
     ko: '필터 — Enter로 전체 검색',
-    ja: '絞り込み — Enter で全体を検索',
+    ja: '絞り込み— Enterで全体を検索',
   },
   'docs.filterLabel': {
     en: 'Filter documents',
@@ -685,32 +685,32 @@ export const detail = {
   'docs.filterEmptyHint': {
     en: 'Press Enter to search every issue and document instead.',
     ko: 'Enter를 누르면 이슈와 문서 전체에서 검색합니다.',
-    ja: 'Enter を押すと、すべての課題とドキュメントを検索します。',
+    ja: 'Enterを押すと、すべての課題とドキュメントを検索します。',
   },
   /* Labels: a chip on a row is a way to keep looking; the chip in the header is
      the narrowing that is currently on, and the way out of it. */
   'docs.labelFilterTo': {
     en: 'Show only documents labelled {label}',
     ko: '{label} 라벨이 붙은 문서만 보기',
-    ja: '{label} ラベルのドキュメントだけを表示',
+    ja: '{label}ラベルのドキュメントだけを表示',
   },
   /* Nothing typed, so Enter has nothing to search with — the way out is the
      label, not the whole mirror. */
   'docs.filterEmptyLabelHint': {
     en: 'Nothing here carries the {label} label. Clear it to see the rest.',
     ko: '여기에는 {label} 라벨이 붙은 문서가 없습니다. 라벨을 해제하면 전체가 보입니다.',
-    ja: 'ここには {label} ラベルのドキュメントはありません。解除すると残りが見えます。',
+    ja: 'ここには{label}ラベルのドキュメントはありません。解除すると残りが見えます。',
   },
   'docs.labelClear': {
     en: 'Clear the {label} label',
     ko: '{label} 라벨 해제',
-    ja: '{label} ラベルを解除',
+    ja: '{label}ラベルを解除',
   },
   /* How many documents sit under a collapsed branch of the tree. */
   'docs.treeChildCount': {
     en: '{n} document under this one|{n} documents under this one',
     ko: '이 아래 문서 {n}개',
-    ja: '配下 {n}件のドキュメント',
+    ja: '配下{n}件のドキュメント',
   },
   /* ── History (visits + searches from local.db) ── */
   'history.title': {
@@ -784,7 +784,7 @@ export const detail = {
   'history.clear': {
     en: 'Clear history — cannot be undone',
     ko: '기록 지우기 — 되돌릴 수 없음',
-    ja: '履歴を消去 — 元に戻せません',
+    ja: '履歴を消去—元に戻せません',
   },
   'history.filterEmpty': {
     en: 'No matches',
@@ -796,7 +796,7 @@ export const detail = {
   'history.filterPlaceholder': {
     en: 'Filter — Enter searches everything',
     ko: '필터 — Enter로 전체 검색',
-    ja: '絞り込み — Enter で全体を検索',
+    ja: '絞り込み— Enterで全体を検索',
   },
   'history.filterLabel': {
     en: 'Filter history',
@@ -821,7 +821,7 @@ export const detail = {
   'history.searchOpened': {
     en: 'Opened {key}',
     ko: '{key} 열람',
-    ja: '{key} を開きました',
+    ja: '{key}を開きました',
   },
   /* ── Person panel (people axis) ── */
   'person.comments': {
@@ -842,12 +842,12 @@ export const detail = {
   'person.unlinked': {
     en: 'The mirror has no account id for this person yet, so their comments cannot be listed.',
     ko: '캐시에 이 사람의 계정 id가 아직 없어 코멘트를 나열할 수 없습니다.',
-    ja: 'キャッシュにこの人のアカウント id がまだないため、コメントを一覧できません。',
+    ja: 'キャッシュにこの人のアカウントidがまだないため、コメントを一覧できません。',
   },
   'person.showingOf': {
     en: 'Showing the {n} most recent of {total}.',
     ko: '{total}건 중 최근 {n}건.',
-    ja: '{total}件中、最近の {n}件を表示しています。',
+    ja: '{total}件中、最近の{n}件を表示しています。',
   },
   'person.assigned': {
     en: 'Assigned',
@@ -857,7 +857,7 @@ export const detail = {
   'person.assignedTo': {
     en: 'Issues assigned to {name}',
     ko: '{name} 담당 이슈',
-    ja: '{name} が担当する課題',
+    ja: '{name}が担当する課題',
   },
   'person.reported': {
     en: 'Reported',
@@ -867,7 +867,7 @@ export const detail = {
   'person.reportedBy': {
     en: 'Issues reported by {name}',
     ko: '{name} 보고 이슈',
-    ja: '{name} が報告した課題',
+    ja: '{name}が報告した課題',
   },
   'person.docs': {
     en: 'Documents',
@@ -877,7 +877,7 @@ export const detail = {
   'person.docsBy': {
     en: 'Documents written by {name}',
     ko: '{name} 작성 문서',
-    ja: '{name} が書いたドキュメント',
+    ja: '{name}が書いたドキュメント',
   },
   /* ── QA impact ── */
   'qa.pass': {
@@ -918,17 +918,17 @@ export const detail = {
   'qa.openQase': {
     en: 'Open in Qase',
     ko: 'Qase에서 열기',
-    ja: 'Qase で開く',
+    ja: 'Qaseで開く',
   },
   'qa.openSuite': {
     en: 'Open {path} in QA dashboard',
     ko: '{path} 영역을 QA 대시보드에서 열기',
-    ja: '{path} を QA ダッシュボードで開く',
+    ja: '{path}をQAダッシュボードで開く',
   },
   'qa.linkedTc': {
     en: '{n} linked TC|{n} linked TCs',
     ko: '연결 TC {n}개',
-    ja: 'リンクされた TC {n}件',
+    ja: 'リンクされたTC {n}件',
   },
   /* ── QA field editor ── */
   'qaEditor.none': {
@@ -1012,27 +1012,27 @@ export const detail = {
   'retro.def.sessions': {
     en: 'person reads — visits with source ui or unknown — split where the gap to the previous read exceeds {gap}; a session counts in the {bucket} it started',
     ko: '사람이 읽은 기록 — source 가 ui 이거나 미상인 방문 — 을 직전 읽기와의 간격이 {gap} 을 넘는 곳에서 끊은 것. 세션은 시작한 {bucket}에 센다',
-    ja: '人が読んだ記録 — source が ui または不明の閲覧 — を、直前の閲覧との間隔が {gap} を超えた地点で区切ったもの。セッションは開始した{bucket}に数える',
+    ja: '人が読んだ記録— sourceがuiまたは不明の閲覧—を、直前の閲覧との間隔が{gap}を超えた地点で区切ったもの。セッションは開始した{bucket}に数える',
   },
   'retro.def.resume': {
     en: 'time from a session start to its first write — a changelog entry or comment by the configured account — counted only before the next session starts; sessions without a write are excluded (the cell shows k of n)',
     ko: '세션이 시작된 뒤 첫 쓰기 — 설정된 계정의 변경 이력 항목이나 코멘트 — 까지 걸린 시간. 다음 세션이 시작되기 전까지만 세고, 쓰기가 없던 세션은 뺀다(칸에 n 중 k 로 표시)',
-    ja: 'セッション開始から最初の書き込み — 設定したアカウントによる変更履歴かコメント — までの時間。次のセッションが始まるまでのみ数え、書き込みのないセッションは除く (セルは n件中 k件を示す)',
+    ja: 'セッション開始から最初の書き込み—設定したアカウントによる変更履歴かコメント—までの時間。次のセッションが始まるまでのみ数え、書き込みのないセッションは除く(セルはn件中k件を示す)',
   },
   'retro.def.closed': {
     en: 'issues that entered a done status during the {bucket} (status ids resolved through status_catalog)',
     ko: '그 {bucket}에 완료 상태로 들어간 이슈(상태 id 는 status_catalog 로 판정)',
-    ja: 'その{bucket}に完了ステータスへ入った課題 (ステータス id は status_catalog で解決)',
+    ja: 'その{bucket}に完了ステータスへ入った課題(ステータスidはstatus_catalogで解決)',
   },
   'retro.def.cycleP50': {
     en: 'median of cycle_hours — first entry into progress to the latest done entry — in days, over issues resolved during the {bucket} that are done now and were never reopened (reopen_count = 0)',
     ko: 'cycle_hours — 진행 중에 처음 들어간 때부터 마지막 완료까지 — 의 중앙값, 일 단위. 그 {bucket}에 해결됐고 지금도 완료이며 리오픈된 적 없는(reopen_count = 0) 이슈만',
-    ja: 'cycle_hours — 最初に進行中へ入った時点から最後の完了まで — の中央値 (日)。その{bucket}に解決され、現在も完了で、再オープンされたことがない (reopen_count = 0) 課題のみ',
+    ja: 'cycle_hours —最初に進行中へ入った時点から最後の完了まで—の中央値(日)。その{bucket}に解決され、現在も完了で、再オープンされたことがない(reopen_count = 0)課題のみ',
   },
   'retro.def.cycleP85': {
     en: 'nearest-rank 85th percentile of cycle_hours — first entry into progress to the latest done entry — in days, over issues resolved during the {bucket} that are done now and were never reopened (reopen_count = 0)',
     ko: 'cycle_hours — 진행 중에 처음 들어간 때부터 마지막 완료까지 — 의 85 백분위(최근접 순위), 일 단위. 그 {bucket}에 해결됐고 지금도 완료이며 리오픈된 적 없는(reopen_count = 0) 이슈만',
-    ja: 'cycle_hours — 最初に進行中へ入った時点から最後の完了まで — の 85 パーセンタイル (最近接順位、日)。その{bucket}に解決され、現在も完了で、再オープンされたことがない (reopen_count = 0) 課題のみ',
+    ja: 'cycle_hours —最初に進行中へ入った時点から最後の完了まで—の85パーセンタイル(最近接順位、日)。その{bucket}に解決され、現在も完了で、再オープンされたことがない(reopen_count = 0)課題のみ',
   },
   'retro.def.inProgress': {
     en: 'issues in progress at {bucket} end',
@@ -1052,17 +1052,17 @@ export const detail = {
   'retro.def.sprintDone': {
     en: 'issues carrying this sprint whose status is done now — membership, not the interval',
     ko: '이 스프린트에 속한 이슈 중 지금 완료 상태인 것 — 구간이 아니라 소속 기준',
-    ja: 'このスプリントに属する課題のうち、現在完了状態のもの — 期間ではなく所属基準',
+    ja: 'このスプリントに属する課題のうち、現在完了状態のもの—期間ではなく所属基準',
   },
   'retro.def.sprintInProgress': {
     en: 'issues carrying this sprint that are in progress now — membership, not the interval',
     ko: '이 스프린트에 속한 이슈 중 지금 진행 중인 것 — 구간이 아니라 소속 기준',
-    ja: 'このスプリントに属する課題のうち、現在進行中のもの — 期間ではなく所属基準',
+    ja: 'このスプリントに属する課題のうち、現在進行中のもの—期間ではなく所属基準',
   },
   'retro.def.mismatch': {
     en: "comments claiming the work is finished on issues not done now (heuristic: a done-word standing on its own, negations and quoted text excluded; only comments newer than the issue's last status change count)",
     ko: '지금 완료가 아닌 이슈에 달린, 일이 끝났다고 말하는 코멘트(휴리스틱: 완료를 뜻하는 낱말이 홀로 선 경우만, 부정문과 인용문은 제외. 이슈의 마지막 상태 변경보다 나중에 달린 코멘트만 센다)',
-    ja: '現在完了していない課題に付いた、作業が終わったと述べるコメント (ヒューリスティック: 完了を表す語が単独で立つ場合のみ、否定文と引用文は除く。課題の最後のステータス変更より後のコメントだけを数える)',
+    ja: '現在完了していない課題に付いた、作業が終わったと述べるコメント(ヒューリスティック:完了を表す語が単独で立つ場合のみ、否定文と引用文は除く。課題の最後のステータス変更より後のコメントだけを数える)',
   },
   'retro.empty': { en: 'No sessions in this range', ko: '이 기간에는 세션이 없습니다', ja: 'この期間にセッションはありません' },
   'retro.loadFailed': { en: 'Could not load the retro.', ko: '회고를 불러오지 못했습니다.', ja: 'ふりかえりを読み込めませんでした。' },
@@ -1085,7 +1085,7 @@ export const detail = {
   'retro.noSprintsHint': {
     en: 'Sprint columns need a board with sprints — a Jira Software board, a Linear cycle, or a sprint in the built-in tracker.',
     ko: '스프린트 열을 그리려면 스프린트가 있는 보드가 필요합니다. Jira Software 보드, Linear 사이클, 또는 내장 트래커의 스프린트.',
-    ja: 'スプリントの列には、スプリントを持つボードが要ります。Jira Software のボード、Linear のサイクル、または組み込みトラッカーのスプリントです。',
+    ja: 'スプリントの列には、スプリントを持つボードが要ります。Jira Softwareのボード、Linearのサイクル、または組み込みトラッカーのスプリントです。',
   },
   'retro.pickBoard': {
     en: 'Several boards have sprints — pick one',
@@ -1108,12 +1108,12 @@ export const detail = {
   'retro.sentence': {
     en: 'Closed {closed} ({unplanned} unplanned), reopened {reopened}, oldest in progress {age}.',
     ko: '완료 {closed}(계획 외 {unplanned}), 되돌아온 것 {reopened}, 가장 오래된 진행 중 {age}.',
-    ja: '完了 {closed}（計画外 {unplanned}）、戻ってきたもの {reopened}、最も古い進行中 {age}。',
+    ja: '完了{closed}（計画外{unplanned}）、戻ってきたもの{reopened}、最も古い進行中{age}。',
   },
   'retro.sentenceSprint': {
     en: 'Closed {closed} ({unplanned} unplanned), reopened {reopened}, oldest in progress {age}, added after sprint start {added}.',
     ko: '완료 {closed}(계획 외 {unplanned}), 되돌아온 것 {reopened}, 가장 오래된 진행 중 {age}, 스프린트 시작 후 들어온 것 {added}.',
-    ja: '完了 {closed}（計画外 {unplanned}）、戻ってきたもの {reopened}、最も古い進行中 {age}、スプリント開始後に入ったもの {added}。',
+    ja: '完了{closed}（計画外{unplanned}）、戻ってきたもの{reopened}、最も古い進行中{age}、スプリント開始後に入ったもの{added}。',
   },
   /*
    * The same sentence without the reopen clause (GDK-1690). An origin that
@@ -1126,18 +1126,18 @@ export const detail = {
   'retro.sentenceNoReopen': {
     en: 'Closed {closed} ({unplanned} unplanned), oldest in progress {age}.',
     ko: '완료 {closed}(계획 외 {unplanned}), 가장 오래된 진행 중 {age}.',
-    ja: '完了 {closed}（計画外 {unplanned}）、最も古い進行中 {age}。',
+    ja: '完了{closed}（計画外{unplanned}）、最も古い進行中{age}。',
   },
   'retro.sentenceSprintNoReopen': {
     en: 'Closed {closed} ({unplanned} unplanned), oldest in progress {age}, added after sprint start {added}.',
     ko: '완료 {closed}(계획 외 {unplanned}), 가장 오래된 진행 중 {age}, 스프린트 시작 후 들어온 것 {added}.',
-    ja: '完了 {closed}（計画外 {unplanned}）、最も古い進行中 {age}、スプリント開始後に入ったもの {added}。',
+    ja: '完了{closed}（計画外{unplanned}）、最も古い進行中{age}、スプリント開始後に入ったもの{added}。',
   },
   'retro.actions.title': { en: 'Decided last time', ko: '지난번에 정한 것', ja: '前回決めたこと' },
   'retro.actions.hint': {
     en: 'Issues labelled retro-action stand here, with the number they named then and now.',
     ko: 'retro-action 라벨이 붙은 이슈가 여기 모입니다. 그때 짚은 숫자와 지금 숫자를 나란히 보여줍니다.',
-    ja: 'retro-action ラベルの付いた課題がここに並びます。そのとき挙げた数字と今の数字を並べて表示します。',
+    ja: 'retro-actionラベルの付いた課題がここに並びます。そのとき挙げた数字と今の数字を並べて表示します。',
   },
   'retro.actions.thenNow': { en: 'then {then} → now {now}', ko: '그때 {then} → 지금 {now}', ja: 'そのとき {then} → 今 {now}' },
   'retro.aging.title': { en: 'Aging work in progress', ko: '진행 중인 일의 나이', ja: '進行中の仕事の古さ' },
@@ -1180,12 +1180,12 @@ export const detail = {
   'retro.explain.aging.how': {
     en: 'The bars past the p85 line are next week\u2019s first look. If the line itself drifts right, flow has slowed.',
     ko: 'p85 선을 넘은 막대부터 다음 주에 봅니다. 선 자체가 오른쪽으로 밀리면 흐름이 느려진 것입니다.',
-    ja: 'p85 の線を越えた棒が来週まず見るものです。線そのものが右へ動いたなら、流れが遅くなっています。',
+    ja: 'p85の線を越えた棒が来週まず見るものです。線そのものが右へ動いたなら、流れが遅くなっています。',
   },
   'retro.explain.events.what': {
     en: 'One column per day, as tall as the day was busy. Starts and finishes take the status colours; everything else is grey.',
     ko: '하루가 한 칸이고, 칸 높이가 그날의 사건 수입니다. 시작과 완료는 상태 색을 쓰고 나머지는 회색입니다.',
-    ja: '1 日が 1 本で、高さがその日の件数です。開始と完了はステータスの色、ほかは灰色です。',
+    ja: '1日が1本で、高さがその日の件数です。開始と完了はステータスの色、ほかは灰色です。',
   },
   'retro.explain.events.why': {
     en: 'Totals hide rhythm. A week where everything landed on the last day counts the same as a steady one.',
@@ -1205,17 +1205,17 @@ export const detail = {
   'retro.explain.closed.why': {
     en: 'p50 and p85 are two numbers standing for a shape. The shape is what tells you whether the tail is one issue or a habit.',
     ko: 'p50 과 p85 는 분포를 대신하는 두 숫자입니다. 꼬리가 이슈 하나인지 습관인지는 분포를 봐야 압니다.',
-    ja: 'p50 と p85 は分布を代表する 2 つの数字です。尾がひとつの課題なのか癖なのかは、分布を見ないと分かりません。',
+    ja: 'p50とp85は分布を代表する2つの数字です。尾がひとつの課題なのか癖なのかは、分布を見ないと分かりません。',
   },
   'retro.explain.closed.how': {
     en: 'Dots bunched under p50 with a few far above is a healthy week with an outlier. A flat spread is not.',
     ko: '점이 p50 아래 모이고 몇 개만 위로 튀면 이상치가 있는 건강한 구간입니다. 고르게 퍼져 있으면 아닙니다.',
-    ja: '点が p50 の下に集まり、いくつかだけ上へ跳ねているなら、外れ値のある健全な区間です。平らに散っていればそうではありません。',
+    ja: '点がp50の下に集まり、いくつかだけ上へ跳ねているなら、外れ値のある健全な区間です。平らに散っていればそうではありません。',
   },
   'retro.explain.seen.what': {
     en: 'Two counts from your own reading history against the bucket\u2019s changelog.',
     ko: '내가 읽은 기록과 이 구간의 변경 이력을 맞대어 센 두 숫자입니다.',
-    ja: '自分が読んだ記録とこの区間の変更履歴を突き合わせて数えた 2 つの数字です。',
+    ja: '自分が読んだ記録とこの区間の変更履歴を突き合わせて数えた2つの数字です。',
   },
   'retro.explain.seen.why': {
     en: 'Attention and movement come apart quietly. Both directions are worth a sentence in a retro.',
@@ -1230,7 +1230,7 @@ export const detail = {
   'retro.explain.actions.what': {
     en: 'Issues labelled retro-action, with the metric each one named, then and now.',
     ko: 'retro-action 라벨이 붙은 이슈와, 그 이슈가 가리킨 지표의 그때 값과 지금 값입니다.',
-    ja: 'retro-action ラベルの付いた課題と、その課題が指した指標の当時の値と今の値です。',
+    ja: 'retro-actionラベルの付いた課題と、その課題が指した指標の当時の値と今の値です。',
   },
   'retro.explain.actions.why': {
     en: 'A retro that never reads its last one is a meeting, not a loop.',
@@ -1245,7 +1245,7 @@ export const detail = {
   'retro.explain.table.what': {
     en: 'Every metric against every bucket — the report the CLI prints.',
     ko: '모든 지표를 모든 구간에 대해 적은 표입니다. CLI 가 찍는 그 보고서입니다.',
-    ja: 'すべての指標をすべての区間について並べた表です。CLI が出力する報告そのものです。',
+    ja: 'すべての指標をすべての区間について並べた表です。CLIが出力する報告そのものです。',
   },
   'retro.explain.table.why': {
     en: 'The sections above are readings of these numbers. This is where you check one.',
@@ -1255,7 +1255,7 @@ export const detail = {
   'retro.explain.table.how': {
     en: 'Folded by default, because eight rows against twelve columns is not a first read.',
     ko: '기본은 접힘입니다. 여덟 행에 열두 열은 처음 읽을 것이 아니기 때문입니다.',
-    ja: '既定では畳んであります。8 行 × 12 列は、最初に読むものではないからです。',
+    ja: '既定では畳んであります。8行× 12列は、最初に読むものではないからです。',
   },
   // GDK-1150: the phone Detail header's byline fragments. Lowercase en on
   // purpose — they read as run-ins inside the meta line, not sentences.

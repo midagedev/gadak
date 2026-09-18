@@ -64,6 +64,69 @@ TARGETS: list[tuple[str, tuple[str, str] | None]] = [
     ("CHANGELOG.ja.md", None),
 ]
 
+# The app's own message catalogues. These are the Japanese of every desk
+# screen and — through mobile/src/lib/i18n.ts, which re-exports this catalogue
+# — every phone screen, which makes them by far the largest Japanese surface
+# in the tree. They were absent until GDK-2012, and the reason is visible in
+# their shape: a catalogue is one key per {en, ko, ja}, so its Japanese is the
+# value on every `ja:` line and nothing else. That is not a contiguous region,
+# so the (open line, close line) model above cannot name it. They are masked
+# from the other side instead — see catalogue_mask.
+CATALOGUES: list[str] = [
+    "web/src/lib/i18n/messages/common.ts",
+    "web/src/lib/i18n/messages/detail.ts",
+    "web/src/lib/i18n/messages/fields.ts",
+    "web/src/lib/i18n/messages/list.ts",
+    "web/src/lib/i18n/messages/personal.ts",
+    "web/src/lib/i18n/messages/settings.ts",
+    "web/src/lib/i18n/messages/shell.ts",
+    "web/src/lib/i18n/messages/write.ts",
+]
+
+JA_OPEN = re.compile(r"^(\s*ja:\s*)(['\"`])")
+
+
+def catalogue_mask(text: str) -> list[tuple[int, int]]:
+    """Every byte of a catalogue that is not inside a ja string's own text.
+
+    Protecting the complement is how a non-contiguous region is expressed with
+    the machinery this file already has: fix() then sees exactly the Japanese
+    and nothing else, and the en and ko values — which legitimately carry
+    spaces everywhere — cannot be touched even by a bug here, because the
+    assert in fix() only ever permits a deletion inside what it was shown.
+
+    A value may run past its line (a template literal wrapped by the
+    formatter), so the opening quote is carried until the line that closes it.
+    """
+    out: list[tuple[int, int]] = []
+    pos = 0
+    quote = ""  # the delimiter of a ja value still open from an earlier line
+    for line in text.split("\n"):
+        end = pos + len(line)
+        if quote:
+            close = line.find(quote)
+            if close < 0:
+                pos = end + 1
+                continue  # the whole line is Japanese
+            out.append((pos + close, end))
+            quote = ""
+            pos = end + 1
+            continue
+        m = JA_OPEN.match(line)
+        if not m:
+            out.append((pos, end))
+            pos = end + 1
+            continue
+        a = pos + m.end()
+        out.append((pos, a))
+        close = line.find(m.group(2), m.end())
+        if close < 0:
+            quote = m.group(2)  # runs onto the next line
+        else:
+            out.append((pos + close, end))
+        pos = end + 1
+    return out
+
 TAG = re.compile(r"<[^>]+>")
 FENCE = re.compile(r"^\s*(```|~~~)")
 
@@ -169,9 +232,13 @@ def runs(text: str, keep: list[tuple[int, int]]) -> list[tuple[int, int]]:
     return out
 
 
-def fix(text: str) -> tuple[str, list[tuple[int, int]]]:
-    """Delete every rendered space run that touches a Japanese character."""
-    found = runs(text, protected(text))
+def fix(text: str, extra: list[tuple[int, int]] | None = None) -> tuple[str, list[tuple[int, int]]]:
+    """Delete every rendered space run that touches a Japanese character.
+
+    `extra` adds protected ranges beyond the code spans protected() finds —
+    it is how a catalogue names the part of itself that is not Japanese.
+    """
+    found = runs(text, protected(text) + (extra or []))
     out, last = [], 0
     for i, j in found:
         out.append(text[last:i])
@@ -190,7 +257,9 @@ def main() -> int:
         print(__doc__)
         return 2
     total = 0
-    for rel, bounds in TARGETS:
+    sources = [(rel, bounds, False) for rel, bounds in TARGETS]
+    sources += [(rel, None, True) for rel in CATALOGUES]
+    for rel, bounds, catalogue in sources:
         path = ROOT / rel
         if not path.exists():
             print(f"ja-spacing: missing {rel}")
@@ -198,7 +267,7 @@ def main() -> int:
         text = path.read_text(encoding="utf-8")
         start, end = region(text, bounds)
         body = text[start:end]
-        fixed, found = fix(body)
+        fixed, found = fix(body, catalogue_mask(body) if catalogue else None)
         if not found:
             continue
         total += len(found)
@@ -216,7 +285,7 @@ def main() -> int:
                 ctx = body.split("\n")[body[:i].count("\n")].strip()[:90]
                 print(f"FAIL {rel}:{line}: {ctx}")
     if mode == "--write":
-        print(f"ja-spacing: {total} space(s) removed across {len(TARGETS)} files")
+        print(f"ja-spacing: {total} space(s) removed across {len(sources)} files")
         return 0
     if total:
         print()
@@ -224,7 +293,7 @@ def main() -> int:
         print("  Japanese is set solid: a space goes between two Latin runs and")
         print("  nowhere else. Run tools/ja-spacing.py --write.")
         return 1
-    print(f"ja-spacing: {len(TARGETS)} Japanese sources, no space beside a Japanese character")
+    print(f"ja-spacing: {len(sources)} Japanese sources, no space beside a Japanese character")
     return 0
 
 

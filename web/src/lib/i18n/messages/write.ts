@@ -49,7 +49,7 @@ export const write = {
     // here have no editor in this dialog, so Create stays disabled.
     en: 'Jira requires {names} for this type, and this dialog has no editor for them — Create stays disabled.',
     ko: 'Jira가 이 유형에 {names}을(를) 요구하는데 이 창에는 입력란이 없습니다. 만들기는 비활성 상태입니다.',
-    ja: 'このタイプには Jira が {names} を要求しますが、このダイアログに入力欄がありません。作成は無効のままです。',
+    ja: 'このタイプにはJiraが{names}を要求しますが、このダイアログに入力欄がありません。作成は無効のままです。',
   },
   'write.pickValue': {
     en: 'Pick a value',
@@ -84,38 +84,38 @@ export const write = {
   'write.issueCreated': {
     en: 'Created {key}',
     ko: '{key} 이슈를 만들었습니다',
-    ja: '{key} を作成しました',
+    ja: '{key}を作成しました',
   },
   'write.issueCreatedFilled': {
     en: 'Created {key} · {type} · {project}',
     ko: '{key} · {type} · {project} 이슈를 만들었습니다',
-    ja: '{key} · {type} · {project} を作成しました',
+    ja: '{key} · {type} · {project}を作成しました',
   },
   'write.needToken': {
     en: 'Set your personal Jira credentials first.',
     ko: '먼저 개인 Jira 자격증명을 설정하세요.',
-    ja: '先に個人の Jira 資格情報を設定してください。',
+    ja: '先に個人のJira資格情報を設定してください。',
   },
   'write.tokenRejected': {
     en: 'Your Jira API token was rejected — replace it with a new personal token.',
     ko: 'Jira API 토큰이 거부되었습니다 — 새 개인 토큰으로 교체하세요.',
-    ja: 'Jira API token が拒否されました — 新しい個人トークンに差し替えてください。',
+    ja: 'Jira API tokenが拒否されました—新しい個人トークンに差し替えてください。',
   },
   // write.go fail() / failJira codes — sentences verified against those call sites.
   'write.jiraUnavailable': {
     en: 'Could not reach Jira. Check the connection and try again.',
     ko: 'Jira에 연결하지 못했습니다. 연결을 확인한 뒤 다시 시도하세요.',
-    ja: 'Jira に到達できませんでした。接続を確認して再試行してください。',
+    ja: 'Jiraに到達できませんでした。接続を確認して再試行してください。',
   },
   'write.workspaceBusy': {
     en: 'Another process is using this workspace. Write through its serve, or close it and retry.',
     ko: '다른 프로세스가 이 워크스페이스를 사용 중입니다. 그 serve를 통해 쓰거나, 닫은 뒤 다시 시도하세요.',
-    ja: '別のプロセスがこのワークスペースを使っています。その serve 経由で書くか、閉じて再試行してください。',
+    ja: '別のプロセスがこのワークスペースを使っています。そのserve経由で書くか、閉じて再試行してください。',
   },
   'write.mirrorStale': {
     en: 'The change was saved in Jira, but the local copy could not be refreshed. Do not retry.',
     ko: '변경은 Jira에 저장됐지만 로컬 사본을 갱신하지 못했습니다. 다시 시도하지 마세요.',
-    ja: '変更は Jira に保存されましたが、ローカルコピーを更新できませんでした。再試行しないでください。',
+    ja: '変更はJiraに保存されましたが、ローカルコピーを更新できませんでした。再試行しないでください。',
   },
   // GDK-828: the CLI sibling carries the recovery ("check the key, or run
   // `gadak sync`" — cmd/gadak/agent_issue.go); the web write path owes the same
@@ -128,7 +128,7 @@ export const write = {
   'write.summaryTooLong': {
     en: 'Title cannot be longer than 255 characters.',
     ko: '제목은 255자를 넘을 수 없습니다.',
-    ja: 'タイトルは 255 文字を超えられません。',
+    ja: 'タイトルは255文字を超えられません。',
   },
   // GDK-828: the create dialog refuses a project the mirror does not carry
   // (write.go: project_not_mirrored) — the recovery is another project, or
@@ -139,7 +139,7 @@ export const write = {
     // Japanese call it a cache, never a mirror).
     en: 'That project is not in this cache. Pick a cached project, or add it in Settings → Sources.',
     ko: '이 사본에 없는 프로젝트입니다. 받아 둔 프로젝트를 고르거나 설정 → 소스에서 추가하세요.',
-    ja: 'そのプロジェクトはこの手元のコピーにありません。取り込み済みのプロジェクトを選ぶか、設定 → ソースで追加してください。',
+    ja: 'そのプロジェクトはこの手元のコピーにありません。取り込み済みのプロジェクトを選ぶか、設定→ソースで追加してください。',
   },
   // GDK-828: editmeta decides per issue (write.go: field_not_editable fires
   // when the field is absent from this issue's editmeta), so the sentence
@@ -148,12 +148,12 @@ export const write = {
   'write.fieldNotEditable': {
     en: 'That field cannot be edited on this issue. Try another field, or change it in Jira.',
     ko: '이 이슈에서 그 필드는 편집할 수 없습니다. 다른 필드를 쓰거나 Jira에서 변경하세요.',
-    ja: 'この課題ではそのフィールドを編集できません。別のフィールドを使うか、Jira で変更してください。',
+    ja: 'この課題ではそのフィールドを編集できません。別のフィールドを使うか、Jiraで変更してください。',
   },
   'write.siteRequired': {
     en: 'Set the Jira site in settings first.',
     ko: '먼저 설정에서 Jira 사이트를 지정하세요.',
-    ja: '先に設定で Jira サイトを指定してください。',
+    ja: '先に設定でJiraサイトを指定してください。',
   },
   'write.transitionFailed': {
     en: 'Could not transition status. Try again.',
@@ -208,12 +208,12 @@ export const write = {
   'write.descriptionFormatWarn': {
     en: 'Placeholders stand for what markdown cannot carry ({loss}). Keep a marker to keep its part; delete it to remove that part.',
     ko: '마크다운이 담지 못하는 것({loss})은 자리표시자로 서 있습니다. 마커를 두면 그 부분이 남고, 지우면 그 부분이 사라집니다.',
-    ja: 'Markdown が持てないもの（{loss}）はプレースホルダーとして立っています。マーカーを残せばその部分は残り、消せば消えます。',
+    ja: 'Markdownが持てないもの（{loss}）はプレースホルダーとして立っています。マーカーを残せばその部分は残り、消せば消えます。',
   },
   'write.descriptionAllDropped': {
     en: 'Every placeholder is gone — saving replaces the whole body and drops {loss}.',
     ko: '자리표시자가 모두 없어졌습니다 — 저장하면 본문 전체가 교체되고 {loss} 이(가) 사라집니다.',
-    ja: 'プレースホルダーがすべて消えています — 保存すると本文全体が置き換わり、{loss} が失われます。',
+    ja: 'プレースホルダーがすべて消えています—保存すると本文全体が置き換わり、{loss}が失われます。',
   },
   'write.saveAsPlain': {
     en: 'Save and drop them',
@@ -247,7 +247,7 @@ export const write = {
   'write.descriptionDropped': {
     en: 'Saved; removed {dropped}.',
     ko: '{dropped}을(를) 빼고 저장했습니다.',
-    ja: '保存しました。{dropped} を削除しました。',
+    ja: '保存しました。{dropped}を削除しました。',
   },
   'write.tabWrite': {
     en: 'Write',
@@ -262,7 +262,7 @@ export const write = {
   'write.markdownHint': {
     en: 'Markdown — headings, lists, **bold**, `code`, ``` fences',
     ko: '마크다운 — 헤딩, 목록, **굵게**, `코드`, ``` 펜스',
-    ja: 'Markdown — 見出し、リスト、**太字**、`コード`、``` フェンス',
+    ja: 'Markdown —見出し、リスト、**太字**、`コード`、```フェンス',
   },
   'write.titleRequired': {
     en: 'Title cannot be empty.',
@@ -287,7 +287,7 @@ export const write = {
   'write.removeLabel': {
     en: 'Remove {label}',
     ko: '{label} 제거',
-    ja: '{label} を削除',
+    ja: '{label}を削除',
   },
   'write.editMetaFailed': {
     en: 'Could not load editable fields. Check the connection and try again.',
@@ -307,7 +307,7 @@ export const write = {
   'write.commentPosted': {
     en: 'Posted comment on {key}',
     ko: '{key}에 코멘트를 등록했습니다.',
-    ja: '{key} にコメントを投稿しました。',
+    ja: '{key}にコメントを投稿しました。',
   },
   // A landed write announces itself (GDK-1964). The status sentence takes
   // the destination's own name; the field sentence takes the field's label
@@ -315,7 +315,7 @@ export const write = {
   'write.statusMoved': {
     en: 'Moved to {status}',
     ko: '이제 {status}입니다.',
-    ja: '{status} に移動しました。',
+    ja: '{status}に移動しました。',
   },
   'write.fieldSaved': {
     en: 'Saved {field}',
@@ -330,7 +330,7 @@ export const write = {
   'write.credSaved': {
     en: 'Jira credentials saved.',
     ko: 'Jira 자격증명을 저장했습니다.',
-    ja: 'Jira 資格情報を保存しました。',
+    ja: 'Jira資格情報を保存しました。',
   },
   'write.credSaveFailed': {
     en: 'Could not save credentials.',
@@ -340,7 +340,7 @@ export const write = {
   'write.credDeleted': {
     en: 'Jira credentials deleted.',
     ko: 'Jira 자격증명을 삭제했습니다.',
-    ja: 'Jira 資格情報を削除しました。',
+    ja: 'Jira資格情報を削除しました。',
   },
   'write.credDeleteFailed': {
     en: 'Could not delete credentials.',
@@ -409,7 +409,7 @@ export const write = {
   'write.commentVisibilityHint': {
     en: 'This site’s role and group names are not listed here — type the name exactly as Jira has it, or set visibility back to Everyone.',
     ko: '이 사이트의 역할·그룹 이름은 여기에 나오지 않습니다. Jira에 있는 그대로 입력하거나, 공개 범위를 전체로 되돌리세요.',
-    ja: 'このサイトのロール名・グループ名はここに出ません。Jira にある通りに入力するか、公開範囲を全員に戻してください。',
+    ja: 'このサイトのロール名・グループ名はここに出ません。Jiraにある通りに入力するか、公開範囲を全員に戻してください。',
   },
   'write.commentInternal': {
     en: 'Internal (service desk)',
@@ -510,7 +510,7 @@ export const write = {
   'write.userNotFound': {
     en: 'No Jira user found.',
     ko: 'Jira 사용자를 찾지 못했습니다.',
-    ja: 'Jira ユーザーが見つかりませんでした。',
+    ja: 'Jiraユーザーが見つかりませんでした。',
   },
   'write.assignSpecifyFailed': {
     en: 'Could not set assignee.',
@@ -526,12 +526,12 @@ export const write = {
   'jiraSettings.title': {
     en: 'Jira credentials',
     ko: 'Jira 자격증명 설정',
-    ja: 'Jira 資格情報',
+    ja: 'Jira資格情報',
   },
   'jiraSettings.heading': {
     en: 'Personal Jira API token',
     ko: '개인 Jira API 토큰',
-    ja: '個人の Jira API token',
+    ja: '個人のJira API token',
   },
   'jiraSettings.intro1': {
     en: 'Status transitions, comments, and creating issues run as',
@@ -541,17 +541,17 @@ export const write = {
   'jiraSettings.intro2': {
     en: 'your Jira account',
     ko: '본인 Jira 계정',
-    ja: 'あなたの Jira アカウント',
+    ja: 'あなたのJiraアカウント',
   },
   'jiraSettings.intro3': {
     en: '. Issue an Atlassian',
     ko: '으로 수행됩니다. Atlassian',
-    ja: 'として実行されます。Atlassian の',
+    ja: 'として実行されます。Atlassianの',
   },
   'jiraSettings.intro4': {
     en: 'API token',
     ko: 'API 토큰',
-    ja: 'API トークン',
+    ja: 'APIトークン',
   },
   // Leading space on purpose: this follows the link element directly. Korean
   // attaches a particle instead and must not have one.
@@ -563,7 +563,7 @@ export const write = {
   'jiraSettings.email': {
     en: 'Jira email',
     ko: 'Jira 이메일',
-    ja: 'Jira メール',
+    ja: 'Jiraメール',
   },
   'jiraSettings.tokenReplace': {
     en: '(only when replacing)',
@@ -583,7 +583,7 @@ export const write = {
   'jiraSettings.tokenDots': {
     en: 'Token {hint}',
     ko: '토큰 {hint}',
-    ja: 'トークン {hint}',
+    ja: 'トークン{hint}',
   },
   'jiraSettings.deleteConfirm': {
     en: 'Click again to delete',
@@ -593,12 +593,12 @@ export const write = {
   'jiraSettings.verified': {
     en: 'Verified {when}',
     ko: '검증 {when}',
-    ja: '検証 {when}',
+    ja: '検証{when}',
   },
   'jiraSettings.tokenExpires': {
     en: "Expires (from Atlassian's create dialog)",
     ko: '만료일 (Atlassian 발급 화면의 날짜)',
-    ja: '有効期限（Atlassian の作成ダイアログの日付）',
+    ja: '有効期限（Atlassianの作成ダイアログの日付）',
   },
   'jiraSettings.tokenExpiresHint': {
     en: 'Optional. Leave blank to assume the default one-year lifetime.',
@@ -610,19 +610,19 @@ export const write = {
   'onboarding.title': {
     en: 'Set up gadak',
     ko: 'gadak 설정하기',
-    ja: 'gadak をセットアップ',
+    ja: 'gadakをセットアップ',
   },
   // GDK-1896: the first sentence names both doors. The old one opened on
   // "your tracker", which told a person with no Jira that gadak needs one.
   'onboarding.intro': {
     en: 'Connect Jira and gadak keeps a cache you can read instantly, even offline. Without Jira, gadak is the tracker. Setup happens here, no terminal needed; the last step is optional.',
     ko: 'Jira를 연결하면 오프라인에서도 바로 읽히는 캐시가 되고, Jira가 없으면 gadak이 곧 트래커가 됩니다. 설정은 여기서 끝나고 터미널은 필요 없습니다. 마지막 단계는 선택입니다.',
-    ja: 'Jira をつなぐと、オフラインでもすぐ読めるキャッシュになります。Jira がなければ gadak がトラッカーです。セットアップはここで完了し、ターミナルは不要です。最後のステップは任意です。',
+    ja: 'Jiraをつなぐと、オフラインでもすぐ読めるキャッシュになります。Jiraがなければgadakがトラッカーです。セットアップはここで完了し、ターミナルは不要です。最後のステップは任意です。',
   },
   'onboarding.stepOf': {
     en: 'Step {n} of 4',
     ko: '{n}/4 단계',
-    ja: '{n} / 4 ステップ',
+    ja: '{n} / 4ステップ',
   },
   'onboarding.stepCredential': {
     en: 'Connect',
@@ -642,7 +642,7 @@ export const write = {
   'onboarding.site': {
     en: 'Jira site',
     ko: 'Jira 사이트',
-    ja: 'Jira サイト',
+    ja: 'Jiraサイト',
   },
   'onboarding.sitePlaceholder': {
     en: 'https://your-team.atlassian.net',
@@ -652,12 +652,12 @@ export const write = {
   'onboarding.email': {
     en: 'Jira account email',
     ko: 'Jira 계정 이메일',
-    ja: 'Jira アカウントのメール',
+    ja: 'Jiraアカウントのメール',
   },
   'onboarding.token': {
     en: 'API token',
     ko: 'API 토큰',
-    ja: 'API トークン',
+    ja: 'APIトークン',
   },
   // Atlassian's token page offers three things that look like one, and two of
   // them 401 here: a *scoped* token (which its page recommends first) and an
@@ -669,12 +669,12 @@ export const write = {
   'onboarding.tokenHint': {
     en: 'Stored locally in ~/.gadak/config.json and sent only to your site. Use "Create API token" with no scopes — a user token (ATATT…). A scoped token, or an org key from admin.atlassian.com (ATCTT…), cannot sign in to a site URL.',
     ko: '~/.gadak/config.json에만 저장되고, 당신의 사이트로만 전송됩니다. "Create API token"으로 스코프 없이 만든 사용자 토큰(ATATT…)이 필요합니다. 스코프 토큰이나 admin.atlassian.com의 조직 키(ATCTT…)는 사이트 URL로 로그인할 수 없습니다.',
-    ja: '~/.gadak/config.json にローカル保存され、あなたのサイトにだけ送られます。「Create API token」でスコープなしのユーザートークン（ATATT…）を使ってください。スコープ付きトークンや admin.atlassian.com の組織キー（ATCTT…）ではサイト URL にサインインできません。',
+    ja: '~/.gadak/config.jsonにローカル保存され、あなたのサイトにだけ送られます。「Create API token」でスコープなしのユーザートークン（ATATT…）を使ってください。スコープ付きトークンやadmin.atlassian.comの組織キー（ATCTT…）ではサイトURLにサインインできません。',
   },
   'onboarding.tokenExpires': {
     en: "Expires (from Atlassian's create dialog)",
     ko: '만료일 (Atlassian 발급 화면의 날짜)',
-    ja: '有効期限（Atlassian の作成ダイアログの日付）',
+    ja: '有効期限（Atlassianの作成ダイアログの日付）',
   },
   'onboarding.tokenExpiresHint': {
     en: 'Optional. Leave blank to assume the default one-year lifetime.',
@@ -689,7 +689,7 @@ export const write = {
   'onboarding.tokenLink': {
     en: 'Create an API token',
     ko: 'API 토큰 만들기',
-    ja: 'API token を作成',
+    ja: 'API tokenを作成',
   },
   'onboarding.connect': {
     en: 'Connect',
@@ -699,12 +699,12 @@ export const write = {
   'onboarding.connectedAs': {
     en: 'Connected as {name}',
     ko: '{name}으로 연결됨',
-    ja: '{name} として接続',
+    ja: '{name}として接続',
   },
   'onboarding.errRejected': {
     en: 'Jira rejected that email and token. Check both and try again.',
     ko: 'Jira가 이메일/토큰을 거부했습니다. 둘 다 확인하세요.',
-    ja: 'Jira がそのメールとトークンを拒否しました。両方を確認して再試行してください。',
+    ja: 'Jiraがそのメールとトークンを拒否しました。両方を確認して再試行してください。',
   },
   // Only fires now when the pasted token actually carries the ATCTT prefix
   // (internal/server/onboarding.go rejectedCredentialCode), so this sentence
@@ -712,7 +712,7 @@ export const write = {
   'onboarding.errRejectedOrgKey': {
     en: 'Org API keys (ATCTT from admin.atlassian.com) do not work — create a user API token (ATATT) instead.',
     ko: '조직 API 키(admin.atlassian.com의 ATCTT)는 동작하지 않습니다 — 사용자 API 토큰(ATATT)을 만드세요.',
-    ja: '組織 API キー（admin.atlassian.com の ATCTT）は使えません — 代わりにユーザー API token（ATATT）を作成してください。',
+    ja: '組織APIキー（admin.atlassian.comのATCTT）は使えません—代わりにユーザーAPI token（ATATT）を作成してください。',
   },
   // The other rejections are indistinguishable at the server: a scoped token
   // and a mistyped one both come back as a bare 401. So this sentence hands the
@@ -720,22 +720,22 @@ export const write = {
   'onboarding.errRejectedScoped': {
     en: 'Scoped tokens ("Create API token with scopes") are issued for Atlassian\'s cloud API, not for your site URL — open id.atlassian.com and, if the token you pasted is a scoped one, create one without scopes.',
     ko: '스코프 토큰("Create API token with scopes")은 Atlassian 클라우드 API 용이라 사이트 URL에는 쓸 수 없습니다 — id.atlassian.com에서 확인하고, 붙여넣은 토큰이 스코프 토큰이면 스코프 없는 토큰을 새로 만드세요.',
-    ja: 'スコープ付きトークン（「Create API token with scopes」）は Atlassian のクラウド API 向けで、サイト URL には使えません — id.atlassian.com を開き、貼ったトークンがスコープ付きなら、スコープなしで作り直してください。',
+    ja: 'スコープ付きトークン（「Create API token with scopes」）はAtlassianのクラウドAPI向けで、サイトURLには使えません— id.atlassian.comを開き、貼ったトークンがスコープ付きなら、スコープなしで作り直してください。',
   },
   'onboarding.errSite': {
     en: 'Enter your Jira site URL, for example https://your-team.atlassian.net',
     ko: 'Jira 사이트 URL을 입력하세요. 예: https://your-team.atlassian.net',
-    ja: 'Jira サイト URL を入力してください。例: https://your-team.atlassian.net',
+    ja: 'JiraサイトURLを入力してください。例: https://your-team.atlassian.net',
   },
   'onboarding.errFields': {
     en: 'Email and API token are both required.',
     ko: '이메일과 API 토큰이 모두 필요합니다.',
-    ja: 'メールと API token の両方が必要です。',
+    ja: 'メールとAPI tokenの両方が必要です。',
   },
   'onboarding.errConnect': {
     en: 'Could not reach Jira: {message}',
     ko: 'Jira에 연결할 수 없습니다: {message}',
-    ja: 'Jira に到達できませんでした: {message}',
+    ja: 'Jiraに到達できませんでした: {message}',
   },
   // Naming the empty case here: leaving the list alone is the choice that
   // keeps working as the site grows, so it must not read like an unfinished
@@ -743,7 +743,7 @@ export const write = {
   'onboarding.projectsIntro': {
     en: 'Pick the projects to cache, or pick none to cache every project you can see — including ones created later. You can change this in settings.',
     ko: '받아 둘 프로젝트를 고르세요. 하나도 고르지 않으면 볼 수 있는 모든 프로젝트를 받습니다 — 나중에 만들어지는 것까지. 설정에서 바꿀 수 있습니다.',
-    ja: '取り込むプロジェクトを選ぶか、何も選ばずに見られるすべてのプロジェクトを取り込みます — あとから作られるものも含みます。設定で変更できます。',
+    ja: '取り込むプロジェクトを選ぶか、何も選ばずに見られるすべてのプロジェクトを取り込みます—あとから作られるものも含みます。設定で変更できます。',
   },
   'onboarding.loadingProjects': {
     en: 'Loading projects…',
@@ -758,7 +758,7 @@ export const write = {
   'onboarding.projectsTruncated': {
     en: 'Showing the first {n} project; add any others in settings.|Showing the first {n} projects; add any others in settings.',
     ko: '앞쪽 {n}개만 표시했습니다. 나머지는 설정에서 추가하세요.',
-    ja: '先頭 {n}件のプロジェクトを表示しています。残りは設定で追加してください。',
+    ja: '先頭{n}件のプロジェクトを表示しています。残りは設定で追加してください。',
   },
   'onboarding.noProjects': {
     en: 'This account cannot browse any project on that site.',
@@ -768,7 +768,7 @@ export const write = {
   'onboarding.noProjectsChecklist': {
     en: 'Check: the site URL is correct, the account has Browse Projects, and you are not using an org admin key.',
     ko: '확인: 사이트 URL이 맞고, Browse Projects 권한이 있으며, 조직 관리자 키가 아닌지.',
-    ja: '確認: サイト URL が正しく、アカウントに Browse Projects があり、組織管理者キーを使っていないこと。',
+    ja: '確認:サイトURLが正しく、アカウントにBrowse Projectsがあり、組織管理者キーを使っていないこと。',
   },
   'onboarding.noProjectsManual': {
     en: 'You can type project keys manually in settings.',
@@ -813,7 +813,7 @@ export const write = {
   'onboarding.syncServeHint': {
     en: 'For automatic updates later, run gadak serve (or use Sync now from the sidebar).',
     ko: '이후 자동 갱신은 gadak serve로 서버를 실행하거나 사이드바의 지금 동기화를 쓰세요.',
-    ja: '以降の自動更新には gadak serve を実行するか、サイドバーの「今すぐ同期」を使ってください。',
+    ja: '以降の自動更新にはgadak serveを実行するか、サイドバーの「今すぐ同期」を使ってください。',
   },
   /* Step 4 — optional. The mirror is full; this is where it gets a second reader. */
   'onboarding.stepAgent': {
@@ -834,32 +834,32 @@ export const write = {
   'onboarding.agentWhy': {
     en: 'This app is one reader. The other is your coding agent — one command lets it query the local copy directly, without going back to Jira.',
     ko: '지금 보고 있는 앱이 리더 하나이고, 다른 하나는 당신의 코딩 에이전트입니다. 명령 한 줄이면 에이전트가 Jira를 다시 거치지 않고 이 로컬 사본에 직접 질의합니다.',
-    ja: 'このアプリがリーダーのひとつです。もうひとつはコーディングエージェントです — コマンドひとつで、Jira に戻らずローカルコピーへ直接問い合わせられます。',
+    ja: 'このアプリがリーダーのひとつです。もうひとつはコーディングエージェントです—コマンドひとつで、Jiraに戻らずローカルコピーへ直接問い合わせられます。',
   },
   'onboarding.agentCommandsLabel': {
     en: 'Register gadak with your agent',
     ko: '에이전트에 gadak 등록하기',
-    ja: 'エージェントに gadak を登録',
+    ja: 'エージェントにgadakを登録',
   },
   'onboarding.agentCommandsHint': {
     en: 'Run it in a terminal — your agent is a CLI, so you already have one.',
     ko: '터미널에서 실행하세요 — 에이전트 자체가 CLI라 이미 하나 열려 있습니다.',
-    ja: 'ターミナルで実行してください — エージェント自体が CLI なので、すでにひとつ開いています。',
+    ja: 'ターミナルで実行してください—エージェント自体がCLIなので、すでにひとつ開いています。',
   },
   'onboarding.agentSkillCaption': {
     en: 'Claude Code — installs a skill that teaches it the schema and the queries. No server; it loads only when a question needs it.',
     ko: 'Claude Code — 스키마와 쿼리 패턴을 알려 주는 스킬을 설치합니다. 서버가 필요 없고, 질문이 생길 때만 로드됩니다.',
-    ja: 'Claude Code — スキーマとクエリを教えるスキルをインストールします。サーバーは不要で、質問が必要になったときだけ読み込みます。',
+    ja: 'Claude Code —スキーマとクエリを教えるスキルをインストールします。サーバーは不要で、質問が必要になったときだけ読み込みます。',
   },
   'onboarding.agentMcpCaption': {
     en: 'Or register an MCP server. claude registers with Claude Code; claude-desktop writes Claude Desktop\'s config; cursor and codex print config to paste:',
     ko: '또는 MCP 서버로 등록 — 셸이 없는 호스트(Claude Desktop)를 위한 경로입니다. claude는 등록까지 대신 하고, cursor·codex는 붙여넣을 설정을 출력합니다:',
-    ja: 'または MCP サーバーを登録 — シェルのないホスト（Claude Desktop）向けです。claude は自分で登録し、cursor と codex は貼り付ける設定を出力します:',
+    ja: 'またはMCPサーバーを登録—シェルのないホスト（Claude Desktop）向けです。claudeは自分で登録し、cursorとcodexは貼り付ける設定を出力します:',
   },
   'onboarding.agentNoCli': {
     en: 'No gadak in your terminal? In the desktop app: Settings → Integrations.',
     ko: '터미널에 gadak가 없나요? 데스크톱 앱의 설정 → 연동에서 설치하세요.',
-    ja: 'ターミナルに gadak がありませんか? デスクトップアプリでは 設定 → 連携 です。',
+    ja: 'ターミナルにgadakがありませんか?デスクトップアプリでは設定→連携です。',
   },
   'onboarding.agentDocsSetup': {
     en: 'Agent setup',
@@ -904,14 +904,14 @@ export const write = {
   'onboarding.cliHint': {
     en: 'The same setup is available as gadak init in a terminal.',
     ko: '같은 설정을 터미널에서 gadak init으로도 할 수 있습니다.',
-    ja: '同じセットアップはターミナルの gadak init でもできます。',
+    ja: '同じセットアップはターミナルのgadak initでもできます。',
   },
   // GDK-247: PUT onboarding/connect/ 409 standalone_data_present. Facts match
   // cmd/gadak/init.go's ReplaceRefusedError sentence (via workspace.RefuseReplace).
   'onboarding.builtInBlocked': {
     en: 'This workspace holds {n} issue or document that originated here, in the built-in tracker. They exist only here — no Jira site has a copy. Converting this workspace deletes them from this local copy.|This workspace holds {n} issues or documents that originated here, in the built-in tracker. They exist only here — no Jira site has a copy. Converting this workspace deletes them from this local copy.',
     ko: '이 워크스페이스에는 내장 트래커에서 만들어진 이슈 또는 문서가 {n}개 있습니다. 여기에만 존재하며 어떤 Jira 사이트에도 사본이 없습니다. 이 워크스페이스를 전환하면 이 로컬 사본에서 그것들이 삭제됩니다.',
-    ja: 'このワークスペースには組み込みトラッカーで作られた課題またはドキュメントが {n}件あります。ここにしか存在せず、どの Jira サイトにもコピーはありません。このワークスペースを変換すると、それらはこのローカルコピーから削除されます。',
+    ja: 'このワークスペースには組み込みトラッカーで作られた課題またはドキュメントが{n}件あります。ここにしか存在せず、どのJiraサイトにもコピーはありません。このワークスペースを変換すると、それらはこのローカルコピーから削除されます。',
   },
   'onboarding.builtInPersist': {
     en: 'Tracker data file: {path}',
@@ -921,7 +921,7 @@ export const write = {
   'onboarding.builtInOtherWorkspace': {
     en: 'Connect the site in a separate workspace: gadak --workspace <name> init (list workspaces with gadak workspaces).',
     ko: '사이트는 별도 워크스페이스에 연결하세요: gadak --workspace <name> init (워크스페이스 목록은 gadak workspaces).',
-    ja: 'サイトは別のワークスペースで接続してください: gadak --workspace <name> init（一覧は gadak workspaces）。',
+    ja: 'サイトは別のワークスペースで接続してください: gadak --workspace <name> init（一覧はgadak workspaces）。',
   },
   'onboarding.builtInReplaceConfirm': {
     en: 'Replace this workspace anyway. Converting deletes these issues or documents from this local copy.',
@@ -938,7 +938,7 @@ export const write = {
   'onboarding.builtInIntro': {
     en: 'No account? The built-in tracker keeps issues on this machine — one click, and you start here.',
     ko: '계정이 없나요? 내장 트래커가 이 머신에 이슈를 보관합니다 — 클릭 한 번으로 여기서 시작합니다.',
-    ja: 'アカウント不要 — 組み込みトラッカーが課題をこのマシンに保持します。クリックひとつでここから始められます。',
+    ja: 'アカウント不要—組み込みトラッカーが課題をこのマシンに保持します。クリックひとつでここから始められます。',
   },
   'onboarding.builtInStart': {
     en: 'Start with the built-in tracker',
@@ -950,7 +950,7 @@ export const write = {
   'onboarding.builtInConnected': {
     en: 'This workspace is already connected to a Jira site. Switching to another tracker means starting a new workspace — the CLI does that: gadak --workspace <name> init --local.',
     ko: '이 워크스페이스는 이미 Jira 사이트에 연결되어 있습니다. 다른 트래커로 바꾸는 것은 새 워크스페이스를 시작하는 일입니다 — CLI로 할 수 있습니다: gadak --workspace <name> init --local.',
-    ja: 'このワークスペースはすでに Jira サイトに接続されています。別のトラッカーへの切り替えは新しいワークスペースを作ることです — CLI で行えます: gadak --workspace <name> init --local。',
+    ja: 'このワークスペースはすでにJiraサイトに接続されています。別のトラッカーへの切り替えは新しいワークスペースを作ることです— CLIで行えます: gadak --workspace <name> init --local。',
   },
   // GDK-1287: step 1 opens on this question; the three answers share one layer.
   'onboarding.whereQuestion': {
@@ -966,7 +966,7 @@ export const write = {
   'onboarding.sourceJiraAux': {
     en: 'Atlassian Cloud site',
     ko: 'Atlassian Cloud 사이트',
-    ja: 'Atlassian Cloud サイト',
+    ja: 'Atlassian Cloudサイト',
   },
   'onboarding.sourceBuiltin': {
     en: 'Built-in tracker',
@@ -976,7 +976,7 @@ export const write = {
   'onboarding.sourceBuiltinAux': {
     en: 'gadak keeps the issues',
     ko: 'gadak이 이슈를 직접 보관',
-    ja: 'gadak が課題を保管',
+    ja: 'gadakが課題を保管',
   },
   'onboarding.sourcePaired': {
     en: 'Paired',
@@ -986,19 +986,19 @@ export const write = {
   'onboarding.sourcePairedAux': {
     en: "another machine's gadak",
     ko: '다른 기기의 gadak',
-    ja: '別のマシンの gadak',
+    ja: '別のマシンのgadak',
   },
   // The paired door opens Settings → Workspaces: pairing registers the other
   // machine's gadak as a new named workspace here (no route binds this one).
   'onboarding.pairedIntro': {
     en: 'Paste the pairing code from `gadak pairing mint` on the other machine. It is registered as a new workspace here, under a name you choose.',
     ko: '다른 기기에서 `gadak pairing mint`가 출력한 페어링 코드를 붙여넣으세요. 직접 정한 이름의 새 워크스페이스로 여기에 등록됩니다.',
-    ja: '別のマシンで `gadak pairing mint` が出力したペアリングコードを貼り付けます。自分で決めた名前の新しいワークスペースとしてここに登録されます。',
+    ja: '別のマシンで`gadak pairing mint`が出力したペアリングコードを貼り付けます。自分で決めた名前の新しいワークスペースとしてここに登録されます。',
   },
   'onboarding.pairedOpen': {
     en: 'Open Settings → Workspaces',
     ko: '설정 → 워크스페이스 열기',
-    ja: '設定 → ワークスペースを開く',
+    ja: '設定→ワークスペースを開く',
   },
   'onboarding.errBuiltIn': {
     en: 'Could not start the workspace: {message}',
@@ -1011,6 +1011,6 @@ export const write = {
   'write.transitionNeedsFields': {
     en: 'needs fields — use desktop',
     ko: '입력할 항목이 있습니다 — 데스크톱에서',
-    ja: '入力項目があります — デスクトップで',
+    ja: '入力項目があります—デスクトップで',
   },
 } as const satisfies Record<string, Message>

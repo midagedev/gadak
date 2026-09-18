@@ -170,17 +170,17 @@ export const fields = {
   'field.qa_run': {
     en: 'QA run',
     ko: 'QA 차수',
-    ja: 'QA ラン',
+    ja: 'QAラン',
   },
   'field.qa_suite': {
     en: 'QA suite',
     ko: 'QA 영역',
-    ja: 'QA スイート',
+    ja: 'QAスイート',
   },
   'field.qa_impact': {
     en: 'QA impact',
     ko: 'QA 영향',
-    ja: 'QA 影響',
+    ja: 'QA影響',
   },
   'field.deploy_state': {
     en: 'Deploy',
@@ -270,7 +270,7 @@ export const fields = {
   'column.qa_impact': {
     en: 'QA impact',
     ko: 'QA 영향',
-    ja: 'QA 影響',
+    ja: 'QA影響',
   },
   'column.deploy': {
     en: 'Deploy stage',
@@ -367,22 +367,22 @@ export const fields = {
   'deploy.dev': {
     en: 'dev release',
     ko: 'dev 릴리즈',
-    ja: 'dev リリース',
+    ja: 'devリリース',
   },
   'deploy.qa_preview': {
     en: 'QA pending (pre-swap)',
     ko: 'QA 대기(스왑 전)',
-    ja: 'QA 待ち（スワップ前）',
+    ja: 'QA待ち（スワップ前）',
   },
   'deploy.qa': {
     en: 'QA ready',
     ko: 'QA 확인 가능',
-    ja: 'QA 準備完了',
+    ja: 'QA準備完了',
   },
   'deploy.prod': {
     en: 'prod deployed',
     ko: 'prod 배포',
-    ja: 'prod デプロイ済み',
+    ja: 'prodデプロイ済み',
   },
   'deploy.notDeployed': {
     en: 'Not deployed',
@@ -397,7 +397,7 @@ export const fields = {
   'deploy.mergedNoRelease': {
     en: 'Merged · not in a release',
     ko: '머지됨 · 릴리즈 미포함',
-    ja: 'マージ済み · リリース未含',
+    ja: 'マージ済み·リリース未含',
   },
   'deploy.unmerged': {
     en: 'Not merged',
@@ -412,22 +412,22 @@ export const fields = {
   'deploy.qaRelease': {
     en: 'qa release',
     ko: 'qa 릴리즈',
-    ja: 'qa リリース',
+    ja: 'qaリリース',
   },
   'deploy.qaSwapReady': {
     en: 'qa swap · QA ready',
     ko: 'qa 스왑 · QA 확인 가능',
-    ja: 'qa スワップ · QA 準備完了',
+    ja: 'qaスワップ· QA準備完了',
   },
   'deploy.prMergedFrac': {
     en: '{a}/{b} PRs merged',
     ko: '{a}/{b} PR 머지',
-    ja: '{a}/{b} PR マージ済み',
+    ja: '{a}/{b} PRマージ済み',
   },
   'deploy.prMergedCount': {
     en: '{n} PR merged|{n} PRs merged',
     ko: '{n} PR 머지',
-    ja: '{n} PR マージ済み',
+    ja: '{n} PRマージ済み',
   },
   'deploy.includedIn': {
     en: 'In: {tag}',
@@ -442,12 +442,12 @@ export const fields = {
   'deploy.qaSwapDone': {
     en: 'qa swap done — QA ready',
     ko: 'qa 스왑 완료 — QA 확인 가능',
-    ja: 'qa スワップ完了 — QA 準備完了',
+    ja: 'qaスワップ完了— QA準備完了',
   },
   'deploy.byPr': {
     en: 'Inclusion by PR',
     ko: 'PR별 포함 여부',
-    ja: 'PR ごとの含有',
+    ja: 'PRごとの含有',
   },
   /* ── Group / empty labels ── */
   'group.noStatus': {

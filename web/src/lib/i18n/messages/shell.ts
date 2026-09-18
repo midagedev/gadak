@@ -9,7 +9,7 @@ export const shell = {
   'sidebar.newIssueTitle': {
     en: 'New issue (c)',
     ko: '새 이슈 (c)',
-    ja: '新しい課題 (c)',
+    ja: '新しい課題(c)',
   },
   'sidebar.builtinViews': {
     en: 'Views',
@@ -24,12 +24,12 @@ export const shell = {
   'sidebar.jiraFilters': {
     en: 'Jira filters',
     ko: 'Jira 필터',
-    ja: 'Jira フィルター',
+    ja: 'Jiraフィルター',
   },
   'sidebar.openFilterInJira': {
     en: 'Open this filter in Jira',
     ko: '이 필터를 Jira에서 열기',
-    ja: 'このフィルターを Jira で開く',
+    ja: 'このフィルターをJiraで開く',
   },
   'sidebar.docsNoneTitle': {
     en: 'No documents cached',
@@ -39,7 +39,7 @@ export const shell = {
   'sidebar.docsNoneHint': {
     en: 'Turn on Confluence in Settings → Sources.',
     ko: '설정 → 소스에서 Confluence를 켜세요.',
-    ja: '設定 → ソースで Confluence をオンにしてください。',
+    ja: '設定→ソースでConfluenceをオンにしてください。',
   },
   'sidebar.docsUnavailable': {
     en: 'This snapshot carries issues only.',
@@ -88,7 +88,7 @@ export const shell = {
   'sidebar.docsEmptySpacesHint': {
     en: 'Change the selection in Settings → Sources.',
     ko: '설정 → 소스에서 선택을 바꾸세요.',
-    ja: '設定 → ソースで選択を変えてください。',
+    ja: '設定→ソースで選択を変えてください。',
   },
   'sidebar.docs': {
     en: 'Documents',
@@ -118,7 +118,7 @@ export const shell = {
   'terminal.exited': {
     en: 'Shell exited (code {code})',
     ko: '셸이 종료됨 (코드 {code})',
-    ja: 'シェルが終了しました（コード {code}）',
+    ja: 'シェルが終了しました（コード{code}）',
   },
   'terminal.dropped.slow_client': {
     en: 'Disconnected: slow client',
@@ -148,12 +148,12 @@ export const shell = {
   'terminal.unavailable.unsupported': {
     en: 'This machine cannot run a shell. Windows has no PTY, and that is permanent.',
     ko: '이 기기에서는 셸을 쓸 수 없습니다. Windows에는 PTY가 없으며, 이는 바뀌지 않습니다.',
-    ja: 'このマシンではシェルを実行できません。Windows に PTY はなく、これは変わりません。',
+    ja: 'このマシンではシェルを実行できません。WindowsにPTYはなく、これは変わりません。',
   },
   'terminal.unavailable.forbidden': {
     en: 'This device is not allowed to open a shell here. Mint a terminal-scope token with `gadak pairing mint --label NAME --scope terminal`.',
     ko: '이 기기에서는 셸을 열 수 없습니다. `gadak pairing mint --label NAME --scope terminal`로 터미널 스코프 토큰을 만드세요.',
-    ja: 'このデバイスではシェルを開けません。`gadak pairing mint --label NAME --scope terminal` でターミナルスコープのトークンを発行してください。',
+    ja: 'このデバイスではシェルを開けません。`gadak pairing mint --label NAME --scope terminal`でターミナルスコープのトークンを発行してください。',
   },
   'terminal.unavailable.failed': {
     en: 'The host could not start a shell: {message}',
@@ -174,7 +174,7 @@ export const shell = {
   'terminal.refusal.origin': {
     en: 'The server refused this app’s requests — its origin check does not know this phone. Update gadak on the desktop and pair again.',
     ko: '서버가 이 앱의 요청을 거절했습니다. 서버의 origin 검사가 이 폰을 모릅니다. 데스크톱의 gadak을 업데이트하고 다시 페어링하세요.',
-    ja: 'サーバーがこのアプリのリクエストを拒否しました。サーバーの origin チェックがこの端末を認識していません。デスクトップの gadak を更新して、もう一度ペアリングしてください。',
+    ja: 'サーバーがこのアプリのリクエストを拒否しました。サーバーのoriginチェックがこの端末を認識していません。デスクトップのgadakを更新して、もう一度ペアリングしてください。',
   },
   'terminal.refusal.pairing': {
     en: 'Pairing was refused. Mint a new offer on the desktop and pair again.',
@@ -184,7 +184,7 @@ export const shell = {
   'terminal.refusal.scope': {
     en: 'This pairing cannot read the mirror. Pair again with a serve-scope offer.',
     ko: '이 페어링으로는 캐시를 읽을 수 없습니다. serve 스코프 오퍼로 다시 페어링하세요.',
-    ja: 'このペアリングではキャッシュを読めません。serve スコープのオファーでもう一度ペアリングしてください。',
+    ja: 'このペアリングではキャッシュを読めません。serveスコープのオファーでもう一度ペアリングしてください。',
   },
   'terminal.refusal.other': {
     en: 'The server refused this request.',
@@ -200,22 +200,22 @@ export const shell = {
   'terminal.refusal.viewer': {
     en: 'This shell opens only for the Tailscale account that owns this machine. You are signed in as a different account.',
     ko: '이 셸은 이 컴퓨터를 소유한 Tailscale 계정에서만 열립니다. 지금은 다른 계정으로 보고 있습니다.',
-    ja: 'このシェルは、このコンピュータを所有する Tailscale アカウントでのみ開けます。現在は別のアカウントで表示しています。',
+    ja: 'このシェルは、このコンピュータを所有するTailscaleアカウントでのみ開けます。現在は別のアカウントで表示しています。',
   },
   'terminal.refusal.hosted': {
     en: 'Reach this page through tailscale serve as the account that owns this machine, and the shell opens without pairing.',
     ko: '이 컴퓨터를 소유한 Tailscale 계정으로 tailscale serve를 거쳐 열면, 페어링 없이 셸이 열립니다.',
-    ja: 'このコンピュータを所有する Tailscale アカウントで tailscale serve 経由で開くと、ペアリングなしでシェルが開きます。',
+    ja: 'このコンピュータを所有するTailscaleアカウントでtailscale serve経由で開くと、ペアリングなしでシェルが開きます。',
   },
   'terminal.restartHint': {
     en: 'Press Enter to start a new shell',
     ko: 'Enter 키로 새 셸을 시작합니다',
-    ja: 'Enter で新しいシェルを起動します',
+    ja: 'Enterで新しいシェルを起動します',
   },
   'terminal.mintHint': {
     en: 'Mint a new token with `gadak pairing mint --label NAME --scope terminal`',
     ko: '`gadak pairing mint --label NAME --scope terminal`로 새 토큰을 만드세요',
-    ja: '`gadak pairing mint --label NAME --scope terminal` で新しいトークンを発行してください',
+    ja: '`gadak pairing mint --label NAME --scope terminal`で新しいトークンを発行してください',
   },
   'terminal.close': {
     en: 'Close the terminal',
@@ -442,17 +442,17 @@ export const shell = {
   'dash.notFound': {
     en: 'This dashboard no longer exists. Pick another one in the sidebar, or list them with `gadak dashboards list`.',
     ko: '이 대시보드는 더 이상 없습니다. 사이드바에서 다른 대시보드를 고르거나 `gadak dashboards list`로 목록을 확인하세요.',
-    ja: 'このダッシュボードはもう存在しません。サイドバーで別のものを選ぶか、`gadak dashboards list` で一覧を確認してください。',
+    ja: 'このダッシュボードはもう存在しません。サイドバーで別のものを選ぶか、`gadak dashboards list`で一覧を確認してください。',
   },
   'dash.loadError': {
     en: 'Could not load this dashboard. Press Esc or the back arrow to return to the list, then open it again.',
     ko: '이 대시보드를 불러올 수 없습니다. Esc 또는 뒤로 화살표로 목록으로 돌아간 뒤 다시 열어보세요.',
-    ja: 'このダッシュボードを読み込めませんでした。Esc または戻る矢印で一覧に戻り、もう一度開いてください。',
+    ja: 'このダッシュボードを読み込めませんでした。Escまたは戻る矢印で一覧に戻り、もう一度開いてください。',
   },
   'sidebar.docsSpaceTitle': {
     en: '{space} · {n} document|{space} · {n} documents',
     ko: '{space} · 문서 {n}건',
-    ja: '{space} · ドキュメント {n}件',
+    ja: '{space} ·ドキュメント{n}件',
   },
   // Not "Documents": that is the section this row sits inside, and a section
   // whose only child repeats its name reads as a broken tree in all three
@@ -481,7 +481,7 @@ export const shell = {
   'sidebar.docsToggleNode': {
     en: 'Documents under {title}',
     ko: '{title} 하위 문서',
-    ja: '{title} 配下のドキュメント',
+    ja: '{title}配下のドキュメント',
   },
   'sidebar.workspaceSwitch': {
     en: 'Switch workspace',
@@ -511,12 +511,12 @@ export const shell = {
   'sidebar.jiraCreds': {
     en: 'Jira credentials',
     ko: 'Jira 자격증명 설정',
-    ja: 'Jira 資格情報',
+    ja: 'Jira資格情報',
   },
   'sidebar.jiraCredsMissing': {
     en: 'Jira credentials not set — configure to write',
     ko: 'Jira 자격증명 미설정 — 쓰기하려면 설정하세요',
-    ja: 'Jira 資格情報が未設定です — 書き込むには設定してください',
+    ja: 'Jira資格情報が未設定です—書き込むには設定してください',
   },
   'sidebar.viewDeleteFail': {
     en: 'Could not delete view. Try again.',
@@ -545,12 +545,12 @@ export const shell = {
   'sidebar.runReconcile': {
     en: '+ deletions',
     ko: '+ 삭제 반영',
-    ja: '+ 削除反映',
+    ja: '+削除反映',
   },
   'sidebar.runCounts': {
     en: '{changed} changed · {deleted} deleted',
     ko: '{changed}건 변경 · {deleted}건 삭제',
-    ja: '{changed}件変更 · {deleted}件削除',
+    ja: '{changed}件変更· {deleted}件削除',
   },
   'sidebar.issueCount': {
     en: '{n} issue|{n} issues',
@@ -560,7 +560,7 @@ export const shell = {
   'sidebar.sectionReorderHint': {
     en: 'Drag or Alt+↑↓ to reorder',
     ko: '드래그 또는 Alt+↑↓로 순서 변경',
-    ja: 'ドラッグまたは Alt+↑↓ で並べ替え',
+    ja: 'ドラッグまたはAlt+↑↓で並べ替え',
   },
   /* ── First-sync band (GDK-1677): one line while a first sync fills an
      empty mirror. Counts arrive pre-formatted (formatNumber); the wiki-next
@@ -569,27 +569,27 @@ export const shell = {
   'firstSync.issues': {
     en: 'Recent issues first · {fetched} / {total}',
     ko: '최근 이슈부터 채우는 중 · {fetched} / {total}',
-    ja: '新しい課題から取得中 · {fetched} / {total}',
+    ja: '新しい課題から取得中· {fetched} / {total}',
   },
   'firstSync.issuesNoTotal': {
     en: 'Recent issues first · {fetched} so far',
     ko: '최근 이슈부터 채우는 중 · 지금까지 {fetched}',
-    ja: '新しい課題から取得中 · これまで {fetched}',
+    ja: '新しい課題から取得中·これまで{fetched}',
   },
   'firstSync.documents': {
     en: 'Issues done · wiki {fetched} / {total}',
     ko: '이슈 완료 · 위키 {fetched} / {total}',
-    ja: '課題は完了 · Wiki {fetched} / {total}',
+    ja: '課題は完了· Wiki {fetched} / {total}',
   },
   'firstSync.documentsNoTotal': {
     en: 'Issues done · wiki {fetched} so far',
     ko: '이슈 완료 · 위키 지금까지 {fetched}',
-    ja: '課題は完了 · Wiki これまで {fetched}',
+    ja: '課題は完了· Wikiこれまで{fetched}',
   },
   'firstSync.wikiNext': {
     en: 'wiki next',
     ko: '다음은 위키',
-    ja: '次は Wiki',
+    ja: '次はWiki',
   },
   /* ── Builtin views ── */
   'view.myWork.name': {
@@ -641,7 +641,7 @@ export const shell = {
   'view.allOpen.hint': {
     en: 'New + in progress',
     ko: '신규 + 진행 중',
-    ja: '未着手 + 進行中',
+    ja: '未着手+進行中',
   },
   // ja stays 未割り当て — the word Japanese Jira uses, and the word three
   // other strings here already use (common.unassigned, filter.flagUnassigned,
@@ -849,7 +849,7 @@ export const shell = {
   'shortcuts.detailOpenJira': {
     en: 'Open the issue in {tracker}',
     ko: '이슈를 {tracker}에서 열기',
-    ja: '課題を {tracker} で開く',
+    ja: '課題を{tracker}で開く',
   },
   'shortcuts.focusStatus': {
     en: 'Change status (when detail is open)',
@@ -930,12 +930,12 @@ export const shell = {
   'browse.back': {
     en: 'Back to gadak',
     ko: 'gadak로 돌아가기',
-    ja: 'gadak に戻る',
+    ja: 'gadakに戻る',
   },
   'browse.backEsc': {
     en: 'Back to gadak (Esc)',
     ko: 'gadak로 돌아가기 (Esc)',
-    ja: 'gadak に戻る (Esc)',
+    ja: 'gadakに戻る(Esc)',
   },
   'browse.openExternal': {
     en: 'Open in the system browser',
@@ -950,7 +950,7 @@ export const shell = {
   'browse.loading': {
     en: 'Opening {host}…',
     ko: '{host} 여는 중…',
-    ja: '{host} を開いています…',
+    ja: '{host}を開いています…',
   },
   'browse.resume': {
     en: 'Browser',
@@ -966,7 +966,7 @@ export const shell = {
   'app.loadFailed': {
     en: 'Could not load data. Check network/VPN.',
     ko: '데이터를 불러오지 못했습니다. 네트워크/VPN 상태를 확인하세요.',
-    ja: 'データを読み込めませんでした。ネットワーク/VPN を確認してください。',
+    ja: 'データを読み込めませんでした。ネットワーク/VPNを確認してください。',
   },
   'app.authGate': {
     en: 'Cannot connect to the local server.',
@@ -984,12 +984,12 @@ export const shell = {
   'app.endpointScope': {
     en: 'This app does not send requests to that address. It only talks to tailnet HTTPS names (`*.ts.net`) or this machine over loopback. Pair again with a serve address of that shape.',
     ko: '이 앱은 그 주소로 요청을 보내지 않습니다. 테일넷 HTTPS 주소(`*.ts.net`)나 이 기기의 루프백 주소로만 통신합니다. 그 형태의 serve 주소로 다시 페어링하세요.',
-    ja: 'このアプリはそのアドレスにリクエストを送信しません。テールネットの HTTPS アドレス（`*.ts.net`）かこの端末のループバックのみに接続します。その形式の serve アドレスで再度ペアリングしてください。',
+    ja: 'このアプリはそのアドレスにリクエストを送信しません。テールネットのHTTPSアドレス（`*.ts.net`）かこの端末のループバックのみに接続します。その形式のserveアドレスで再度ペアリングしてください。',
   },
   'app.offlineBanner': {
     en: 'Offline — showing cached data',
     ko: '오프라인 — 캐시된 데이터를 표시 중',
-    ja: 'オフライン — キャッシュを表示中',
+    ja: 'オフライン—キャッシュを表示中',
   },
   'app.demoBadge': {
     en: 'Demo',
@@ -999,12 +999,12 @@ export const shell = {
   'app.demoBanner': {
     en: 'Fictional issues, read-only. Nothing here connects to Jira and no account is involved.',
     ko: '가상의 이슈이며 읽기 전용입니다. Jira에 연결되지 않고 계정도 필요 없습니다.',
-    ja: '架空の課題で、読み取り専用です。ここは Jira に繋がらず、アカウントも使いません。',
+    ja: '架空の課題で、読み取り専用です。ここはJiraに繋がらず、アカウントも使いません。',
   },
   'app.demoBannerLink': {
     en: 'Run it on your own Jira →',
     ko: '내 Jira에서 실행하기 →',
-    ja: '自分の Jira で実行する →',
+    ja: '自分のJiraで実行する→',
   },
   'app.demoNoCredentials': {
     en: 'Credentials are disabled in the demo',
@@ -1014,27 +1014,27 @@ export const shell = {
   'app.demoWriteDisabled': {
     en: 'Creating issues needs a server — try a status change or a comment instead',
     ko: '이슈 생성은 서버가 필요합니다 — 상태 변경이나 코멘트를 시도해 보세요',
-    ja: '課題の作成にはサーバーが必要です — 代わりにステータス変更やコメントを試してください',
+    ja: '課題の作成にはサーバーが必要です—代わりにステータス変更やコメントを試してください',
   },
   'app.demoWriteNotice': {
     en: 'Demo edit applied in this browser only — it is not sent anywhere and a reload restores it.',
     ko: '데모 수정은 이 브라우저에만 적용됩니다 — 어디로도 전송되지 않고 새로고침하면 사라집니다.',
-    ja: 'デモの編集はこのブラウザにだけ適用されます — どこにも送られず、再読み込みで元に戻ります。',
+    ja: 'デモの編集はこのブラウザにだけ適用されます—どこにも送られず、再読み込みで元に戻ります。',
   },
   'app.demoAttachDisabled': {
     en: 'Attachments need a server — not available in the demo.',
     ko: '첨부는 서버가 필요해 데모에서는 지원되지 않습니다.',
-    ja: '添付にはサーバーが必要です — デモでは利用できません。',
+    ja: '添付にはサーバーが必要です—デモでは利用できません。',
   },
   'app.demoEditCount': {
     en: '{n} local edit, not saved|{n} local edits, not saved',
     ko: '로컬 수정 {n}건 · 저장되지 않음',
-    ja: 'ローカル編集 {n}件 · 未保存',
+    ja: 'ローカル編集{n}件·未保存',
   },
   'app.demoEditedIssue': {
     en: 'Edited in this demo — not saved',
     ko: '이 데모에서 수정됨 — 저장되지 않음',
-    ja: 'このデモで編集済み — 未保存',
+    ja: 'このデモで編集済み—未保存',
   },
   // GDK-1051: the phone's bundled demo workspace (mobile/src/lib/demo.ts) —
   // a pairing-free, read-only sample mirror shipped in the app bundle.
@@ -1051,7 +1051,7 @@ export const shell = {
   'app.demoMode': {
     en: 'Demo — sample data, read-only',
     ko: '데모 — 샘플 데이터 · 읽기 전용',
-    ja: 'デモ — サンプルデータ · 読み取り専用',
+    ja: 'デモ—サンプルデータ·読み取り専用',
   },
   'app.demoExit': {
     en: 'Exit demo',
@@ -1129,7 +1129,7 @@ export const shell = {
   'app.hosts.scan': {
     en: 'Scan QR instead',
     ko: '대신 QR 스캔',
-    ja: '代わりに QR をスキャン',
+    ja: '代わりにQRをスキャン',
   },
   'app.hosts.errEmpty': {
     en: 'Paste the offer line first.',
@@ -1139,12 +1139,12 @@ export const shell = {
   'app.hosts.errVersion': {
     en: 'This offer is from a newer gadak. Update the app, then pair.',
     ko: '이 오퍼는 더 최신 gadak에서 만들어졌습니다. 앱을 업데이트한 뒤 페어링하세요.',
-    ja: 'このオファーは新しい gadak からのものです。アプリを更新してからペアリングしてください。',
+    ja: 'このオファーは新しいgadakからのものです。アプリを更新してからペアリングしてください。',
   },
   'app.hosts.errBad': {
     en: 'That does not look like a pairing offer. Copy the whole line from `gadak pairing mint`.',
     ko: '페어링 오퍼로 보이지 않습니다. `gadak pairing mint`가 출력한 줄 전체를 복사하세요.',
-    ja: 'ペアリングオファーではないようです。`gadak pairing mint` の出力行全体をコピーしてください。',
+    ja: 'ペアリングオファーではないようです。`gadak pairing mint`の出力行全体をコピーしてください。',
   },
   'app.hosts.errClipboardEmpty': {
     en: 'Clipboard is empty. Copy the offer line first.',
@@ -1185,7 +1185,7 @@ export const shell = {
   'app.gate.desktopTail': {
     en: 'prints one line.',
     ko: '를 실행하면 한 줄이 나옵니다.',
-    ja: 'を実行すると 1 行が表示されます。',
+    ja: 'を実行すると1行が表示されます。',
   },
   'app.gate.offerSecret': {
     en: 'It carries the key to your mirror — share it with no one.',
@@ -1203,12 +1203,12 @@ export const shell = {
   'app.offerExpires': {
     en: 'Offer expires {when}',
     ko: '오퍼 만료 {when}',
-    ja: 'オファーの期限 {when}',
+    ja: 'オファーの期限{when}',
   },
   'app.offlineLastSync': {
     en: 'offline — last sync {when}',
     ko: '오프라인 — 마지막 동기화 {when}',
-    ja: 'オフライン — 最終同期 {when}',
+    ja: 'オフライン—最終同期{when}',
   },
   'app.syncNever': {
     en: 'never',
@@ -1225,7 +1225,7 @@ export const shell = {
   'app.identityFilterNote': {
     en: '{view} filters to this identity.',
     ko: '{view}는 이 계정으로 거릅니다.',
-    ja: '{view} はこのアカウントで絞り込みます。',
+    ja: '{view}はこのアカウントで絞り込みます。',
   },
   'app.terminalOffer': {
     en: 'Terminal offer',
@@ -1261,7 +1261,7 @@ export const shell = {
   'hosted.about': {
     en: 'About gadak',
     ko: 'gadak 소개',
-    ja: 'gadak について',
+    ja: 'gadakについて',
   },
   // GDK-1904: the button that opens that dialog was a bare English literal,
   // so a ko/ja reader saw "About" and heard "gadak 소개". Its own key, because
@@ -1303,7 +1303,7 @@ export const shell = {
   'app.mirrorIssues': {
     en: '{n} issue|{n} issues',
     ko: '이슈 {n}건',
-    ja: '課題 {n}件',
+    ja: '課題{n}件',
   },
   'app.identitySection': {
     en: 'Identity',
@@ -1335,7 +1335,7 @@ export const shell = {
   'app.offerTerminalOnly': {
     en: 'This offer carries only a terminal token: it opens a shell on the desktop, not the issue mirror. Mint a serve-scope offer (`gadak pairing mint --label phone --scope serve,terminal`) and pair again.',
     ko: '이 오퍼에는 터미널 토큰만 들어 있습니다. 데스크톱에서 셸은 열리지만 이슈 캐시는 열리지 않습니다. serve 스코프 오퍼를 만들어(`gadak pairing mint --label phone --scope serve,terminal`) 다시 페어링하세요.',
-    ja: 'このオファーにはターミナルトークンしか入っていません。デスクトップのシェルは開けますが、課題キャッシュは開けません。serve スコープのオファーを発行して(`gadak pairing mint --label phone --scope serve,terminal`)、もう一度ペアリングしてください。',
+    ja: 'このオファーにはターミナルトークンしか入っていません。デスクトップのシェルは開けますが、課題キャッシュは開けません。serveスコープのオファーを発行して(`gadak pairing mint --label phone --scope serve,terminal`)、もう一度ペアリングしてください。',
   },
   // GDK-1150 (2026-09-10): the phone's api.ts error table joined the
   // catalog — it was the last English-sentence table in the app. ko/ja are
@@ -1355,7 +1355,7 @@ export const shell = {
   'app.errorNoCredential': {
     en: 'This serve has no origin credential, so writes are off. Add one on the desktop.',
     ko: '이 serve에는 origin 자격증명이 없어 쓰기가 꺼져 있습니다. 데스크톱에서 추가하세요.',
-    ja: 'この serve には origin の認証情報がないため、書き込みは無効です。デスクトップで追加してください。',
+    ja: 'このserveにはoriginの認証情報がないため、書き込みは無効です。デスクトップで追加してください。',
   },
   'app.errorBadResponse': {
     en: 'The server sent an unreadable reply.',
@@ -1365,6 +1365,6 @@ export const shell = {
   'app.offerNoMirrorToken': {
     en: 'This offer carries no token for the issue mirror. Mint a serve-scope offer on the desktop and pair again.',
     ko: '이 오퍼에는 이슈 캐시용 토큰이 없습니다. 데스크톱에서 serve 스코프 오퍼를 만들어 다시 페어링하세요.',
-    ja: 'このオファーには課題キャッシュ用のトークンがありません。デスクトップで serve スコープのオファーを発行して、もう一度ペアリングしてください。',
+    ja: 'このオファーには課題キャッシュ用のトークンがありません。デスクトップでserveスコープのオファーを発行して、もう一度ペアリングしてください。',
   },
 } as const satisfies Record<string, Message>

@@ -59,7 +59,7 @@ export const settings = {
   'settings.aboutGithub': {
     en: 'GitHub repository',
     ko: 'GitHub 저장소',
-    ja: 'GitHub リポジトリ',
+    ja: 'GitHubリポジトリ',
   },
   'settings.aboutIssues': {
     en: 'Report an issue',
@@ -74,7 +74,7 @@ export const settings = {
   'settings.aboutX': {
     en: '@midagedev on X',
     ko: 'X의 @midagedev',
-    ja: 'X の @midagedev',
+    ja: 'Xの@midagedev',
   },
   'settings.intro': {
     en: 'Choose what this workspace syncs, how often, and which features are on. Saving re-reads this window.',
@@ -99,7 +99,7 @@ export const settings = {
   'settings.jsonParseError': {
     en: 'JSON parse error — fix it to re-enable save.',
     ko: 'JSON 파싱 실패 — 고치면 저장이 다시 활성화됩니다.',
-    ja: 'JSON の解析エラー — 直すと保存が再び有効になります。',
+    ja: 'JSONの解析エラー—直すと保存が再び有効になります。',
   },
   'settings.projects': {
     en: 'Project keys to sync (comma-separated)',
@@ -114,7 +114,7 @@ export const settings = {
   'settings.sourcesProjects': {
     en: 'Jira projects',
     ko: 'Jira 프로젝트',
-    ja: 'Jira プロジェクト',
+    ja: 'Jiraプロジェクト',
   },
   'settings.sourcesProjectsHint': {
     en: 'Only these projects are synced.',
@@ -124,7 +124,7 @@ export const settings = {
   'settings.sourcesNoProjects': {
     en: 'Nothing selected — every project this account can see is synced.',
     ko: '선택 없음 — 이 계정이 볼 수 있는 모든 프로젝트를 동기화합니다.',
-    ja: '未選択 — このアカウントが見られるすべてのプロジェクトを同期します。',
+    ja: '未選択—このアカウントが見られるすべてのプロジェクトを同期します。',
   },
   'settings.confluenceTitle': {
     en: 'Confluence',
@@ -134,7 +134,7 @@ export const settings = {
   'settings.confluenceOffHint': {
     en: 'Off for this workspace — no document is synced. Choose spaces below to start, or turn it on for every team space.',
     ko: '이 워크스페이스에서는 꺼져 있어 위키 문서를 받아오지 않습니다. 아래에서 스페이스를 고르면 시작되고, 팀 스페이스 전체로 켤 수도 있습니다.',
-    ja: 'このワークスペースではオフです — ドキュメントは同期されません。下でスペースを選ぶか、すべてのチームスペースでオンにしてください。',
+    ja: 'このワークスペースではオフです—ドキュメントは同期されません。下でスペースを選ぶか、すべてのチームスペースでオンにしてください。',
   },
   'settings.confluenceOnHint': {
     en: 'Documents are synced alongside issues.',
@@ -164,12 +164,12 @@ export const settings = {
   'settings.confluenceAllWarning': {
     en: 'No space selected: every team (global) space will be synced to this computer. Personal spaces are synced only when named.',
     ko: '선택한 스페이스가 없습니다. 모든 팀(global) 스페이스가 디스크로 내려옵니다. 개인 스페이스는 직접 지정할 때만 포함됩니다.',
-    ja: 'スペース未選択: すべてのチーム（global）スペースをこのコンピュータに同期します。個人スペースは名前を指定したときだけです。',
+    ja: 'スペース未選択:すべてのチーム（global）スペースをこのコンピュータに同期します。個人スペースは名前を指定したときだけです。',
   },
   'settings.sourcesSpaces': {
     en: 'Confluence spaces',
     ko: 'Confluence 스페이스',
-    ja: 'Confluence スペース',
+    ja: 'Confluenceスペース',
   },
   'settings.sourcesSpacesHint': {
     en: 'Only these spaces are synced.',
@@ -179,12 +179,12 @@ export const settings = {
   'settings.sourcesAllGlobal': {
     en: 'Nothing selected — every team (global) space is synced.',
     ko: '선택 없음 — 모든 팀(global) 스페이스를 동기화합니다.',
-    ja: '未選択 — すべてのチーム（global）スペースを同期します。',
+    ja: '未選択—すべてのチーム（global）スペースを同期します。',
   },
   'settings.sourcesNoSpaces': {
     en: 'Nothing selected — no document is synced.',
     ko: '선택 없음 — 동기화되는 문서가 없습니다.',
-    ja: '未選択 — ドキュメントは同期されません。',
+    ja: '未選択—ドキュメントは同期されません。',
   },
   'settings.showPersonalSpaces': {
     en: 'Show personal spaces',
@@ -194,7 +194,7 @@ export const settings = {
   'settings.spacesUnavailable': {
     en: 'Could not read the space list from Confluence.',
     ko: 'Confluence에서 스페이스 목록을 읽지 못했습니다.',
-    ja: 'Confluence からスペース一覧を読めませんでした。',
+    ja: 'Confluenceからスペース一覧を読めませんでした。',
   },
   'settings.sourcesApplyHint': {
     en: 'Saving starts a full sync immediately.',
@@ -214,7 +214,7 @@ export const settings = {
   'settings.scopeHint': {
     en: '↑↓ move · ↵ add · Esc close',
     ko: '↑↓ 이동 · ↵ 추가 · Esc 닫기',
-    ja: '↑↓ 移動 · ↵ 追加 · Esc 閉じる',
+    ja: '↑↓移動· ↵追加· Esc閉じる',
   },
   // GDK-965: what a space costs, on the row where it is chosen. Absent
   // whenever the origin could not answer — the picker says nothing rather
@@ -227,7 +227,7 @@ export const settings = {
   'settings.scopeRemove': {
     en: 'Remove {name}',
     ko: '{name} 제거',
-    ja: '{name} を削除',
+    ja: '{name}を削除',
   },
   'settings.scopeProjectPlaceholder': {
     en: 'Type a project key or name…',
@@ -262,12 +262,12 @@ export const settings = {
   'settings.syncIntervalHint': {
     en: 'How often gadak serve polls Jira for changes. 0 uses the default.',
     ko: 'gadak serve가 Jira 변경을 폴링하는 간격. 0이면 기본값.',
-    ja: 'gadak serve が Jira の変化をポーリングする頻度。0 は既定値です。',
+    ja: 'gadak serveがJiraの変化をポーリングする頻度。0は既定値です。',
   },
   'settings.syncIntervalHintDesktop': {
     en: "How often this window's background sync looks at Jira. 0 uses the default.",
     ko: '이 창의 백그라운드 동기화가 Jira를 보는 간격. 0이면 기본값.',
-    ja: 'このウィンドウのバックグラウンド同期が Jira を見る頻度。0 は既定値です。',
+    ja: 'このウィンドウのバックグラウンド同期がJiraを見る頻度。0は既定値です。',
   },
   'settings.reconcileInterval': {
     en: 'Reconcile interval (deletions)',
@@ -277,12 +277,12 @@ export const settings = {
   'settings.reconcileIntervalHint': {
     en: 'How often gadak serve re-lists keys to drop issues deleted upstream. 0 uses the default.',
     ko: '원본에서 삭제된 이슈를 정리하기 위해 키를 재목록화하는 간격. 0이면 기본값.',
-    ja: 'gadak serve がキーを再一覧して上流で削除された課題を落とす頻度。0 は既定値です。',
+    ja: 'gadak serveがキーを再一覧して上流で削除された課題を落とす頻度。0は既定値です。',
   },
   'settings.reconcileIntervalHintDesktop': {
     en: "How often this window's background sync re-lists keys to drop issues deleted upstream. 0 uses the default.",
     ko: '이 창의 백그라운드 동기화가 원본에서 삭제된 이슈를 정리하려고 키를 재목록화하는 간격. 0이면 기본값.',
-    ja: 'このウィンドウのバックグラウンド同期がキーを再一覧して上流で削除された課題を落とす頻度。0 は既定値です。',
+    ja: 'このウィンドウのバックグラウンド同期がキーを再一覧して上流で削除された課題を落とす頻度。0は既定値です。',
   },
   'settings.intervalApplies': {
     en: 'Applies on the next sync tick; no restart needed.',
@@ -357,7 +357,7 @@ export const settings = {
   'pairing.noIdentityLocal': {
     en: 'No identity — this serve is on the {tracker} tracker, so {issues} opens on {view}.',
     ko: '신원 없음 — 이 serve는 {tracker} 트래커라서 {issues}가 {view}로 열립니다.',
-    ja: 'アイデンティティなし — この serve は{tracker}トラッカーなので、{issues}は{view}で開きます。',
+    ja: 'アイデンティティなし—このserveは{tracker}トラッカーなので、{issues}は{view}で開きます。',
   },
   // One Japanese word for "built-in" across the app: 内蔵 carries a hardware
   // sense and sat one screen away from palette.viewBuiltin's 組み込み, so a
@@ -372,7 +372,7 @@ export const settings = {
   'settings.workspaceBuiltInHint': {
     en: "Your issues live in the built-in tracker, running here. Their only copy is this computer's tracker data file, not gadak.db — back that file up.",
     ko: '이슈는 여기서 도는 내장 트래커에 있습니다. 유일한 사본은 이 컴퓨터의 트래커 데이터 파일이며, 백업 대상은 gadak.db가 아니라 그 파일입니다.',
-    ja: '課題はここで動いている組み込みトラッカーにあります。唯一のコピーはこのコンピュータのトラッカーデータファイルであり、gadak.db ではありません — そのファイルをバックアップしてください。',
+    ja: '課題はここで動いている組み込みトラッカーにあります。唯一のコピーはこのコンピュータのトラッカーデータファイルであり、gadak.dbではありません—そのファイルをバックアップしてください。',
   },
   'settings.builtInHow': {
     en: 'Create a built-in tracker workspace',
@@ -408,7 +408,7 @@ export const settings = {
   'settings.runtimeOriginNote': {
     en: 'The record, not a copy — this is what a backup saves.',
     ko: '사본이 아니라 원본입니다 — 백업이 저장하는 것이 이쪽입니다.',
-    ja: 'コピーではなく原本です — バックアップが保存するのはこちらです。',
+    ja: 'コピーではなく原本です—バックアップが保存するのはこちらです。',
   },
   'settings.runtimeAttachments': {
     en: 'Attachment files',
@@ -418,12 +418,12 @@ export const settings = {
   'settings.runtimeAttachmentsCount': {
     en: '{n} attachment in {files} files|{n} attachments in {files} files',
     ko: '첨부 {n}건, 파일 {files}개',
-    ja: '添付 {n}件・ファイル {files}件',
+    ja: '添付{n}件・ファイル{files}件',
   },
   'settings.runtimeAttachmentsSince': {
     en: 'oldest {date}',
     ko: '가장 오래된 것 {date}',
-    ja: '最も古い添付 {date}',
+    ja: '最も古い添付{date}',
   },
   'settings.runtimeAttachmentsRemote': {
     en: 'on the paired machine',
@@ -443,12 +443,12 @@ export const settings = {
   'settings.runtimeIssues': {
     en: '{n} issue|{n} issues',
     ko: '이슈 {n}건',
-    ja: '課題 {n}件',
+    ja: '課題{n}件',
   },
   'settings.runtimeComments': {
     en: '{n} comment|{n} comments',
     ko: '코멘트 {n}개',
-    ja: 'コメント {n}件',
+    ja: 'コメント{n}件',
   },
   'settings.runtimeSchema': {
     en: 'Schema version',
@@ -473,22 +473,22 @@ export const settings = {
   'settings.runtimeVersion': {
     en: 'gadak version',
     ko: 'gadak 버전',
-    ja: 'gadak バージョン',
+    ja: 'gadakバージョン',
   },
   'settings.runtimeApiCalls': {
     en: 'Jira calls',
     ko: 'Jira 호출',
-    ja: 'Jira 呼び出し',
+    ja: 'Jira呼び出し',
   },
   'settings.runtimeApiToday': {
     en: '{n} today',
     ko: '오늘 {n}회',
-    ja: '今日 {n}回',
+    ja: '今日{n}回',
   },
   'settings.runtimeApiWeek': {
     en: '{n} in 7 days',
     ko: '7일간 {n}회',
-    ja: '7日間で {n}回',
+    ja: '7日間で{n}回',
   },
   'settings.runtimeApiThrottled': {
     en: '{n} throttled',
@@ -508,12 +508,12 @@ export const settings = {
   'settings.copySqlite': {
     en: 'Copy sqlite3 command',
     ko: 'sqlite3 명령 복사',
-    ja: 'sqlite3 コマンドをコピー',
+    ja: 'sqlite3コマンドをコピー',
   },
   'settings.copySqliteDesktop': {
     en: 'Copy sqlite3 command to paste in a terminal',
     ko: '터미널에 붙여넣을 sqlite3 명령 복사',
-    ja: 'ターミナルに貼る sqlite3 コマンドをコピー',
+    ja: 'ターミナルに貼るsqlite3コマンドをコピー',
   },
   'settings.copySqliteLabelDesktop': {
     en: 'sqlite3 (paste in a terminal)',
@@ -528,7 +528,7 @@ export const settings = {
   'settings.personalToken': {
     en: 'Personal Jira API token settings →',
     ko: '개인 Jira API 토큰 설정 →',
-    ja: '個人の Jira API token 設定 →',
+    ja: '個人のJira API token設定→',
   },
   'settings.credsElsewhere': {
     en: 'Credentials are managed in a separate dialog, not here.',
@@ -558,7 +558,7 @@ export const settings = {
   'settings.browserNotifyDesc': {
     en: 'Show a system notification when new feed items arrive while gadak is open. Does not use web push.',
     ko: 'gadak가 열려 있을 때 새 피드 항목이 오면 시스템 알림을 표시합니다. 웹 푸시는 사용하지 않습니다.',
-    ja: 'gadak が開いている間に新しいフィード項目が来たらシステム通知を出します。ウェブプッシュは使いません。',
+    ja: 'gadakが開いている間に新しいフィード項目が来たらシステム通知を出します。ウェブプッシュは使いません。',
   },
   'settings.browserNotifyEnable': {
     en: 'Allow notifications',
@@ -588,17 +588,17 @@ export const settings = {
   'settings.featureDeployDesc': {
     en: 'Per-issue deploy stage — needs an external CI/CD index',
     ko: '이슈별 배포 단계 — 외부 CI/CD 인덱스 필요',
-    ja: '課題ごとのデプロイ段階 — 外部の CI/CD インデックスが必要です',
+    ja: '課題ごとのデプロイ段階—外部のCI/CDインデックスが必要です',
   },
   'settings.featureQa': {
     en: 'QA context',
     ko: 'QA 컨텍스트',
-    ja: 'QA コンテキスト',
+    ja: 'QAコンテキスト',
   },
   'settings.featureQaDesc': {
     en: 'Per-issue test runs and suites — needs an external QA tool',
     ko: '이슈별 테스트 런·스위트 — 외부 QA 도구 필요',
-    ja: '課題ごとのテストランとスイート — 外部の QA ツールが必要です',
+    ja: '課題ごとのテストランとスイート—外部のQAツールが必要です',
   },
   'settings.featureTeams': {
     en: 'Team grouping',
@@ -608,18 +608,18 @@ export const settings = {
   'settings.featureTeamsDesc': {
     en: 'Group members into teams for filters and grouping — configure rules in the Teams tab',
     ko: '멤버를 팀으로 묶어 필터·그룹핑 — 팀 탭에서 규칙 설정',
-    ja: 'メンバーをチームにまとめてフィルターとグループ化に使います — チーム / グループタブで規則を設定',
+    ja: 'メンバーをチームにまとめてフィルターとグループ化に使います—チーム/グループタブで規則を設定',
   },
   'settings.qaDashboardUrl': {
     en: 'QA dashboard URL (optional)',
     ko: 'QA 대시보드 URL (선택)',
-    ja: 'QA ダッシュボード URL（任意）',
+    ja: 'QAダッシュボードURL（任意）',
   },
   /* Integrations tab (desktop app only) */
   'settings.integrationsIntro': {
     en: 'Where your agents reach this local copy. Each install runs the command shown — copy it to run it yourself instead.',
     ko: '에이전트가 이 로컬 사본에 닿는 경로입니다. 설치 버튼은 아래에 적힌 명령을 그대로 실행합니다 — 직접 실행하려면 복사하세요.',
-    ja: 'エージェントがこのローカルコピーに届く経路です。インストールは下のコマンドを実行します — 自分で走らせるならコピーしてください。',
+    ja: 'エージェントがこのローカルコピーに届く経路です。インストールは下のコマンドを実行します—自分で走らせるならコピーしてください。',
   },
   'settings.integrationsLoading': {
     en: 'Reading what is installed…',
@@ -667,7 +667,7 @@ export const settings = {
   'settings.integrationConflictHint': {
     en: 'The file there is not one gadak wrote, so Install leaves it alone. Replace overwrites it with this build’s copy.',
     ko: 'gadak이 쓴 파일이 아니라서 설치는 건드리지 않습니다. 바꾸기를 누르면 이 빌드의 사본으로 덮어씁니다.',
-    ja: 'そこにあるのは gadak が書いたファイルではないため、インストールでは上書きしません。置き換えでこのビルドのコピーに上書きできます。',
+    ja: 'そこにあるのはgadakが書いたファイルではないため、インストールでは上書きしません。置き換えでこのビルドのコピーに上書きできます。',
   },
   'settings.integrationReplace': {
     en: 'Replace',
@@ -687,7 +687,7 @@ export const settings = {
   'settings.integrationUnknownHint': {
     en: 'Detection here is best-effort, so this may already be in place. Re-check, or just run the command — installing again is safe.',
     ko: '이 항목의 감지는 확정이 아니라 이미 설치돼 있을 수도 있습니다. 다시 확인하거나, 그냥 명령을 실행하세요 — 다시 설치해도 안전합니다.',
-    ja: 'ここでの検出は最善努力なので、すでに入っていることもあります。再確認するか、コマンドを実行してください — 再インストールは安全です。',
+    ja: 'ここでの検出は最善努力なので、すでに入っていることもあります。再確認するか、コマンドを実行してください—再インストールは安全です。',
   },
   'settings.integrationResultUnknown': {
     en: 'Result unknown',
@@ -737,7 +737,7 @@ export const settings = {
   'settings.integrationExitCode': {
     en: 'The command exited with code {code}.',
     ko: '명령이 종료 코드 {code}으로 끝났습니다.',
-    ja: 'コマンドは終了コード {code} で終わりました。',
+    ja: 'コマンドは終了コード{code}で終わりました。',
   },
   'settings.integrationBusy': {
     en: 'An install is already running. Its output is not shown here.',
@@ -762,7 +762,7 @@ export const settings = {
   'settings.integrationOkUndetected': {
     en: 'The command reported success, but this still is not detected. It may need the target app restarted — Re-check after that. The output above is what ran.',
     ko: '명령은 성공했다고 보고했지만 아직 감지되지 않습니다. 대상 앱을 재시작한 뒤 다시 확인해 보세요. 위 출력이 실제로 실행된 내용입니다.',
-    ja: 'コマンドは成功と報告しましたが、まだ検出されていません。対象アプリの再起動が必要なことがあります — そのあと再確認してください。上の出力が実際に走った内容です。',
+    ja: 'コマンドは成功と報告しましたが、まだ検出されていません。対象アプリの再起動が必要なことがあります—そのあと再確認してください。上の出力が実際に走った内容です。',
   },
   'settings.integrationPrereq': {
     en: 'Something has to be set up before this can be installed.',
@@ -779,7 +779,7 @@ export const settings = {
   'settings.devicesIntro': {
     en: 'Pair a phone or another gadak with this workspace: mint a pairing offer, let the device scan its QR, and revoke any device here once it is gone.',
     ko: '휴대폰이나 다른 gadak를 이 워크스페이스에 연결합니다: 페어링 오퍼를 발급해 기기가 QR을 스캔하게 하고, 떠난 기기는 여기서 해지하세요.',
-    ja: 'スマホや別の gadak をこのワークスペースに組み込みます：ペアリングオファーを発行して端末に QR をスキャンさせ、いなくなった端末はここで失効させます。',
+    ja: 'スマホや別のgadakをこのワークスペースに組み込みます：ペアリングオファーを発行して端末にQRをスキャンさせ、いなくなった端末はここで失効させます。',
   },
   // GDK-1966: the phone-open card above the pairing section. ko/ja are
   // lead-written — inserted verbatim, never edited here.
@@ -796,7 +796,7 @@ export const settings = {
   'settings.phoneOpen.none': {
     en: 'This serve is reachable only from this machine. Bind it to your tailnet address (gadak serve --addr <tailnet-ip>:7777 --allow-remote) to get a phone address.',
     ko: '이 serve는 이 컴퓨터에서만 닿습니다. 테일넷 주소로 바인드하면(gadak serve --addr <테일넷 IP>:7777 --allow-remote) 폰 주소가 생깁니다.',
-    ja: 'この serve はこのコンピュータからしか届きません。テイルネットのアドレスにバインドすると(gadak serve --addr <テイルネットIP>:7777 --allow-remote)スマートフォン用のアドレスが表示されます。',
+    ja: 'このserveはこのコンピュータからしか届きません。テイルネットのアドレスにバインドすると(gadak serve --addr <テイルネットIP>:7777 --allow-remote)スマートフォン用のアドレスが表示されます。',
   },
   'settings.devicesLoadFailed': {
     en: 'Could not read the device list from the app. Try again, or check the desktop app.',
@@ -816,7 +816,7 @@ export const settings = {
   'settings.devicesUnavailableNotConfigured': {
     en: 'This workspace has no tracker yet — set it up before pairing devices.',
     ko: '이 워크스페이스에는 아직 트래커가 없습니다 — 기기를 연결하기 전에 먼저 설정하세요.',
-    ja: 'このワークスペースにはまだトラッカーがありません — 端末を組み込む前に設定してください。',
+    ja: 'このワークスペースにはまだトラッカーがありません—端末を組み込む前に設定してください。',
   },
   'settings.devicesUnavailablePairedAway': {
     en: 'This workspace is itself paired with another machine. Devices are minted on the home machine.',
@@ -851,7 +851,7 @@ export const settings = {
   'settings.devicesScopeOrigin': {
     en: 'Tracker passthrough (another gadak)',
     ko: '트래커 패스스루 (다른 gadak)',
-    ja: 'トラッカーパススルー（別の gadak）',
+    ja: 'トラッカーパススルー（別のgadak）',
   },
   'settings.devicesScopeLocalRouting': {
     en: 'This machine (routing key)',
@@ -876,7 +876,7 @@ export const settings = {
   'settings.devicesEndpointHint': {
     en: 'Empty uses the live serve address of this machine.',
     ko: '비워 두면 이 머신의 실행 중인 serve 주소를 사용합니다.',
-    ja: '空欄にすると、このマシンの稼働中の serve アドレスを使います。',
+    ja: '空欄にすると、このマシンの稼働中のserveアドレスを使います。',
   },
   'settings.devicesTtlLabel': {
     en: 'Lifetime',
@@ -896,12 +896,12 @@ export const settings = {
   'settings.devicesMinted': {
     en: 'Paired {label}. The offer is reusable until {expires} — scan it with the phone now.',
     ko: '{label} 연결됨. 오퍼는 {expires}까지 재사용 가능합니다 — 지금 휴대폰으로 스캔하세요.',
-    ja: '{label} を組み込みました。オファーは {expires} まで再利用できます — 今すぐスマホでスキャンしてください。',
+    ja: '{label}を組み込みました。オファーは{expires}まで再利用できます—今すぐスマホでスキャンしてください。',
   },
   'settings.devicesLoopbackWarning': {
     en: 'This endpoint is loopback — only a device on this machine can reach it. Use the tailnet URL instead (e.g. https://<machine>.<tailnet>.ts.net).',
     ko: '이 엔드포인트는 루프백입니다 — 이 머신의 기기만 접근할 수 있습니다. 테일넷 URL(예: https://<machine>.<tailnet>.ts.net)을 사용하세요.',
-    ja: 'このエンドポイントはループバックです — このマシンの端末しか届きません。TailnetのURL（例: https://<machine>.<tailnet>.ts.net）を使ってください。',
+    ja: 'このエンドポイントはループバックです—このマシンの端末しか届きません。TailnetのURL（例: https://<machine>.<tailnet>.ts.net）を使ってください。',
   },
   'settings.devicesOfferLabel': {
     en: 'Pairing offer',
@@ -926,7 +926,7 @@ export const settings = {
   'settings.devicesQrAlt': {
     en: 'Pairing QR code',
     ko: '페어링 QR 코드',
-    ja: 'ペアリング QR コード',
+    ja: 'ペアリングQRコード',
   },
   'settings.devicesErrLabelRequired': {
     en: 'Name the device first.',
@@ -936,7 +936,7 @@ export const settings = {
   'settings.devicesErrReservedLabel': {
     en: 'The name _home is the routing key of this machine — pick another name.',
     ko: '_home는 이 머신의 라우팅 키입니다 — 다른 이름을 쓰세요.',
-    ja: '_home はこのマシンのルーティングキーです — 別の名前にしてください。',
+    ja: '_homeはこのマシンのルーティングキーです—別の名前にしてください。',
   },
   'settings.devicesErrBadScope': {
     en: 'That scope cannot be minted here.',
@@ -951,17 +951,17 @@ export const settings = {
   'settings.devicesErrBadTtl': {
     en: 'Lifetime must look like 90d, 12h, 30m, or 45s.',
     ko: '수명은 90d, 12h, 30m, 45s 형식이어야 합니다.',
-    ja: '有効期間は 90d、12h、30m、45s の形である必要があります。',
+    ja: '有効期間は90d、12h、30m、45sの形である必要があります。',
   },
   'settings.devicesErrNoServe': {
     en: 'No live serve found for this workspace — start one, or fill in the endpoint.',
     ko: '이 워크스페이스의 실행 중인 serve를 찾지 못했습니다 — 하나 띄우거나 엔드포인트를 입력하세요.',
-    ja: 'このワークスペースの稼働中のserveが見つかりません — 起動するか、エンドポイントを入力してください。',
+    ja: 'このワークスペースの稼働中のserveが見つかりません—起動するか、エンドポイントを入力してください。',
   },
   'settings.devicesErrLabelExists': {
     en: 'An active token named {label} already exists — revoke it first, or pick another name.',
     ko: '이름이 {label}인 활성 토큰이 이미 있습니다 — 먼저 해지하거나 다른 이름을 쓰세요.',
-    ja: '{label} という名前の有効なトークンがすでにあります — 先に失効させるか、別の名前にしてください。',
+    ja: '{label}という名前の有効なトークンがすでにあります—先に失効させるか、別の名前にしてください。',
   },
   'settings.devicesErrFailed': {
     en: 'The mint failed.',
@@ -1020,12 +1020,12 @@ export const settings = {
   'settings.identitySaved': {
     en: 'Saved. Writes are recorded as {name}.',
     ko: '저장했습니다. 쓰기는 {name} 이름으로 남습니다.',
-    ja: '保存しました。書き込みは {name} の名前で記録されます。',
+    ja: '保存しました。書き込みは{name}の名前で記録されます。',
   },
   'settings.workspacesIntro': {
     en: 'Each workspace is its own local copy, served at /w/<name>/. Creating one seeds a built-in tracker; removing one deletes this machine’s copy of it.',
     ko: '각 워크스페이스는 자체 로컬 사본을 가지며 /w/<name>/ 으로 서빙됩니다. 만들면 내장 트래커가 시드되고, 지우면 이 머신의 사본이 삭제됩니다.',
-    ja: '各ワークスペースは独自のローカルコピーを持ち、/w/<name>/ で serve されます。作成すると組み込みトラッカーがシードされ、削除するとこのマシンのコピーが消えます。',
+    ja: '各ワークスペースは独自のローカルコピーを持ち、/w/<name>/でserveされます。作成すると組み込みトラッカーがシードされ、削除するとこのマシンのコピーが消えます。',
   },
   'settings.workspacesLoading': {
     en: 'Loading workspaces…',
@@ -1070,7 +1070,7 @@ export const settings = {
   'settings.workspacesActiveHint': {
     en: 'This is the workspace this serve is running on. Stop serve first, then remove it from a terminal.',
     ko: '현재 serve가 이 워크스페이스 위에서 돌고 있습니다. serve를 멈춘 뒤 터미널에서 제거하세요.',
-    ja: 'この serve はこのワークスペース上で動いています。先に serve を止め、端末から解除してください。',
+    ja: 'このserveはこのワークスペース上で動いています。先にserveを止め、端末から解除してください。',
   },
   'settings.workspacesNameLabel': {
     en: 'Workspace name',
@@ -1105,7 +1105,7 @@ export const settings = {
   'settings.workspacesPairHint': {
     en: 'Paste the one-line code `gadak pairing mint` printed on the home machine.',
     ko: '홈 머신에서 `gadak pairing mint`가 출력한 한 줄 코드를 붙여넣으세요.',
-    ja: 'ホームマシンで `gadak pairing mint` が出力した一行コードを貼り付けてください。',
+    ja: 'ホームマシンで`gadak pairing mint`が出力した一行コードを貼り付けてください。',
   },
   'settings.workspacesPair': {
     en: 'Register workspace',
@@ -1130,7 +1130,7 @@ export const settings = {
   'settings.workspacesErrExists': {
     en: 'A workspace named {name} already exists.',
     ko: '{name}(이)라는 워크스페이스가 이미 있습니다.',
-    ja: '{name} というワークスペースは既に存在します。',
+    ja: '{name}というワークスペースは既に存在します。',
   },
   'settings.workspacesErrInvalidName': {
     en: 'That name cannot be used for a workspace.',
@@ -1198,7 +1198,7 @@ export const settings = {
   'settings.addRow': {
     en: '+ Add row',
     ko: '+ 행 추가',
-    ja: '+ 行を追加',
+    ja: '+行を追加',
   },
   'settings.deleteRow': {
     en: 'Delete row',
@@ -1213,7 +1213,7 @@ export const settings = {
   'settings.groupToProduct': {
     en: 'Group → product',
     ko: '그룹 → 제품',
-    ja: 'グループ → 製品',
+    ja: 'グループ→製品',
   },
   'settings.productKey': {
     en: 'Product key',
@@ -1253,17 +1253,17 @@ export const settings = {
   'settings.rulesDetail': {
     en: '. Conditions in a row are AND; values within a list are OR; empty conditions always match.',
     ko: '. 한 행의 조건들은 AND, 각 목록 안은 OR, 빈 조건은 항상 참입니다.',
-    ja: '。行内の条件は AND、リスト内の値は OR、空の条件は常に一致します。',
+    ja: '。行内の条件はAND、リスト内の値はOR、空の条件は常に一致します。',
   },
   'settings.groupQuery': {
     en: 'Classification SQL',
     ko: '분류 SQL',
-    ja: '分類 SQL',
+    ja: '分類SQL',
   },
   'settings.groupQueryHint': {
     en: "Optional. One SELECT or WITH returning (issue key, group). Empty group = unclassified. NULL or a missing key falls through to the rules above, then the assignee's member group. Runs when the list is rebuilt, not on each keystroke. Site-specific logic belongs here, not in the binary.",
     ko: '선택. (이슈 키, 그룹)을 돌려주는 SELECT/WITH 하나. 빈 그룹은 미분류, NULL이거나 빠진 키는 위 규칙 → 담당자 멤버 그룹으로 넘어갑니다. 목록을 다시 만들 때만 실행되며 키 입력마다 돌지 않습니다. 사이트 고유 로직은 바이너리가 아니라 여기에 둡니다.',
-    ja: '任意。（課題キー、グループ）を返す SELECT または WITH ひとつ。空のグループは未分類。NULL や欠けたキーは上の規則、その次に担当者のメンバーグループへ落ちます。一覧を再構築するときに走り、キー入力のたびに走りません。サイト固有のロジックはバイナリではなくここに置きます。',
+    ja: '任意。（課題キー、グループ）を返すSELECTまたはWITHひとつ。空のグループは未分類。NULLや欠けたキーは上の規則、その次に担当者のメンバーグループへ落ちます。一覧を再構築するときに走り、キー入力のたびに走りません。サイト固有のロジックはバイナリではなくここに置きます。',
   },
   'settings.projectsCol': {
     en: 'Projects',
@@ -1288,7 +1288,7 @@ export const settings = {
   'settings.memberAccountId': {
     en: 'Jira accountId',
     ko: 'Jira 계정 ID',
-    ja: 'Jira アカウント ID',
+    ja: 'JiraアカウントID',
   },
   'settings.displayName': {
     en: 'Display name',
@@ -1308,17 +1308,17 @@ export const settings = {
   'settings.avatarUrl': {
     en: 'Avatar URL',
     ko: '아바타 URL',
-    ja: 'アバター URL',
+    ja: 'アバターURL',
   },
   'settings.addMember': {
     en: '+ Add member',
     ko: '+ 멤버 추가',
-    ja: '+ メンバーを追加',
+    ja: '+メンバーを追加',
   },
   'settings.membersEmpty': {
     en: 'No members yet — add one to seed the workspace.',
     ko: '아직 멤버가 없습니다 — 워크스페이스에 첫 멤버를 추가하세요.',
-    ja: 'まだメンバーがいません — 最初のメンバーを追加してください。',
+    ja: 'まだメンバーがいません—最初のメンバーを追加してください。',
   },
   'settings.discoveredFields': {
     en: 'Discovered fields',
@@ -1328,12 +1328,12 @@ export const settings = {
   'settings.discoveredFieldsHint': {
     en: 'Auto-detected from your Jira on the first full sync. Edits here are pinned and survive re-discovery; `gadak fields --apply` re-runs detection.',
     ko: '첫 전체 동기화에서 Jira로부터 자동 탐지됩니다. 여기서 수정하면 고정되어 재탐지에도 유지되고, `gadak fields --apply`로 재탐지할 수 있습니다.',
-    ja: '最初の全同期で Jira から自動検出されます。ここの編集はピンされ、再検出後も残ります。`gadak fields --apply` で検出を再実行します。',
+    ja: '最初の全同期でJiraから自動検出されます。ここの編集はピンされ、再検出後も残ります。`gadak fields --apply`で検出を再実行します。',
   },
   'settings.noDiscoveredFields': {
     en: 'Nothing discovered yet — run a full sync first.',
     ko: '아직 발견된 필드가 없습니다 — 전체 동기화를 먼저 실행하세요.',
-    ja: 'まだ検出がありません — 先に全同期を実行してください。',
+    ja: 'まだ検出がありません—先に全同期を実行してください。',
   },
   'settings.pinned': {
     en: 'pinned',
@@ -1395,17 +1395,17 @@ export const settings = {
   'settings.adfSearchFields': {
     en: 'ADF custom field ids to include in body search (comma-separated)',
     ko: '본문 검색에 합칠 ADF 커스텀필드 id (콤마 구분)',
-    ja: '本文検索に含める ADF カスタムフィールド id（カンマ区切り）',
+    ja: '本文検索に含めるADFカスタムフィールドid（カンマ区切り）',
   },
   'settings.advancedJson': {
     en: 'Advanced — edit JSON',
     ko: '고급 — JSON 직접 편집',
-    ja: '上級 — JSON を編集',
+    ja: '上級— JSONを編集',
   },
   'settings.jsonHint': {
     en: 'Last edit wins between form and JSON. Expanding refills from the current form.',
     ko: '폼과 JSON은 마지막 수정이 이깁니다. 펼칠 때마다 현재 폼 값으로 다시 채워집니다.',
-    ja: 'フォームと JSON は最後の編集が勝ちます。展開するたびに現在のフォームから埋め直します。',
+    ja: 'フォームとJSONは最後の編集が勝ちます。展開するたびに現在のフォームから埋め直します。',
   },
   'settings.locale': {
     en: 'Language',
@@ -1430,7 +1430,7 @@ export const settings = {
   'settings.builtInCommandHint': {
     en: '<name> is the workspace name you choose.',
     ko: '<name>은 직접 정하는 워크스페이스 이름입니다.',
-    ja: '<name> は自分で決めるワークスペース名です。',
+    ja: '<name>は自分で決めるワークスペース名です。',
   },
   /* ── Theme (per-browser; settings + palette) ── */
   'theme.label': {
@@ -1499,24 +1499,24 @@ export const settings = {
   'settings.hostedViewer': {
     en: 'Signed in as {name} ({login}) via Tailscale',
     ko: 'Tailscale 계정 {name}({login})으로 보고 있습니다.',
-    ja: 'Tailscale アカウント {name}({login})として表示しています。',
+    ja: 'Tailscaleアカウント{name}({login})として表示しています。',
   },
   'settings.hostedNoViewer': {
     en: 'No viewer identity — this serve is reached directly, not through tailscale serve. Writes attribute to the workspace owner.',
     ko: '보는 사람 정보가 없습니다. tailscale serve를 거치지 않고 바로 붙은 연결이라, 쓰기는 워크스페이스 소유자 이름으로 남습니다.',
-    ja: '閲覧者情報がありません。tailscale serve を経由しない直接接続のため、書き込みはワークスペース所有者の名前で記録されます。',
+    ja: '閲覧者情報がありません。tailscale serveを経由しない直接接続のため、書き込みはワークスペース所有者の名前で記録されます。',
   },
   // GDK-1973: the same no-viewer connection once a name is declared here.
   // ko/ja are lead-written — inserted verbatim, never edited here.
   'settings.hostedDeclared': {
     en: 'Reached directly, not through tailscale serve. Writes are recorded as {name}, a name you chose here; it is not verified.',
     ko: 'tailscale serve를 거치지 않고 바로 붙은 연결입니다. 쓰기는 여기서 직접 정한 이름 {name}으로 남으며, 검증된 이름은 아닙니다.',
-    ja: 'tailscale serve を経由しない直接接続です。書き込みはここで自分で決めた名前 {name} で記録されます。検証された名前ではありません。',
+    ja: 'tailscale serveを経由しない直接接続です。書き込みはここで自分で決めた名前{name}で記録されます。検証された名前ではありません。',
   },
   'settings.hostedUnreachable': {
     en: 'This page is not served by gadak serve — open the address the desktop shows under "Open on your phone".',
     ko: '이 페이지는 gadak serve가 서빙한 것이 아닙니다. 데스크톱의 "폰에서 열기"에 나온 주소를 여세요.',
-    ja: 'このページは gadak serve が配信したものではありません。デスクトップの「スマートフォンで開く」に表示されたアドレスを開いてください。',
+    ja: 'このページはgadak serveが配信したものではありません。デスクトップの「スマートフォンで開く」に表示されたアドレスを開いてください。',
   },
   'settings.hostedAddHome': {
     en: 'Add this page to your Home Screen: it opens full-screen, and a swipe never leaves the page.',
@@ -1556,7 +1556,7 @@ export const settings = {
   'settings.terminalFontSize': {
     en: 'Font size (px)',
     ko: '글자 크기 (px)',
-    ja: '文字サイズ (px)',
+    ja: '文字サイズ(px)',
   },
   'settings.terminalFontFamily': {
     en: 'Font family',
@@ -1566,7 +1566,7 @@ export const settings = {
   'settings.terminalTextDesc': {
     en: 'Saved with the form. Empty means the default; size between 9 and 24, larger or smaller saves with a warning. A terminal that is already open keeps its text until it is opened again.',
     ko: '저장 버튼으로 반영됩니다. 비우면 기본값, 크기는 9–24 사이이며 벗어나면 경고와 함께 저장됩니다. 이미 열린 터미널은 다시 열 때까지 이전 글자를 유지합니다.',
-    ja: '保存で反映されます。空欄は既定値、サイズは 9〜24 で、外れると警告付きで保存されます。すでに開いているターミナルは、次に開くまで以前の文字のままです。',
+    ja: '保存で反映されます。空欄は既定値、サイズは9〜24で、外れると警告付きで保存されます。すでに開いているターミナルは、次に開くまで以前の文字のままです。',
   },
   'settings.terminalBehavior': {
     en: 'Behavior',
@@ -1581,7 +1581,7 @@ export const settings = {
   'settings.terminalScrollbackDesc': {
     en: 'Empty means 5000; between 200 and 100000, anything else is refused on Save.',
     ko: '비우면 5000. 200–100000 사이이며 벗어나면 저장이 거절됩니다.',
-    ja: '空欄は 5000。200〜100000 の範囲で、外れると保存が拒否されます。',
+    ja: '空欄は5000。200〜100000の範囲で、外れると保存が拒否されます。',
   },
   'settings.terminalCursorBlink': {
     en: 'Blinking cursor',
@@ -1647,7 +1647,7 @@ export const settings = {
   'palette.entryTitle': {
     en: 'Search everything ({shortcut})',
     ko: '전체 검색 ({shortcut})',
-    ja: 'すべてを検索 ({shortcut})',
+    ja: 'すべてを検索({shortcut})',
   },
   // Sub line of the session row the palette puts under a matched issue
   // (GDK-1196). The label is the issue key; this says what the row does.
@@ -1666,7 +1666,7 @@ export const settings = {
   'palette.docCount': {
     en: '{shown} of {total}',
     ko: '{total}개 중 {shown}개',
-    ja: '{total}件中 {shown}件',
+    ja: '{total}件中{shown}件',
   },
   'palette.sectionDocs': {
     en: 'Documents',
@@ -1686,7 +1686,7 @@ export const settings = {
   'palette.actionSwitchWorkspace': {
     en: 'Switch to {name}',
     ko: '{name} 워크스페이스로 전환',
-    ja: '{name} に切り替え',
+    ja: '{name}に切り替え',
   },
   'palette.sectionActions': {
     en: 'Actions',
@@ -1711,7 +1711,7 @@ export const settings = {
   'palette.hintNav': {
     en: '↑↓ move · ↵ run · Esc close',
     ko: '↑↓ 이동 · ↵ 실행 · Esc 닫기',
-    ja: '↑↓ 移動 · ↵ 実行 · Esc 閉じる',
+    ja: '↑↓移動· ↵実行· Esc閉じる',
   },
   'palette.hintHelp': {
     en: 'shortcuts',
@@ -1734,7 +1734,7 @@ export const settings = {
   'palette.viewSource': {
     en: 'Jira filter',
     ko: 'Jira 필터',
-    ja: 'Jira フィルター',
+    ja: 'Jiraフィルター',
   },
   // What a saved view opens, from its own config (GDK-191). The plural keys
   // carry their own singular (GDK-1947), but the two *One keys stay: their ja
@@ -1749,7 +1749,7 @@ export const settings = {
   'palette.viewKeyOne': {
     en: '1 key',
     ko: '키 1개',
-    ja: 'キー 1件',
+    ja: 'キー1件',
   },
   'palette.viewKeys': {
     en: '{n} key|{n} keys',
@@ -1759,7 +1759,7 @@ export const settings = {
   'palette.viewFilterOne': {
     en: '1 filter',
     ko: '필터 1개',
-    ja: 'フィルター 1件',
+    ja: 'フィルター1件',
   },
   'palette.viewFilters': {
     en: '{n} filter|{n} filters',
@@ -1796,7 +1796,7 @@ export const settings = {
   'palette.actionCopyIssueLink': {
     en: 'Copy link · {key}',
     ko: '링크 복사 · {key}',
-    ja: 'リンクをコピー · {key}',
+    ja: 'リンクをコピー· {key}',
   },
   // The ellipsis is the promise: the row opens the field that takes a name,
   // it does not save on Enter.
@@ -1820,7 +1820,7 @@ export const settings = {
   'palette.actionTerminalShape': {
     en: 'Terminal: fill the window or dock it',
     ko: '터미널: 창 전체 / 아래 도크 전환',
-    ja: 'ターミナル: ウィンドウ全体と下部ドックを切り替え',
+    ja: 'ターミナル:ウィンドウ全体と下部ドックを切り替え',
   },
   'palette.actionFeed': {
     en: 'Open feed',
@@ -1830,22 +1830,22 @@ export const settings = {
   'palette.actionFavorite': {
     en: 'Favorite · {key}',
     ko: '즐겨찾기 · {key}',
-    ja: 'お気に入り · {key}',
+    ja: 'お気に入り· {key}',
   },
   'palette.actionUnfavorite': {
     en: 'Unfavorite · {key}',
     ko: '즐겨찾기 해제 · {key}',
-    ja: 'お気に入りを解除 · {key}',
+    ja: 'お気に入りを解除· {key}',
   },
   'palette.actionWatch': {
     en: 'Watch · {key}',
     ko: '지켜보기 · {key}',
-    ja: 'ウォッチ · {key}',
+    ja: 'ウォッチ· {key}',
   },
   'palette.actionUnwatch': {
     en: 'Unwatch · {key}',
     ko: '지켜보기 해제 · {key}',
-    ja: 'ウォッチを解除 · {key}',
+    ja: 'ウォッチを解除· {key}',
   },
   'palette.actionToggleReopened': {
     en: 'Toggle reopened filter',
@@ -1865,12 +1865,12 @@ export const settings = {
   'palette.actionLocale': {
     en: 'Switch language to {lang}',
     ko: '언어를 {lang}로 전환',
-    ja: '言語を {lang} に切り替え',
+    ja: '言語を{lang}に切り替え',
   },
   'palette.actionTheme': {
     en: 'Switch theme to {mode}',
     ko: '테마를 {mode}로 전환',
-    ja: 'テーマを {mode} に切り替え',
+    ja: 'テーマを{mode}に切り替え',
   },
   'palette.actionSyncStatus': {
     en: 'Show sync status',
@@ -1885,7 +1885,7 @@ export const settings = {
   'palette.syncToast': {
     en: '{overall} · synced {when}',
     ko: '{overall} · 동기화 {when}',
-    ja: '{overall} · 同期 {when}',
+    ja: '{overall} ·同期{when}',
   },
   'palette.triageSelected': {
     en: '{n} selected',
@@ -1895,42 +1895,42 @@ export const settings = {
   'palette.actionTriageStatus': {
     en: 'Change status · {target}',
     ko: '상태 변경 · {target}',
-    ja: 'ステータスを変更 · {target}',
+    ja: 'ステータスを変更· {target}',
   },
   'palette.actionTriagePriority': {
     en: 'Change priority · {target}',
     ko: '우선순위 변경 · {target}',
-    ja: '優先度を変更 · {target}',
+    ja: '優先度を変更· {target}',
   },
   'palette.actionTriageAssignee': {
     en: 'Change assignee · {target}',
     ko: '담당자 변경 · {target}',
-    ja: '担当者を変更 · {target}',
+    ja: '担当者を変更· {target}',
   },
   'palette.actionTriageLabels': {
     en: 'Change labels · {target}',
     ko: '라벨 변경 · {target}',
-    ja: 'ラベルを変更 · {target}',
+    ja: 'ラベルを変更· {target}',
   },
   'palette.actionTriageComment': {
     en: 'Comment on {key}',
     ko: '{key}에 코멘트',
-    ja: '{key} にコメント',
+    ja: '{key}にコメント',
   },
   'palette.actionTriageSelect': {
     en: 'Select {key}',
     ko: '{key} 선택',
-    ja: '{key} を選択',
+    ja: '{key}を選択',
   },
   'palette.actionTriageDeselect': {
     en: 'Deselect {key}',
     ko: '{key} 선택 해제',
-    ja: '{key} の選択を解除',
+    ja: '{key}の選択を解除',
   },
   'palette.actionTriageClear': {
     en: 'Clear selection ({n})',
     ko: '선택 해제 ({n})',
-    ja: '選択をクリア ({n})',
+    ja: '選択をクリア({n})',
   },
   /* ── Sync now (shared) ── */
   'sync.starting': {
@@ -1941,7 +1941,7 @@ export const settings = {
   'sync.done': {
     en: 'Sync finished · fetched {n} · changed {changed}',
     ko: '동기화 완료 · 가져옴 {n} · 변경 {changed}',
-    ja: '同期完了 · 取得 {n}件 · 変更 {changed}件。',
+    ja: '同期完了·取得{n}件·変更{changed}件。',
   },
   'sync.failed': {
     en: 'Sync failed: {message}',
@@ -1952,7 +1952,7 @@ export const settings = {
   'sync.frozen': {
     en: 'This workspace is frozen — nothing goes to the tracker, syncs or writes. Unfreeze with `gadak config set frozen false`.',
     ko: '이 워크스페이스는 동결되어 트래커로 아무것도 나가지 않습니다 — 동기화도 쓰기도요. `gadak config set frozen false`로 해제합니다.',
-    ja: 'このワークスペースは凍結されています — トラッカーへは同期も書き込みも行きません。`gadak config set frozen false` で解除します。',
+    ja: 'このワークスペースは凍結されています—トラッカーへは同期も書き込みも行きません。`gadak config set frozen false`で解除します。',
   },
   // Jira landed, a second source did not. Naming it keeps a wiki permission
   // error from reading as "none of this worked".
@@ -1976,7 +1976,7 @@ export const settings = {
   'sync.busyIssuesN': {
     en: 'Syncing issues · {n}',
     ko: '이슈 동기화 중 · {n}',
-    ja: '課題を同期中 · {n}',
+    ja: '課題を同期中· {n}',
   },
   'sync.busyDocuments': {
     en: 'Fetching documents…',
@@ -1986,7 +1986,7 @@ export const settings = {
   'sync.busyDocumentsN': {
     en: 'Fetching documents · {n}',
     ko: '문서를 가져오는 중 · {n}',
-    ja: 'ドキュメントを取得中 · {n}',
+    ja: 'ドキュメントを取得中· {n}',
   },
   // At rest: the verdict and the age together, so neither surface has to be
   // read alongside the other to mean anything.
@@ -1997,7 +1997,7 @@ export const settings = {
   'sync.settledLocalWhen': {
     en: 'Saved on this machine · {when}',
     ko: '이 컴퓨터에 저장됨 · {when}',
-    ja: 'この端末に保存済み · {when}',
+    ja: 'この端末に保存済み· {when}',
   },
   // ja put the token in front of the verb, which reads as a compound noun
   // and produced 「たった今同期」 in frame (2026-09-12). Its four siblings in
@@ -2006,17 +2006,17 @@ export const settings = {
   'sync.settledOk': {
     en: 'Synced {when}',
     ko: '{when} 동기화됨',
-    ja: '同期済み · {when}',
+    ja: '同期済み· {when}',
   },
   'sync.settledDelayedWhen': {
     en: 'Sync delayed · {when}',
     ko: '동기화 지연 · {when}',
-    ja: '同期遅延 · {when}',
+    ja: '同期遅延· {when}',
   },
   'sync.settledFailedWhen': {
     en: 'Sync failed · {when}',
     ko: '동기화 실패 · {when}',
-    ja: '同期失敗 · {when}',
+    ja: '同期失敗· {when}',
   },
   'sync.settledFailed': {
     en: 'Sync failed',
@@ -2101,12 +2101,12 @@ export const settings = {
   'sync.noHistory': {
     en: 'No recorded runs yet — history keeps syncs that changed something.',
     ko: '기록된 내역이 없습니다 — 변경이 있었던 동기화만 남습니다.',
-    ja: '記録された実行はまだありません — 何かが変わった同期だけが残ります。',
+    ja: '記録された実行はまだありません—何かが変わった同期だけが残ります。',
   },
   'sync.lastChecked': {
     en: 'Last checked {when}',
     ko: '마지막 확인 {when}',
-    ja: '最終確認 {when}',
+    ja: '最終確認{when}',
   },
   /*
    * The freshness chip's own vocabulary (local copy ↔ tracker leg). GDK-1817:
@@ -2125,17 +2125,17 @@ export const settings = {
   'sync.freshTitle': {
     en: 'Mirror pulled from {tracker} {when}. Click to sync now.',
     ko: '{when} {tracker}에서 가져온 캐시입니다. 클릭하면 지금 동기화합니다.',
-    ja: '{tracker} から {when} 取得したキャッシュです。クリックで今すぐ同期します。',
+    ja: '{tracker}から{when}取得したキャッシュです。クリックで今すぐ同期します。',
   },
   'sync.freshLocalTitle': {
     en: 'Mirror refreshed from the built-in tracker {when}. Click to sync now.',
     ko: '내장 트래커에서 {when} 갱신한 캐시입니다. 클릭하면 지금 동기화합니다.',
-    ja: '組み込みトラッカーから {when} 更新したキャッシュです。クリックで今すぐ同期します。',
+    ja: '組み込みトラッカーから{when}更新したキャッシュです。クリックで今すぐ同期します。',
   },
   'sync.staleTitle': {
     en: 'Mirror is behind — last successful sync {when}. Click to sync now.',
     ko: '캐시가 뒤처졌습니다 — 마지막 성공 동기화 {when}. 클릭하면 지금 동기화합니다.',
-    ja: 'キャッシュが遅れています — 最後の成功同期は {when}。クリックで今すぐ同期します。',
+    ja: 'キャッシュが遅れています—最後の成功同期は{when}。クリックで今すぐ同期します。',
   },
   'sync.failedTitle': {
     en: 'Last sync failed: {message}\nClick to retry.',
@@ -2150,7 +2150,7 @@ export const settings = {
   'sync.tokenExpiring': {
     en: 'Token expires in {n} day|Token expires in {n} days',
     ko: '토큰이 {n}일 후 만료',
-    ja: 'トークンは {n} 日後に期限切れ',
+    ja: 'トークンは{n}日後に期限切れ',
   },
   'sync.tokenExpiringToday': {
     en: 'Token expires today',
@@ -2160,6 +2160,6 @@ export const settings = {
   'sync.tokenExpired': {
     en: 'API token expired',
     ko: 'API 토큰 만료됨',
-    ja: 'API token の期限切れ',
+    ja: 'API tokenの期限切れ',
   },
 } as const satisfies Record<string, Message>

@@ -9,7 +9,7 @@ export const common = {
   'common.closeEsc': {
     en: 'Close (Esc)',
     ko: '닫기 (Esc)',
-    ja: '閉じる (Esc)',
+    ja: '閉じる(Esc)',
   },
   'common.cancel': {
     en: 'Cancel',

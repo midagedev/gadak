@@ -25,18 +25,18 @@ export const personal = {
   'personal.feedHint': {
     en: 'Changes on my issues + comments that mention me',
     ko: '내 이슈 변화 + 나를 멘션한 코멘트',
-    ja: '自分の課題の変化 + 自分宛メンションのコメント',
+    ja: '自分の課題の変化+自分宛メンションのコメント',
   },
   'personal.needCredentials': {
     en: 'Set credentials to see your feed and reported issues →',
     ko: '자격증명을 설정하면 피드와 내가 보고한 이슈가 여기 모입니다 →',
-    ja: '資格情報を設定すると、フィードと自分が報告した課題がここに集まります →',
+    ja: '資格情報を設定すると、フィードと自分が報告した課題がここに集まります→',
   },
   'personal.demoNoIdentity': {
     // GDK-1189, same reordering: the demo has no Jira account by design.
     en: 'The demo runs without a Jira account, so there is no personal feed.',
     ko: '데모는 Jira 계정 없이 돌아갑니다. 그래서 개인 피드가 없습니다.',
-    ja: 'デモは Jira アカウントなしで動きます。そのため個人フィードはありません。',
+    ja: 'デモはJiraアカウントなしで動きます。そのため個人フィードはありません。',
   },
   /* GDK-1122: built-in has no credential to offer a dialog for, so this
      note replaces the needCredentials CTA there. */
@@ -52,22 +52,22 @@ export const personal = {
   'personal.favoriteAria': {
     en: 'Favorite {key}',
     ko: '{key} 즐겨찾기',
-    ja: '{key} をお気に入り',
+    ja: '{key}をお気に入り',
   },
   'personal.unfavoriteAria': {
     en: 'Unfavorite {key}',
     ko: '{key} 즐겨찾기 해제',
-    ja: '{key} のお気に入りを解除',
+    ja: '{key}のお気に入りを解除',
   },
   'personal.watchOn': {
     en: 'Watching — status/comment/reopen alerts on',
     ko: '지켜보는 중 — 상태 변경/코멘트/재오픈 알림',
-    ja: 'ウォッチ中 — ステータス / コメント / 再オープンの通知オン',
+    ja: 'ウォッチ中—ステータス/コメント/再オープンの通知オン',
   },
   'personal.watchOff': {
     en: 'Watch — status/comment/reopen alerts',
     ko: '지켜보기 — 상태 변경/코멘트/재오픈 알림',
-    ja: 'ウォッチ — ステータス / コメント / 再オープンの通知',
+    ja: 'ウォッチ—ステータス/コメント/再オープンの通知',
   },
   'personal.watchNeedCredentials': {
     en: 'Set credentials to watch',
@@ -93,7 +93,7 @@ export const personal = {
   'feed.needCredentials': {
     en: 'Set your Jira credentials first',
     ko: '먼저 Jira 자격증명을 설정하세요',
-    ja: '先に Jira 資格情報を設定してください',
+    ja: '先にJira資格情報を設定してください',
   },
   'feed.loading': {
     en: 'Loading feed…',
@@ -114,13 +114,13 @@ export const personal = {
   'feed.unreadCount': {
     en: '{n} unread',
     ko: '안 읽은 활동 {n}건',
-    ja: '未読 {n}件',
+    ja: '未読{n}件',
   },
   // GDK-1590: the feed day header's total (title beside the bare number).
   'feed.dayTotal': {
     en: '{n} event|{n} events',
     ko: '활동 {n}건',
-    ja: '活動 {n}件',
+    ja: '活動{n}件',
   },
   'feed.filterAll': {
     en: 'All',

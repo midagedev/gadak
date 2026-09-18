@@ -60,8 +60,13 @@ test.describe('locale', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'ja-JP')
     // ja.ts: sidebar.settings
     await expect(page.getByRole('button', { name: '設定', exact: true })).toBeVisible()
-    // ja.ts: filter.add
-    await expect(page.getByRole('button', { name: '+ フィルター' })).toBeVisible()
+    // ja.ts: filter.add. No space after the `+`: GDK-2012 (2026-09-18) put the
+    // message catalogues under tools/ja-spacing.py, which deletes every ASCII
+    // space touching a Japanese character, and this label is one of the four
+    // `+ <Japanese>` buttons it reached. The assertion follows its subject —
+    // it still asserts the ja catalogue renders, on the string the catalogue
+    // now holds.
+    await expect(page.getByRole('button', { name: '+フィルター' })).toBeVisible()
     await expect(page.getByTestId('list-count')).toHaveText(/\d+件/)
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
