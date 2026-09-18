@@ -9,6 +9,78 @@ A cycle's section carries four things: the base SHA the census measured, the
 fourteen axes with a verdict each (an axis nobody ran says so and why), the
 baseline numbers against the previous cycle, and where the findings went.
 
+## v0.24 cycle — base `a3beaa39`, census 2026-09-18
+
+The v0.23 pass closed at `4c0d5e35` and **24 commits** landed after it,
+carrying three Unreleased themes — the phone terminal, the phone's list
+header, and Korean and Japanese reading whole. This cycle is the runbook's
+full fourteen-axis run over that tree. Parent issue: GDK-2001.
+
+The rounds ran on **agy (gemini-3.8-flash-high)** by the user's choice, until
+the plan's individual quota returned 429 with a four-and-a-half-hour reset;
+axes 4, 7, 11 and 12 finished on GLM-5.3 instead, and the substitution is
+recorded here rather than left to be inferred from the logs. Axes 8 and 10
+stayed with the lead, as every cycle, because the judgment in them is
+narrative.
+
+One backend trap came out of it and is now written down in the outsource
+skill (`references/agy.md`, commit `0634a33` there): an agy round can start
+its own background task and hand the turn back saying it will continue when
+that finishes. There is no later turn — the launcher takes the turn as the
+report. Only the absent `--done-marker` caught it (exit 72), which is the
+whole reason that flag exists.
+
+| # | axis | verdict |
+|---|---|---|
+| 1 | Go philosophy | **ran** — `warmAttachments` spawned five goroutines outside `jobsWG` and rooted at `context.Background()`, so `Shutdown` returned with a warm fetch in flight and the next mirror query ran against a closed handle (GDK-2000, **defect**, landed `48200d5c`). Findings: seven files over 1,500 lines and 30 commits (GDK-2010), and four small Go items — a pipe leak on an unreachable path, an unsynchronised package global, an unbounded `changelog` scan in `SprintBurnup`, a parameter named `id` that carries a cache key (GDK-2011) |
+| 2 | Svelte philosophy | **ran — both defects rejected, on the record.** The `lastDetail` memo cell the round called an impure template mutation is a plain `let`, not `$state`, so Svelte's purity rule does not reach it and the write is idempotent (GDK-2022). The deep-link teardown race is real in shape but has no path: that `$effect` reads no rune state — `deepLinks` is a `const`, and everything before `bindOsDeepLinks`'s first `await` is `runtimeMode()` — so it never re-runs, and App is the root (GDK-2023, demoted to a note for whoever next edits the file) |
+| 3 | App shells | **ran** — `transport.ts`'s comment still said the Rust pairing boundary "is filed, not built (GDK-897)" while `src-tauri/src/shell.rs` has carried it for a cycle; a security comment that says a boundary is open is the expensive direction to be wrong in (GDK-2007). Also: `desktop/pairing.go` classifies `pairflow` errors by substring, so rewording one sentence silently turns a 400 into a 500 (GDK-2008); and the phone's TypeScript dial scope admits loopback on packaged iOS where the capability file and `shell.rs` both refuse it, so the refusal reaches the user as "network error" (GDK-2009) |
+| 4 | Simplify | **ran — measured zero, and that is the result.** Deletable lines 0 across every class: unread CLI flags 0 of 132, unread env names 0 of 29, config keys with no reader 0, declaration-only exports 0, compatibility paths whose other side is gone 0 of 5, byte-identical tracked duplicates 0. No growth backlog either — net +900 Go over the window, and the top four packages are all defect or feature work. What is left is surface, not lines: 228 Go and 27 TS identifiers exported past their only reader, 62 of the Go ones exported for tests alone (GDK-2018) |
+| 5 | Test pyramid | **ran** — the web folds an unknown `status_category` to `inprogress` where Go's `internal/statuscat` — which the web file's own comment calls the single owner — folds it to `new` (GDK-2004). Findings: wall-clock `page.waitForTimeout` in CI specs, two specs whose header comment is a helper's JSDoc rather than the user behaviour they protect, a Playwright spec that parses markdown, redundant assertions (GDK-2019) |
+| 6 | UX consistency | **ran — one defect rejected.** Keyboard cannot reach bulk selection: `IssueRow`'s `keydown` is a partial copy of `onRowClick` and skips its `bulk.count > 0` branch, so Enter on a focused row opens the detail while bulk selection is active (GDK-2005). Revoking a paired device is one unguarded click while the settings tab beside it arms a two-step for turning a source off (GDK-2006). Rejected: Escape not closing the retro, history and docs overlays — the round grepped the components, and the bindings are in `web/src/lib/commands.ts`'s keymap registry, which is the correct single owner (GDK-2021) |
+| 7 | Agent surface | **ran** — SKILL.md taught that there is no stored current workspace, false since GDK-490 and contradicted twenty lines later by its own list of `workspace_source` values and by the MCP surface (GDK-2013, **defect**, landed `c105c223`). Four more gaps: `--layout` on `views save|open`, `gadak issue --link`, `gadak_search`'s description omitting labels (where SKILL contradicts itself at `:283` and `:475`), and `sync --source` (GDK-2017) |
+| 8 | Changelog | **measured by the lead** — three themes, `doc-checks` #46 green, and theme 2's bold head does not describe its body: six keys under "the phone's list header says where to tap", of which four are the list's order, grouping, narrowing and a close-time crash. The subject those six share is that the phone's list is the desktop's list. GDK-1997 also arrives as "And … no longer breaks the screen", the narration shape the rule names (GDK-2020, one editing pass over three editions at tag time) |
+| 9 | CI cost | **ran** — race shard 1 alone takes 543 s and decides the whole run's wall clock, against 307 and 482 for its siblings: 47 tests added since 2026-09-15 sit on median fallback and `WORKSPACE_PRELOAD=62.806` is a local number where CI takes ~133 s. 90 s off the deciding shard, 0 billable (GDK-2002). Three cheaper items: `cancel-in-progress` is unconditional on `main`, `Staticcheck` never moved to `tools/ci-filter.sh` and still uses an inline `^desktop/` regex, and `staticcheck` is compiled from source on every Go-touching run (GDK-2003). Flakiness census over 60 runs: 57 success, 2 failure (both legitimate gates), 1 cancellation — against v0.22's 0 failures and 13 cancellations |
+| 10 | Leverage residue | **ran, by the lead** — GDK-1991 completes theme 2 and is the closest thing to a two-hour item (the groundwork landed this cycle in GDK-1993 and GDK-1996); GDK-1949 is under an hour; GDK-1995 fills the web-in-a-phone-browser half of theme 1 and costs about half a day, because sharing the phone's `keys.ts` means a root dependency on `glasskeys` and the lockfile-platform gate. Theme 3 has no product residue — its three open neighbours are demo-fixture quality and belong to the media round. Ranked list recorded on GDK-2001; the decision is the user's |
+| 11 | i18n completeness | **ran** — `tools/ja-spacing.py` names eight files and none of them is a message catalogue, so the Japanese of every desk and phone screen was outside the gate written for exactly this: 774 ASCII spaces beside Japanese characters, the same class a reader reported on the site in GDK-1854 (GDK-2012, **defect**). One of them entered *this cycle*, after that incident. Measured zeros the other way: prose literals outside `t()` 0 (v0.22 had 27 on the phone and 1 on the web), and every date and duration formatter takes the active locale — the `'ko-KR'` hardcode is fixed. Tone half by the lead |
+| 12 | Fact ledger | **ran** — copy-versus-ledger disagreements **0**, against v0.22's 10. But the census tool undercounts: `copies_of` matches URL literals against raw line text, so the percent-encoded Datasette Lite links made the repo's most-forward fact link read as 0 copies where there are 5 (GDK-2014 — a defect in our own instrument). Nine unguarded copies, the demo issue count and the "3.7 minutes" first-sync figure worst among them (GDK-2016); the ledger's own verified-at stamp is two minors stale (GDK-2015) |
+| 13 | Invariants | **ran — measured zero.** Every outbound call site classified against `SECURITY.md`'s list with its caller named; writes all pass through origin; no display-name keying in Go writes or web logic. The two facts this cycle was asked to judge rather than assume — the sixth `items_fts` column and the new `type_id`/`direction` link path — both checked out |
+| 14 | Schema | **ran** — the sixth `items_fts` column landed without a `schemaVNN` bump, and `schemaV25` and `schemaV50` are the same change with a `SELECT 1` entry each and a comment saying why. With two shapes both stamped 53 the version gate cannot tell them apart, so a v0.23.1 binary rebuilds the index back to five columns and GDK-1978's fix is silently undone (GDK-1999, **defect**, landed `9debcfd0`). `data-model.md` had already written `v50` for it, because there was no number of its own to write |
+
+**Defects: four, all opened Highest and shipped inside the cycle** —
+GDK-2000 (`48200d5c`), GDK-1999 (`9debcfd0`), GDK-2013 (`c105c223`) and
+GDK-2012. Three cycles running had none; the difference is not that the tree
+got worse but that axes 1, 7, 11 and 14 were pointed at lifecycle, at the
+agent surface, at a gate's target list and at a stamp, rather than at shape.
+
+**Findings**: GDK-2002 through GDK-2020, sub-issues of GDK-2001.
+
+**`audit-rejected` ledger: no longer empty.** Three entries, each with the
+evidence that killed it: GDK-2021 (Escape is bound, in the keymap registry),
+GDK-2022 (`lastDetail` is not `$state`), GDK-2023 (the effect never re-runs).
+Two of the three were delegate "defects"; one was found false by reading the
+file the round had only grepped.
+
+### Measures
+
+| measure | v0.23 close (`4c0d5e35`) | v0.24 base (`a3beaa39`) |
+|---|---|---|
+| Go lines, non-test · test | 109,737 · 150,242 | 113,158 · 155,015 |
+| Svelte · TS lines | 37,838 · 130,791 | 39,324 · 139,338 |
+| mean non-test cyclomatic | 6.35 over 2,868 functions | 6.36 over 2,939 |
+| functions at cyclomatic ≥ 60 · ≥ 69 | 4 · 3 | 4 · 3 |
+| CI wall / billable | 438 / 3,358 (v0.22 base) | 543 / 3,725 |
+
+Complexity did not move: +0.01 on the mean over 71 more functions, and the
+tail is identical. That sentence needed a correction to write. The census
+carried `5.35 over 3,011` forward as "the previous cycle" — it is this file's
+own line 290, from three cycles back — and axis 1 built a whole narrative of
+tail contraction against mean degradation on it, faithfully, from a wrong
+input. The right neighbour was four lines above it. Two instrument failures
+in one cycle (this one and GDK-2014) is the argument for the runbook's rule
+that a census number is checked once against an independent path before a
+finding stands on it.
+
 ## v0.23 cycle — base `4ff2195f`, census 2026-09-15, closed at `4c0d5e35`
 
 The third v0.22 pass closed at `b6352471` and **87 commits** landed after it,

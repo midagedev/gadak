@@ -25,6 +25,7 @@ agents
 api
 architecture
 audit
+audit-rejected
 audit-go
 audit-shells
 audit-simplify

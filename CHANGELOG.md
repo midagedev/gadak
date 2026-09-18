@@ -37,7 +37,8 @@ now and hands the shell the whole word at a boundary; while it holds one it is
 a strip above the keys, so what is still being assembled is visible rather than
 gone ([GDK-1988]).
 
-**The phone's list header says where to tap.** The heading is the door into
+**The phone's list is the desktop's list.** Same order, same sections, and
+now its own way to narrow — starting with the door in. The heading is the door into
 search and into every other view, and it drew nothing of its own: a 163x44
 button with no background, no border and no shadow, whose only sign of being
 a control was a small magnifier in the same muted ink as the count beside it.
@@ -68,18 +69,18 @@ what mattered on both ([GDK-1992]).
 Those two controls no longer open the same thing. The magnifier opens the
 palette — find one issue anywhere in the cache — and the name opens *this
 list*, which is about the list already on screen: the view it belongs to on
-the first row, and under it the toggles that narrow it. That second half is
+the first row, and under it the toggles that narrow it. A palette result you open
+and leave before it has loaded closes cleanly: the layer that plays the
+closing animation outlives the issue it is drawing by the length of that
+animation, and it went on asking the app which issue that was after the app
+had moved on ([GDK-1997]). That second half is
 new. The phone could not narrow the list it was showing at all; search runs
 over the whole cache rather than the scope, so "just the reopened ones" meant
 going back to the desktop and saving a view there. The toggles are found in
 the list itself and one that would change nothing is not offered, so a
 one-project workspace is never asked about projects. Nothing is saved — the
 narrowing goes when you pick another view, which is how a phone you took out
-to find one thing should behave ([GDK-1994]). And opening one of the
-palette's results and leaving again before it had loaded no longer breaks the
-screen: the layer that plays the closing animation outlives the issue it is
-drawing by the length of that animation, and it was still asking the app which
-issue that was after the app had moved on ([GDK-1997]).
+to find one thing should behave ([GDK-1994]).
 The sheet's last two rows are what the list is cut by and what it is ordered
 by, and the cut is now the view's the way the order already was: the desktop's
 own grouper moved out of the code the desktop's list is wired into, so both
