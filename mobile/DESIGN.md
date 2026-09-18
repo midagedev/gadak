@@ -363,11 +363,12 @@ the transition *action* lives with compose and send.
 - **Applying a view is in-memory over the snapshot.** The phone honors only
   the axes an `IssueLite` can answer: `status_category` (+`_not`),
   `assignee_email` (+`_not`, account id first then email), `unassigned`,
-  `issue_type`, `priority`, `jira_project` (+`_not`). `issue_type` and
+  `issue_type`, `priority`, `jira_project` (+`_not`), and `labels` (+`_not` —
+  the array has ridden the row since GDK-1870). `issue_type` and
   `priority` compare against the stored id first and the stored name second —
   the desk's own `matchesIdFirst` contract, which is consuming a stored value,
-  not keying logic on a display name. Any other axis a view sets — labels,
-  actor, reporter, components, fix_versions, team_group, severity, qa_*,
+  not keying logic on a display name. Any other axis a view sets — actor,
+  reporter, components, fix_versions, team_group, severity, qa_*,
   deploy_*, source_project, date ranges, the text query, dynamic fields — and
   any Jira clause the desk's importer left in `unsupported[]` means the phone
   **cannot** honor that view: the row is offered disabled with a reason,

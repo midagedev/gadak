@@ -251,13 +251,23 @@ describe('buildScopes', () => {
   })
 
   it('disables a view whose axes the phone cannot evaluate', () => {
-    const list = buildScopes([savedView('v2', 'By label', { labels: ['infra'] })], [], me)
-    expect(scopeOf(list, 'view:v2').unsupported).toEqual(['labels'])
+    // components, not labels — labels moved to the honoured side when
+    // GDK-1870's array reached the filters (GDK-1996); this refusal path
+    // needs an axis the row still cannot answer.
+    const list = buildScopes([savedView('v2', 'By component', { components: ['api'] })], [], me)
+    expect(scopeOf(list, 'view:v2').unsupported).toEqual(['components'])
   })
 
   it('disables an imported filter the desktop could not compile', () => {
     const list = buildScopes([], [jiraFilter('s2', 'Watched', {}, ['watcher'])], me)
     expect(scopeOf(list, 'source:s2').unsupported).toEqual(['watcher'])
+  })
+
+  it('offers a labels view enabled, not as a disabled row (GDK-1996)', () => {
+    const list = buildScopes([savedView('v3', 'By label', { labels: ['infra'] })], [], me)
+    const view = scopeOf(list, 'view:v3')
+    expect(view.unsupported).toEqual([])
+    expect(scopeIssues([issue({ issue_key: 'STD-75', labels: ['infra'] })], me, view)?.map((i) => i.issue_key)).toEqual(['STD-75'])
   })
 })
 
@@ -294,6 +304,10 @@ describe('unsupportedAxes', () => {
 
   it('treats a missing config as unhonorable rather than as no filter', () => {
     expect(unsupportedAxes(null)).toEqual(['config'])
+  })
+
+  it('honours labels and its negation twin — the array rides the row (GDK-1996)', () => {
+    expect(unsupportedAxes({ labels: ['infra'], labels_not: ['noise'] })).toEqual([])
   })
 })
 
@@ -340,6 +354,17 @@ describe('applyFilters', () => {
     ])
     expect(applyFilters(rows, { jira_project_not: ['STD'] }).map((i) => i.issue_key)).toEqual(['OTH-71'])
   })
+
+  it('honours a labels filter the way the desk writes it (GDK-1996)', () => {
+    // The desk's owner is web/src/stores/filters.svelte.ts: any overlap with
+    // the include list admits the row, any overlap with the exclude list
+    // refuses it, and a row with no labels matches no positive labels filter
+    // and is refused by none.
+    const labeled = [issue({ issue_key: 'STD-73', labels: ['a', 'b'] }), issue({ issue_key: 'STD-74' })]
+    expect(applyFilters(labeled, { labels: ['b'] }).map((i) => i.issue_key)).toEqual(['STD-73'])
+    expect(applyFilters(labeled, { labels: ['c'] })).toEqual([])
+    expect(applyFilters(labeled, { labels_not: ['a'] }).map((i) => i.issue_key)).toEqual(['STD-74'])
+  })
 })
 
 describe('buildList', () => {
@@ -382,8 +407,11 @@ describe('buildList', () => {
 })
 
 describe('resolveScope', () => {
+  // v2's axis is one the phone refuses (components), so the refusal paths
+  // below have a view to be refused by; labels no longer serves that role
+  // (GDK-1996).
   const list = buildScopes(
-    [savedView('v1', 'Mine only', { assignee_email: ['acct-1'] }), savedView('v2', 'By label', { labels: ['x'] })],
+    [savedView('v1', 'Mine only', { assignee_email: ['acct-1'] }), savedView('v2', 'By component', { components: ['x'] })],
     [],
     me,
   )
@@ -403,7 +431,7 @@ describe('resolveScope', () => {
   it('falls back to the open pool when there is no identity (GDK-1542)', () => {
     // Without an identity my-work is not offered at all, so the named
     // default resolves to the pool — the desk's first-run rule.
-    const anon = buildScopes([savedView('v2', 'By label', { labels: ['x'] })], [], null)
+    const anon = buildScopes([savedView('v2', 'By component', { components: ['x'] })], [], null)
     expect(resolveScope(anon, 'view:v2', null)?.id).toBe(SCOPE_ALL_OPEN)
     expect(defaultScopeId(null)).toBe(SCOPE_ALL_OPEN)
     expect(defaultScopeId(me)).toBe(SCOPE_MY_WORK)
@@ -428,7 +456,7 @@ describe('scopeCount (GDK-886)', () => {
     issue({ issue_key: 'STD-82' }),
   ]
   const list = buildScopes(
-    [savedView('v1', 'Nobody', { assignee_email: ['acct-none'] }), savedView('v2', 'By label', { labels: ['x'] })],
+    [savedView('v1', 'Nobody', { assignee_email: ['acct-none'] }), savedView('v2', 'By component', { components: ['x'] })],
     [],
     me,
   )

@@ -121,6 +121,36 @@ describe('which toggles are offered (GDK-1994)', () => {
     // High (rank 2) before Medium (rank 3), though Medium was seen second.
     expect(priorities?.rows.map((r) => r.value)).toEqual(['2', '3'])
   })
+
+  it('labels: one toggle per label, a row counting toward each it carries (GDK-1996)', () => {
+    // Every other axis is uniform here (Medium Task STD new), so labels is
+    // the only section the sheet can offer at all.
+    const labeled = [
+      issue({ issue_key: 'STD-10', labels: ['api', 'urgent'] }),
+      issue({ issue_key: 'STD-11', labels: ['api'] }),
+      issue({ issue_key: 'STD-12', labels: [] }),
+    ]
+    const sections = narrowFacets(labeled, me)
+    expect(sections.map((s) => s.id)).toEqual(['labels'])
+    // One toggle per label, the row carrying two counting toward both, and
+    // count-desc order (both rank 0): api before urgent.
+    expect(sections[0].rows.map((r) => [r.value, r.count])).toEqual([
+      ['api', 2],
+      ['urgent', 1],
+    ])
+    // The discovered value round-trips through the filter it will write.
+    const api = sections[0].rows[0]
+    expect(toggleNarrow({}, api)).toEqual({ labels: ['api'] })
+    expect(labeled.filter((i) => matchesFilters(i, toggleNarrow({}, api), me)).length).toBe(api.count)
+  })
+
+  it('labels: no toggle when every row carries the same single label', () => {
+    const uniform = [
+      issue({ issue_key: 'STD-13', labels: ['beta'] }),
+      issue({ issue_key: 'STD-14', labels: ['beta'] }),
+    ]
+    expect(narrowFacets(uniform, me).find((s) => s.id === 'labels')).toBeUndefined()
+  })
 })
 
 describe('what a toggle does to the narrow (GDK-1994)', () => {

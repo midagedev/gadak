@@ -485,11 +485,12 @@ export function allOpenOrder(): ListOrder | null {
 }
 
 /**
- * The axes an `IssueLite` can actually answer. Everything else — labels,
- * actor, reporter, components, fix_versions, team_group, severity, qa_*,
- * deploy_*, source_project, date ranges, the text query, dynamic `fields` —
- * is either absent from the phone's row shape or needs data the snapshot does
- * not carry.
+ * The axes an `IssueLite` can actually answer. Labels joined them when
+ * GDK-1870 put the array on the row. Everything else — actor, reporter,
+ * components, fix_versions, team_group, severity, qa_*, deploy_*,
+ * source_project, date ranges, the text query, dynamic `fields` — is either
+ * absent from the phone's row shape or needs data the snapshot does not
+ * carry.
  */
 const HONORED_AXES = new Set([
   'status_category',
@@ -501,6 +502,11 @@ const HONORED_AXES = new Set([
   'priority',
   'jira_project',
   'jira_project_not',
+  // Both label twins, the desk's own reading (web/src/stores/filters.svelte.ts):
+  // any overlap with the include list admits, any overlap with the exclude
+  // list refuses (GDK-1996).
+  'labels',
+  'labels_not',
   // The three identity/exception flags the built-in views are made of
   // (GDK-1495 ④). `mine` and `delegated` need the paired identity, which
   // `matchesFilters` takes; without one they select nothing, exactly as the
@@ -621,6 +627,18 @@ export function matchesFilters(
   if (!matchesIdFirst(f.issue_type ?? NONE, issue.issue_type_id, issue.issue_type)) return false
   if (!matchesIdFirst(f.priority ?? NONE, issue.priority_id, issue.priority)) return false
   if (!matchesMulti(f.jira_project ?? NONE, f.jira_project_not ?? NONE, projectOf(issue))) return false
+
+  // Labels, the desk's own pair of lines (web/src/stores/filters.svelte.ts):
+  // any overlap with the include list admits the row, any overlap with the
+  // exclude list refuses it. A row with no labels therefore matches no
+  // positive labels filter and is refused by none. The array is required on
+  // the wire but a cached row can predate it (GDK-1870), so both sides
+  // coalesce — the same read lib/fields.ts makes.
+  const carried = issue.labels ?? NONE
+  const labels = f.labels ?? NONE
+  if (labels.length && !carried.some((l) => labels.includes(l))) return false
+  const labelsNot = f.labels_not ?? NONE
+  if (labelsNot.length && carried.some((l) => labelsNot.includes(l))) return false
   return true
 }
 
@@ -662,10 +680,11 @@ export type NarrowAxis =
   | 'priority'
   | 'issue_type'
   | 'jira_project'
+  | 'labels'
 
 export interface NarrowSection {
   /** `flags` holds the three predicates; every other section is its axis. */
-  id: 'flags' | 'status_category' | 'priority' | 'issue_type' | 'jira_project'
+  id: 'flags' | 'status_category' | 'priority' | 'issue_type' | 'jira_project' | 'labels'
   label: string
   rows: NarrowRow[]
 }
@@ -676,29 +695,43 @@ const NARROW_FLAG_LABELS: Record<(typeof NARROW_FLAGS)[number], MessageKey> = {
   unassigned: 'filter.flagUnassigned',
   reopened: 'filter.flagReopened',
 }
-const NARROW_VALUE_AXES = ['status_category', 'priority', 'issue_type', 'jira_project'] as const
+// Labels sits last: the four before it each answer with one value a row, and
+// appending keeps their sections where they already render.
+const NARROW_VALUE_AXES = ['status_category', 'priority', 'issue_type', 'jira_project', 'labels'] as const
 
-/** The value this row carries on one axis, or null when it carries none. */
-function narrowValueOf(
+/**
+ * The values this row carries on one axis. Every axis answers with none or
+ * one except labels (GDK-1996), the one axis where a single row carries
+ * several — a row holding two labels counts toward both toggles, because
+ * either one alone still leaves that row in the list.
+ */
+function narrowValuesOf(
   axis: (typeof NARROW_VALUE_AXES)[number],
   issue: IssueLite,
-): { value: string; label: string; rank: number } | null {
+): { value: string; label: string; rank: number }[] {
+  if (axis === 'labels') {
+    // The value is the label string itself — the exact thing the stored
+    // filter compares — so a discovered toggle always matches its own rows.
+    // Required on the wire, but a cached row can predate the array
+    // (GDK-1870), so it coalesces.
+    return (issue.labels ?? []).map((label) => ({ value: label, label, rank: 0 }))
+  }
   if (axis === 'status_category') {
     const cat = effectiveCategory(issue)
-    return { value: cat, label: categoryLabel(cat), rank: CATEGORY_ORDER.indexOf(cat) }
+    return [{ value: cat, label: categoryLabel(cat), rank: CATEGORY_ORDER.indexOf(cat) }]
   }
   if (axis === 'priority') {
     const label = issue.priority ?? t('list.priorityNone')
     const value = issue.priority_id || issue.priority || ''
-    return value ? { value, label, rank: rankKey(issue) } : null
+    return value ? [{ value, label, rank: rankKey(issue) }] : []
   }
   if (axis === 'issue_type') {
     const label = issue.issue_type ?? ''
     const value = issue.issue_type_id || issue.issue_type || ''
-    return value ? { value, label: label || value, rank: 0 } : null
+    return value ? [{ value, label: label || value, rank: 0 }] : []
   }
   const project = projectOf(issue)
-  return project ? { value: project, label: project, rank: 0 } : null
+  return project ? [{ value: project, label: project, rank: 0 }] : []
 }
 
 /**
@@ -736,19 +769,19 @@ export function narrowFacets(rows: IssueLite[], me: Me | null = null): NarrowSec
   for (const axis of NARROW_VALUE_AXES) {
     const seen = new Map<string, NarrowRow & { rank: number }>()
     for (const issue of rows) {
-      const hit = narrowValueOf(axis, issue)
-      if (!hit) continue
-      const row = seen.get(hit.value)
-      if (row) row.count += 1
-      else
-        seen.set(hit.value, {
-          key: `${axis}:${hit.value}`,
-          axis,
-          value: hit.value,
-          label: hit.label,
-          count: 1,
-          rank: hit.rank,
-        })
+      for (const hit of narrowValuesOf(axis, issue)) {
+        const row = seen.get(hit.value)
+        if (row) row.count += 1
+        else
+          seen.set(hit.value, {
+            key: `${axis}:${hit.value}`,
+            axis,
+            value: hit.value,
+            label: hit.label,
+            count: 1,
+            rank: hit.rank,
+          })
+      }
     }
     const values = [...seen.values()].filter(offered)
     if (values.length === 0) continue
