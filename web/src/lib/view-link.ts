@@ -29,6 +29,19 @@ export interface ViewLink {
   origin: boolean
   /** Clauses the JQL could not carry (server emit) — the toast names them. */
   omitted: string[]
+  /**
+   * The origin address could not be built at all (GDK-1861).
+   *
+   * Distinct from `origin: false`, which is the ordinary answer on a
+   * workspace that has no origin address to give — the built-in tracker,
+   * Linear, the hosted demo. This one is a Jira workspace where the emit
+   * failed, and it used to be swallowed into that same ordinary answer: the
+   * app link was copied and the toast said "Copied", indistinguishable from
+   * a built-in. The fact that the origin's address could not be made is what
+   * disappeared. GDK-1858 closed the opposite direction of the same class —
+   * a payload that differed from what the toast promised.
+   */
+  originFailed: boolean
 }
 
 /** The view's hash without its `#/?` — what gadak://view and /#/? both take. */
@@ -50,11 +63,13 @@ export async function buildViewLink(cfg: ViewConfig, email?: string | null): Pro
   const params = viewHashParams()
   const app = isDesktop() ? gadakViewLink(params) : `${gadakViewLink(params)}\n${httpViewLink(params)}`
   // The hosted demo has no server to emit JQL (every non-GET is a 501).
-  if (!isJiraFamily(config().originType) || isHostedDemo()) return { text: app, origin: false, omitted: [] }
+  if (!isJiraFamily(config().originType) || isHostedDemo())
+    return { text: app, origin: false, omitted: [], originFailed: false }
   try {
     const res = await emitJql(cfg.filters, cfg.display, email)
     const url = jiraFilterUrl('', res.jql)
-    if (!url) return { text: app, origin: false, omitted: res.omitted ?? [] }
+    // No site address to put the JQL in: an ordinary answer, not a failure.
+    if (!url) return { text: app, origin: false, omitted: res.omitted ?? [], originFailed: false }
     const omitted = res.omitted ?? []
     // GDK-1858's rule, with the one exception this surface has: when the
     // origin's address says everything the view says, it is the whole
@@ -63,9 +78,9 @@ export async function buildViewLink(cfg: ViewConfig, email?: string | null): Pro
     // view — and then the app lines are the view's only faithful address,
     // so they come along and the toast names what the origin line lost.
     return omitted.length
-      ? { text: `${url}\n${app}`, origin: true, omitted }
-      : { text: url, origin: true, omitted }
+      ? { text: `${url}\n${app}`, origin: true, omitted, originFailed: false }
+      : { text: url, origin: true, omitted, originFailed: false }
   } catch {
-    return { text: app, origin: false, omitted: [] }
+    return { text: app, origin: false, omitted: [], originFailed: true }
   }
 }

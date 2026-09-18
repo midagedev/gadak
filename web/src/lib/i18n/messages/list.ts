@@ -70,6 +70,15 @@ export const list = {
     ko: 'Jira 링크가 {omitted}을 담지 못해 앱 링크까지 복사했습니다.',
     ja: 'Jira のリンクは {omitted} を運べないので、アプリのリンクも一緒にコピーしました。',
   },
+  // GDK-1861: the emit failed, so there is no origin address at all. Without
+  // this the app link was copied under "Copied" — the same words a built-in
+  // tracker gets, where copying the app link alone is the right answer. The
+  // sentence names the tracker because that is what could not answer.
+  'filter.originLinkFailed': {
+    en: 'Copied the app link only: {tracker} could not give an address for this view.',
+    ko: '앱 링크만 복사했습니다 — {tracker}에서 이 뷰의 주소를 만들지 못했습니다.',
+    ja: 'アプリのリンクだけコピーしました。{tracker} でこのビューのアドレスを作れませんでした。',
+  },
   'filter.jqlApplied': {
     en: 'JQL filter applied.',
     ko: 'JQL 필터를 적용했습니다.',

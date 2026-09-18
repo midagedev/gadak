@@ -174,6 +174,24 @@ func Emit(f Filter, d Display, opts EmitOpts) (string, []string) {
 				field = "duedate"
 			}
 		default:
+			// Four of the nine sort keys survive; the other five —
+			// status_changed, started, reopen_count, relevance, keys — have
+			// no Jira field to be, and this fell back to `updated` silently
+			// (GDK-1862).
+			//
+			// A forced sort is a loss and belongs here with the rest. The
+			// judgement the issue left open is whether order is part of a
+			// view's identity to whoever opens the link, and it is: a view
+			// named for its order is not that view under another one. "The
+			// quietest first" opened newest-first is the same set and the
+			// wrong list, which is the argument GDK-1992 settled on the
+			// phone the same week — the delegation ledger came out
+			// newest-first and the view's whole point was gone.
+			//
+			// Named by the key the view asked for, not by "sort": the
+			// reader of the toast has to know *which* order was dropped to
+			// know whether they care.
+			omitted = append(omitted, "sort by "+d.Sort)
 			field = "updated"
 		}
 		dir := d.Dir
