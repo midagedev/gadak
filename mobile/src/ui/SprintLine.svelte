@@ -83,8 +83,8 @@
     </span>
     {#if sprint.goal}
       <!-- The goal has been in the mirror since sprints became rows and no
-           phone surface read it. One line; the sprint scope is one tap away
-           for the rows it describes. -->
+           phone surface read it. Up to two lines (GDK-1977); the sprint
+           scope is one tap away for the rows it describes. -->
       <span class="goal">{sprint.goal}</span>
     {/if}
   </button>
@@ -100,10 +100,17 @@
 {/if}
 
 <style>
-  /* Two rows at most on a 402px phone: the facts line, and the goal under
-     it when there is one. Both clamp to one line each rather than wrapping
-     — this is chrome above the queue, and a block that grows pushes the
-     rows it describes off the screen. */
+  /* Three rows at most on a 402px phone: the facts line, and the goal under
+     it in up to two. The facts line still clamps to one — it is a row of
+     short fields and a second line of it would be a layout accident, not a
+     sentence. The goal gets two because it IS a sentence, and one line was
+     not enough to say it in Japanese (GDK-1977).
+
+     The rule this replaces said both clamp to one, because chrome that
+     grows pushes the rows it describes off the screen. That is still the
+     reason the ceiling is two and not "as many as it takes" — but a goal cut
+     mid-word is chrome that costs its space and returns nothing, which is
+     the worse end of the same trade. */
   .sprint {
     display: flex;
     flex-direction: column;
@@ -160,11 +167,35 @@
     margin-left: auto;
     white-space: nowrap;
   }
+  /* Two lines, then ellipsis (GDK-1977). One line here is 370px at 402px of
+     phone, which is 30 full-width characters. The recording fixture's goal
+     is the same sentence in three languages — 48 Latin characters in
+     English, 32 in Korean of which 22 are full-width, 34 in Japanese of
+     which 29 are — so the first two fit on one line and the Japanese one
+     measured 377px against that 370px box and lost its last two characters
+     to the ellipsis, which is what the ja clip's frame showed.
+
+     The width is the font's, not the language's, and that is the part worth
+     remembering: `web/src/app.css` hangs the Japanese and Korean stacks off
+     `:lang(…)`, which is set from the chosen locale, and those stacks draw
+     every full-width glyph at a full em. The same 34 characters under the
+     Latin stack's CJK fallback measure 333px and fit — so a measurement of
+     this taken with the UI in English says there is nothing wrong.
+
+     Japanese and Korean break between characters on their own, so the second
+     line needs no break hint; `overflow-wrap` is deliberately absent so an
+     English goal still breaks at its spaces.
+
+     -webkit-line-clamp is the form that works in WKWebView and in iOS
+     Safari, which is every surface this file is painted on; the unprefixed
+     `line-clamp` rides along for the browsers that have moved. */
   .goal {
     min-width: 0;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
     font-size: var(--text-micro);
     color: var(--color-text-muted);
   }

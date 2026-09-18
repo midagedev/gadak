@@ -87,3 +87,105 @@ test('the scope picker offers the sprint once, under the built-in section', asyn
   await page.locator('.palette-field input').waitFor({ state: 'detached' })
   await expect(page.locator('.pane:not(.off) h1 button.scope .name')).toHaveText('Active sprint')
 })
+
+/*
+ * The goal reads whole, in a language with no spaces (GDK-1977).
+ *
+ * The defect was found in the 2026-09-17 vision pass over the ja clip: the
+ * line came out `…エスカレーションは SLA 内で対応す…`, cut mid-word, while
+ * the same frame in en and ko was not cut. The cause was not the translation
+ * — it was that `.goal` clamped to one line. The three goals are the same
+ * sentence: 48 Latin characters in English, 32 in Korean of which 22 are
+ * full-width, and 34 in Japanese of which 29 are. One line of
+ * `--text-micro` at 402px is 370px, which is 30 full-width characters, so
+ * the first two fit and the third is two characters over.
+ *
+ * This asserts the rule and not the string. The served fixture is
+ * `examples/demo.db`, whose goal is English and fits on one line either way,
+ * so the Japanese goal is injected into the one response that carries it —
+ * which also means this keeps measuring after the fixture's prose changes.
+ *
+ * Two things had to be reproduced, not one, and the first is the reason a
+ * first attempt at this test passed on the pre-fix source. A Japanese
+ * sentence is only as wide as the font it is drawn in: with the UI in
+ * English the CJK falls back to whatever the Latin stack ends in and the
+ * same 34 characters measured 333px inside a 370px box — no clipping, no
+ * defect. `web/src/lib/i18n/index.ts` sets `documentElement.lang` from the
+ * chosen locale and `web/src/app.css` hangs the Japanese font stack off
+ * `:lang(ja)`, which draws every full-width glyph at a full em: the same
+ * string becomes 13% wider and 29 full-width characters no longer fit in
+ * 370px. So the locale travels the road the app reads it by — the same
+ * `gadak_locale` init script the clip camera uses — and the `<html lang>`
+ * assertion below is the proof it arrived, because a locale that never
+ * reached the app reads back as the en-US default and this test would go
+ * back to measuring the wrong font.
+ *
+ * The second is the axis, and it is the reason the height alone will not do.
+ * The clamp this replaces was `white-space: nowrap`: it lays the sentence on
+ * one line however wide that has to be and hides what does not fit
+ * sideways, so on the defect `scrollHeight` EQUALS `clientHeight` (17 and
+ * 17) while the width tells (377 against 370). The clamp that replaces it
+ * wraps instead, so what a too-long sentence would overflow there is the
+ * third line and then the height is what tells. Both are measured, because
+ * the two ways of cutting a sentence cut it on different axes. The upper
+ * bound is the other half of the contract — two lines, never a block that
+ * grows until it pushes the queue off the screen.
+ */
+const JA_GOAL = 'トリアージの滞留を減らし、エスカレーションは SLA 内で対応する。'
+
+test('a Japanese sprint goal reads whole, in at most two lines', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('gadak_locale', 'ja'))
+  await page.route('**/api/v1/issues/sprints/', async (route) => {
+    const res = await route.fetch()
+    if (res.status() !== 200) {
+      await route.fulfill({ response: res })
+      return
+    }
+    const doc = (await res.json()) as { sprints?: { state?: string; goal?: string }[] }
+    for (const s of doc.sprints ?? []) {
+      if (s.state === 'active') s.goal = JA_GOAL
+    }
+    await route.fulfill({ response: res, json: doc })
+  })
+
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await page.locator('.pane:not(.off) button.row').first().waitFor()
+
+  // The font this test is about. Without it the CJK is drawn in a fallback
+  // narrow enough that the defect does not reproduce.
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.lang))
+    .toBe('ja-JP')
+
+  const goal = page.locator(`.pane:not(.off) ${LINE} .goal`)
+  await expect(goal).toHaveText(JA_GOAL)
+
+  const box = await goal.evaluate((el) => {
+    const line = parseFloat(getComputedStyle(el).lineHeight)
+    return {
+      scrollW: el.scrollWidth,
+      clientW: el.clientWidth,
+      scrollH: el.scrollHeight,
+      clientH: el.clientHeight,
+      line,
+    }
+  })
+  // Nothing is clipped, on either axis.
+  //
+  // FAIL-first (measured 2026-09-18 at 402px on the pre-fix source, this
+  // spec alone):
+  //
+  //	Error: goal is clipped sideways: 377 > 370
+  //
+  // and after the fix, 370 of 370 wide and 35 of 35 tall over a 17.4px
+  // line — two lines, with the ceiling at 35.8.
+  expect(
+    box.scrollW,
+    `goal is clipped sideways: ${box.scrollW} > ${box.clientW}`,
+  ).toBeLessThanOrEqual(box.clientW)
+  expect(box.scrollH, `goal is clipped below: ${box.scrollH} > ${box.clientH}`).toBeLessThanOrEqual(
+    box.clientH,
+  )
+  // And the ceiling holds: two lines of chrome, not a paragraph.
+  expect(box.clientH).toBeLessThanOrEqual(box.line * 2 + 1)
+})
