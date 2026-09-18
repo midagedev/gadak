@@ -130,3 +130,68 @@ test.describe('a finger keeps its own focus change (GDK-1986)', () => {
     await expect.poll(() => paneHoldsFocus(page)).toBe(true)
   })
 })
+
+/*
+ * The soft-key row (GDK-1995). A phone keyboard has no Esc, Ctrl or arrows,
+ * so the pane carries them in a bar that paints exactly where a physical
+ * keyboard cannot be: `(pointer: coarse) and (hover: none)`. Playwright
+ * cannot raise a software keyboard, so what is measurable is the same shape
+ * as GDK-1986 above: the row is present on a touch-only context, absent on
+ * a hovering one, and pressing a key sends bytes. What a press *means* in
+ * bytes is asserted in web/src/lib/terminal/keys.test.ts — the encoder is a
+ * pure function over plain data, and its defects are invisible in a
+ * screenshot. This tier proves the row exists and is wired.
+ */
+test.describe('the soft-key row sends bytes (GDK-1995)', () => {
+  // The touch-only emulation mobile/e2e runs under (mobile/playwright.config.ts):
+  // isMobile + hasTouch is what makes both halves of the query match.
+  test.use({ hasTouch: true, isMobile: true })
+
+  test('the row is present on a touch-only context', async ({ page }) => {
+    await bootPhone(page)
+    await openPane(page)
+
+    // Guard against emulation drift first: if this stops matching, a missing
+    // row below is the rig, not the product.
+    const media = await page.evaluate(() => ({
+      coarse: matchMedia('(pointer: coarse)').matches,
+      hoverNone: matchMedia('(hover: none)').matches,
+    }))
+    expect(media).toEqual({ coarse: true, hoverNone: true })
+
+    await expect(page.getByTestId('key-bar')).toBeVisible({ timeout: 15_000 })
+  })
+
+  test('pressing a key sends its bytes to the shell', async ({ page }) => {
+    await bootPhone(page)
+    await openPane(page)
+    const bar = page.getByTestId('key-bar')
+    await expect(bar).toBeVisible({ timeout: 15_000 })
+
+    const rows = page.locator('[data-testid="terminal-pane"] .xterm-rows')
+    const before = (await rows.textContent()) ?? ''
+
+    // Three punctuation keys the bar owns. The shell echoes each byte it
+    // receives, so the echoed run proves press -> bytes -> PTY -> paint
+    // end to end; the byte values themselves are the unit tier's job.
+    await bar.getByRole('button', { name: '/' }).tap()
+    await bar.getByRole('button', { name: '~' }).tap()
+    await bar.getByRole('button', { name: '-' }).tap()
+    await expect.poll(() => rows.textContent(), { timeout: 15_000 }).toContain('/~-')
+
+    // And the run was not already on screen — a prompt or env line carrying
+    // it would fail here loudly instead of passing quietly.
+    expect(before).not.toContain('/~-')
+  })
+})
+
+test('the row stays out of the way where a keyboard exists (GDK-1995)', async ({
+  page,
+}) => {
+  // Default desktop context: fine pointer that hovers. The media query does
+  // not match there — a touch laptop has a physical Esc key, so a permanent
+  // strip is clutter — and the row must not paint.
+  await bootPhone(page)
+  await openPane(page)
+  await expect(page.getByTestId('key-bar')).toBeHidden({ timeout: 15_000 })
+})

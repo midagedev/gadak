@@ -8,7 +8,7 @@ import {
   modifierIdForBarKey,
   stepsForBarKey,
   stickySlots,
-} from '../lib/terminal/keys'
+} from '../../../web/src/lib/terminal/keys'
 
 /*
  * GDK-953 — the panic exit, wired end to end. The machine was never broken:

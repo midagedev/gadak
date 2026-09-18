@@ -6,7 +6,7 @@
   import { app, closeIssue, openIssue } from '../lib/store.svelte'
   import { relTime, spaceLabel } from '../lib/domain'
   import { request, errorMessage, ApiError } from '../lib/api'
-  import { keyboardInset } from '../lib/keyboard'
+  import { keyboardInset } from '../../../web/src/lib/keyboard'
   import { clearDraft, loadDraft, saveDraft } from '../lib/drafts'
   import { t } from '../lib/i18n'
   import type { PageComment, PageDetail as PageDetailDoc, PageLite } from '../lib/types'

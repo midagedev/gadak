@@ -50,10 +50,10 @@
     type BarKey,
     type ModifierId,
     type StickySlots,
-  } from '../lib/terminal/keys'
+  } from '../../../web/src/lib/terminal/keys'
   import { imeReduce, IME_INPUT_ATTRS, type ImeState } from '../lib/terminal/ime'
   import { decideBoundary, decideInput } from '../lib/terminal/hangul-hold'
-  import { keyboardInset } from '../lib/keyboard'
+  import { keyboardInset } from '../../../web/src/lib/keyboard'
   import { createRenderer, type PhoneTerminalRenderer } from '../lib/terminal/renderer'
   import { scrollGesture } from '../lib/terminal/scroll-gesture'
   import {

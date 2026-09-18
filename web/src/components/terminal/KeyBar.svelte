@@ -1,15 +1,18 @@
 <script lang="ts">
-  import { keyboardInset } from '../../../web/src/lib/keyboard'
-  import { type BarKey, type StickySlots } from '../../../web/src/lib/terminal/keys'
+  import { keyboardInset } from '../../lib/keyboard'
+  import { type BarKey, type StickySlots } from '../../lib/terminal/keys'
 
-  // Strip above the keyboard (DESIGN.md §10.3). Every control is a 44pt
-  // target (`--spacing-control`). Since the tab bar went (GDK-902) this is
-  // also the bottom-most painted surface of the column whenever the keyboard
-  // is down, so it takes app.css's bottom-inset rule — see the markup note. Ctrl/Alt show idle / armed / locked as
-  // three states, separated by FILL first and a shape second (GDK-951):
-  // armed is a tint under an accent ring, locked is a solid accent pill with
-  // an inverted glyph. Colour alone was a defect in an earlier review cycle;
-  // stroke weight alone was the defect after that one.
+  // Soft-key row for the terminal pane (GDK-1995). A phone browser has no
+  // Esc, Ctrl or arrows, so this strip carries them — the same contract the
+  // phone's strip keeps (mobile/src/ui/KeyBar.svelte): the key table, the
+  // encoder and the band are shared (web/src/lib/terminal/keys.ts,
+  // web/src/lib/keyboard.ts); only the styling is the web's own. The three
+  // behavioural verdicts its comments record are settled and kept here:
+  // Ctrl/Alt show idle / armed / locked separated by FILL first and a shape
+  // second (GDK-951 — colour alone, then stroke weight alone, both failed a
+  // review cycle); the panic exit is labelled "No Mods", not "Clear" (`clear`
+  // is already the command, and Ctrl-L); and the press handler keeps focus
+  // where it was so the software keyboard does not dismiss.
   let {
     mods,
     onkey,
@@ -57,17 +60,13 @@
   }
 
   function press(e: PointerEvent, key: BarKey) {
-    // Keep the IME field focused so the keyboard does not dismiss.
+    // Keep focus where it was so the software keyboard does not dismiss.
     e.preventDefault()
     onkey(key)
   }
 </script>
 
-<!-- `key-bar` is not styled here: it is the hook app.css uses to give this
-     bar the bottom inset every bottom-most painted surface owes
-     (`.safe-bottom, .sheet, .key-bar:not([data-keyboard-inset])`). The
-     number has one owner and it is that rule, not this file. -->
-<div class="bar key-bar" use:keyboardInset data-testid="key-bar">
+<div class="bar" use:keyboardInset data-testid="key-bar">
   {#each KEYS as item (item.key)}
     {@const slot = slotOf(item.key)}
     <button
@@ -87,12 +86,25 @@
 </div>
 
 <style>
+  /*
+   * GDK-1995 visibility decision: `(pointer: coarse) and (hover: none)` — a
+   * touch-only device. Not a width break, because a phone in landscape past
+   * 900px still has no Esc key; and not bare `(pointer: coarse)`, because a
+   * touch laptop has a physical keyboard and a fine pointer beside the touch
+   * one, so a permanent soft-key strip there is clutter. `hover: none` is
+   * what separates the two. This query lives here and nowhere else.
+   */
   .bar {
-    display: flex;
+    display: none;
     flex-wrap: wrap;
     gap: 0;
     background: var(--color-bg-panel);
     border-top: 1px solid var(--color-border-subtle);
+  }
+  @media (pointer: coarse) and (hover: none) {
+    .bar {
+      display: flex;
+    }
   }
   .key {
     flex: 0 0 auto;

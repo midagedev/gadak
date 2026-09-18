@@ -23,6 +23,7 @@ import {
   type TerminalAnsiSlot,
 } from './protocol'
 import { installCjkMetricFaces } from './cjk-metric'
+import type { CursorKeyMode } from './keys'
 import type { TerminalRenderer } from './protocol'
 import {
   findIssueKeyMatches,
@@ -253,6 +254,15 @@ export type BehaviorTerminalRenderer = TerminalRenderer & {
    *  complete scrollback of its own, so leaving the previous one above it
    *  would splice two shells into one history. */
   reset(): void
+  /**
+   * DECCKM as the application currently has it (GDK-1995, GDK-899). The key
+   * bar writes to the socket directly instead of going through xterm's
+   * keyboard path, so it has to ask — xterm cannot tell it. Optional so a
+   * test double that only implements what it renders keeps compiling; the
+   * pane reads 'normal' when there is no answer, exactly as the phone does
+   * with no renderer.
+   */
+  cursorKeyMode?(): CursorKeyMode
   /**
    * Underlines the issue keys in this terminal's output and opens them
    * (GDK-1160). `projects` is asked per line rather than captured, because
@@ -525,6 +535,11 @@ async function createXtermRenderer(): Promise<BehaviorTerminalRenderer> {
     },
     focus() {
       term.focus()
+    },
+    cursorKeyMode() {
+      // Optional-chained on purpose, the phone renderer's own wording: a
+      // test double that only implements what it renders reads 'normal'.
+      return term.modes?.applicationCursorKeysMode ? 'application' : 'normal'
     },
     dispose() {
       chromeWatch?.stop()

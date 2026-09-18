@@ -81,7 +81,22 @@ describe('the key bar is a bottom-most surface (GDK-902)', () => {
   })
 
   it('keyboardInset stamps the attribute the rule switches on, and clears it', () => {
-    const kb = readFileSync(join(srcDir, 'lib/keyboard.ts'), 'utf8')
+    // GDK-1995: the module moved to the shared home (web/src); the contract
+    // this pins — stamp while the band exists, clear when it closes — moved
+    // with it unchanged.
+    const kb = readFileSync(
+      join(
+        dirname(fileURLToPath(import.meta.url)),
+        '..',
+        '..',
+        '..',
+        'web',
+        'src',
+        'lib',
+        'keyboard.ts',
+      ),
+      'utf8',
+    )
     expect(kb).toContain('keyboardInset')
     expect(kb).toMatch(/dataset\.keyboardInset/)
     // Both edges: set while the band exists, removed when it closes and on

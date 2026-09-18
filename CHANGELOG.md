@@ -27,7 +27,13 @@ took the keyboard for itself the moment its socket attached — a focus that
 lands outside any gesture, which iOS will not raise a keyboard for, and which
 then spends the focus change the user's own tap needed. The attach-time focus
 is for pointers that arrive with a keyboard now; a finger gets focus from its
-own tap, which is the path that was measured raising one ([GDK-1986]).
+own tap, which is the path that was measured raising one ([GDK-1986]). And
+the keys that keyboard does not have are there now: a strip carrying Esc, Tab,
+Ctrl, Alt and the arrows paints under the pane on a touch screen with no
+pointer that hovers, so a shell in a phone browser can be driven and not only
+read. It is the phone app's own strip in every way that decides what a press
+means — the same key table, the same encoder, the same three states for a
+held modifier — and the web's only in how it is painted ([GDK-1995]).
 
 Korean typed there now arrives as words. Every 자모 had been reaching the
 shell on its own — `한글` became `ㅎㅏㄴㄱㅡㄹ` — because iOS assembles Hangul by
@@ -1909,4 +1915,5 @@ priority sorting keyed on `priority_rank`.
 [GDK-1992]: https://gadak.dev/backlog/#/?ks=GDK-1992
 [GDK-1993]: https://gadak.dev/backlog/#/?ks=GDK-1993
 [GDK-1994]: https://gadak.dev/backlog/#/?ks=GDK-1994
+[GDK-1995]: https://gadak.dev/backlog/#/?ks=GDK-1995
 [GDK-1997]: https://gadak.dev/backlog/#/?ks=GDK-1997

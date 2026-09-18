@@ -3,7 +3,7 @@
   import { fly, fade } from 'svelte/transition'
   import { t } from '../lib/i18n'
   import { systemBack } from '../lib/back'
-  import { keyboardInset } from '../lib/keyboard'
+  import { keyboardInset } from '../../../web/src/lib/keyboard'
 
   // Bottom sheet: scrim + rising panel, thumb territory. The bottom inset
   // is a property of where the sheet sits (app.css: .detail-layer .sheet),

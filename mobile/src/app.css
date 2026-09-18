@@ -95,7 +95,7 @@ body {
   --probe-safe-top: env(safe-area-inset-top);
   --probe-safe-bottom: env(safe-area-inset-bottom);
   /*
-    The band the software keyboard covers (GDK-1971). lib/keyboard.ts owns
+    The band the software keyboard covers (GDK-1971). web/src/lib/keyboard.ts owns
     the number — bindKeyboardBand writes it on #app, this is only the
     keyboard-down default every consumer reads before (and unless) the band
     opens. Scrollers pay it as padding-bottom/scroll-padding-bottom, sheet
@@ -156,7 +156,7 @@ body {
      precisely because a 65px tab bar stood between it and the home
      indicator; with the bar gone it is the bottom-most surface of the
      column whenever the keyboard is down. `:not([data-keyboard-inset])` is
-     the other half: lib/keyboard.ts stamps that attribute while the
+     the other half: web/src/lib/keyboard.ts stamps that attribute while the
      VisualViewport reports a band, and a node translated above the keyboard
      is not bottom-most — the padding would be the same dead strip the
      `.composer` rule below removes. No zeroing rule is needed; the selector

@@ -17,7 +17,7 @@ import {
 } from '../../../../web/src/lib/terminal/protocol'
 import { installCjkMetricFaces } from '../../../../web/src/lib/terminal/cjk-metric'
 import { neutraliseHelperTextarea } from './helper-textarea'
-import type { CursorKeyMode } from './keys'
+import type { CursorKeyMode } from '../../../../web/src/lib/terminal/keys'
 import type { BufferType, MouseTrackingMode } from './scroll-gesture'
 
 function cssVar(name: string, fallback: string): string {

@@ -11,7 +11,7 @@ import {
   stickySlots,
   type ModifierId,
   type SlotState,
-} from './keys'
+} from '../../../../web/src/lib/terminal/keys'
 
 /*
  * Recurrence layer for GDK-898: the phone key bar runs the shared

@@ -46,6 +46,17 @@
   import { attachFocusAllowed } from '../../lib/terminal/focus-policy'
   import { terminalSessions } from '../../lib/terminal/sessions.svelte'
   import TerminalRoster from './TerminalRoster.svelte'
+  import KeyBar from './KeyBar.svelte'
+  import {
+    StickyModifiers,
+    bytesForBarKey,
+    encoderMods,
+    modifierIdForBarKey,
+    stepsForBarKey,
+    stickySlots,
+    type BarKey,
+    type StickySlots,
+  } from '../../lib/terminal/keys'
   import { config } from '../../lib/config'
   import { issues } from '../../stores/issues.svelte'
   import { knownProjectKeys } from '../../lib/terminal/issue-links'
@@ -75,6 +86,54 @@
   // line's click arrive here as the same bytes, so there is one Enter path
   // (GDK-991), not an Enter branch plus a click branch to keep in step.
   let sendTerminalData: ((bytes: Uint8Array) => void) | null = null
+
+  /*
+   * The soft-key row's sticky state (GDK-1995). The bar sends through the
+   * same data sink as every other keystroke — handleTerminalData below —
+   * so the restart gates cannot drift from it. rendererForKeys is the live
+   * renderer for the DECCKM question only; the bytes still go through the
+   * sink, never straight at the socket.
+   */
+  const sticky = new StickyModifiers()
+  let mods = $state<StickySlots>(stickySlots(sticky))
+  let rendererForKeys: BehaviorTerminalRenderer | null = null
+
+  function syncMods(): void {
+    mods = stickySlots(sticky)
+  }
+
+  function onBarKey(key: BarKey): void {
+    // The panic exit (GDK-953): every slot to idle, no bytes. Before the
+    // modifier branch so a future BarKey can never reach the encoder as an
+    // emission.
+    if (key === 'clear') {
+      sticky.clear()
+      syncMods()
+      rendererForKeys?.focus()
+      return
+    }
+    const mod = modifierIdForBarKey(key)
+    if (mod) {
+      sticky.tap(mod, Date.now())
+      syncMods()
+      rendererForKeys?.focus()
+      return
+    }
+    // No IME on this surface, so there is never a live composition:
+    // `hasMarked` is honestly false and the barrier answers a single
+    // emit-key, which the sink below sends under the live cursor-key mode.
+    const steps = stepsForBarKey(key, false, sticky.activeModifiers())
+    for (const step of steps) {
+      if (step.op === 'emit-key') {
+        sendTerminalData?.(
+          bytesForBarKey(key, encoderMods(step.mods), rendererForKeys?.cursorKeyMode?.() ?? 'normal'),
+        )
+        sticky.consume()
+        syncMods()
+      }
+    }
+    rendererForKeys?.focus()
+  }
 
   const heightPx = $derived(terminalChrome.heightPx)
   // One grip object for the pane's lifetime: lib/layout-resize.ts holds the
@@ -282,6 +341,9 @@
     async function boot(): Promise<void> {
       if (!hostEl) return
       renderer = await createRenderer()
+      // The soft-key row's DECCKM witness (GDK-1995): the live renderer for
+      // the cursor-key question only. Cleared with everything else below.
+      rendererForKeys = renderer
       if (cancelled) {
         renderer.dispose()
         return
@@ -401,6 +463,7 @@
       driver.dispose()
       renderer?.dispose()
       renderer = null
+      rendererForKeys = null
       sendTerminalData = null
       // Keep the session id. The grace reaps it if nobody reopens and
       // nothing is running under it.
@@ -481,6 +544,13 @@
       </div>
     {/if}
   </div>
+  <!--
+    The soft-key row (GDK-1995): Esc, Ctrl and the arrows for a surface with
+    no physical keyboard. It paints only on a touch-only device — the media
+    query in KeyBar.svelte owns that decision — so elsewhere this is a
+    display:none node and nothing else.
+  -->
+  <KeyBar {mods} onkey={onBarKey} />
   {#if status.kind !== 'none'}
     {#snippet statusLine()}
       {#if status.kind === 'reconnecting'}

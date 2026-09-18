@@ -38,7 +38,7 @@
   } from '../lib/writes'
   import { hasCustomFieldRow } from '../lib/desk'
   import { fieldRows, type FieldRow } from '../lib/fields'
-  import { keyboardInset } from '../lib/keyboard'
+  import { keyboardInset } from '../../../web/src/lib/keyboard'
   import { clearDraft, loadDraft, saveDraft, type DraftKind } from '../lib/drafts'
   import { t, fieldLabel } from '../lib/i18n'
   import { showToast } from '../lib/toast.svelte'
