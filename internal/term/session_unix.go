@@ -52,6 +52,20 @@ type ptyProc struct {
 	// caller of proc.Write/resize get the same answer without repeating it.
 	closed atomic.Bool
 
+	// ioctlMu keeps a window-size ioctl and closePTY off each other's
+	// toes. os.File's Read and Write hold the poll refcount and are safe
+	// against a concurrent Close; `Fd()` is not, and creack/pty's ioctl
+	// helper calls it — so the winsize calls are the one family that has to
+	// be told the fd is going away. closePTY takes it exclusively; every
+	// ioctl below takes it shared and re-checks `closed` inside.
+	//
+	// The race the hold loop made visible (CI run 35306424577, Server race
+	// tests): GetsizeFull reading `f.fd` while closePTY destroyed it. The
+	// same hazard was always there for a resize arriving as a session ends
+	// — one goroutine, a narrow window, never caught — and this closes both
+	// (GDK-1192).
+	ioctlMu sync.RWMutex
+
 	// holdMu guards the size the hold loop is defending and whether one is
 	// running. One loop per proc, never one per call: a pane dragged across
 	// the screen resizes many times a second, and a goroutine each would be
@@ -122,6 +136,27 @@ var (
 	ptyGetsize = pty.GetsizeFull
 )
 
+// setWinsize / getWinsize are the only callers of the two seams: every
+// window-size ioctl goes through here so the "is the fd still there" check
+// lives in one place rather than at each call.
+func (p *ptyProc) setWinsize(cols, rows uint16) error {
+	p.ioctlMu.RLock()
+	defer p.ioctlMu.RUnlock()
+	if p.closed.Load() {
+		return ErrSessionClosed
+	}
+	return ptySetsize(p.f, &pty.Winsize{Cols: cols, Rows: rows})
+}
+
+func (p *ptyProc) getWinsize() (*pty.Winsize, error) {
+	p.ioctlMu.RLock()
+	defer p.ioctlMu.RUnlock()
+	if p.closed.Load() {
+		return nil, ErrSessionClosed
+	}
+	return ptyGetsize(p.f)
+}
+
 // resizeReadBackAttempts bounds the set → read-back loop below.
 const resizeReadBackAttempts = 5
 
@@ -191,7 +226,7 @@ func (p *ptyProc) resize(cols, rows uint16) error {
 	var err error
 	for attempt := 0; ; attempt++ {
 		for {
-			err = ptySetsize(p.f, &pty.Winsize{Cols: cols, Rows: rows})
+			err = p.setWinsize(cols, rows)
 			if !errors.Is(err, syscall.EINTR) {
 				break
 			}
@@ -200,7 +235,7 @@ func (p *ptyProc) resize(cols, rows uint16) error {
 			p.recordResizeExit("set-error:" + err.Error())
 			break
 		}
-		got, gerr := ptyGetsize(p.f)
+		got, gerr := p.getWinsize()
 		if gerr != nil {
 			// Unverifiable is trusted: a read-back failure is not evidence
 			// the set was lost, and refusing here would turn every such pty
@@ -262,7 +297,7 @@ func (p *ptyProc) holdLoop() {
 		p.holdMu.Lock()
 		cols, rows := p.holdCols, p.holdRows
 		p.holdMu.Unlock()
-		got, err := ptyGetsize(p.f)
+		got, err := p.getWinsize()
 		if err != nil {
 			// The same reasoning the read-back loop uses: an unreadable
 			// size is not evidence the size is gone.
@@ -272,7 +307,7 @@ func (p *ptyProc) holdLoop() {
 			continue
 		}
 		since := time.Since(started).Round(time.Millisecond)
-		if err := ptySetsize(p.f, &pty.Winsize{Cols: cols, Rows: rows}); err != nil {
+		if err := p.setWinsize(cols, rows); err != nil {
 			p.recordResizeExit(fmt.Sprintf("reverted@%s→reapply-error:%v", since, err))
 			return
 		}
@@ -284,7 +319,7 @@ func (p *ptyProc) holdLoop() {
 // (TIOCGWINSZ) — the answer that says whether a resize the session believes
 // it applied is the one the child's tty carries (GDK-1192 diagnostics).
 func (p *ptyProc) winsize() (cols, rows uint16, err error) {
-	ws, err := pty.GetsizeFull(p.f)
+	ws, err := p.getWinsize()
 	if err != nil {
 		return 0, 0, err
 	}
@@ -406,7 +441,9 @@ func (p *ptyProc) closePTY() error {
 		// resize racing this close sees the flag and maps its failure to
 		// ErrSessionClosed (GDK-914).
 		p.closed.Store(true)
+		p.ioctlMu.Lock()
 		err = p.f.Close()
+		p.ioctlMu.Unlock()
 	})
 	return err
 }

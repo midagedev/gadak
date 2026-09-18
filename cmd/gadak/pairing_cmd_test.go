@@ -602,6 +602,37 @@ func TestPairedStatusSurfacesRemoteOrigin(t *testing.T) {
 	}
 }
 
+// doctorLeakScan is the part of a doctor report a leak assertion may read:
+// everything except the line naming this test binary, whose path the build
+// system chooses at random (GDK-1998).
+func doctorLeakScan(out string) string {
+	var kept []string
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "binary:") {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "\n")
+}
+
+// The two halves of GDK-1998, as a table rather than a probability: the
+// line that made a green test red is not read, and a real leak still is.
+//
+// FAIL-first is the CI failure itself — run 35306424577, where the assertion
+// `strings.Contains(out, "8443")` matched `/tmp/go-build908588443/b128/
+// gadak.test` and reported a leak of an endpoint the report never mentioned.
+func TestDoctorLeakScanReadsTheReportAndNotTheBinaryPath(t *testing.T) {
+	dice := "binary:                /tmp/go-build908588443/b128/gadak.test\norigin:  paired gadak serve (label \"laptop\")\n"
+	if strings.Contains(doctorLeakScan(dice), "8443") {
+		t.Errorf("the build directory's own random name is being scanned for the endpoint port:\n%s", doctorLeakScan(dice))
+	}
+	leak := "binary:                /tmp/go-build1/b1/gadak.test\nendpoint:              https://home.ts.net:8443\n"
+	if !strings.Contains(doctorLeakScan(leak), ":8443") || !strings.Contains(doctorLeakScan(leak), "home.ts.net") {
+		t.Errorf("a real endpoint leak must still be read:\n%s", doctorLeakScan(leak))
+	}
+}
+
 func TestDoctorPairedDescribesServeWithoutHost(t *testing.T) {
 	seedPairedProfile(t)
 	t.Setenv("HOME", os.Getenv("GADAK_HOME"))
@@ -613,7 +644,16 @@ func TestDoctorPairedDescribesServeWithoutHost(t *testing.T) {
 	if !strings.Contains(out, `paired gadak serve (label "laptop")`) {
 		t.Fatalf("doctor origin missing paired serve+label:\n%s", out)
 	}
-	if strings.Contains(out, "home.ts.net") || strings.Contains(out, "8443") {
+	// GDK-1998: the needle is `:8443`, and the `binary:` line is not part of
+	// what is scanned. A bare "8443" matched the Go build directory's own
+	// random name — CI run 35306424577 printed
+	// `binary: /tmp/go-build908588443/b128/gadak.test`, and `908588443`
+	// contains it — so a passing test went red on a machine's dice roll
+	// rather than on a leak. The endpoint is `https://host:8443`, so a real
+	// leak carries the colon; and the only line in this document that
+	// carries a machine-chosen path is the one naming this test binary,
+	// which is not what the assertion is about.
+	if strings.Contains(doctorLeakScan(out), "home.ts.net") || strings.Contains(doctorLeakScan(out), ":8443") {
 		t.Fatalf("doctor leaked pairing endpoint host (safe-to-paste):\n%s", out)
 	}
 
