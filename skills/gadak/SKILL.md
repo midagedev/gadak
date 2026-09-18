@@ -197,13 +197,19 @@ rather than assume there is one:
 gadak workspaces --json   # name, active, configured, site_host, issues, documents, last_sync_at
 ```
 
-`active` is the workspace the command you just ran used. Nothing else sets it —
-there is no stored "current workspace" to switch. It comes from the command line
-or the environment, both of which are visible in what you ran:
+`active` is the workspace the command you just ran used. Three things can
+select it: the command line, the environment, or a stored default somebody set
+once with `gadak workspace use <name>`. The first two are visible in what you
+ran; the third is not, which is what the rules below are about.
 
 ```bash
 gadak --workspace work sql "…"    # this call only
+gadak workspace use work          # the default a later bare `gadak` inherits
+gadak workspace use --clear       # no stored default again
 ```
+
+A stored default answers `workspace_source: "stored"` — say so when you report
+which mirror you read, because nobody in the conversation chose it.
 
 `--profile` is an alias of `--workspace`; existing scripts and MCP installs
 that pass `--profile` keep working. `gadak profiles` is the same command as
