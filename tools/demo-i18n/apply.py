@@ -27,6 +27,7 @@ What changes, by id family (see extract.py for the ids):
   catalog:priority:<name>  issues_raw.priority for that display name
   catalog:type:<id>        issues_raw.issue_type for that issue_type_id
   catalog:component:<n>    the entry in issues_raw.components JSON arrays
+  catalog:label:<n>        the entry in issues_raw.labels and pages.labels arrays
   catalog:resolution:<n>   issues_raw.resolution for that display name
   catalog:version:<n>      the entry in issues_raw.fix_versions arrays, and versions.name
   catalog:board:<id>       boards.name for that board id
@@ -403,17 +404,30 @@ def main() -> int:
             new = [comp.get(c, c) for c in arr]
             if new != arr:
                 con.execute("UPDATE issues_raw SET components = ? WHERE item_id = ?", (json.dumps(new, ensure_ascii=False), item_id))
+    # Labels (GDK-1976), the same array rewrite as components, on both
+    # projections — pages carry labels too, and the wiki list shows them.
+    lab = {k.split(":", 2)[2]: v for k, v in tr.items() if k.startswith("catalog:label:")}
+    if lab:
+        for table in ("issues_raw", "pages"):
+            for item_id, lj in con.execute(
+                    f"SELECT item_id, labels FROM {table} WHERE labels IS NOT NULL AND labels != '[]'").fetchall():
+                arr = json.loads(lj)
+                new_arr = [lab.get(x, x) for x in arr]
+                if new_arr != arr:
+                    con.execute(f"UPDATE {table} SET labels = ? WHERE item_id = ?",
+                                (json.dumps(new_arr, ensure_ascii=False), item_id))
     con.commit()
 
     scrub = load_scrub()
     # Force a rebuild regardless of DDL shape: the tokens changed, not the schema.
     con.execute("DROP TABLE IF EXISTS items_fts")
-    # Same shape scripts/scrub-demo-db.py rebuilds: the labels column and the
-    # porter wrapper (GDK-1021). Recreating the pre-1021 4-column DDL here
-    # would hand the ko/ja recording fixture an index that silently loses
-    # label-only hits and English stem variants — the named trap of 0009
-    # §Consequences, one writer at a time.
-    con.execute("CREATE VIRTUAL TABLE items_fts USING fts5(title, labels, body_text, comments_text, cjk_bigram, content='', tokenize='porter unicode61 remove_diacritics 2')")
+    # Same shape scripts/scrub-demo-db.py rebuilds: the labels column, the
+    # porter wrapper (GDK-1021) and script_runs (GDK-1978). Recreating a
+    # shorter-column DDL here would hand the ko/ja recording fixture an index
+    # that silently loses label-only hits, English stem variants or the
+    # CJK-glued Latin runs — the named trap of 0009 §Consequences, one writer
+    # at a time.
+    con.execute("CREATE VIRTUAL TABLE items_fts USING fts5(title, labels, body_text, comments_text, cjk_bigram, script_runs, content='', tokenize='porter unicode61 remove_diacritics 2')")
     rows = con.execute("""
         SELECT i.rowid, COALESCE(i.title,''), COALESCE(i.body_text, ''),
                COALESCE((SELECT group_concat(body_text, char(10)) FROM (SELECT body_text FROM comments WHERE item_id = i.id AND body_text <> '' ORDER BY rowid)), ''),
@@ -421,9 +435,10 @@ def main() -> int:
         FROM items i
         LEFT JOIN issues_raw ir ON ir.item_id = i.id
         LEFT JOIN pages p ON p.item_id = i.id""").fetchall()
-    con.executemany("INSERT INTO items_fts (rowid, title, labels, body_text, comments_text, cjk_bigram) VALUES (?, ?, ?, ?, ?, ?)",
+    con.executemany("INSERT INTO items_fts (rowid, title, labels, body_text, comments_text, cjk_bigram, script_runs) VALUES (?, ?, ?, ?, ?, ?, ?)",
         [(r, t, scrub.fts_labels_text(lb), b, c,
-          scrub.cjk_bigram_column(t, scrub.fts_labels_text(lb), b, c)) for r, t, b, c, lb in rows])
+          scrub.cjk_bigram_column(t, scrub.fts_labels_text(lb), b, c),
+          scrub.script_runs_column(t, scrub.fts_labels_text(lb), b, c)) for r, t, b, c, lb in rows])
     con.commit()
     fts = con.execute("SELECT count(*) FROM items_fts").fetchone()[0]
     ch_derived = sum(c["id"] + c["value"] + c["template"] for c in ch_counts.values())

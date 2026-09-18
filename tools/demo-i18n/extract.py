@@ -16,6 +16,7 @@ way applies without any English-string matching:
   catalog:priority:<name>              issues_raw.priority display name (the fixture has no priority ids)
   catalog:type:<issue_type_id>         issues_raw.issue_type display name
   catalog:component:<name>             a components[] entry
+  catalog:label:<name>                 a labels[] entry, on issues and pages
   catalog:resolution:<name>            issues_raw.resolution display name
   catalog:version:<name>               a fix_versions[] entry (and the versions row)
   catalog:board:<board_id>             boards.name
@@ -139,6 +140,21 @@ def extract(db: Path) -> dict:
         for name in json.loads(c or "[]"): comps.add(name)
     for name in sorted(comps):
         s[f"catalog:component:{name}"] = name
+    # Labels, same array shape as components and — since 2026-09-18 — the same
+    # answer. They were left English on the reasoning that a label is a slug a
+    # real Korean or Japanese team would type in ASCII anyway (GDK-1944). The
+    # ja clip settled it the other way (GDK-1976): on one detail screen
+    # `customer-reported` sat directly under コンポーネント ダッシュボード and
+    # 優先度 最高, and the asymmetry is what reads as unfinished — a component
+    # is no less "data" than a label, and it was translated. Issues and pages
+    # both carry labels, so the family is per-item like the labels column.
+    labels = set()
+    for (lb,) in con.execute("SELECT labels FROM issues_raw WHERE labels IS NOT NULL"):
+        for name in json.loads(lb or "[]"): labels.add(name)
+    for (lb,) in con.execute("SELECT labels FROM pages WHERE labels IS NOT NULL"):
+        for name in json.loads(lb or "[]"): labels.add(name)
+    for name in sorted(labels):
+        s[f"catalog:label:{name}"] = name
     # The link type name is the phone's own label for a linked-issue row: the
     # mobile detail prints links.type raw, so a ko/ja still read "Blocks"
     # beside a translated summary while the applied census — table-blind

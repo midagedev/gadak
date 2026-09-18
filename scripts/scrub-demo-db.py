@@ -32,6 +32,7 @@ import re
 import shutil
 import sqlite3
 import sys
+import unicodedata
 
 REPLACEMENTS = [
     (re.compile(r"midagedev[+A-Za-z0-9._-]*@gmail\.com"), "demo@example.com"),
@@ -103,6 +104,49 @@ def fts_labels_text(labels_json: str) -> str:
     return " ".join(l for l in labels if isinstance(l, str))
 
 
+def _is_cjk(ch: str) -> bool:
+    return any(lo <= ord(ch) <= hi for lo, hi in CJK_RANGES)
+
+
+def _is_token_char(ch: str) -> bool:
+    """Letter or digit (unicode61's token set), not CJK — mirrors
+    store.isTokenRune via the category test (L*/N*) Go's unicode.IsLetter /
+    unicode.IsNumber are defined on."""
+    if _is_cjk(ch):
+        return False
+    return unicodedata.category(ch)[0] in ("L", "N")
+
+
+def script_runs(text: str) -> list[str]:
+    """Latin/digit runs immediately adjacent to a CJK rune, in scan order —
+    mirror of store.scriptRuns (GDK-1978). Only those runs are swallowed by
+    unicode61 into the neighboring CJK token, so only those need rescuing."""
+    runs: list[str] = []
+    start = None
+    for i in range(len(text) + 1):
+        if i < len(text) and _is_token_char(text[i]):
+            if start is None:
+                start = i
+            continue
+        if start is not None:
+            left = start > 0 and _is_cjk(text[start - 1])
+            right = i < len(text) and _is_cjk(text[i])
+            if left or right:
+                runs.append(text[start:i])
+            start = None
+    return runs
+
+
+def script_runs_column(title: str, labels: str, body: str, comments: str) -> str:
+    """Mirror of store.FTSScriptRunsColumn — the items_fts.script_runs value."""
+    parts = []
+    for text in (title, labels, body, comments):
+        runs = script_runs(text)
+        if runs:
+            parts.append(" ".join(runs))
+    return " ".join(parts)
+
+
 # "tech-debt" is quoted as a phrase on purpose: bare `tech-debt` is not a
 # valid FTS5 query — the hyphen makes the parser read `tech` as a column
 # filter list and fail with "no such column: debt". The phrase form is what
@@ -130,7 +174,10 @@ def rebuild_fts(con: sqlite3.Connection, ddl: str) -> None:
     internal/store/write.go. The cjk_bigram column is computed here in
     Python (SQL cannot emit overlapping 2-grams) and must match
     store.FTSCJKBigramColumn, or the snapshot silently loses CJK mid-compound
-    search (GDK-259 / docs/decisions/0009). The labels column (GDK-1021) is
+    search (GDK-259 / docs/decisions/0009). The script_runs column (GDK-1978)
+    is the CJK-adjacent Latin/digit runs and must match
+    store.FTSScriptRunsColumn for the same byte-identical reason. The labels
+    column (GDK-1021) is
     the space-joined label list from whichever projection the item has,
     mirroring store.FTSLabelsText — without it the snapshot loses label-only
     hits while a local mirror keeps them. Shared with the publish-side strip
@@ -155,11 +202,12 @@ def rebuild_fts(con: sqlite3.Connection, ddl: str) -> None:
         """
     ).fetchall()
     con.executemany(
-        "INSERT INTO items_fts (rowid, title, labels, body_text, comments_text, cjk_bigram) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO items_fts (rowid, title, labels, body_text, comments_text, cjk_bigram, script_runs) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
         [
             (rowid, title, fts_labels_text(labels), body, comments,
-             cjk_bigram_column(title, fts_labels_text(labels), body, comments))
+             cjk_bigram_column(title, fts_labels_text(labels), body, comments),
+             script_runs_column(title, fts_labels_text(labels), body, comments))
             for rowid, title, body, comments, labels in rows
         ],
     )
@@ -273,6 +321,9 @@ def main() -> int:
         return 1
     if fts_sql and "cjk_bigram" not in (fts_sql[0] or ""):
         print("items_fts lost the cjk_bigram column in the portable rebuild", file=sys.stderr)
+        return 1
+    if fts_sql and "script_runs" not in (fts_sql[0] or ""):
+        print("items_fts lost the script_runs column in the portable rebuild", file=sys.stderr)
         return 1
     if fts_sql and "labels" not in (fts_sql[0] or ""):
         print("items_fts lost the labels column in the portable rebuild", file=sys.stderr)

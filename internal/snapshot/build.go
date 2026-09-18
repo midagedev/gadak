@@ -524,8 +524,8 @@ func insertPageBundle(tx *sql.Tx, p pageRow, ch children) error {
 		}
 	}
 
-	// FTS — same contentless delete+insert path (and cjk_bigram / labels
-	// columns) as issues / store.writeFTS. Labels come from the page
+	// FTS — same contentless delete+insert path (and cjk_bigram / labels /
+	// script_runs columns) as issues / store.writeFTS. Labels come from the page
 	// projection's stored JSON (defaulted above for pre-labels sources).
 	var rowid int64
 	if err := tx.QueryRow(`SELECT rowid FROM items WHERE id = ?`, itemID).Scan(&rowid); err != nil {
@@ -545,8 +545,9 @@ func insertPageBundle(tx *sql.Tx, p pageRow, ch children) error {
 		return err
 	}
 	if _, err := tx.Exec(
-		`INSERT INTO items_fts (rowid, title, labels, body_text, comments_text, cjk_bigram) VALUES (?,?,?,?,?,?)`,
+		`INSERT INTO items_fts (rowid, title, labels, body_text, comments_text, cjk_bigram, script_runs) VALUES (?,?,?,?,?,?,?)`,
 		rowid, title, labels, body, comments, store.FTSCJKBigramColumn(title, labels, body, comments),
+		store.FTSScriptRunsColumn(title, labels, body, comments),
 	); err != nil {
 		return err
 	}
@@ -802,9 +803,9 @@ func insertIssueBundle(tx *sql.Tx, p plannedIssue, itemID, key string, ch childr
 		return err
 	}
 
-	// FTS — same contentless delete+insert path (and cjk_bigram / labels
-	// columns) as store.writeFTS. Labels ride the issue row (clones keep the
-	// source's — GDK-1558 rotates six columns, labels not among them).
+	// FTS — same contentless delete+insert path (and cjk_bigram / labels /
+	// script_runs columns) as store.writeFTS. Labels ride the issue row (clones
+	// keep the source's — GDK-1558 rotates six columns, labels not among them).
 	var rowid int64
 	if err := tx.QueryRow(`SELECT rowid FROM items WHERE id = ?`, itemID).Scan(&rowid); err != nil {
 		return err
@@ -823,8 +824,9 @@ func insertIssueBundle(tx *sql.Tx, p plannedIssue, itemID, key string, ch childr
 		return err
 	}
 	if _, err := tx.Exec(
-		`INSERT INTO items_fts (rowid, title, labels, body_text, comments_text, cjk_bigram) VALUES (?,?,?,?,?,?)`,
+		`INSERT INTO items_fts (rowid, title, labels, body_text, comments_text, cjk_bigram, script_runs) VALUES (?,?,?,?,?,?,?)`,
 		rowid, title, labels, body, comments, store.FTSCJKBigramColumn(title, labels, body, comments),
+		store.FTSScriptRunsColumn(title, labels, body, comments),
 	); err != nil {
 		return err
 	}

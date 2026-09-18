@@ -1388,14 +1388,20 @@ const (
 	// token hit. 2.0 is the starting point 0009 §3a prescribes; renumber only
 	// with a relevance fixture run, like the 2026-08-17 one above.
 	ftsBM25CJKBigram = 2.0
+	// ftsBM25ScriptRuns weights the script_runs column (GDK-1978): the same
+	// 2.0 as cjk_bigram — it is the same kind of auxiliary projection of the
+	// same body text, and a different weight would be a ranking claim nothing
+	// here has measured.
+	ftsBM25ScriptRuns = 2.0
 )
 
 // ftsRankSQL passes one bm25 weight per items_fts column, in DDL order
-// (title, labels, body_text, comments_text, cjk_bigram). Fewer weights than
-// columns leaves the tail at SQLite's discretion — always pass all five.
+// (title, labels, body_text, comments_text, cjk_bigram, script_runs). Fewer
+// weights than columns leaves the tail at SQLite's discretion — always pass
+// all six.
 func ftsRankSQL() string {
-	return fmt.Sprintf("bm25(items_fts, %g, %g, %g, %g, %g)",
-		ftsBM25Title, ftsBM25Labels, ftsBM25Body, ftsBM25Comments, ftsBM25CJKBigram)
+	return fmt.Sprintf("bm25(items_fts, %g, %g, %g, %g, %g, %g)",
+		ftsBM25Title, ftsBM25Labels, ftsBM25Body, ftsBM25Comments, ftsBM25CJKBigram, ftsBM25ScriptRuns)
 }
 
 // Search runs a key lookup (when the query looks like a key) then an FTS5

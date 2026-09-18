@@ -27,13 +27,16 @@ func MirrorSchemaVersion() int { return len(migrations) }
 // (GDK-259) is filled by FTSCJKBigramColumn; leaving it out
 // of any writer is the silent-miss trap. labels (GDK-1021) is the space-joined
 // label list (FTSLabelsText) — issues and pages both carry labels, so the
-// column is per-item, not per-projection. The porter wrapper (GDK-1021) keeps
+// column is per-item, not per-projection. script_runs (GDK-1978) is the
+// CJK-adjacent Latin/digit runs (FTSScriptRunsColumn) — the runs unicode61
+// swallows into the CJK token before them; same silent-miss trap if a writer
+// omits it. The porter wrapper (GDK-1021) keeps
 // unicode61's token boundaries and adds English stemming: measured 2026-09-10
 // the CJK bigram contract survives it (bigram phrases, one-rune prefixes and
 // mixed-script tokens all unchanged) while payment↔payments-class queries stop
 // missing — docs/decisions/0009 addendum has the measurement.
 const itemsFTSCreate = `CREATE VIRTUAL TABLE items_fts USING fts5(
-  title, labels, body_text, comments_text, cjk_bigram,
+  title, labels, body_text, comments_text, cjk_bigram, script_runs,
   content='',
   contentless_delete=1,
   tokenize='porter unicode61 remove_diacritics 2'

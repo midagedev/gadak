@@ -4,7 +4,7 @@
 
 ## Unreleased
 
-**The terminal fits the phone's screen.** Under 900px the pane becomes an
+**The terminal works on a phone.** Under 900px the pane becomes an
 overlay sheet, and that sheet was `width: 100%` on a box already anchored to
 both edges — an over-constrained box drops its right anchor, so the sheet ran
 past the right edge by exactly the sidebar's width at every width the shape
@@ -13,15 +13,14 @@ in, of which 193px was all the screen could show, on a page that does not
 scroll sideways. The sheet now takes the width that is left over and the
 sidebar keeps only what fits beside it ([GDK-1987]).
 
-**The keyboard stays up when you tap the terminal.** It had been rising and
-going away again about half a second later, so the phone's shell could be read
-but not typed into. Keystrokes there come from the screen's own field — xterm
+The keyboard stays up when you tap it. It had been rising and going away
+again about half a second later, so the phone's shell could be read but not
+typed into. Keystrokes there come from the screen's own field — xterm
 paints and nothing else — but xterm's own hidden textarea had never been told
 that, and the mouse event iOS synthesises after a tap sent the focus to it: a
 field `disableStdin` had made read-only, and iOS does not keep a keyboard up
 for one of those. That textarea takes no focus on this screen now
 ([GDK-1986]).
-
 The web UI in a phone browser had the same shape from the other side.
 `tailscale serve` makes `/` the door that needs no install, and there the pane
 took the keyboard for itself the moment its socket attached — a focus that
@@ -77,7 +76,6 @@ the list itself and one that would change nothing is not offered, so a
 one-project workspace is never asked about projects. Nothing is saved — the
 narrowing goes when you pick another view, which is how a phone you took out
 to find one thing should behave ([GDK-1994]).
-
 The sheet's last two rows are what the list is cut by and what it is ordered
 by, and the cut is now the view's the way the order already was: the desktop's
 own grouper moved out of the code the desktop's list is wired into, so both
@@ -88,6 +86,29 @@ is rather than by a rank, because an assignee or an epic has no rank — that
 was the shape of the crash the previous round found, and eight axes is the
 same crash with more ways in. And a sprint now reads the desktop's order —
 what is moving, then what is left, then what landed.
+
+**Japanese reads whole.** A Japanese sentence has no spaces, and three
+different things in gadak were quietly assuming one. The worst was search: the
+index tokenizer counts kanji and kana as letters, so a word with no separator
+before it is not a word at all — it is swallowed into the character in front of
+it. `追跡issueはNMB-110で` indexed as the single token `追跡issueはnmb`, and
+searching for `NMB-110` found nothing, while the same sentence in Korean and
+English found it. Across the fixture this cache ships with, English lost no
+terms and Japanese lost 625 of them, in 334 of 605 items. The index now carries
+the runs that get swallowed, alongside the ones it already carried for the
+mirror-image case in Chinese and Korean compounds; English rows gain nothing,
+because English has nothing glued to them ([GDK-1978]).
+
+The phone's sprint line had the same shape in one line of CSS: the goal was
+clamped to a single line, and one line holds 48 Latin characters but only 30
+full-width ones — the Japanese goal is 34, so it alone came out cut in the
+middle of a word. It gets two lines ([GDK-1977]). And the Korean and Japanese demo data
+now translates its labels. Everything else on that screen already did —
+components, versions, statuses, priorities — so `customer-reported` sitting
+under コンポーネント ダッシュボード read as a translation that stopped early
+rather than as the English tag a real team might type. The check that refuses
+to record over a fixture still holding English reads the label columns now,
+which is why it had not noticed ([GDK-1976]).
 
 ## v0.23.1
 
@@ -1858,6 +1879,9 @@ priority sorting keyed on `priority_rank`.
 [GDK-1972]: https://gadak.dev/backlog/#/?ks=GDK-1972
 [GDK-1973]: https://gadak.dev/backlog/#/?ks=GDK-1973
 [GDK-1974]: https://gadak.dev/backlog/#/?ks=GDK-1974
+[GDK-1976]: https://gadak.dev/backlog/#/?ks=GDK-1976
+[GDK-1977]: https://gadak.dev/backlog/#/?ks=GDK-1977
+[GDK-1978]: https://gadak.dev/backlog/#/?ks=GDK-1978
 [GDK-1982]: https://gadak.dev/backlog/#/?ks=GDK-1982
 [GDK-1984]: https://gadak.dev/backlog/#/?ks=GDK-1984
 [GDK-1985]: https://gadak.dev/backlog/#/?ks=GDK-1985

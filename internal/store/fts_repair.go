@@ -52,8 +52,9 @@ func (db *DB) repairItemsFTS(ctx context.Context) error {
 // rebuildItemsFTS drops and recreates items_fts with the canonical DDL and
 // reloads it with the same content writeFTS produces: title, labels, body_text,
 // the item's comments joined by newlines in insertion order (rowid order —
-// comments are replaced wholesale, so rowids follow insert order), and the
-// CJK bigram column. SQL cannot emit overlapping 2-grams, so rows are walked
+// comments are replaced wholesale, so rowids follow insert order), the CJK
+// bigram column and the CJK-adjacent script_runs column. SQL cannot emit
+// overlapping 2-grams, so rows are walked
 // in Go (insertFTSBatch); the walk pages by items.rowid so a large mirror
 // rebuilds without holding every body in memory. The comment concatenation
 // still mirrors scripts/scrub-demo-db.py's rebuild_fts, verified against
@@ -128,14 +129,16 @@ func insertFTSBatch(ctx context.Context, tx *sql.Tx, after int64, batch int) (n 
 	rows.Close()
 
 	ins, err := tx.PrepareContext(ctx,
-		`INSERT INTO items_fts (rowid, title, labels, body_text, comments_text, cjk_bigram) VALUES (?,?,?,?,?,?)`)
+		`INSERT INTO items_fts (rowid, title, labels, body_text, comments_text, cjk_bigram, script_runs) VALUES (?,?,?,?,?,?,?)`)
 	if err != nil {
 		return 0, 0, err
 	}
 	defer ins.Close()
 	for _, r := range loaded {
 		labels := FTSLabelsText(r.labelsJSON)
-		if _, err := ins.Exec(r.rowid, r.title, labels, r.body, r.comms, FTSCJKBigramColumn(r.title, labels, r.body, r.comms)); err != nil {
+		if _, err := ins.Exec(r.rowid, r.title, labels, r.body, r.comms,
+			FTSCJKBigramColumn(r.title, labels, r.body, r.comms),
+			FTSScriptRunsColumn(r.title, labels, r.body, r.comms)); err != nil {
 			return n, last, err
 		}
 		n++

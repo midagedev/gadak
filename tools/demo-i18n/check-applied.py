@@ -128,7 +128,14 @@ WIRE = {
         "resolution_id": "resolution id (the display name is the checked column)",
         "sprint_state": "state enum (future/active/closed)",
         "fix_version_ids": "id list, JSON",
-        "labels": "label list, JSON",
+        # labels is deliberately absent since 2026-09-18 (GDK-1976). It was
+        # exempt as "slugs a real ko/ja team types in ASCII anyway"
+        # (GDK-1944), and the ja clip overruled that: on one detail screen
+        # `customer-reported` sat under コンポーネント ダッシュボード and
+        # 優先度 最高, which reads as a translation that stopped early rather
+        # than as realism. A component is no less data than a label. The
+        # census now checks this column, which is what closes the axis the
+        # GDK-1847 gate was blind to.
         "description_adf": "ADF payload; body_text beside it is generated from the same tree",
         "custom": "custom field map, JSON",
         "raw": "origin JSON blob",
@@ -156,7 +163,7 @@ WIRE = {
     "pages": {
         "item_id": "row id into items",
         "space_key": "space key",
-        "labels": "label list, JSON",
+        # labels: see issues_raw above — checked since 2026-09-18 (GDK-1976).
         "body_adf": "ADF payload; excerpt beside it is generated from the same tree",
         "status": "lifecycle enum (current/draft)",
     },

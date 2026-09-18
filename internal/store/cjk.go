@@ -1,6 +1,9 @@
 package store
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+)
 
 // CJK mid-compound search (GDK-259 / docs/decisions/0009): items_fts keeps
 // unicode61's token boundaries (under the porter stemming wrapper since
@@ -103,4 +106,64 @@ func FTSCJKBigramColumn(title, labels, body, comments string) string {
 // drops out of search again (GDK-1021).
 func FTSLabelsText(labelsJSON string) string {
 	return strings.Join(parseArray(&labelsJSON), " ")
+}
+
+// isTokenRune reports whether r is a non-CJK token character for the
+// script_runs column: a letter or digit (unicode61's token set, the same set
+// unicode61 counts Han, kana and Hangul as) that is not itself CJK by
+// isCJKRune. Everything else — punctuation, spaces, symbols, CJK — breaks a
+// run, exactly the boundaries unicode61 already breaks tokens on except the
+// CJK ones, which is the whole point (GDK-1978).
+func isTokenRune(r rune) bool {
+	return !isCJKRune(r) && (unicode.IsLetter(r) || unicode.IsNumber(r))
+}
+
+// scriptRuns returns the maximal runs of non-CJK token characters (letters
+// and digits) in s that sit immediately adjacent to a CJK rune — adjacent on
+// either side — in scan order. A run is emitted iff the rune before its first
+// character or the rune after its last character is CJK: those are exactly
+// the runs unicode61 swallows into the neighboring CJK token, because it
+// counts CJK as token characters. A run bounded by punctuation or space on
+// both sides (デプロイは完了。NMB-140) was never swallowed — it is already its
+// own token — and English text has no CJK to be glued to, so it emits nothing
+// at all (GDK-1978).
+func scriptRuns(s string) []string {
+	rs := []rune(s)
+	var out []string
+	start := -1
+	for i := 0; i <= len(rs); i++ {
+		if i < len(rs) && isTokenRune(rs[i]) {
+			if start < 0 {
+				start = i
+			}
+			continue
+		}
+		if start >= 0 {
+			left := start > 0 && isCJKRune(rs[start-1])
+			right := i < len(rs) && isCJKRune(rs[i])
+			if left || right {
+				out = append(out, string(rs[start:i]))
+			}
+			start = -1
+		}
+	}
+	return out
+}
+
+// FTSScriptRunsColumn is the items_fts.script_runs value for one row: the
+// CJK-adjacent Latin/digit runs of the title, label, body and comment text,
+// space-joined in scan order, so the phrase query ["nmb","110"*] matches the
+// rescued `NMB 110` of 追跡issueはNMB-110で the same way it matches Korean's
+// space-spelled NMB-110이며. The sixth and last items_fts column (GDK-1978);
+// exported for the same writers as FTSCJKBigramColumn — a writer that omits
+// it leaves the axis silently empty, the contentless trap of 0009
+// §Consequences a third time.
+func FTSScriptRunsColumn(title, labels, body, comments string) string {
+	parts := make([]string, 0, 4)
+	for _, text := range []string{title, labels, body, comments} {
+		if runs := scriptRuns(text); len(runs) > 0 {
+			parts = append(parts, strings.Join(runs, " "))
+		}
+	}
+	return strings.Join(parts, " ")
 }

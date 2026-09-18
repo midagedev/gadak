@@ -633,7 +633,7 @@ plus comment bodies.
 
 ```sql
 CREATE VIRTUAL TABLE items_fts USING fts5(
-  title, labels, body_text, comments_text, cjk_bigram,
+  title, labels, body_text, comments_text, cjk_bigram, script_runs,
   content='',            -- contentless: rows are rebuilt on sync
   contentless_delete=1,  -- lets one row be replaced without the old values
   tokenize='porter unicode61 remove_diacritics 2'
@@ -666,6 +666,23 @@ tokenizer was measured and rejected: a 2-character query emits no trigram
 tokens, so `MATCH` silently returns 0 rows, and it wrecks English precision
 (`ency` → 0.342). English is deliberately not n-grammed — `ency` does not
 match `idempotency`.
+
+`script_runs` (v50 / GDK-1978) is the mirror image of `cjk_bigram`, and it
+exists because `unicode61` counts Han, kana and Hangul as token characters
+exactly like letters. A Latin or digit run with no separator before it is
+therefore not a token at all — it is swallowed into the CJK token in front of
+it. Measured with `fts5vocab`, `追跡issueはNMB-110で` indexes the single token
+`追跡issueはnmb`, so the app's own `"NMB-110"*` (the phrase `[nmb, 110*]`)
+finds nothing: the trailing `*` guards the right edge, and nothing guards the
+left. Korean survives the same sentence only because it puts a space before a
+foreign token. Across the recording fixtures the damage was 0 items in
+English, 2 in Korean and **334 of 605 in Japanese**. The column carries the
+maximal non-CJK letter/digit runs that sit immediately adjacent to a CJK rune,
+in scan order — so `追跡issueはNMB-110で` contributes `issue NMB 110` and the
+phrase matches — and only those: a run already bounded by punctuation or space
+was never swallowed, and English text has no CJK to be glued to, so English
+rows contribute nothing and the index does not grow for them. Nothing on the
+query side changed.
 
 ## Personal state in `local.db`: `saved_views`, `watches`, `favorites`, `feed_reads`
 

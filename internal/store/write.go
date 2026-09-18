@@ -1051,14 +1051,17 @@ func pageRecordUnchanged(tx *sql.Tx, r PageRecord) (bool, error) {
 // stored JSON label array (issues_raw.labels / pages.labels) — FTSLabelsText
 // owns the column's text form. cjk_bigram (GDK-259) covers the CJK runs of
 // all four text columns: it is what mid-compound Korean matches.
+// script_runs (GDK-1978) covers the Latin/digit runs unicode61 swallows into
+// an adjacent CJK token: it is what a left-glued NMB-110 matches.
 func writeFTS(tx *sql.Tx, rowid int64, title, body, comments, labelsJSON string) error {
 	labels := FTSLabelsText(labelsJSON)
 	if _, err := tx.Exec(`DELETE FROM items_fts WHERE rowid = ?`, rowid); err != nil {
 		return err
 	}
 	_, err := tx.Exec(
-		`INSERT INTO items_fts (rowid, title, labels, body_text, comments_text, cjk_bigram) VALUES (?,?,?,?,?,?)`,
-		rowid, title, labels, body, comments, FTSCJKBigramColumn(title, labels, body, comments))
+		`INSERT INTO items_fts (rowid, title, labels, body_text, comments_text, cjk_bigram, script_runs) VALUES (?,?,?,?,?,?,?)`,
+		rowid, title, labels, body, comments, FTSCJKBigramColumn(title, labels, body, comments),
+		FTSScriptRunsColumn(title, labels, body, comments))
 	return err
 }
 
