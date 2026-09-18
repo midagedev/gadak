@@ -99,7 +99,18 @@ const CEILINGS: Record<string, { lines: number; state: number }> = {
   // open row — one import line and one field line, no new $state. Measured
   // FAIL-first at 592 > 590 before this re-pin.
   // 529 → 592.
-  'Issues.svelte': { lines: 592, state: 3 },
+  // Raised 2026-09-18 for GDK-1994, 592 → 684 (FAIL-first read
+  // "Issues.svelte: 682 lines > ceiling 592"). The chevron stopped being a
+  // second door onto the palette and gained a body of its own: the sheet is
+  // its own component (ui/ListSheet.svelte, which this ratchet does not
+  // read), so what landed here is the wiring — the handler that decides
+  // which of the two doors a tap belongs to, the facet derivation gated on
+  // the sheet being open, the toggle, the road to the picker, the sheet's
+  // mount, the heading's narrow dot and its style, and the empty state's
+  // second way out. $state is unchanged at 3: the narrow and the sheet flag
+  // live in the store, where the palette's own flag already did, and the
+  // facets are $derived rather than held.
+  'Issues.svelte': { lines: 684, state: 3 },
   // Measured 2026-09-16 at birth (GDK-1827): the sprint list is the first
   // screen with no local state at all — every row is derived from the store.
   'Sprints.svelte': { lines: 262, state: 0 },

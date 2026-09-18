@@ -112,7 +112,7 @@ test('captures the A2 write surfaces for the vision round', async ({ page }) => 
 
   // Issue via the palette — the pane's own road to any key (a1's pattern;
   // GDK-902 2026-09-15 moved the field from a tab into the heading).
-  await page.locator('h1 button.scope').click()
+  await page.locator('button.search').click()
   await page.locator('.pane:not(.off) input').first().fill(issueKey)
   await page.locator('.pane:not(.off) button.row', { hasText: issueKey }).first().click()
   await page.locator('button.back').waitFor()

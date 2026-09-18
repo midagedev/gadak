@@ -266,13 +266,24 @@ describe('recurrence — the owner stays the owner', () => {
     expect(sheet).not.toMatch(/class="scrim"[^>]*aria-hidden/)
   })
 
-  it('the heading is the only owner control, and it opens the palette', () => {
+  it('the heading is the only owner control, and it opens this list', () => {
     // GDK-902 2026-09-15: replaces "TabBar dismisses sheets when the visible
     // tab actually changes". There is no tab bar (DESIGN.md §2) — the owner
     // changes at the heading, and it changes through the store's one setter,
     // so a second road to it cannot be written without this failing.
+    //
+    // Re-pinned 2026-09-18 (GDK-1994): the heading's own tap now opens the
+    // "this list" sheet rather than the palette — the two doors stopped
+    // being one room. What this claim is about is unchanged: the heading is
+    // still the only owner control, and the road from it to a new owner
+    // still runs through the picker and the store's one setter. FAIL-first
+    // on the pre-change source read
+    //   expected '<script lang="ts">…' to match /class="scope"[^>]*onclick=\{showPalet…/
     const issues = read('screens/Issues.svelte')
-    expect(issues).toMatch(/class="scope"[^>]*onclick=\{showPalette\}/)
+    expect(issues).toMatch(/class="scope"[^>]*onclick=\{showListSheet\}/)
+    // The sheet's scope row is that road, and it goes through the same door
+    // toll the heading used to pay itself.
+    expect(issues).toMatch(/function changeView\(\): void \{\s*closeListSheet\(\)\s*preparePalette\(false\)/)
     expect(read('ui/Palette.svelte')).toContain('setOwner')
     expect(existsSync(join(srcDir, 'ui/TabBar.svelte'))).toBe(false)
   })

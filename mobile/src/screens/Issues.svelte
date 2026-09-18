@@ -6,16 +6,21 @@
   import GlanceStrip from '../ui/GlanceStrip.svelte'
   import Skeleton from '../ui/Skeleton.svelte'
   import Palette from '../ui/Palette.svelte'
+  import ListSheet from '../ui/ListSheet.svelte'
   import CreateSheet from '../ui/CreateSheet.svelte'
   import SprintLine from '../ui/SprintLine.svelte'
   import { t } from '../lib/i18n'
   import {
     app,
+    clearNarrow,
+    closeListSheet,
     closePalette,
     dismissSessionStrip,
     issuesBootKind,
+    openListSheet,
     openPalette,
     openSettings,
+    setNarrow,
     setScope,
     showOfflineBanner,
     sync,
@@ -26,14 +31,20 @@
     buildList,
     buildScopes,
     hasIdentity,
+    narrowCount,
+    narrowFacets,
     relTime,
     resolveScope,
     scopeCount,
+    scopeIssues,
     scopePages,
     sessionLine,
+    toggleNarrow,
     SCOPE_ACTIVE_SPRINT,
     SCOPE_ALL_OPEN,
     SCOPE_MY_WORK,
+    type NarrowRow,
+    type NarrowSection,
     type Scope,
   } from '../lib/domain'
   import { pickActiveSprint } from '../lib/sprint'
@@ -100,7 +111,7 @@
   const docRows = $derived(isDocs ? scopePages(app.pages, scope) : [])
   const view = $derived(isDocs
     ? { sections: [], total: docRows.length, scopeId: scope.id, fellBack: false }
-    : buildList(app.issues, app.me, scope))
+    : buildList(app.issues, app.me, scope, app.narrow))
   // The heading must never wear a name the list is not showing: when the
   // fallback fires it says All open, and the note below says why.
   const heading = $derived(view.fellBack ? t('view.allOpen.name') : scope.name)
@@ -109,30 +120,67 @@
   // never on the list's scroll path.
   let counts = $state(new Map<string, number | null>())
   /*
-   * The door pays its toll before it opens (GDK-886/GDK-902): the counts
+   * The palette pays its toll before it opens (GDK-886/GDK-902): the counts
    * the owner list shows and the scroll position Cancel restores.
    *
-   * Two doors, and they land differently (GDK-1990, re-judging GDK-1985's
-   * one): the heading opens the owner list with the keyboard down, the
-   * header's magnifier opens the same body with the field focused. Both
-   * toggle (GDK-1984) — a second tap closes what the first opened, so
-   * aria-expanded is true in more than name. The heading wears a chevron
-   * again, because a magnifier in two places would be one glyph meaning
-   * two things; what it did not have in GDK-1974 is the rule under it
-   * (GDK-1989), which is why the chevron went unseen then.
+   * Two roads reach it and they land differently (GDK-1990's rule, kept
+   * through GDK-1994's split). The header's magnifier opens it with the
+   * field focused — a person who reached for a magnifier has said they want
+   * to type — and it toggles (GDK-1984), because the palette replaces the
+   * body and has no scrim to close on. The "this list" sheet's scope row
+   * opens it unfocused, because that road is someone asking for the owner
+   * list, which must not arrive under a keyboard. The heading itself no
+   * longer opens the palette at all; see `showListSheet` for what it does.
    */
   function preparePalette(focus: boolean): void {
     counts = new Map(scopes.map((s) => [s.id, scopeCount(app.issues, app.me, s, app.pages)]))
     savedScroll = scroller?.scrollTop ?? 0
     openPalette(focus)
   }
-  /** The heading's tap: the owner list with the keyboard down — or, already
-   *  open, the close that reopens the list (GDK-1984). */
-  function showPalette(): void {
+  /*
+   * The chevron's tap: the "this list" sheet (GDK-1994).
+   *
+   * Until this round it opened the palette, which is what made the two doors
+   * one room — the magnifier opened the same body with the field focused, so
+   * once the keyboard dropped the two states were pixel-identical. The
+   * chevron now owns the list on screen (narrow it, or step through to the
+   * picker) and the magnifier owns finding one issue in the snapshot.
+   *
+   * Two states decided here rather than left to read wrong. With the palette
+   * open (the magnifier's door), the heading closes it, exactly as it did
+   * before — `aria-expanded` on this control tracks the palette while the
+   * palette is up, and the sheet otherwise, so it is never a lie. And the
+   * heading is deliberately NOT the sheet's second tap: a sheet carries a
+   * scrim, so the tap that would reach this control closes the sheet on the
+   * way. GDK-1984's toggle rule was written for the palette, which replaces
+   * the body and has no scrim; the sheet's own exits (scrim, Cancel, system
+   * back) are what the dead-end rule asks for.
+   */
+  function showListSheet(): void {
     if (app.palette) {
       closePalette()
       return
     }
+    openListSheet()
+  }
+  /*
+   * The toggles the sheet offers. Gated on the sheet being open, so discovery
+   * pays the door's toll and never the list's render path (GDK-886) — and
+   * measured against the *scope's* rows, not the narrowed ones, so a row's
+   * count answers "how many if I tap this" and does not move under the finger
+   * as other toggles go on.
+   */
+  const facets = $derived<NarrowSection[]>(
+    app.listSheet ? narrowFacets(scopeIssues(app.issues, app.me, scope) ?? [], app.me) : [],
+  )
+  const narrowActive = $derived(narrowCount(app.narrow) > 0)
+  function toggle(row: NarrowRow): void {
+    setNarrow(toggleNarrow(app.narrow, row))
+  }
+  /** The sheet's scope row: close it, then open the picker by its own road —
+   *  the counts and the saved scroll are that door's toll, not this one's. */
+  function changeView(): void {
+    closeListSheet()
     preparePalette(false)
   }
   /** The header magnifier's tap: the same body, ready to type. */
@@ -197,12 +245,20 @@
   {#snippet header()}
     <div class="head" use:fitHeading>
       <h1>
-        <button class="scope" onclick={showPalette} aria-expanded={app.palette}>
+        <button class="scope" onclick={showListSheet} aria-expanded={app.palette || app.listSheet}>
           <span class="name type-subject">{heading}</span>
           <span class="count">·{view.total}</span>
           <svg class="glass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="m6 9 6 6 6-6" />
           </svg>
+          <!-- The only thing the heading says about a narrow: the count is
+               already the narrowed one, and this dot says the number is
+               smaller on purpose. What narrowed it lives in the sheet that
+               set it (GDK-1994) — a chip row here would cost the list a row
+               of density, which §3.7 spends on the list. -->
+          {#if narrowActive}
+            <span class="narrowed" aria-label={t('app.narrowActive')}></span>
+          {/if}
         </button>
       </h1>
       <div class="actions">
@@ -262,6 +318,21 @@
          describes a list that is not on screen. -->
     <Palette {scopes} {counts} current={scope.id} onpickScope={pick} />
   {:else}
+  {#if app.listSheet}
+    <!-- GDK-1994: the chevron's own body. A sheet, not a body swap like the
+         palette — it is about the list behind it, so the list stays on
+         screen and the count in the heading moves as the toggles go on. -->
+    <ListSheet
+      scopeName={heading}
+      total={view.total}
+      {facets}
+      narrow={app.narrow}
+      ontoggle={toggle}
+      onclear={clearNarrow}
+      onchangeview={changeView}
+      onclose={closeListSheet}
+    />
+  {/if}
   {#if sessionText}
     <button class="session" data-testid="session-strip" onclick={dismissSessionStrip}>
       {sessionText}
@@ -310,7 +381,15 @@
       title={app.issues.length === 0 ? t('list.emptyTitle') : t('list.noMatchTitle')}
       body={app.issues.length === 0 ? t('list.emptyHint') : t('list.noMatchHint')}
     >
-      <button class="link" onclick={showPalette}>{t('palette.entryLabel')}</button>
+      <!-- The way out has to be the way in (GDK-1994): a list emptied by the
+           sheet's toggles is a dead end if the only control offered is
+           search, so the narrow's own undo is what this offers while one is
+           set. -->
+      {#if narrowActive}
+        <button class="link" onclick={clearNarrow}>{t('filter.clear')}</button>
+      {:else}
+        <button class="link" onclick={showSearch}>{t('palette.entryLabel')}</button>
+      {/if}
     </EmptyState>
   {:else}
     {#each view.sections as section (section.rank)}
@@ -430,6 +509,19 @@
        only mark at the same weight as the number beside it and as the two
        least important controls in the row. */
     color: var(--color-text-primary);
+  }
+  /* GDK-1994: the narrow's only mark on the header. A dot, not a chip row —
+     the row of density a chip line costs is the list's (§3.7), and the count
+     beside it is already the narrowed number, so the dot only has to say
+     that the smaller number is deliberate. */
+  .narrowed {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    margin-left: -4px;
+    align-self: center;
+    border-radius: 50%;
+    background: var(--color-accent);
   }
   /* GDK-1989: the three actions are one set — one glyph size, held close,
      and separated from the door by more than they are from each other.

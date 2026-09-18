@@ -49,7 +49,7 @@ test('sprint line, before and after the tap', async ({ page }) => {
   await settle(page)
 
   // The scope picker, so the sprint row can be read beside the built-ins.
-  await page.locator('.pane:not(.off) h1 button.scope').click()
+  await page.locator('.pane:not(.off) button.search').click()
   await page.locator('.palette-field input').waitFor()
   await settle(page)
   await page.screenshot({ path: join(outDir, '04-scope-sheet.png') })
@@ -63,7 +63,7 @@ test('sprint line, before and after the tap', async ({ page }) => {
   await page.screenshot({ path: join(outDir, '05-sprint-scope-dark.png') })
 
   // And the landing list in dark, for the line's contrast beside the rows.
-  await page.locator('.pane:not(.off) h1 button.scope').click()
+  await page.locator('.pane:not(.off) button.search').click()
   await page.locator('.palette-field input').waitFor()
   await page.locator('button.palette-row', { hasText: 'All open' }).click()
   await page.locator('.palette-field input').waitFor({ state: 'detached' })

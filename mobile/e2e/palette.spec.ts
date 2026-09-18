@@ -48,17 +48,20 @@ test('the phone has no tab bar', async ({ page }) => {
   await expect(page.locator('button.tab')).toHaveCount(0)
 })
 
-test('the palette is dormant on boot, and the heading opens it with the keyboard down', async ({
+test('the palette is dormant on boot, and each road decides the keyboard', async ({
   page,
 }) => {
   // Protects DESIGN.md §2: "It never focuses on boot — the first paint is
   // the owner's rows, so 'what's on my plate' stays a glance with no taps."
   // An autofocused field puts the keyboard over the first screen.
   //
-  // GDK-1985: the heading is the only door, and opening it never raises the
-  // keyboard — a person tapping their view's name wants a scope, and the
-  // owner list must not sit under a keyboard they did not ask for. The
-  // field rides the head of the body; a person who wants to type taps it.
+  // Re-pinned 2026-09-18 (GDK-1994). The heading no longer opens the palette
+  // at all, so the focus rule this used to pin at the heading now lives on
+  // the two roads in: the magnifier is the door of someone who said they
+  // want to type (GDK-1990), and the "this list" sheet's scope row is
+  // someone asking for the owner list — which must not arrive under a
+  // keyboard they did not ask for. FAIL-first on the mechanical rename of
+  // this test's door: `expect(field).not.toBeFocused()` after the magnifier.
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await waitPaired(page)
 
@@ -66,47 +69,68 @@ test('the palette is dormant on boot, and the heading opens it with the keyboard
   const activeOnBoot = await page.evaluate(() => document.activeElement?.tagName ?? null)
   expect(activeOnBoot, 'nothing is focused on boot').toBe('BODY')
 
-  await page.locator('h1 button.scope').click()
+  await page.locator('button.search').click()
   const field = page.locator('.palette-field input')
   await expect(field).toBeVisible()
-  await expect(field).not.toBeFocused()
-  const activeOnScope = await page.evaluate(
-    () => document.activeElement?.tagName ?? null,
-  )
-  expect(activeOnScope, 'the heading tap does not focus the field').not.toBe('INPUT')
+  await expect(field, 'the magnifier is the door of someone typing').toBeFocused()
+  await page.locator('button.palette-cancel').click()
+  await expect(field).toHaveCount(0)
+
+  await page.locator('h1 button.scope').click()
+  await page.getByRole('dialog', { name: 'This list' }).locator('button.scope-row').click()
+  await expect(field).toBeVisible()
+  await expect(field, 'the owner list does not raise the keyboard').not.toBeFocused()
+  const activeOnScope = await page.evaluate(() => document.activeElement?.tagName ?? null)
+  expect(activeOnScope, 'the scope road does not focus the field').not.toBe('INPUT')
 })
 
-test('the heading is one toggling door: a second tap closes what the first opened', async ({
+test('each door toggles: a second tap closes what the first opened', async ({
   page,
 }) => {
-  // Protects DESIGN.md §2: the heading is the palette's only door — one
-  // 44pt control wearing the magnifier, so the screen says search without a
-  // second control (GDK-1985, superseding GDK-1974's two doors). With one
-  // door the second tap has exactly one meaning, so the door toggles
-  // (GDK-1984): both of GDK-1974's doors carried aria-expanded and neither
-  // could close what it opened.
+  // Protects DESIGN.md §2 and GDK-1984: a door that carries aria-expanded
+  // must be able to close what it opened — both of GDK-1974's doors carried
+  // it and neither could.
+  //
+  // Re-pinned 2026-09-18 (GDK-1994): the two doors now open two bodies, so
+  // each is checked against its own. The magnifier owns the palette (find
+  // one issue in the snapshot) and toggles, because the palette replaces the
+  // body and has no scrim. The heading owns the "this list" sheet, which
+  // does have one — so its way out is its own Cancel (and the scrim, and
+  // system back), and the heading's second tap is not a road the finger can
+  // even take. What is checked on the heading is that `aria-expanded` follows
+  // whichever of the two bodies is up, which is the one place it could lie.
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await waitPaired(page)
 
-  const door = page.locator('h1 button.scope')
+  const door = page.locator('button.search')
   await door.click()
   const field = page.locator('.palette-field input')
   await expect(field).toBeVisible()
-  await expect(field).not.toBeFocused()
   await expect(door).toHaveAttribute('aria-expanded', 'true')
 
   await door.click()
   await expect(page.locator('.palette-field input')).toHaveCount(0)
   await expect(door).toHaveAttribute('aria-expanded', 'false')
+
+  // The heading's own door, and its own body.
+  const heading = page.locator('h1 button.scope')
+  await heading.click()
+  const sheet = page.getByRole('dialog', { name: 'This list' })
+  await expect(sheet).toBeVisible()
+  await expect(heading).toHaveAttribute('aria-expanded', 'true')
+  await sheet.locator('button.cancel').click()
+  await expect(sheet).toHaveCount(0)
+  await expect(heading).toHaveAttribute('aria-expanded', 'false')
 })
 
-test('closing by the heading returns the list to the scroll position it had', async ({ page }) => {
+test('closing by the door returns the list to the scroll position it had', async ({ page }) => {
   // Protects DESIGN.md §2: "The list keeps its scroll position across a
-  // palette open-and-cancel." Cancel, system back and the heading's second
+  // palette open-and-cancel." Cancel, system back and the door's second
   // tap are one road out — app.palette going false — and the single $effect
   // in Issues.svelte restores the position for all of them; the toggle
   // (GDK-1984) must not author a second close path, which is why this reads
-  // the scroller after leaving by the heading itself.
+  // the scroller after leaving by the door itself. Re-pinned 2026-09-18
+  // (GDK-1994): that door is the magnifier now.
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await waitPaired(page)
 
@@ -117,13 +141,13 @@ test('closing by the heading returns the list to the scroll position it had', as
   const before = await scroller.evaluate((el) => el.scrollTop)
   expect(before, 'the list actually scrolled').toBeGreaterThan(0)
 
-  await page.locator('h1 button.scope').click()
+  await page.locator('button.search').click()
   await expect(page.locator('.palette-field input')).toBeVisible()
-  await page.locator('h1 button.scope').click()
+  await page.locator('button.search').click()
   await expect(page.locator('.palette-field input')).toHaveCount(0)
   await expect
     .poll(async () => scroller.evaluate((el) => el.scrollTop), {
-      message: 'scroll restored after closing by the heading',
+      message: 'scroll restored after closing by the search door',
     })
     .toBe(before)
 })

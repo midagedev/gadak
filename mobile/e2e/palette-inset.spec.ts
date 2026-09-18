@@ -39,7 +39,7 @@ async function bootIssues(page: import('@playwright/test').Page): Promise<void> 
 }
 
 async function openPicker(page: import('@playwright/test').Page): Promise<void> {
-  await page.locator('.pane:not(.off) h1 button.scope').click()
+  await page.locator('.pane:not(.off) button.search').click()
   await page.locator('.palette-field input').waitFor()
   await settle(page)
 }

@@ -73,7 +73,7 @@ test('ko', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await waitPaired(page)
   await shoot(page, dir, '01-issues-ko')
-  await page.locator('.pane:not(.off) h1 button.scope').click()
+  await page.locator('.pane:not(.off) button.search').click()
   await page.locator('.palette-field input').waitFor()
   await shoot(page, dir, '02-scope-ko')
   await closePalette(page)

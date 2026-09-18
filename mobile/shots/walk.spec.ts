@@ -79,7 +79,7 @@ test('walk', async ({ page }) => {
 
   await shoot(page, 'issues', 'landing: the list a person sees first')
 
-  await page.locator('.pane:not(.off) h1 button.scope').click()
+  await page.locator('.pane:not(.off) button.search').click()
   await page.locator('.palette-field input').waitFor()
   await shoot(page, 'scope-sheet', 'the heading is the scope control')
   // button.cancel, not the role query: the scrim shares the aria-label and
@@ -110,7 +110,7 @@ test('walk', async ({ page }) => {
   await page.locator('button.back').first().click()
   await page.locator('.pane:not(.off) button.row').first().waitFor()
 
-  await page.locator('.pane:not(.off) h1 button.scope').click()
+  await page.locator('.pane:not(.off) button.search').click()
   await page.locator('.palette-field input').waitFor()
   await page.locator('button.palette-row', { hasText: 'Updated' }).click()
   await page.locator('.palette-field input').waitFor({ state: 'detached' })
@@ -125,7 +125,7 @@ test('walk', async ({ page }) => {
 
   // GDK-902 2026-09-15: search is the palette with a query, and the shell
   // is a row in the same palette rather than a tab beside it.
-  await page.locator('h1 button.scope').click()
+  await page.locator('button.search').click()
   await page.locator('.pane:not(.off) input').first().waitFor()
   await shoot(page, 'search-empty', 'search before a query')
   await page.locator('.pane:not(.off) input').first().fill('tenant')
@@ -195,7 +195,7 @@ test('walk', async ({ page }) => {
   // the two dark frames photograph the *docs* list and its page detail —
   // cycle 1 shipped exactly that, and the reviewer correctly reported that
   // the light landing had no dark pair at all.
-  await page.locator('.pane:not(.off) h1 button.scope').click()
+  await page.locator('.pane:not(.off) button.search').click()
   await page.locator('.palette-field input').waitFor()
   await page.locator('button.palette-row', { hasText: 'All open' }).click()
   await page.locator('.palette-field input').waitFor({ state: 'detached' })

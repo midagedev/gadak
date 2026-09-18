@@ -118,7 +118,7 @@ test('captures the ADF issue and page bodies for the vision round', async ({ pag
 
   // Issue via the palette — the pane's own road to any key (GDK-902
   // 2026-09-15: the Search tab became the heading's palette, same field).
-  await page.locator('h1 button.scope').click()
+  await page.locator('button.search').click()
   await page.locator('.pane:not(.off) input').first().fill(issue.key)
   const row = page.locator('.pane:not(.off) button.row', { hasText: issue.key }).first()
   await row.waitFor()
@@ -157,7 +157,7 @@ test('captures the ADF issue and page bodies for the vision round', async ({ pag
   await page.locator('button.palette-cancel').click()
   await page.locator('.palette-field input').waitFor({ state: 'detached' })
   await page.locator('.pane:not(.off) button.row').first().waitFor()
-  await page.locator('.pane:not(.off) h1 button.scope').click()
+  await page.locator('.pane:not(.off) button.search').click()
   await page.locator('.palette-field input').waitFor()
   await page.locator('.palette-section', { hasText: 'Documents' }).waitFor()
   await page.locator('button.palette-row', { hasText: 'Updated' }).click()

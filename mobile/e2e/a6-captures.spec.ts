@@ -52,7 +52,7 @@ async function pairShell(page: Page, label = 'This Mac (dev)'): Promise<void> {
 }
 
 async function openShell(page: Page): Promise<void> {
-  await page.locator('h1 button.scope').click()
+  await page.locator('button.search').click()
   await page.locator('.palette-field input').waitFor()
   await page.locator('button.palette-row', { hasText: 'Terminal' }).click()
   await expect(page.getByTestId('terminal-pane')).toBeVisible()

@@ -61,6 +61,7 @@ import type {
   SourceViewDoc,
   SprintRow,
   SprintsResponse,
+  ViewFilters,
   ViewsResponse,
   VisitedRow,
 } from './types'
@@ -203,14 +204,35 @@ export const app = $state({
    */
   palette: false,
   /**
-   * Whether this open should focus the field (GDK-1990). The heading's own
-   * tap never does — an autofocus there would put the keyboard over the
-   * owner list and kill the glance, which is what GDK-1985 measured. The
-   * search button in the header is the door that means "I want to type",
-   * and it is the only caller that sets this. One-shot: the palette clears
-   * it when it has acted, so a re-render is not a second focus.
+   * Whether this open should focus the field (GDK-1990). The search button
+   * in the header is the door that means "I want to type", and it is the
+   * only caller that sets this. The other road in — the "this list" sheet's
+   * scope row (GDK-1994) — does not, because an autofocus there would put
+   * the keyboard over the owner list and kill the glance, which is what
+   * GDK-1985 measured. One-shot: the palette clears it when it has acted, so
+   * a re-render is not a second focus.
    */
   paletteFocus: false,
+  /**
+   * The "this list" sheet (GDK-1994) — the chevron's own body, where the
+   * heading's tap now lands. The palette behind the magnifier is the other
+   * door and the two no longer share one; this is the flag that made them
+   * separable.
+   */
+  listSheet: false,
+  /**
+   * The session's own narrowing of the list on screen (GDK-1994): the sheet's
+   * toggles as a plain `Partial<ViewFilters>`, which is what lets `buildList`
+   * hand it to the same `applyFilters` a stored view goes through.
+   *
+   * Session RAM only, and that is the decision rather than a gap — a triage
+   * phone narrows to find something and leaves; iOS Mail's filter is the
+   * precedent, and authoring a view is the desk's job (GDK-1875). It is
+   * never written to storage and never POSTed, and `setScope` clears it: a
+   * narrow carried into another view would silently disagree with the counts
+   * the picker just showed for that view.
+   */
+  narrow: {} as Partial<ViewFilters>,
   /** The open push layer, or none. Mutually exclusive with `detail`. */
   layer: null as Layer | null,
   detail: null as DetailRef | null,
@@ -1022,6 +1044,10 @@ function resetSessionState(): void {
   app.shellEntered = false
   app.sprintsEntered = false
   app.palette = false
+  // The narrow belonged to a list on the host being left (GDK-1994) — its
+  // values are that workspace's ids.
+  app.listSheet = false
+  app.narrow = {}
   app.layer = null
   app.terminal = null
   // The declared name belongs to the host being left (GDK-1973): the next
@@ -1466,7 +1492,30 @@ export function goToList(): void {
 /** Picks a scope and remembers it — boot restores the last one used. Demo skips the write. */
 export function setScope(id: string): void {
   app.scopeId = id
+  // The narrow belonged to the list being left (GDK-1994). Carrying it over
+  // would make the new heading's count disagree with the count the picker
+  // row just showed for that same scope.
+  app.narrow = {}
   if (!app.demo) writeJSON(scopedKey(SCOPE_KEY), id)
+}
+
+/* ── The "this list" sheet and the narrow it edits (GDK-1994) ── */
+
+export function openListSheet(): void {
+  app.listSheet = true
+}
+
+export function closeListSheet(): void {
+  app.listSheet = false
+}
+
+/** Replaces the narrow wholesale — the sheet computes the next one. */
+export function setNarrow(next: Partial<ViewFilters>): void {
+  app.narrow = next
+}
+
+export function clearNarrow(): void {
+  app.narrow = {}
 }
 
 /* ── search recents ── */

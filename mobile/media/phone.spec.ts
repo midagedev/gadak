@@ -87,7 +87,7 @@ test(`phone publication stills (${mediaLocale})`, async ({ page }) => {
   await shoot(page, 'list')
 
   /* ── phone-palette ── */
-  await page.locator('.pane:not(.off) h1 button.scope').click()
+  await page.locator('.pane:not(.off) button.search').click()
   await page.locator('.palette-field input').waitFor()
   await shoot(page, 'palette')
 

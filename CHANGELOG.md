@@ -53,9 +53,7 @@ used to sit between them gone so the heading takes the room instead
 again, in the slot the manual refresh glyph gave up — a fourth button would
 have taken 46px from the heading, which is every Japanese view name a size
 smaller and three of five without their count, while replacing one costs
-nothing. Tapping it opens the same palette the heading does, with the field
-already focused; the heading still opens the list of views with the keyboard
-down. Manual sync keeps its door in Settings, where the last sync time
+nothing. Manual sync keeps its door in Settings, where the last sync time
 already lived ([GDK-1990]).
 
 And the list under that header now reads the way the view was written. Four of
@@ -67,6 +65,18 @@ the same comparator the desktop sorts with rather than a second copy of the
 rule. The two surfaces also had different ideas of what "no order chosen"
 means: the desktop opened on what had moved, the phone on what mattered. It is
 what mattered on both ([GDK-1992]).
+
+Those two controls no longer open the same thing. The magnifier opens the
+palette — find one issue anywhere in the cache — and the name opens *this
+list*, which is about the list already on screen: the view it belongs to on
+the first row, and under it the toggles that narrow it. That second half is
+new. The phone could not narrow the list it was showing at all; search runs
+over the whole cache rather than the scope, so "just the reopened ones" meant
+going back to the desktop and saving a view there. The toggles are found in
+the list itself and one that would change nothing is not offered, so a
+one-project workspace is never asked about projects. Nothing is saved — the
+narrowing goes when you pick another view, which is how a phone you took out
+to find one thing should behave ([GDK-1994]).
 
 ## v0.23.1
 
@@ -1846,3 +1856,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-1989]: https://gadak.dev/backlog/#/?ks=GDK-1989
 [GDK-1990]: https://gadak.dev/backlog/#/?ks=GDK-1990
 [GDK-1992]: https://gadak.dev/backlog/#/?ks=GDK-1992
+[GDK-1994]: https://gadak.dev/backlog/#/?ks=GDK-1994

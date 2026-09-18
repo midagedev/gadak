@@ -24,7 +24,7 @@ async function settle(page: Page): Promise<void> {
 
 /** Opens NMB-105 from Search, the one road that does not depend on a scope. */
 async function openFieldRichIssue(page: Page): Promise<void> {
-  await page.locator('h1 button.scope').click()
+  await page.locator('button.search').click()
   await page.locator('.pane:not(.off) input').first().waitFor()
   await page.locator('.pane:not(.off) input').first().fill('NMB-105')
   const hit = page.locator('.pane:not(.off) button.row', { hasText: 'NMB-105' }).first()

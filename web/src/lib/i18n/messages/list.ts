@@ -211,6 +211,38 @@ export const list = {
     ko: '현재 차수 연결',
     ja: '今ランにリンク',
   },
+  /* ── The phone's "this list" sheet (GDK-1994). The chevron on the list
+       heading opens it; the desk has no counterpart, because the desk's
+       narrowing is the FilterBar, which authors views. `app.*` for that
+       reason — the phone owns that prefix outright, so these do not become
+       the twins a web round deletes (catalog.test.ts GDK-1923). They are the
+       sheet's own frame: every axis and value inside it is labelled by
+       `fieldLabel` and the row's own text, so nothing here names a field. ── */
+  'app.narrowTitle': {
+    en: 'This list',
+    ko: '이 목록',
+    ja: 'このリスト',
+  },
+  'app.narrowSection': {
+    en: 'Narrow',
+    ko: '좁히기',
+    ja: '絞り込む',
+  },
+  'app.narrowChangeView': {
+    en: 'Change view',
+    ko: '보기 바꾸기',
+    ja: '表示を変える',
+  },
+  'app.narrowNothing': {
+    en: 'Nothing here to narrow by.',
+    ko: '좁힐 것이 없습니다.',
+    ja: '絞り込めるものがありません。',
+  },
+  'app.narrowActive': {
+    en: 'Narrowed',
+    ko: '좁혀진 목록',
+    ja: '絞り込み中',
+  },
   /* ── View settings menu (GDK-1391): layout / sort / columns / save view ── */
   'view.settings': {
     en: 'View settings',

@@ -57,8 +57,8 @@ desk too.
 
 ## 2. Screen map & navigation model
 
-**One column, one owner, and the heading is where the owner changes**
-(GDK-902, decided 2026-09-15 after the tab-bar research in
+**One column, one owner, and the heading is where the owner is named and
+changed** (GDK-902, decided 2026-09-15 after the tab-bar research in
 `scratch/gdk-mobile/nav-research-*-2026-09-15.md`). No tab bar, no drawer,
 no nested stacks.
 
@@ -86,10 +86,12 @@ trigger would spend ~78px back; the heading slot spends none.
 │ unpaired / token rejected) │  until pairing succeeds
 └────────────────────────────┘
 ┌────────────────────────────┐
-│ My issues · 42 ⌄   ⌕ + ⚙   │  heading = owner's name = the palette's trigger
+│ My issues · 42 ⌄   ⌕ + ⚙   │  heading = owner's name = "this list"; ⌕ = the palette
 ├────────────────────────────┤
 │ (what the owner draws)     │  scope list · documents plate · shell
 └────────────────────────────┘
+     ├─► This list (sheet, from the chevron) — the scope row (→ Palette) ·
+     │     the narrowing toggles · clear
      ├─► Palette (in place: the list body becomes the ranking)
      │     empty query: recent issues · Built-in views · My views ·
      │                  Jira filters · Documents · Terminal
@@ -105,27 +107,51 @@ view name would not fit whole; if 19 is still not enough the count hides
 (the palette rows carry every count), and it ellipsizes only past that
 (GDK-1974).
 
-**The palette is the heading, dormant on boot.** The 44pt control that is
-the list's `<h1>` is the trigger; tapping it turns the list body into the
-palette, the field riding the head of the body with the keyboard down — a
-person who wants to type taps the field. Nothing is ever focused on open:
-the first paint is the owner's rows, so "what's on my plate" stays a glance
-with no taps (both research tracks: an autofocused field puts the keyboard
-over the first screen and kills the glance). Two controls open it and they
-land differently (GDK-1990): the heading opens the owner list exactly as
-above, and the header's magnifier — the one the field wears — opens the
-same body with the field already focused, because a person who reached for
-a magnifier has said they want to type. A second tap on either closes what
-it opened. The magnifier is a control rather than a mark on the heading
-because the row carries three 44pt squares and not four: measured at 402, a
-fourth takes 46px from the heading's slot, which drops every Japanese view
-name a size step and takes the count off three of five. It fits by
+**Two doors, two bodies** (GDK-1994, deciding the doubt GDK-1990 left open).
+The header's magnifier opens the **palette**, which is for finding one thing
+in the whole snapshot. The heading's chevron opens **this list**, which is
+about the list already on screen. Until GDK-1994 both opened the palette and
+differed by a single bit — whether the field took focus — so once the
+keyboard dropped the two states were pixel-identical, which is one room with
+two doors on it. The magnifier is a control rather than a mark on the
+heading because the row carries three 44pt squares and not four: measured at
+402, a fourth takes 46px from the heading's slot, which drops every Japanese
+view name a size step and takes the count off three of five. It fits by
 replacing, not by adding — the manual refresh glyph gave up the slot and
-keeps its door in Settings. The body swapping
-in place is the point: switching owners is not a screen change but a change
-in what the list shows. Search is not a screen any more — it is the palette
-with a query, drawing the same `Row`/`DocRow` into the same body and
+keeps its door in Settings. A second tap on either door closes what it
+opened.
+
+**The palette is dormant on boot.** Opening it turns the list body into the
+palette, the field riding the head of the body. From the magnifier the field
+is focused, because a person who reached for a magnifier has said they want
+to type; reached any other way (the "this list" sheet's scope row) it is not,
+so the owner list does not sit under a keyboard nobody asked for. Nothing is
+ever focused on boot: the first paint is the owner's rows, so "what's on my
+plate" stays a glance with no taps (both research tracks: an autofocused
+field puts the keyboard over the first screen and kills the glance). The body
+swapping in place is the point: switching owners is not a screen change but a
+change in what the list shows. Search is not a screen any more — it is the
+palette with a query, drawing the same `Row`/`DocRow` into the same body and
 opening the same Detail.
+
+**"This list" is a sheet, and its first row is the picker.** The scope's own
+name, its count, and a chevron: the owner is still one tap from the heading,
+it just arrives as a choice rather than as the only thing behind the glyph.
+Under it are the toggles that **narrow the list on screen** — the phone had
+no such control before GDK-1994, and search was not one (it runs over the
+whole snapshot, not the scope), so "just the reopened ones" meant going back
+to the desk to save a view. The shape is iOS Mail's filter, which §1 already
+cites for what the phone does *not* author: toggle rows, live behind the
+scrim, no apply button, no chips, no save. The rows are discovered from the
+list in hand and one rule decides every one of them — **a toggle that cannot
+change the list is not offered** (it matches nothing, or it matches
+everything) — which is what keeps the sheet Mail-short instead of the desk's
+facet browser. The narrow is session RAM: it is cleared when the owner
+changes and never stored, because a triage phone narrows to find something
+and then leaves. Authoring the result as a view is the desk's (§1). The
+heading says a narrow is on with one dot beside the chevron and with the
+count, which is already the narrowed number; a chip row would cost the list a
+row of density, and §3.3 spends that on the list.
 
 **Owners.** A scope (the desk's built-in views, My views, Jira filters,
 Documents — the whole-mirror plate named **Updated** (`docs.tabUpdated`),
@@ -149,7 +175,8 @@ out; system back = the same edge; the root has no exit):
 |---|---|---|
 | PairGate | boot (no pairing) · token rejected | successful pair → the list |
 | List (owner = scope) | boot default · palette pick | — (root) |
-| Palette | the heading (44pt) | the heading again · Cancel (44pt) · system back · picking an owner or a row |
+| This list (sheet) | the heading's chevron (44pt) | the chevron again · Cancel (44pt) · scrim · system back · its scope row (→ Palette) |
+| Palette | the header magnifier (44pt) · the sheet's scope row | the magnifier again · the heading · Cancel (44pt) · system back · picking an owner or a row |
 | Shell (owner) | palette row *Terminal* | ← back in its header → the last scope |
 | Settings | gear in the list heading (44pt); from the shell, back to the list first | ← back button (top-left, 44pt) → the list |
 | Detail | row tap (list or palette results) · linked-issue tap · deep link | ← back button (top-left, 44pt) → what opened it |

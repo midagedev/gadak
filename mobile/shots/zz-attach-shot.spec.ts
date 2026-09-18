@@ -82,7 +82,7 @@ async function openIssue(page: Page, key: string): Promise<void> {
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await page.locator('h1 button.scope').waitFor()
   await page.locator('.pane:not(.off) button.row').first().waitFor()
-  await page.locator('h1 button.scope').click()
+  await page.locator('button.search').click()
   await page.locator('.pane:not(.off) input').first().fill(key)
   const hit = page.locator('.pane:not(.off) button.row', { hasText: key }).first()
   await hit.waitFor()

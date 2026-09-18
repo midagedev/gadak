@@ -148,7 +148,7 @@ async function waitPaired(page: Page): Promise<void> {
  * measurement must not catch is the field mid-layout.
  */
 async function openPalette(page: Page): Promise<void> {
-  await page.locator('.pane:not(.off) h1 button.scope').click()
+  await page.locator('.pane:not(.off) button.search').click()
   await page.locator('.palette-field input').waitFor()
 }
 

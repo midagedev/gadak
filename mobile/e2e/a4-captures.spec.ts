@@ -301,7 +301,7 @@ test('captures the A4 awareness surfaces for the vision round', async ({ page })
     // 2026-09-15: it is the palette's empty-query ranking now, drawn in the
     // list's own body instead of a sheet; the composition it captures is
     // unchanged, so the capture keeps its name.
-    await page.locator('.head button.scope').click()
+    await page.locator('.head button.search').click()
     await page.locator('button.palette-row').first().waitFor()
     const names = await page.locator('button.palette-row').allInnerTexts()
     console.log(`[a4] owner list rows: ${JSON.stringify(names)}`)

@@ -45,7 +45,7 @@ test('page comment composer, armed, light and dark', async ({ page }) => {
 
   // Documents → Updated, then the first page. The labelled button inside the
   // panel closes the sheet; the scrim carries the same aria-label.
-  await page.locator('.pane:not(.off) h1 button.scope').click()
+  await page.locator('.pane:not(.off) button.search').click()
   await page.locator('.palette-field input').waitFor()
   await page.locator('button.palette-row', { hasText: 'Updated' }).click()
   await page.locator('.palette-field input').waitFor({ state: 'detached' })

@@ -51,7 +51,7 @@ async function bootIssues(page: Page): Promise<void> {
 }
 
 async function openPicker(page: Page): Promise<void> {
-  await page.locator('.pane:not(.off) h1 button.scope').click()
+  await page.locator('.pane:not(.off) button.search').click()
   await page.locator('.palette-field input').waitFor()
   await settle(page)
 }
@@ -146,7 +146,7 @@ test('an issue with no configured custom field draws no Fields desk row', async 
   expect(boot.field_specs ?? [], 'demo fixture configures no custom field').toEqual([])
 
   await bootIssues(page)
-  await page.locator('h1 button.scope').click()
+  await page.locator('button.search').click()
   await page.locator('.pane:not(.off) input').first().fill('NMB-105')
   const hit = page.locator('.pane:not(.off) button.row', { hasText: 'NMB-105' }).first()
   await hit.waitFor()

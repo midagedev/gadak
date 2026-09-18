@@ -33,7 +33,7 @@ async function openFirstPage(page: import('@playwright/test').Page): Promise<voi
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await page.locator('h1 button.scope').waitFor()
   await page.locator('.pane:not(.off) button.row').first().waitFor()
-  await page.locator('.pane:not(.off) h1 button.scope').click()
+  await page.locator('.pane:not(.off) button.search').click()
   // The scrim carries aria-label="Cancel" too, so the labelled button inside
   // the panel is what every call site here clicks.
   await page.locator('.palette-field input').waitFor()

@@ -151,7 +151,7 @@ async function pairShell(page: Page, label = 'This Mac (dev)'): Promise<void> {
 }
 
 async function openShell(page: Page): Promise<void> {
-  await page.locator('h1 button.scope').click()
+  await page.locator('button.search').click()
   await page.locator('.palette-field input').waitFor()
   await page.locator('button.palette-row', { hasText: 'Terminal' }).click()
   await expect(page.getByTestId('terminal-pane')).toBeVisible()
@@ -217,13 +217,13 @@ test.describe('shell owner', () => {
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     await waitPaired(page)
     await expect(page.locator('nav.safe-bottom')).toHaveCount(0)
-    await page.locator('h1 button.scope').click()
+    await page.locator('button.search').click()
     await page.locator('.palette-field input').waitFor()
     await expect(page.locator('button.palette-row', { hasText: 'Terminal' })).toHaveCount(0)
     await page.locator('button.palette-cancel').click()
 
     await pairShell(page)
-    await page.locator('h1 button.scope').click()
+    await page.locator('button.search').click()
     await page.locator('.palette-field input').waitFor()
     await expect(page.locator('button.palette-row', { hasText: 'Terminal' })).toBeVisible()
   })
@@ -541,7 +541,7 @@ test.describe('shell owner', () => {
     // The pane is gone, not hidden — and the palette no longer offers the row.
     await expect(page.locator('[data-testid="key-bar"]')).toHaveCount(0)
     await expect(page.locator('.pane:not(.off) h1 button.scope')).toHaveCount(1)
-    await page.locator('h1 button.scope').click()
+    await page.locator('button.search').click()
     await page.locator('.palette-field input').waitFor()
     await expect(page.locator('button.palette-row', { hasText: 'Terminal' })).toHaveCount(0)
   })

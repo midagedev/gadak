@@ -631,6 +631,176 @@ export function applyFilters(
   return issues.filter((i) => matchesFilters(i, f, me))
 }
 
+/* ── Narrowing the list you are looking at (GDK-1994) ── */
+
+/**
+ * One toggle in the "this list" sheet.
+ *
+ * `value` is what goes into the filter, and for the two id-bearing axes it is
+ * the stable id when the row has one and the display name when it does not —
+ * exactly the pair `matchesIdFirst` compares against, so a row discovered
+ * here always matches itself. `label` is for reading only.
+ */
+export interface NarrowRow {
+  /** Key of the keyed `#each`, and the toggle's identity in the override. */
+  key: string
+  axis: NarrowAxis
+  /** Filter value for a value axis; null for the three predicates. */
+  value: string | null
+  label: string
+  /** How many of the rows in hand this toggle alone would leave. */
+  count: number
+}
+
+export type NarrowAxis =
+  | 'mine'
+  | 'unassigned'
+  | 'reopened'
+  | 'status_category'
+  | 'priority'
+  | 'issue_type'
+  | 'jira_project'
+
+export interface NarrowSection {
+  /** `flags` holds the three predicates; every other section is its axis. */
+  id: 'flags' | 'status_category' | 'priority' | 'issue_type' | 'jira_project'
+  label: string
+  rows: NarrowRow[]
+}
+
+const NARROW_FLAGS = ['mine', 'unassigned', 'reopened'] as const
+const NARROW_FLAG_LABELS: Record<(typeof NARROW_FLAGS)[number], MessageKey> = {
+  mine: 'filter.flagMine',
+  unassigned: 'filter.flagUnassigned',
+  reopened: 'filter.flagReopened',
+}
+const NARROW_VALUE_AXES = ['status_category', 'priority', 'issue_type', 'jira_project'] as const
+
+/** The value this row carries on one axis, or null when it carries none. */
+function narrowValueOf(
+  axis: (typeof NARROW_VALUE_AXES)[number],
+  issue: IssueLite,
+): { value: string; label: string; rank: number } | null {
+  if (axis === 'status_category') {
+    const cat = effectiveCategory(issue)
+    return { value: cat, label: categoryLabel(cat), rank: CATEGORY_ORDER.indexOf(cat) }
+  }
+  if (axis === 'priority') {
+    const label = issue.priority ?? t('list.priorityNone')
+    const value = issue.priority_id || issue.priority || ''
+    return value ? { value, label, rank: rankKey(issue) } : null
+  }
+  if (axis === 'issue_type') {
+    const label = issue.issue_type ?? ''
+    const value = issue.issue_type_id || issue.issue_type || ''
+    return value ? { value, label: label || value, rank: 0 } : null
+  }
+  const project = projectOf(issue)
+  return project ? { value: project, label: project, rank: 0 } : null
+}
+
+/**
+ * The toggles worth offering for the list in hand (GDK-1994).
+ *
+ * Discovered from the rows rather than authored, which is what keeps the
+ * sheet iOS-Mail-short instead of the desk's facet browser: one offering
+ * rule decides every row, and it is that **a toggle which cannot change the
+ * list is not offered** — count 0 (nothing to find) or count === total (the
+ * list already is that). On a single-project workspace the project section
+ * therefore does not exist, and under a view that already filters to one
+ * priority neither does that one.
+ *
+ * Counts are each axis alone against the rows in hand, not against each
+ * other: they answer "how many if I tap this", which is the question a
+ * reader has before tapping. Called when the sheet opens, never on the
+ * list's render path — the same discipline the picker's counts keep
+ * (GDK-886).
+ */
+export function narrowFacets(rows: IssueLite[], me: Me | null = null): NarrowSection[] {
+  const total = rows.length
+  if (total === 0) return []
+  const offered = (row: NarrowRow): boolean => row.count > 0 && row.count < total
+  const out: NarrowSection[] = []
+
+  const flags: NarrowRow[] = NARROW_FLAGS.map((axis) => ({
+    key: axis,
+    axis,
+    value: null,
+    label: t(NARROW_FLAG_LABELS[axis]),
+    count: rows.filter((i) => matchesFilters(i, { [axis]: true }, me)).length,
+  })).filter(offered)
+  if (flags.length > 0) out.push({ id: 'flags', label: t('app.narrowSection'), rows: flags })
+
+  for (const axis of NARROW_VALUE_AXES) {
+    const seen = new Map<string, NarrowRow & { rank: number }>()
+    for (const issue of rows) {
+      const hit = narrowValueOf(axis, issue)
+      if (!hit) continue
+      const row = seen.get(hit.value)
+      if (row) row.count += 1
+      else
+        seen.set(hit.value, {
+          key: `${axis}:${hit.value}`,
+          axis,
+          value: hit.value,
+          label: hit.label,
+          count: 1,
+          rank: hit.rank,
+        })
+    }
+    const values = [...seen.values()].filter(offered)
+    if (values.length === 0) continue
+    // Rank first where the axis has one (priority, the status buckets), then
+    // the bigger group, then the name — so the same list always offers the
+    // same order.
+    values.sort((a, b) => a.rank - b.rank || b.count - a.count || collator().compare(a.label, b.label))
+    out.push({ id: axis, label: fieldLabel(axis), rows: values.map(({ rank: _rank, ...row }) => row) })
+  }
+  return out
+}
+
+/**
+ * The override one toggle produces, merged into the narrow already set.
+ *
+ * Value axes are arrays on `ViewFilters`, so a second value on the same axis
+ * widens that axis (OR) while a different axis narrows (AND) — the desk's own
+ * reading of a filter, not a phone rule. Toggling the last value off removes
+ * the axis rather than leaving an empty array, because an empty array is the
+ * desk's "unset" and a `[]` left behind would read as a filter that matches
+ * everything while looking like one that matches nothing.
+ */
+export function toggleNarrow(
+  narrow: Partial<ViewFilters>,
+  row: NarrowRow,
+): Partial<ViewFilters> {
+  const next: Partial<ViewFilters> = { ...narrow }
+  if (row.value === null) {
+    const axis = row.axis as 'mine' | 'unassigned' | 'reopened'
+    if (next[axis]) delete next[axis]
+    else next[axis] = true
+    return next
+  }
+  const axis = row.axis as (typeof NARROW_VALUE_AXES)[number]
+  const cur = (next[axis] ?? []) as string[]
+  const kept = cur.includes(row.value) ? cur.filter((v) => v !== row.value) : [...cur, row.value]
+  if (kept.length === 0) delete next[axis]
+  else next[axis] = kept
+  return next
+}
+
+/** True when this toggle is part of the narrow currently applied. */
+export function narrowHas(narrow: Partial<ViewFilters>, row: NarrowRow): boolean {
+  if (row.value === null) return Boolean(narrow[row.axis as 'mine' | 'unassigned' | 'reopened'])
+  const cur = narrow[row.axis as (typeof NARROW_VALUE_AXES)[number]] as string[] | undefined
+  return Boolean(cur?.includes(row.value))
+}
+
+/** How many axes the narrow sets — 0 means the list is the view's, untouched. */
+export function narrowCount(narrow: Partial<ViewFilters> | null | undefined): number {
+  if (!narrow) return 0
+  return Object.values(narrow).filter(axisIsSet).length
+}
+
 /**
  * The picker's scope list, in section order. Names come from the desktop —
  * the built-in catalog for the five, the i18n catalog for the documents
@@ -865,11 +1035,35 @@ export interface IssueListView {
   fellBack: boolean
 }
 
-/** The list in one call: select by scope (with honest fallback), sort, group. */
-export function buildList(issues: IssueLite[], me: Me | null, scope: Scope): IssueListView {
+/**
+ * The list in one call: select by scope (with honest fallback), narrow, sort,
+ * group.
+ *
+ * `narrow` is the session's own filter (GDK-1994) — the toggles in the "this
+ * list" sheet, never a stored view. It is applied *after* the fallback
+ * decision, and that placement is the contract: a narrowed My issues that
+ * comes out empty is a filter the reader set, not the first-run empty plate
+ * the fallback exists for, so falling back there would answer a question
+ * nobody asked and under the wrong name.
+ *
+ * It intersects rather than replacing the scope's own axes. GDK-1994's body
+ * argued for replacement, reasoning that narrowing inside a view wants the
+ * override to win — but the toggles are discovered from the rows in hand
+ * (`narrowFacets`), so a value the view already filtered away is never
+ * offered, and on the values that *are* offered the two rules give the same
+ * list. Intersection is then the simpler of two equal answers.
+ */
+export function buildList(
+  issues: IssueLite[],
+  me: Me | null,
+  scope: Scope,
+  narrow: Partial<ViewFilters> | null = null,
+): IssueListView {
   if (scope.kind === 'pages') {
     return { sections: [], total: 0, scopeId: scope.id, fellBack: false }
   }
+  const narrowed = (rows: IssueLite[]): IssueLite[] =>
+    narrow && Object.keys(narrow).length > 0 ? applyFilters(rows, narrow, me) : rows
   const rows = scopeIssues(issues, me, scope)
   if (rows === null || (scope.id === SCOPE_MY_WORK && rows.length === 0)) {
     // No identity, an empty plate, or a scope the phone refuses: All open,
@@ -879,7 +1073,7 @@ export function buildList(issues: IssueLite[], me: Me | null, scope: Scope): Iss
     // an empty saved view is what the developer asked for and stays empty.
     // The fallback is All open under its own name, so it reads in All open's
     // order — not in the order of the scope that could not be painted.
-    const open = sortIssues(openIssues(issues), allOpenOrder())
+    const open = sortIssues(narrowed(openIssues(issues)), allOpenOrder())
     return {
       sections: groupByPriority(open),
       total: open.length,
@@ -887,12 +1081,13 @@ export function buildList(issues: IssueLite[], me: Me | null, scope: Scope): Iss
       fellBack: true,
     }
   }
-  const sorted = sortIssues(rows, scope.order)
+  const painted = narrowed(rows)
+  const sorted = sortIssues(painted, scope.order)
   // Grouping is the scope's, not the screen's: the sprint scope reads
   // new → inprogress → done, every other scope reads by priority. Unlike the
   // order above, this does not yet follow `display.group_by` (GDK-1993).
   const sections = scope.sprintId != null ? groupByCategory(sorted) : groupByPriority(sorted)
-  return { sections, total: rows.length, scopeId: scope.id, fellBack: false }
+  return { sections, total: painted.length, scopeId: scope.id, fellBack: false }
 }
 
 /** Instant local match over key + summary, case-insensitive. */

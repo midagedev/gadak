@@ -8,10 +8,14 @@
  * is one edit, not a grep.
  *
  * `waitPaired` is the single "the app is showing its owner" signal: the
- * heading control exists (the palette's trigger, always present on the
- * list) and the first row is painted.
+ * heading control exists (the owner's name, always present on the list) and
+ * the first row is painted.
+ *
+ * GDK-1994 split the one door in two, and this file is why that was one
+ * edit per road rather than a grep: the magnifier opens the palette, the
+ * heading opens the "this list" sheet, and each has a helper below.
  */
-import { expect, type Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 
 /** The list is up and has rows. Replaces every `nav.safe-bottom` wait. */
 export async function waitPaired(page: Page): Promise<void> {
@@ -19,10 +23,18 @@ export async function waitPaired(page: Page): Promise<void> {
   await page.locator('.pane:not(.off) button.row').first().waitFor()
 }
 
-/** Taps the heading and waits for the field the tap focuses. */
+/** Taps the header magnifier and waits for the field it focuses. */
 export async function openPalette(page: Page): Promise<void> {
-  await page.locator('h1 button.scope').click()
+  await page.locator('button.search').click()
   await expect(page.locator('.palette-field input')).toBeVisible()
+}
+
+/** Taps the heading's chevron and waits for the sheet it opens (GDK-1994). */
+export async function openListSheet(page: Page): Promise<Locator> {
+  await page.locator('h1 button.scope').click()
+  const sheet = page.getByRole('dialog', { name: 'This list' })
+  await expect(sheet).toBeVisible()
+  return sheet
 }
 
 /** Opens the Settings push layer from the gear. */

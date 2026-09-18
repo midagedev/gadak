@@ -67,7 +67,7 @@ test('the scope picker offers the sprint once, under the built-in section', asyn
   // fact borrowed from another module on a fast machine.
   await page.locator(`.pane:not(.off) ${LINE}`).waitFor()
 
-  await page.locator('.pane:not(.off) h1 button.scope').click()
+  await page.locator('.pane:not(.off) button.search').click()
   await page.locator('.palette-field input').waitFor()
 
   // One row, wearing the desk's own name for this slice, with the sprint's

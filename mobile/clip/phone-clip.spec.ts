@@ -288,7 +288,7 @@ test(`phone clip (${mediaLocale})`, async ({ page }, testInfo) => {
   await hold(page, 400, 'list back at the top')
 
   /* ── beat 3: the palette, where the tab bar is not ── */
-  await page.locator('.pane:not(.off) h1 button.scope').click()
+  await page.locator('.pane:not(.off) button.search').click()
   const field = page.locator('.palette-field input')
   await field.waitFor()
   await expect(page.locator('nav.safe-bottom'), 'there is no tab bar to photograph').toHaveCount(0)
