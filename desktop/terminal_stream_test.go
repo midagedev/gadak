@@ -15,6 +15,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os/exec"
@@ -302,9 +303,29 @@ func TestTerminalStreamDataRoundtrip(t *testing.T) {
 // never arrives (a real defect, not load).
 func (f *fakeConn) sizeUntil(t *testing.T, want string, within time.Duration) {
 	t.Helper()
+	f.sizeUntilWatching(t, nil, want, within)
+}
+
+// sizeUntilWatching is sizeUntil with the master's own size read beside every
+// probe (GDK-1192). Two CI failures were recovered with the session's Info()
+// and a single master read taken thirty seconds late, and both said the same
+// thing — `LastResizeExit:matched/1`, `Cols:132 Rows:43`, master 80x24 — which
+// says the set was accepted and read back and then undone, and says nothing
+// about when. The child's first answer after the resize was already the old
+// size in both, so the window is under one probe; this closes it to the probe
+// interval by asking the kernel each time round. A watch session is optional
+// so the other callers stay as they were.
+func (f *fakeConn) sizeUntilWatching(t *testing.T, watch *term.Session, want string, within time.Duration) {
+	t.Helper()
 	deadline := time.Now().Add(within)
 	var got bytes.Buffer
+	var sizes []string
+	started := time.Now()
 	for {
+		if watch != nil {
+			cols, rows, err := watch.TTYSize()
+			sizes = append(sizes, fmt.Sprintf("%.1fs:%dx%d/%v", time.Since(started).Seconds(), cols, rows, err))
+		}
 		f.writeData([]byte("stty size\n"))
 		probe := time.After(2 * time.Second)
 	drain:
@@ -337,7 +358,11 @@ func (f *fakeConn) sizeUntil(t *testing.T, want string, within time.Duration) {
 			// the session's own count of applied resizes.
 			buf := make([]byte, 1<<20)
 			n := runtime.Stack(buf, true)
-			t.Fatalf("waiting for tty size %q; got %q\n--- goroutines ---\n%s", want, got.String(), buf[:n])
+			master := ""
+			if len(sizes) > 0 {
+				master = "\n--- master tty size per probe ---\n" + strings.Join(sizes, " ")
+			}
+			t.Fatalf("waiting for tty size %q; got %q%s\n--- goroutines ---\n%s", want, got.String(), master, buf[:n])
 		}
 	}
 }
@@ -373,7 +398,7 @@ func TestTerminalStreamResizeReachesChild(t *testing.T) {
 		}
 	})
 	conn.writeCtrl(t, map[string]any{"t": "resize", "cols": 132, "rows": 43})
-	conn.sizeUntil(t, "43 132", 30*time.Second)
+	conn.sizeUntilWatching(t, sess, "43 132", 30*time.Second)
 	if info := sess.Info(); info.Cols != 132 || info.Rows != 43 {
 		t.Fatalf("Info after resize: %dx%d; want 132x43", info.Cols, info.Rows)
 	}
