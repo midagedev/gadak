@@ -32,6 +32,21 @@ func TestHasDoneWordGuards(t *testing.T) {
 		{"resolved the crash in 1.2", true},
 		{"배포 완료", true},
 
+		// A Korean done word that is a loanword must stand alone too
+		// (GDK-1946). `나머지` (the rest) contains `머지` (merge) and
+		// `머지않아` (before long) is its own adjective, neither of which
+		// says anything was merged. The guard is per-word and not a blanket
+		// left-boundary rule, because the Sino-Korean done words compound:
+		// `배포완료됨` is written without a space and is an ordinary done
+		// claim on a Korean corporate Jira, so the three claim rows below
+		// are as load-bearing as the two false ones.
+		{"나머지 리전은 계속 진행 중", false},
+		{"칩은 세 개만 표시되고 나머지에 대한 표시는 없음", false},
+		{"머지않아 배포합니다", false},
+		{"스테이징 매크로 팩에 머지함", true},
+		{"배포완료됨", true},
+		{"작업완료, QA 넘깁니다", true},
+
 		// English words must stand alone
 		{"abandoned this approach", false},
 		{"UNDONE — reconsidering the approach", false},

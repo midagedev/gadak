@@ -21,7 +21,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
-import { DONE_WORDS, claimStands, hasDoneWord } from './done-words'
+import { DONE_WORDS, KOREAN_STANDALONE_WORDS, claimStands, hasDoneWord } from './done-words'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 // The Go owner of the done-word list: internal/retro/retro.go `DoneWords`.
@@ -58,6 +58,26 @@ describe('done-words (C1: lockstep with internal/retro/retro.go)', () => {
       parseGoSlice(src.slice(open + 1, close)),
     )
   })
+
+  test('KOREAN_STANDALONE_WORDS matches the live Go set (GDK-1946)', () => {
+    // The second list this file has to keep in step. A word that gains the
+    // left-edge guard in Go and not here is a comment the web counts as a
+    // claim and the retro row does not — the same class of silent drift the
+    // two tests above exist for, on a smaller set.
+    const src = readFileSync(RETRO_GO, 'utf8')
+    const start = src.search(/var koreanStandaloneWords = map\[string\]bool\{/)
+    if (start < 0) {
+      throw new Error(
+        `${RETRO_GO} no longer owns the standalone-word set — update this test's citation`,
+      )
+    }
+    const open = src.indexOf('{', start)
+    const close = src.indexOf('}', open)
+    expect(close, `${RETRO_GO} standalone-word block must close`).toBeGreaterThan(open)
+    expect([...KOREAN_STANDALONE_WORDS].sort(), `${RETRO_GO} is a lockstep copy`).toEqual(
+      parseGoSlice(src.slice(open + 1, close)).sort(),
+    )
+  })
 })
 
 describe('hasDoneWord (HasDoneWord parity)', () => {
@@ -76,6 +96,16 @@ describe('hasDoneWord (HasDoneWord parity)', () => {
     ['已解决，已上线', true], // Simplified Chinese, added with the guards
     ['스테이징에 반영했습니다', true],
     ['resolved the crash in 1.2', true],
+    // A Korean loanword done word must stand alone (GDK-1946): 나머지
+    // contains 머지, and 머지않아 is its own adjective. The three rows under
+    // them are why the guard is per-word rather than a blanket
+    // left-boundary rule — the Sino-Korean done words compound.
+    ['나머지 리전은 계속 진행 중', false],
+    ['칩은 세 개만 표시되고 나머지에 대한 표시는 없음', false],
+    ['머지않아 배포합니다', false],
+    ['스테이징 매크로 팩에 머지함', true],
+    ['배포완료됨', true],
+    ['작업완료, QA 넘깁니다', true],
     // English word boundaries
     ['abandoned this approach', false], // contains "done"
     ['UNDONE — reconsidering the approach', false],

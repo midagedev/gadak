@@ -1375,6 +1375,10 @@ func matchCJKWord(text, w string) bool {
 		if text[i:i+len(w)] != w {
 			continue
 		}
+		// GDK-1946: a loanword done word has to be a word here.
+		if koreanStandaloneWords[w] && !standsAloneInKorean(text, i, len(w)) {
+			continue
+		}
 		if negatedPrefix(text[:i]) {
 			continue
 		}
@@ -1385,6 +1389,61 @@ func matchCJKWord(text, w string) bool {
 		if pendingSuffix(text[i+len(w):]) {
 			continue
 		}
+		return true
+	}
+	return false
+}
+
+// koreanStandaloneWords are the Korean done words that have to stand at the
+// left edge of their own word, and the set is a property rather than a list
+// of exceptions: a transliterated loanword does not take a Korean stem in
+// front of it without a space, so a Hangul syllable immediately before one
+// means the match is the tail of a different word. `나머지` (the rest) ends
+// in `머지` (merge) and says nothing was merged; two of the twelve Korean
+// hits in the ko recording fixture were that, which is most of why Korean
+// counted 12 against English and Japanese at 7 (GDK-1946).
+//
+// The guard is NOT the blanket rule the issue proposed — "a Hangul syllable
+// before a done word means it was the tail of a longer one" — because the
+// Sino-Korean done words in DoneWords are exactly the ones that do compound:
+// `배포완료됨`, `작업완료`, `수정완료` are written without a space and are
+// ordinary done claims on a Korean corporate Jira, which is the corpus the
+// GDK-1428 narrowing was tuned against. The ko fixture happens to write all
+// eight of its Sino-Korean hits after a space, so the blanket rule passes
+// that corpus and would still be wrong; doneword_test.go pins the compounds
+// as claims for that reason. A new loanword added to DoneWords joins this
+// set; a new Sino-Korean noun does not.
+var koreanStandaloneWords = map[string]bool{"머지": true}
+
+// standsAloneInKorean reports whether the match at text[i:i+n] is its own
+// word rather than a piece of a longer one. Two edges, because the lexeme
+// has two: a Hangul syllable before it (`나머지`), and `않` right after it
+// (`머지않아`, "before long" — its own adjective, and a clause about work
+// that has not happened). The second is deliberately not routed through
+// negationSuffixes: it would fire there by coincidence, and the explanation
+// left behind would be that `머지않아` is a negated merge, which it is not.
+// No Sino-Korean done noun takes a bare `않`, so this stays with the word.
+func standsAloneInKorean(text string, i, n int) bool {
+	if before, _ := utf8.DecodeLastRuneInString(text[:i]); isHangul(before) {
+		return false
+	}
+	if after, _ := utf8.DecodeRuneInString(text[i+n:]); after == '않' {
+		return false
+	}
+	return true
+}
+
+// isHangul reports whether r is Hangul — the precomposed syllables and the
+// jamo blocks, so a decomposed spelling is not a hole in the guard above.
+func isHangul(r rune) bool {
+	switch {
+	case r >= 0xAC00 && r <= 0xD7A3: // syllables
+		return true
+	case r >= 0x1100 && r <= 0x11FF: // jamo
+		return true
+	case r >= 0x3130 && r <= 0x318F: // compatibility jamo
+		return true
+	case r >= 0xA960 && r <= 0xA97F, r >= 0xD7B0 && r <= 0xD7FF: // extended jamo
 		return true
 	}
 	return false

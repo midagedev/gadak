@@ -87,7 +87,7 @@ was the shape of the crash the previous round found, and eight axes is the
 same crash with more ways in. And a sprint now reads the desktop's order —
 what is moving, then what is left, then what landed.
 
-**Japanese reads whole.** A Japanese sentence has no spaces, and three
+**Korean and Japanese read whole.** A Japanese sentence has no spaces, and
 different things in gadak were quietly assuming one. The worst was search: the
 index tokenizer counts kanji and kana as letters, so a word with no separator
 before it is not a word at all — it is swallowed into the character in front of
@@ -97,7 +97,13 @@ English found it. Across the fixture this cache ships with, English lost no
 terms and Japanese lost 625 of them, in 334 of 605 items. The index now carries
 the runs that get swallowed, alongside the ones it already carried for the
 mirror-image case in Chinese and Korean compounds; English rows gain nothing,
-because English has nothing glued to them ([GDK-1978]).
+because English has nothing glued to them ([GDK-1978]). The retro table had
+the same shape in Korean. A comment counts as claiming the work is finished
+when it carries a done word, and `머지` — merge — is one of them, so `나머지`,
+which means "the rest", was counted as a merge. English guards that with a
+word boundary and Korean has none to use, so the guard is the word's own now:
+a borrowed word takes no Korean stem in front of it without a space, while
+`배포완료` is one word and an ordinary claim ([GDK-1946]).
 
 The phone's sprint line had the same shape in one line of CSS: the goal was
 clamped to a single line, and one line holds 48 Latin characters but only 30
@@ -1864,6 +1870,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1932]: https://gadak.dev/backlog/#/?ks=GDK-1932
 [GDK-1943]: https://gadak.dev/backlog/#/?ks=GDK-1943
 [GDK-1945]: https://gadak.dev/backlog/#/?ks=GDK-1945
+[GDK-1946]: https://gadak.dev/backlog/#/?ks=GDK-1946
 [GDK-1955]: https://gadak.dev/backlog/#/?ks=GDK-1955
 [GDK-1956]: https://gadak.dev/backlog/#/?ks=GDK-1956
 [GDK-1959]: https://gadak.dev/backlog/#/?ks=GDK-1959

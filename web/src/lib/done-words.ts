@@ -129,6 +129,48 @@ const KOREAN_PARTICLES = ['에서', '부터', '까지', '으로', '보다', '에
  */
 const ADNOMINAL_BRIDGES = ['된', '됐', '되고', '되어', '한', '하고', '하여']
 
+/**
+ * The Korean done words that have to stand at the left edge of their own
+ * word. It is a property and not a list of exceptions: a transliterated
+ * loanword does not take a Korean stem in front of it without a space, so a
+ * Hangul syllable immediately before one means the match is the tail of a
+ * different word — `나머지` (the rest) ends in `머지` (merge) and says
+ * nothing was merged (GDK-1946).
+ *
+ * Not a blanket left-boundary rule: the Sino-Korean done words compound, and
+ * `배포완료됨` / `작업완료` are ordinary claims. Lockstep with Go's
+ * `koreanStandaloneWords`.
+ */
+export const KOREAN_STANDALONE_WORDS = new Set(['머지'])
+
+/** Hangul: precomposed syllables and the jamo blocks. */
+function isHangul(ch: string | undefined): boolean {
+  if (!ch) return false
+  const c = ch.codePointAt(0) ?? 0
+  return (
+    (c >= 0xac00 && c <= 0xd7a3) ||
+    (c >= 0x1100 && c <= 0x11ff) ||
+    (c >= 0x3130 && c <= 0x318f) ||
+    (c >= 0xa960 && c <= 0xa97f) ||
+    (c >= 0xd7b0 && c <= 0xd7ff)
+  )
+}
+
+/**
+ * Whether the match is its own word rather than a piece of a longer one.
+ * Two edges, because the lexeme has two: a Hangul syllable before it
+ * (`나머지`), and `않` right after it (`머지않아`, "before long" — its own
+ * adjective, and a clause about work that has not happened). The second is
+ * deliberately not routed through NEGATION_SUFFIXES: it would fire there by
+ * coincidence and leave the wrong explanation behind. Lockstep with Go's
+ * `standsAloneInKorean`.
+ */
+function standsAloneInKorean(text: string, i: number, n: number): boolean {
+  if (i > 0 && isHangul(text[i - 1])) return false
+  if (text[i + n] === '않') return false
+  return true
+}
+
 /** English negators that cancel a done word sitting just after them. */
 const ENGLISH_NEGATORS = ['not', "n't", 'no', 'never', "isn't", "wasn't", "aren't", 'yet']
 
@@ -229,11 +271,15 @@ function englishNegatedBefore(before: string): boolean {
 
 /** w without a negation prefix before it or a negation anchored after it. */
 function matchCjkWord(text: string, w: string): boolean {
+  const standalone = KOREAN_STANDALONE_WORDS.has(w)
   let i = text.indexOf(w)
   while (i >= 0) {
-    const prefixed = i > 0 && NEGATION_PREFIXES.includes(text[i - 1])
-    const after = text.slice(i + w.length)
-    if (!prefixed && !negatedSuffix(after) && !pendingSuffix(after)) return true
+    // GDK-1946: a loanword done word has to be a word here.
+    if (!standalone || standsAloneInKorean(text, i, w.length)) {
+      const prefixed = i > 0 && NEGATION_PREFIXES.includes(text[i - 1])
+      const after = text.slice(i + w.length)
+      if (!prefixed && !negatedSuffix(after) && !pendingSuffix(after)) return true
+    }
     i = text.indexOf(w, i + 1)
   }
   return false
