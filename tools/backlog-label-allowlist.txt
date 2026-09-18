@@ -101,6 +101,7 @@ ja
 jira-gap
 keyboard
 ko
+l10n
 l10n-review
 launch
 lens-agent

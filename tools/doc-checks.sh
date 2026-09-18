@@ -3509,4 +3509,44 @@ sys.exit(1 if bad else 0)
 PY61
 ok "site and llms.txt bench figures and the Datasette URL match the fact ledger"
 
+# ── 62. the pre-push GDK-key guard is versioned, and it checks the commit ──
+# GDK-1952. The guard exists because CI's "public surfaces cite GDK keys"
+# check went red from a human-remembered step -- twice in August, and twice
+# more on 2026-09-16 with a hook installed and passing both times. The second
+# pair had a different cause than the first: the hook ran doc-checks.sh in the
+# WORKING TREE while CI runs it on the COMMIT, and the backlog snapshot had
+# been regenerated but left out of the commit's file list. The tree carried
+# the new keys; the commit did not. A guard that answers a different question
+# than the thing it guards is not a guard.
+#
+# Both halves are gated here because both were real. The hook lived only in
+# one machine's .git/hooks, which is not versioned -- so every other machine
+# and every fresh clone starts without it and re-learns this by going red.
+# .githooks/pre-push is the versioned copy and `make hooks` points
+# core.hooksPath at it. And the detached-worktree form is what makes the
+# answer the commit's: a future edit that goes back to running doc-checks in
+# place would restore the exact defect this closed, silently, because the
+# hook would still pass on the machine that wrote it.
+#
+# What is NOT asserted: that the hook is installed on THIS machine. That is a
+# per-clone `git config`, CI has no hooks at all, and a gate that failed there
+# would be red on every run for a reason no commit can fix.
+#
+# FAIL-first 2026-09-18, on the pre-fix tree where the hook was machine-local:
+#   FAIL: .githooks/pre-push is missing -- the pre-push GDK-key guard is not
+#   versioned, so a fresh clone pushes without it (GDK-1952)
+hook=".githooks/pre-push"
+if [ ! -f "$hook" ]; then
+  fail "$hook is missing — the pre-push GDK-key guard is not versioned, so a fresh clone pushes without it (GDK-1952)"
+elif [ ! -x "$hook" ]; then
+  fail "$hook is not executable — git runs hooks by exec, so an unset +x bit is a guard that silently never runs"
+elif ! grep -q 'worktree add --detach' "$hook"; then
+  fail "$hook no longer checks out the pushed sha — it is back to answering for the working tree, which is the GDK-1952 defect"$'\n'"  CI reads the commit; the hook must read the same commit"
+elif ! grep -q 'doc-checks.sh' "$hook"; then
+  fail "$hook does not run tools/doc-checks.sh — it is guarding nothing"
+elif ! grep -q 'core\.hooksPath \.githooks' Makefile; then
+  fail "the Makefile has no target that points core.hooksPath at .githooks — a versioned hook nobody installs is a file, not a guard"
+fi
+ok "the pre-push GDK-key guard is versioned and reads the pushed commit"
+
 echo "doc-checks: all passed"

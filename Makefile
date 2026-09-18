@@ -1,7 +1,7 @@
 .PHONY: build test vet typecheck theme-check bench scan docker plugins-test \
 	media media-web media-search media-agent media-groupby media-scale media-sprint media-retro media-mcp media-prep media-deps \
 	media-fixture media-phone media-phone-clip media-hero-sprint-retro brand demo-enrich demo-fixture demo-fixture-check \
-	hosted-demo hosted-demo-test phone
+	hosted-demo hosted-demo-test phone hooks
 
 build:
 	CGO_ENABLED=0 go build -trimpath -o bin/gadak ./cmd/gadak
@@ -17,6 +17,16 @@ phone:
 	cd mobile && \
 	if [ ! -d node_modules ]; then npm ci --no-audit --no-fund; fi && \
 	GADAK_PHONE_BASE=/m/ npx vite build --outDir ../dist/phone --emptyOutDir
+
+# The repo's git hooks, installed by pointing git at the versioned directory
+# rather than by copying files into .git/hooks — a copy is a fork the moment
+# the original changes, and this guard has already been wrong once in a way
+# nobody could see (GDK-1952: the machine-local copy checked the working tree
+# while CI checked the commit, so it passed twice on pushes CI then failed).
+# One command, re-runnable, and `git config --unset core.hooksPath` undoes it.
+hooks:
+	git config core.hooksPath .githooks
+	@echo "hooks: core.hooksPath -> .githooks (pre-push runs tools/doc-checks.sh at the pushed sha)"
 
 vet:
 	go vet ./...

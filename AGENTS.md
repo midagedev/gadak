@@ -41,6 +41,14 @@ The wiki is agent memory too: pages share the mirror's one search index, and
 
 ### Before sending changes
 
+Run `make hooks` once per clone. It points `core.hooksPath` at the repo's
+`.githooks/`, whose `pre-push` runs `tools/doc-checks.sh` **at the sha you are
+pushing** whenever the outgoing commits add a `GDK-nnn` citation. That check is
+in CI, and it went red four times from a step somebody was supposed to
+remember; the last two of those had a hook installed and passing, because the
+hook was reading the working tree while CI read the commit (GDK-1952). The
+hook is versioned now, and it checks out the commit.
+
 ```bash
 go build ./... && go vet ./... && gofmt -l .
 go test ./...

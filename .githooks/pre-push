@@ -1,0 +1,81 @@
+#!/bin/bash
+# Versioned pre-push guard (GDK-1952). Install it with `make hooks`, which
+# points core.hooksPath at this directory; nothing else in the repo depends
+# on it being installed, and CI has no hooks at all.
+#
+# A push whose outgoing commits ADD a GDK-key citation must pass
+# tools/doc-checks.sh before it leaves — the CI "public surfaces cite GDK
+# keys" check went red twice (GDK-851 on 0aed50ff, GDK-1096/1098 on
+# b8a85b5e) because this step was human-remembered. Cheap grep gate first;
+# the 43s full check runs only when a key was actually added.
+#
+# It lived in one machine's .git/hooks until 2026-09-18, which is the other
+# half of GDK-1952: .git/hooks is not versioned, so every other machine and
+# every fresh clone started without it and re-learned this by going red.
+# tools/doc-checks.sh check 62 keeps this file and the `make hooks` target
+# honest — including the detached-worktree form below, whose absence was the
+# defect that let two more pushes through.
+set -u
+repo_root="$(git rev-parse --show-toplevel)"
+[ -x "$repo_root/tools/doc-checks.sh" ] || [ -f "$repo_root/tools/doc-checks.sh" ] || exit 0
+
+zero=0000000000000000000000000000000000000000
+need_check=0
+push_sha=""
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue  # deleting a ref
+  # A tag push carries no new commits: its tip already passed this guard on
+  # the branch push. Running doc-checks here trips the version guards
+  # (STATE_OF_PLAY "Last tagged", scoop/AUR pkgver) that by design are
+  # updated only after the release assets exist (2026-09-06, v0.20.2).
+  case "$_remote_ref" in refs/tags/*) continue ;; esac
+  push_sha="$local_sha"
+  if [ "$remote_sha" = "$zero" ]; then
+    range="$local_sha"                     # new ref: check the tip commit
+    if git show "$range" --format= --unified=0 | grep -E '^\+' | grep -qE 'GDK-[0-9]+'; then
+      need_check=1
+    fi
+  else
+    if git diff "$remote_sha".."$local_sha" --unified=0 | grep -E '^\+' | grep -qE 'GDK-[0-9]+'; then
+      need_check=1
+    fi
+  fi
+done
+
+[ "$need_check" = 0 ] && exit 0
+
+# Check what is being PUSHED, not what is lying in the tree. Running
+# doc-checks.sh in place passed twice on 2026-09-16 while the commit it was
+# vouching for was red in CI: the backlog snapshot had been regenerated but
+# left out of the commit's file list, so the tree carried the new keys and
+# the commit did not. A hook that answers a different question than CI is a
+# hook that says green and means nothing.
+#
+# A detached worktree at the pushed sha is the whole fix. doc-checks.sh is
+# bash and python3 over the tree and prunes node_modules/ and dist/, so it
+# needs no install there.
+echo "pre-push: outgoing commits add GDK-key citations — running tools/doc-checks.sh at the pushed sha" >&2
+check_sha="${push_sha:-}"
+if [ -z "$check_sha" ]; then
+  echo "pre-push: could not determine the pushed sha — falling back to the working tree" >&2
+  bash "$repo_root/tools/doc-checks.sh" || {
+    echo "pre-push: doc-checks FAILED — label the keys public + tools/backlog-snapshot.sh, commit the snapshot, then push" >&2
+    exit 1
+  }
+  exit 0
+fi
+tmp_wt="$(mktemp -d "${TMPDIR:-/tmp}/gadak-prepush-XXXXXX")"
+cleanup() { git -C "$repo_root" worktree remove --force "$tmp_wt" >/dev/null 2>&1 || rm -rf "$tmp_wt"; }
+trap cleanup EXIT
+if ! git -C "$repo_root" worktree add --detach "$tmp_wt" "$check_sha" >/dev/null 2>&1; then
+  echo "pre-push: could not make a worktree at $check_sha — falling back to the working tree" >&2
+  bash "$repo_root/tools/doc-checks.sh" || exit 1
+  exit 0
+fi
+if ! (cd "$tmp_wt" && bash tools/doc-checks.sh); then
+  echo "pre-push: doc-checks FAILED at the sha you are pushing ($check_sha)." >&2
+  echo "  A green run in your working tree does not clear this — the commit is what CI reads." >&2
+  echo "  Label the keys public, run tools/backlog-snapshot.sh, and COMMIT the snapshot." >&2
+  exit 1
+fi
+exit 0
