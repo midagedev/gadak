@@ -143,9 +143,25 @@ theory of why darwin's ptmx reverts the size has been written.
 
 What ships as known issues: one High — GDK-1095 (IME composition interrupted by
 a shortcut sends twice; upstream xterm, needs a real-device repro) — and twelve
-Medium and three Low, none of which blocks a user's first hour. The leverage
-residue (GDK-1991, GDK-1949, GDK-1995) is ranked on GDK-2001 and is the user's
-call, not a readiness condition.
+Medium and three Low, none of which blocks a user's first hour.
+
+The leverage residue is **empty at the tag**, which is not how this section
+usually reads. The user's call was to spend it: GDK-1991 turned out to have
+landed already (the correction in axis 10 above), and GDK-1949 and GDK-1995
+were both delegated to muse — `muse-spark-1.3-contributor`, this skill's
+newest arm and its first use here — and landed at `11d36329` and `04322c93`.
+GDK-1995 is the larger of the two and the one that changes the release's
+shape: `keys.ts` and `keyboard.ts` move up to `web/src`, `glasskeys` becomes a
+root dependency, and the web terminal in a phone browser gets the keys a phone
+keyboard does not have, which is the half of theme 1 the changelog was
+claiming without it.
+
+That arm also produced its own finding, fixed in the outsource skill rather
+than worked around: muse's approval mode and its shell sandbox are separate
+switches, and with approval off and the sandbox on, a call that needs to leave
+the sandbox is refused outright instead of deferred — so both rounds reported
+gates they could not run rather than gates that failed. The lead re-ran every
+one of them; all green.
 
 ## v0.23 cycle — base `4ff2195f`, census 2026-09-15, closed at `4c0d5e35`
 
