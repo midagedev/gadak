@@ -67,8 +67,11 @@ means: the desktop opened on what had moved, the phone on what mattered. It is
 what mattered on both ([GDK-1992]).
 
 Those two controls no longer open the same thing. The magnifier opens the
-palette — find one issue anywhere in the cache — and the name opens *this
-list*, which is about the list already on screen: the view it belongs to on
+palette — find one issue anywhere in the cache, where a row that leads
+somewhere now says so: a scope carries its count, and a row that hands the
+column to another surface carries a chevron instead of the empty cell that
+read as a number which had failed to load ([GDK-1949]) — and the name opens
+*this list*, which is about the list already on screen: the view it belongs to on
 the first row, and under it the toggles that narrow it. A palette result you open
 and leave before it has loaded closes cleanly: the layer that plays the
 closing animation outlives the issue it is drawing by the length of that
@@ -1876,6 +1879,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1943]: https://gadak.dev/backlog/#/?ks=GDK-1943
 [GDK-1945]: https://gadak.dev/backlog/#/?ks=GDK-1945
 [GDK-1946]: https://gadak.dev/backlog/#/?ks=GDK-1946
+[GDK-1949]: https://gadak.dev/backlog/#/?ks=GDK-1949
 [GDK-1955]: https://gadak.dev/backlog/#/?ks=GDK-1955
 [GDK-1956]: https://gadak.dev/backlog/#/?ks=GDK-1956
 [GDK-1959]: https://gadak.dev/backlog/#/?ks=GDK-1959

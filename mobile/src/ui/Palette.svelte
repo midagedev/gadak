@@ -255,6 +255,9 @@
     <p class="palette-section">{t('sprints.title')}</p>
     <button class="palette-row" onclick={() => setOwner('sprints')}>
       <span class="name">{t('sprints.title')}</span>
+      <svg class="go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="m9 18 6-6-6-6" />
+      </svg>
     </button>
   {/if}
 
@@ -265,6 +268,9 @@
     <p class="palette-section">{t('sidebar.terminal')}</p>
     <button class="palette-row" onclick={() => setOwner('shell')}>
       <span class="name">{t('sidebar.terminal')}</span>
+      <svg class="go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="m9 18 6-6-6-6" />
+      </svg>
     </button>
   {/if}
 
@@ -460,6 +466,17 @@
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
     font-size: var(--text-micro);
+    color: var(--color-text-muted);
+  }
+  /* GDK-1949: an owner row (Sprints, Terminal) leads to another surface
+     rather than holding a counted scope, so where a scope row carries its
+     count an owner row carries the disclosure chevron — ListSheet's
+     scope-row idiom (right-pointing, 16px, muted), decorative: the row
+     itself is the button. */
+  .palette-row .go {
+    flex: none;
+    width: 16px;
+    height: 16px;
     color: var(--color-text-muted);
   }
   .more {
