@@ -81,6 +81,72 @@ in one cycle (this one and GDK-2014) is the argument for the runbook's rule
 that a census number is checked once against an independent path before a
 finding stands on it.
 
+### Install verification — the pre-tag half, run on `v0.23.1`'s artifacts
+
+`install-verification.md` says this runs twice and the first moment is before
+the tag, on the *previous* release's artifacts, to prove the install path is
+unbroken. macOS host, 2026-09-18, over a shell rather than Finder — so the
+install was `cp -R` plus `xattr -dr com.apple.quarantine`, which is what
+Finder's drag would have done; `pgrep` showed no `AppTranslocation` path
+afterwards.
+
+The shipped `Gadak-0.23.1-arm64.dmg`, quarantined the way a browser download
+is, is `accepted / source=Notarized Developer ID`, and so is the bundle inside
+it: hardened runtime (`flags=0x10000(runtime)`), timestamped 2026-09-17,
+`TeamIdentifier=XEF9KH7N43`. `checksums.txt` covers only the six goreleaser CLI
+archives — the dmg, the two desktop zips and the `.mcpb` are not in it. That is
+not a gap for the dmg, whose notarized signature is the stronger claim, but it
+is worth knowing before anyone tells a user to verify a download by hash.
+
+Three bundles claim the `gadak:` scheme on this machine and exactly one can
+answer it: `/Applications/Gadak.app`. The other two are the phone app's iOS
+device builds — an `.xcarchive` and an Xcode `DerivedData` copy, both
+`requires-iphone-os`, both developer-machine artifacts a user never has. Cold
+(no process, `open gadak://view?issue=GDK-2001` → exactly one process under
+`/Applications`) and warm (a second link, same pid, count still 1) both pass.
+The **destination** — whether the window went to the issue in the link — stays
+unverified, the headless limit the runbook names.
+
+Two findings the lead did not go looking for:
+
+- **The CLI on `PATH` is two releases and one build class behind the bundle.**
+  The bundle ships 0.23.1; `~/.local/bin/gadak` is `0.22.0-dev+bb40aac8` and
+  shadows the 0.23.1 at `/opt/homebrew/bin/gadak`. This is the runbook's own
+  "a `PATH` copy older than the bundle is a real finding", and it is the reason
+  sessions in this repo call gadak by absolute path — a friction rule that
+  turns out to have a cause rather than a superstition.
+- **GDK-1999's scenario, observed live rather than argued.** One launch of the
+  0.23.1 app migrated ten of twelve workspace mirrors 51 → 53, and what it
+  wrote was a **five-column** `items_fts` stamped 53 — the shape GDK-1999 says
+  no version gate could tell from the six-column one. On a WAL-consistent copy
+  a HEAD build printed `rebuilt items_fts (2088 rows): DDL did not match this
+  build's schema` and landed at 54 with `script_runs` present. The dev-build
+  guard (GDK-1687, GDK-1967) refused that migration until `GADAK_DEV_MIGRATE=1`
+  was set, which is the second thing this measured: the block works.
+
+### Release readiness at the end of this cycle
+
+**Asserted, for the tag.** The two halves the runbook asks for:
+
+The **axis table above** — fourteen axes, fourteen verdicts, twelve delegated
+read-only and axes 8 and 10 run by the lead. Four defects opened and all four
+shipped; nineteen findings under GDK-2001; three delegate claims rejected with
+evidence and filed in the `audit-rejected` ledger, which is non-empty for the
+first time.
+
+The **open Highest defects, with a decision per row**: there are none. GDK's
+open-Highest count is zero (`WKS-34` belongs to another project). GDK-1192,
+open at the v0.23 readiness block, closed in this cycle — `Desktop tests=success`
+on all six main runs since the structural fix, with the evidence boundary
+stated on the issue: six green runs corroborate, they do not prove, and no
+theory of why darwin's ptmx reverts the size has been written.
+
+What ships as known issues: one High — GDK-1095 (IME composition interrupted by
+a shortcut sends twice; upstream xterm, needs a real-device repro) — and twelve
+Medium and three Low, none of which blocks a user's first hour. The leverage
+residue (GDK-1991, GDK-1949, GDK-1995) is ranked on GDK-2001 and is the user's
+call, not a readiness condition.
+
 ## v0.23 cycle — base `4ff2195f`, census 2026-09-15, closed at `4c0d5e35`
 
 The third v0.22 pass closed at `b6352471` and **87 commits** landed after it,
