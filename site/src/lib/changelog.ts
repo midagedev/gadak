@@ -59,6 +59,18 @@ export interface Release {
  * Pull the version index out of the rendered HTML rather than out of the
  * markdown: the ids are what the anchors have to match, and the processor —
  * not this file — is what assigns them.
+ *
+ * A release is a heading whose label is a version. That test lives here and
+ * nowhere else (GDK-2028): each of the three locale pages used to narrow this
+ * list itself with `releases.filter((r) => r.date)`, reading "has a date" as
+ * a proxy for "is a release" — and on 2026-09-21 the proxy failed. The three
+ * newest releases had shipped with no date in their heading, so v0.24.0,
+ * v0.23.1 and v0.23.0 had no row in the jump list on any of the three pages,
+ * and the JSON-LD told search engines the current version was 0.22.1. The
+ * date is what a row *shows*; it was never what makes a heading a release.
+ *
+ * `Unreleased` is excluded, which is what the old filter got right by
+ * accident — it is the one H2 the page carries that has not shipped.
  */
 function readReleases(html: string): Release[] {
   const out: Release[] = []
@@ -67,7 +79,9 @@ function readReleases(html: string): Release[] {
     const text = inner.replace(/<[^>]+>/g, '').trim()
     if (!text) continue
     const [label, date] = text.split(/\s+[—–-]\s+/, 2)
-    out.push({ id, label: label.trim(), date: date?.trim() })
+    const version = label.trim()
+    if (!/^v\d/.test(version)) continue
+    out.push({ id, label: version, date: date?.trim() })
   }
   return out
 }

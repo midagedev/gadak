@@ -6,7 +6,6 @@ import '../../styles/changelog.css'
 
 const t = strings.ja
 const { html, releases } = await renderChangelog('ja')
-const dated = releases.filter((r) => r.date)
 
 // Same two objects as the English page (src/pages/changelog.astro), pointed
 // at the ja URLs, following the ko page's pattern. inLanguage is what keeps
@@ -23,7 +22,7 @@ const jsonLd = JSON.stringify([
     inLanguage: 'ja',
     url: 'https://gadak.dev/ja/',
     downloadUrl: 'https://gadak.dev/ja/install/',
-    softwareVersion: dated[0]?.label.replace(/^v/, ''),
+    softwareVersion: releases[0]?.label.replace(/^v/, ''),
     releaseNotes: 'https://gadak.dev/ja/changelog/',
     sameAs: 'https://github.com/midagedev/gadak',
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
@@ -32,7 +31,7 @@ const jsonLd = JSON.stringify([
     '@context': 'https://schema.org',
     '@type': 'ItemList',
     name: 'gadak releases',
-    itemListElement: dated.slice(0, 20).map((r, i) => ({
+    itemListElement: releases.slice(0, 20).map((r, i) => ({
       '@type': 'ListItem',
       position: i + 1,
       name: r.label,
@@ -62,10 +61,10 @@ const jsonLd = JSON.stringify([
     {changelogIsFallback('ja') && <p class="note">{t.changelog.fallbackNote}</p>}
 
     {
-      dated.length > 0 && (
+      releases.length > 0 && (
         <nav class="versions" aria-label={t.changelog.jumpLabel}>
           <span class="versions-label">{t.changelog.jumpLabel}</span>
-          {dated.slice(0, 12).map((r) => (
+          {releases.slice(0, 12).map((r) => (
             <a href={`#${r.id}`}>{r.label}</a>
           ))}
         </nav>

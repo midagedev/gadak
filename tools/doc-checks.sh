@@ -3549,4 +3549,38 @@ elif ! grep -q 'core\.hooksPath \.githooks' Makefile; then
 fi
 ok "the pre-push GDK-key guard is versioned and reads the pushed commit"
 
+# ── 63. every released changelog heading carries its date ─────────────────
+# GDK-2028. The site's /changelog/ page builds its "Jump to a version" nav
+# and its JSON-LD release list from `releases.filter(r => r.date)`
+# (site/src/lib/changelog.ts) -- a filter that was reading "has a date" as a
+# proxy for "is a release". On 2026-09-21 the three newest releases had no
+# date in their heading, so v0.24.0, v0.23.1 and v0.23.0 had no row in the
+# nav at all and the page's structured data told search engines the current
+# version was 0.22.1, four releases behind. The filter is fixed to key on the
+# label, which is the thing it meant; this gate keeps the other half true,
+# because sixty-odd releases carry a date and a reader sees the newest three
+# without one as a page that stopped being maintained.
+#
+# Unreleased is exempt: it has no date because it has not shipped.
+#
+# FAIL-first 2026-09-21, on the pre-fix tree -- the script stops at the
+# first failure, so the run printed one of the nine:
+#   FAIL: CHANGELOG.md: `## v0.24.0` carries no date -- a released heading is
+#   `## vX.Y.Z — YYYY-MM-DD` (GDK-2028)
+# The same grep run standalone named all nine: v0.24.0, v0.23.1 and v0.23.0
+# undated in each of the three files.
+for f in CHANGELOG.md CHANGELOG.ko.md CHANGELOG.ja.md; do
+  [ -f "$f" ] || continue
+  undated=$(grep -nE '^## v[0-9]' "$f" | grep -vE '— [0-9]{4}-[0-9]{2}-[0-9]{2}\s*$' || true)
+  if [ -n "$undated" ]; then
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      fail "$f: \`${line#*:}\` carries no date — a released heading is \`## vX.Y.Z — YYYY-MM-DD\` (GDK-2028)"
+    done <<EOF
+$undated
+EOF
+  fi
+done
+ok "every released changelog heading carries its date"
+
 echo "doc-checks: all passed"

@@ -2,7 +2,7 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
-## v0.24.0
+## v0.24.0 — 2026-09-18
 
 **The terminal works on a phone.** Under 900px the pane becomes an
 overlay sheet, and that sheet was `width: 100%` on a box already anchored to
@@ -130,7 +130,7 @@ rather than as the English tag a real team might type. The check that refuses
 to record over a fixture still holding English reads the label columns now,
 which is why it had not noticed ([GDK-1976]).
 
-## v0.23.1
+## v0.23.1 — 2026-09-17
 
 **A status the apps offered but the server refused.** On the built-in tracker
 a workflow that has been migrated carries two statuses named the same, and the
@@ -153,7 +153,7 @@ back goes to the view's name: in English and Japanese the longest
 built-in views stop shedding their count, and three more stop stepping down a
 size at all.
 
-## v0.23.0
+## v0.23.0 — 2026-09-17
 
 **The phone drops its tab bar; the column has one owner.** The bottom bar is
 gone. Tap the list heading and the palette opens in its place — recent issues,
