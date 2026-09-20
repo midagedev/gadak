@@ -4,131 +4,40 @@
 
 ## v0.24.0 — 2026-09-18
 
-**The terminal works on a phone.** Under 900px the pane becomes an
-overlay sheet, and that sheet was `width: 100%` on a box already anchored to
-both edges — an over-constrained box drops its right anchor, so the sheet ran
-past the right edge by exactly the sidebar's width at every width the shape
-paints at. On a phone that was the whole thing: a 401px shell starting 208px
-in, of which 193px was all the screen could show, on a page that does not
-scroll sideways. The sheet now takes the width that is left over and the
-sidebar keeps only what fits beside it ([GDK-1987]).
+**The terminal works on a phone.** Open a shell in the phone app, or in a phone
+browser through `tailscale serve`, and it takes the screen it is given and
+keeps the keyboard up while you type ([GDK-1987], [GDK-1986]). Under the pane
+is a strip carrying the keys a phone keyboard does not have — Esc, Tab, Ctrl,
+Alt and the arrows, with the same three states for a held modifier the phone
+app already used — so a shell reached from a browser can be driven and not
+only read ([GDK-1995]). In the phone app, Korean typed into the shell arrives
+as words, and what is still being assembled shows above the keys ([GDK-1988]).
 
-The keyboard stays up when you tap it. It had been rising and going away
-again about half a second later, so the phone's shell could be read but not
-typed into. Keystrokes there come from the screen's own field — xterm
-paints and nothing else — but xterm's own hidden textarea had never been told
-that, and the mouse event iOS synthesises after a tap sent the focus to it: a
-field `disableStdin` had made read-only, and iOS does not keep a keyboard up
-for one of those. That textarea takes no focus on this screen now
-([GDK-1986]).
-The web UI in a phone browser had the same shape from the other side.
-`tailscale serve` makes `/` the door that needs no install, and there the pane
-took the keyboard for itself the moment its socket attached — a focus that
-lands outside any gesture, which iOS will not raise a keyboard for, and which
-then spends the focus change the user's own tap needed. The attach-time focus
-is for pointers that arrive with a keyboard now; a finger gets focus from its
-own tap, which is the path that was measured raising one ([GDK-1986]). And
-the keys that keyboard does not have are there now: a strip carrying Esc, Tab,
-Ctrl, Alt and the arrows paints under the pane on a touch screen with no
-pointer that hovers, so a shell in a phone browser can be driven and not only
-read. It is the phone app's own strip in every way that decides what a press
-means — the same key table, the same encoder, the same three states for a
-held modifier — and the web's only in how it is painted ([GDK-1995]).
+**The phone's list is the desktop's list.** Every built-in view reads in the
+order it was written for — *Handed off* quietest first, *Reopened* by how often
+work came back — and sections by what the view says to section by, a sprint the
+way the desk does it ([GDK-1992], [GDK-1993]). The header says where to tap: a
+rule under the heading, one set of controls at its right end, and search back
+among them in the slot manual refresh gave up — *Sync now* is in Settings
+([GDK-1989], [GDK-1990]).
 
-Korean typed there now arrives as words. Every 자모 had been reaching the
-shell on its own — `한글` became `ㅎㅏㄴㄱㅡㄹ` — because iOS assembles Hangul by
-rewriting the field's own text, and the field was being emptied after every
-keystroke, which left the keyboard nothing to rewrite. The field holds the run
-now and hands the shell the whole word at a boundary; while it holds one it is
-a strip above the keys, so what is still being assembled is visible rather than
-gone ([GDK-1988]).
+Those two controls open different things. The magnifier opens the palette, to
+find one issue anywhere in the cache, where a row that leads somewhere now says
+so ([GDK-1949], [GDK-1997]); the view's name opens *this list* — the view it
+belongs to, and under it the toggles that narrow what is on screen. That second
+half is new. Narrowing a list had meant going back to the desktop and saving a
+view there. The toggles are found in the list itself, one that would change
+nothing is not offered, and nothing is saved: the narrowing goes when you pick
+another view ([GDK-1994]).
 
-**The phone's list is the desktop's list.** Same order, same sections, and
-now its own way to narrow — starting with the door in. The heading is the door into
-search and into every other view, and it drew nothing of its own: a 163x44
-button with no background, no border and no shadow, whose only sign of being
-a control was a small magnifier in the same muted ink as the count beside it.
-Two earlier rounds changed that glyph and neither landed. A rule runs under
-the heading now — in the stronger of the two border inks, not the one the
-list rows below are ruled with, which is what made it read as a divider that
-stopped early — and the magnifier wears the heading's own ink. The three
-controls at the right end are one set: one glyph size across all three, held
-close to each other and well clear of the heading, with the dead space that
-used to sit between them gone so the heading takes the room instead
-([GDK-1989]). Search is one of those three now: it has a control of its own
-again, in the slot the manual refresh glyph gave up — a fourth button would
-have taken 46px from the heading, which is every Japanese view name a size
-smaller and three of five without their count, while replacing one costs
-nothing. Manual sync keeps its door in Settings, where the last sync time
-already lived ([GDK-1990]).
-
-And the list under that header now reads the way the view was written. Four of
-the five built-in views carry an order — *Handed off* reads the quietest first,
-*Reopened* by how many times work came back — and the phone had been sorting
-every one of them the same way, so the delegation ledger came out newest-first
-and the reopen count ordered nothing. The order is the view's now, decided by
-the same comparator the desktop sorts with rather than a second copy of the
-rule. The two surfaces also had different ideas of what "no order chosen"
-means: the desktop opened on what had moved, the phone on what mattered. It is
-what mattered on both ([GDK-1992]).
-
-Those two controls no longer open the same thing. The magnifier opens the
-palette — find one issue anywhere in the cache, where a row that leads
-somewhere now says so: a scope carries its count, and a row that hands the
-column to another surface carries a chevron instead of the empty cell that
-read as a number which had failed to load ([GDK-1949]) — and the name opens
-*this list*, which is about the list already on screen: the view it belongs to on
-the first row, and under it the toggles that narrow it. A palette result you open
-and leave before it has loaded closes cleanly: the layer that plays the
-closing animation outlives the issue it is drawing by the length of that
-animation, and it went on asking the app which issue that was after the app
-had moved on ([GDK-1997]). That second half is
-new. The phone could not narrow the list it was showing at all; search runs
-over the whole cache rather than the scope, so "just the reopened ones" meant
-going back to the desktop and saving a view there. The toggles are found in
-the list itself and one that would change nothing is not offered, so a
-one-project workspace is never asked about projects. Nothing is saved — the
-narrowing goes when you pick another view, which is how a phone you took out
-to find one thing should behave ([GDK-1994]).
-The sheet's last two rows are what the list is cut by and what it is ordered
-by, and the cut is now the view's the way the order already was: the desktop's
-own grouper moved out of the code the desktop's list is wired into, so both
-screens run the one function rather than each keeping an opinion
-([GDK-1993]). The phone had been sectioning by priority whatever the view
-said. Two things follow from having one owner. A section is keyed by what it
-is rather than by a rank, because an assignee or an epic has no rank — that
-was the shape of the crash the previous round found, and eight axes is the
-same crash with more ways in. And a sprint now reads the desktop's order —
-what is moving, then what is left, then what landed.
-
-**Korean and Japanese read whole.** A Japanese sentence has no spaces, and
-different things in gadak were quietly assuming one. The worst was search: the
-index tokenizer counts kanji and kana as letters, so a word with no separator
-before it is not a word at all — it is swallowed into the character in front of
-it. `追跡issueはNMB-110で` indexed as the single token `追跡issueはnmb`, and
-searching for `NMB-110` found nothing, while the same sentence in Korean and
-English found it. Across the fixture this cache ships with, English lost no
-terms and Japanese lost 625 of them, in 334 of 605 items. The index now carries
-the runs that get swallowed, alongside the ones it already carried for the
-mirror-image case in Chinese and Korean compounds; English rows gain nothing,
-because English has nothing glued to them ([GDK-1978]). The retro table had
-the same shape in Korean. A comment counts as claiming the work is finished
-when it carries a done word, and `머지` — merge — is one of them, so `나머지`,
-which means "the rest", was counted as a merge. English guards that with a
-word boundary and Korean has none to use, so the guard is the word's own now:
-a borrowed word takes no Korean stem in front of it without a space, while
-`배포완료` is one word and an ordinary claim ([GDK-1946]).
-
-The phone's sprint line had the same shape in one line of CSS: the goal was
-clamped to a single line, and one line holds 48 Latin characters but only 30
-full-width ones — the Japanese goal is 34, so it alone came out cut in the
-middle of a word. It gets two lines ([GDK-1977]). And the Korean and Japanese demo data
-now translates its labels. Everything else on that screen already did —
-components, versions, statuses, priorities — so `customer-reported` sitting
-under コンポーネント ダッシュボード read as a translation that stopped early
-rather than as the English tag a real team might type. The check that refuses
-to record over a fixture still holding English reads the label columns now,
-which is why it had not noticed ([GDK-1976]).
+**Korean and Japanese read whole.** Japanese search finds what is there. A
+Japanese sentence has no spaces, and a term with nothing separating it had not
+been indexed as a term at all — across the cache this release ships with,
+Japanese lost 625 terms in 334 of 605 items while English lost none
+([GDK-1978]). The retro's Korean numbers stop counting `나머지` as a merge
+([GDK-1946]), a Japanese sprint goal gets the second line its 34 full-width
+characters need ([GDK-1977]), and the Korean and Japanese demo data translates
+its labels like everything else on that screen ([GDK-1976]).
 
 ## v0.23.1 — 2026-09-17
 
@@ -155,115 +64,63 @@ size at all.
 
 ## v0.23.0 — 2026-09-17
 
-**The phone drops its tab bar; the column has one owner.** The bottom bar is
-gone. Tap the list heading and the palette opens in its place — recent issues,
-built-in and saved views, Jira filters, spaces, and the terminal once one is
-paired — and typing in it searches issues and pages, so Search is no longer a
-screen. Settings sits behind a gear in the heading; the shell takes the whole
-screen and leaves by its own back control, and its font size is a Settings
-option, four sizes kept on the phone ([GDK-901], [GDK-902]). What you were
-typing survives: a comment, title or description is saved on the device as you
-type, restored into the same composer after a relaunch or a token refresh, and
-forgotten only once the write has landed ([GDK-1863]). Under the heading, an
-active sprint is one line — name, done over total, days left, the goal
-beneath — and tapping it scopes the list to that sprint; the phone reads the
-sprint, the desk runs it ([GDK-1867]). Behind it, a Sprints row in the palette
-opens every sprint the cache holds — active, planned, closed — each with its
-window, its done-over-total and its goal ([GDK-1827]).
+**The phone is the whole app.** The bottom tab bar is gone. Tap the list
+heading and a palette opens in its place: recent issues, built-in and saved
+views, Jira filters, spaces, and the terminal once one is paired. Typing in it
+searches issues and pages, so Search is no longer a screen of its own, and
+Settings sits behind a gear in the heading ([GDK-901], [GDK-902]). An active
+sprint reads as one line under the heading, and tapping it scopes the list to
+that sprint; every sprint the cache holds, with its window, its progress and
+its goal, is a row in the palette ([GDK-1867], [GDK-1827]). The detail draws
+everything the cache has for an issue: labels, components, fix versions,
+parent, epic and the site's own custom fields, with attachments three across
+([GDK-1870], [GDK-1882]). And it writes. From an epic, **+** files a child,
+the Labels row toggles the workspace's labels, the due date opens the phone's
+date wheel, and a photo goes with a comment on an issue or a wiki page
+([GDK-1871], [GDK-1872], [GDK-1873], [GDK-1879]). Each write ends in one short
+line saying it landed, a comment or a title you were typing survives a
+relaunch, and what stays on the desk says so where you would look for it
+([GDK-1969], [GDK-1863], [GDK-1874]).
 
-Whatever the cache holds, the phone shows, and what is one line to say, the
-phone writes. The detail has a Fields section — labels, components, fix
-versions, parent, epic and every custom field under the site's own names —
-which the phone had been receiving since 0.1 and never drawing ([GDK-1870]),
-and an Attachments section, images three across and full screen on tap
-([GDK-1882]). From an epic, **+** files a child; the Labels row toggles the
-workspace's own labels; the due date opens the phone's date wheel — each one
-write, and a refused one keeps what you chose ([GDK-1871]). A photo goes with a
-comment, on an issue or a wiki page, and on a new issue the create sheet holds
-the picture until the issue has a key ([GDK-1872], [GDK-1873], [GDK-1879]).
-What stays on the desk — editing a page or a custom field, authoring a view,
-laying out a dashboard, moving cards — says so in one dimmed line where you
-would look for it ([GDK-1874]). The phone reaches the project's public
-surfaces for the first time: the landing page and the three READMEs carry a
-recorded walk through the app — the list, the palette, an issue, and then the
-phone writing to it: the status moved, a comment typed, a photo attached
-([GDK-1932], [GDK-1955], [GDK-1962]). Those writes are not staged, because
-`gadak demo --writable` serves the bundled snapshot as a tracker of its own
-instead of as a cache with no credential — which is also how a store reviewer
-can now see the half of the app that writes ([GDK-1959]). Moving a workspace
-onto that tracker got the two things it had been quietly dropping: attachment
-bytes, which `migrate` looked for only at an origin it could not always reach
-even though the files were already on the disk ([GDK-1960]), and sprints,
-which the export left behind entirely — 86 issues arrived with no sprint and
-the report filed it under what the destination could not take ([GDK-1961]).
-The demo cache those takes record over is English again: two wiki pages in it
-were Korean end to end, and the census that gates the translated copies now
-runs against the English one too, so the next such page fails a check rather
-than a reviewer ([GDK-1956]). And the phone now says when a
-write has landed: moving the status, posting a comment or saving a field each
-ends in one short line at the top of the screen — in dark ink, above the sheet's
-lane rather than in it, so it no longer reads as the sheet leaving
-([GDK-1969]) — the status sheet opens with
-the current status above the choices, and the priority group header and the
-two terminal-pairing refusals speak the phone's language instead of English
-([GDK-1964], [GDK-1965], [GDK-1945]). A magnifier in the list header opens the search field directly — the heading still opens the owner list with the keyboard down — and the last-synced words left the header for Settings; a view name that would not fit whole steps down in size, then sheds its count, before it is ever cut ([GDK-1974]).
+A phone on your tailnet needs no install at all. A serve bound to a Tailscale
+address answers its own MagicDNS name and carries the phone bundle at `/m/`,
+so `https://<node>.<tailnet>.ts.net/m/` in Safari is the whole app: no store
+build and no pairing, because reaching the address is the credential the admin
+console already granted the device. Behind `tailscale serve` the person's
+Tailscale login rides each request and their writes are attributed to them;
+reached directly, the serve stays the single-user surface it was. The
+desktop's Devices tab shows that address as a QR code ([GDK-1966]). There an
+open issue is a real history entry with its key in the address, so the back
+swipe lands on the list, an issue's address can be pasted to a teammate, and
+the page installs to the Home Screen as a full-screen app ([GDK-1970]). The
+shell follows the same rule: behind `tailscale serve` the account that owns
+the machine opens one with no pairing ([GDK-1972]). On the built-in tracker
+you can say who you are, with `gadak me set "Your Name"` or a name field in
+Settings, and every surface records its writes under it ([GDK-1973]).
 
-And the phone is a browser on the tailnet: a serve bound to a Tailscale
-address now answers its own MagicDNS name and any `--public-url` it is given,
-where it used to refuse every DNS name, and it carries the phone bundle at
-`/m/` — so a phone on the tailnet opens `https://<node>.<tailnet>.ts.net/m/`
-in Safari and has the whole app: no store build, no pairing, because reaching
-the address is the credential the admin console already granted the device.
-Behind `tailscale serve` the person's Tailscale login rides each request and
-their writes are attributed to them; reached directly, the serve stays the
-single-user surface it was. The desktop's Devices tab shows that address as a
-QR beside the pairing offers, which stay for other machines' `gadak`
-([GDK-1966]). In that browser an open issue is a real history entry with its
-key in the address, so the back swipe lands on the list instead of walking
-off the page, an issue's address can be pasted to a teammate on the tailnet,
-and the page installs to the Home Screen as a full-screen app with no browser
-chrome and no swipe to leave ([GDK-1970]). With the keyboard up, the band it
-covers is one number the whole phone reads: the list, the palette and the tall
-sheets pad themselves out of it, so the last row under a search is reachable
-instead of hidden behind the keys ([GDK-1971]). And the Shell tab follows the same
-rule as the data: behind `tailscale serve`, the account that owns the machine
-opens a shell with no pairing at all, any other tailnet account is told so by
-name, and a direct connection still needs the terminal-scope token ([GDK-1972]). And a person on the built-in tracker can
-say who they are: `gadak me set "Your Name"` on the CLI, a name field in the
-web and phone Settings — one stored identity, and writes from every surface
-are recorded under it; a connection reached without `tailscale serve` writes
-under the name typed there, attribution only, never a credential
-([GDK-1973]).
-
-**What the cache holds, and what it counts, answer to the origin.** A wiki page removed at the
+**What the cache holds answers to the origin.** A wiki page removed at the
 origin used to stay in the local cache for as long as its space did. A full
-wiki sync now compares each space's page listing with the cache, and the hourly
-reconcile does the same by page id, reading a body only where the two disagree;
-a page missing from the listing is confirmed against the origin before it goes
-([GDK-1884]; #104, thanks @wafe). A page moved between two synced spaces
-follows on the reconcile, not only on a full sync ([GDK-1886]); an attachment
-or comment added to a page reaches the cache on the reconcile even when the
-page itself was not edited ([GDK-1888]); and Linear gets the same rule — an
-issue deleted at the origin leaves the cache the next time gadak re-reads it
-([GDK-1889]).
+wiki sync now compares each space's listing with the cache, and the hourly
+reconcile does the same by page id ([GDK-1884]; #104, thanks @wafe). A page
+moved between two synced spaces follows on that reconcile ([GDK-1886]), an
+attachment or comment added to a page arrives even when the page itself was
+not edited ([GDK-1888]), and a Linear issue deleted at the origin leaves the
+cache the next time gadak re-reads it ([GDK-1889]). The retrospective answers
+to the same rule: under sprint columns the table carries two rows about what
+is *in* the sprint beside the interval rows that say what moved during it
+([GDK-1846]), and its mismatch row no longer reads ordinary Korean scheduling
+vocabulary as a claim that the work is finished ([GDK-1943]).
 
-The retrospective's numbers answer to the same rule. Under sprint columns the
-table carries two rows about what is *in* the sprint, beside the interval rows
-that say what moved during it ([GDK-1846]). And its mismatch row stopped
-measuring the language: on a Korean workspace it read ordinary scheduling
-vocabulary — a sentence saying a problem started *after* a change landed — as a
-claim that the work was finished, and counted five times too often. One rule
-now decides whether a done word is carrying a clause, so the three translations
-of one corpus count alike ([GDK-1943]).
-
-**An agent's page renders on the issue.** Attach an HTML file to an issue and
-the detail shows it as an artifact: the page runs in a sandboxed frame — no
-network, no access to gadak's own origin — with its issue pushed in as data,
-the same contract dashboards run under, so an agent that can write a dashboard
-can write a page for one issue. On Jira and Linear the same attachment is just
-a file, which is the point; the phone lists it as a row that says it renders on
-the desk ([GDK-1897]). A dashboard opened from a pasted URL is held the same
-way ([GDK-1898]).
+**An agent's page renders on the issue.** Attach an HTML file and the detail
+shows it as an artifact: the page runs in a sandboxed frame with no network
+and no access to gadak's own origin, with its issue pushed in as data. That is
+the contract dashboards already run under, so an agent that can write a
+dashboard can write a page for one issue, and a dashboard opened from a pasted
+URL is held the same way ([GDK-1897], [GDK-1898]). Your tracker stores it as
+an ordinary attachment. And `gadak demo --writable` serves the bundled
+snapshot as a tracker of its own rather than as a cache with no credential,
+which is how the recorded walks on the site and in the three READMEs show the
+phone writing ([GDK-1959], [GDK-1932]).
 
 ## v0.22.1 — 2026-09-14
 
@@ -1883,24 +1740,14 @@ priority sorting keyed on `priority_rank`.
 [GDK-1898]: https://gadak.dev/backlog/#/?ks=GDK-1898
 [GDK-1932]: https://gadak.dev/backlog/#/?ks=GDK-1932
 [GDK-1943]: https://gadak.dev/backlog/#/?ks=GDK-1943
-[GDK-1945]: https://gadak.dev/backlog/#/?ks=GDK-1945
 [GDK-1946]: https://gadak.dev/backlog/#/?ks=GDK-1946
 [GDK-1949]: https://gadak.dev/backlog/#/?ks=GDK-1949
-[GDK-1955]: https://gadak.dev/backlog/#/?ks=GDK-1955
-[GDK-1956]: https://gadak.dev/backlog/#/?ks=GDK-1956
 [GDK-1959]: https://gadak.dev/backlog/#/?ks=GDK-1959
-[GDK-1960]: https://gadak.dev/backlog/#/?ks=GDK-1960
-[GDK-1961]: https://gadak.dev/backlog/#/?ks=GDK-1961
-[GDK-1962]: https://gadak.dev/backlog/#/?ks=GDK-1962
-[GDK-1964]: https://gadak.dev/backlog/#/?ks=GDK-1964
-[GDK-1965]: https://gadak.dev/backlog/#/?ks=GDK-1965
 [GDK-1966]: https://gadak.dev/backlog/#/?ks=GDK-1966
 [GDK-1969]: https://gadak.dev/backlog/#/?ks=GDK-1969
 [GDK-1970]: https://gadak.dev/backlog/#/?ks=GDK-1970
-[GDK-1971]: https://gadak.dev/backlog/#/?ks=GDK-1971
 [GDK-1972]: https://gadak.dev/backlog/#/?ks=GDK-1972
 [GDK-1973]: https://gadak.dev/backlog/#/?ks=GDK-1973
-[GDK-1974]: https://gadak.dev/backlog/#/?ks=GDK-1974
 [GDK-1976]: https://gadak.dev/backlog/#/?ks=GDK-1976
 [GDK-1977]: https://gadak.dev/backlog/#/?ks=GDK-1977
 [GDK-1978]: https://gadak.dev/backlog/#/?ks=GDK-1978
