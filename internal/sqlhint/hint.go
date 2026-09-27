@@ -222,6 +222,22 @@ func suggestColumns(unknown string, columns []string) []string {
 		})
 		return cands
 	}
+	// The mirror image (GDK-2029): a real column with a suffix glued on —
+	// assignee_name, reporter_display_name, status_name. The longest column
+	// the name starts with wins, so reporter_display_name answers reporter
+	// and assignee_email_address answers assignee_email rather than the
+	// shorter assignee. Placed after the two rules above so issue_key still
+	// resolves to key, and before the edit distance, which reads these as
+	// far-away neighbours and declines.
+	best = ""
+	for _, c := range columns {
+		if strings.HasPrefix(lower, strings.ToLower(c)+"_") && len(c) > len(best) {
+			best = c
+		}
+	}
+	if best != "" {
+		return []string{best}
+	}
 	// Levenshtein fallback — a unique winner within distanceOK.
 	bestDist := math.MaxInt
 	winner := ""

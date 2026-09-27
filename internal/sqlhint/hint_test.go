@@ -240,3 +240,34 @@ func TestParseAmbiguousColumn(t *testing.T) {
 		t.Fatal("non-column error must not parse")
 	}
 }
+
+// GDK-2029: the mirror image of the prefix miss. An agent that knows Jira's
+// API vocabulary types the real column with a suffix glued on —
+// assignee_name, reporter_display_name, status_name — and the hint was
+// silent on all of them, which is the second wall for an agent whose skill
+// file is missing or stale (the reproduction was one such session going off
+// to read sqlite_master by hand). The longest real column that the unknown
+// name starts with is the answer: reporter_display_name is reporter, not a
+// Levenshtein neighbour.
+func TestSuggestColumnSuffixMisses(t *testing.T) {
+	for _, tc := range []struct{ unknown, want string }{
+		{"assignee_name", "assignee"},
+		{"reporter_display_name", "reporter"},
+		{"status_name", "status"},
+		{"priority_name", "priority"},
+		{"assignee_email_address", "assignee_email"},
+	} {
+		if got := suggestColumn(tc.unknown, demoIssuesColumns); got != tc.want {
+			t.Errorf("%s → %q, want %q", tc.unknown, got, tc.want)
+		}
+	}
+	// The rules that were already there keep their answers: a prefix glued
+	// in front still resolves to the column it names, and a name that is a
+	// prefix of real columns still offers those.
+	if got := suggestColumn("issue_key", demoIssuesColumns); got != "key" {
+		t.Errorf("issue_key → %q, want key", got)
+	}
+	if got := suggestColumn("created", demoIssuesColumns); got != "created_at" {
+		t.Errorf("created → %q, want created_at", got)
+	}
+}
