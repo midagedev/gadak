@@ -191,7 +191,7 @@ func TestResolveTimesOutASlowShell(t *testing.T) {
 func TestResolveRunsTheShellOncePerProcess(t *testing.T) {
 	dir := t.TempDir()
 	counter := filepath.Join(dir, "runs")
-	shell := fakeShell(t, fmt.Sprintf("printf 'run\\n' >> %s\nprintf 'PATH=/opt/fake/bin\\0'", counter))
+	shell := fakeShell(t, fmt.Sprintf("printf 'run\\n' >> %s\nprintf '"+dumpMarker+"\\0PATH=/opt/fake/bin\\0'", counter))
 	for i := 0; i < 3; i++ {
 		if login := Resolve(context.Background(), "darwin", shell); login.Err != nil {
 			t.Fatalf("Resolve %d: %v", i, login.Err)
@@ -216,7 +216,7 @@ func TestResolveRunsTheShellOncePerProcess(t *testing.T) {
 func TestResolveAsksALoginShell(t *testing.T) {
 	dir := t.TempDir()
 	argsFile := filepath.Join(dir, "args")
-	shell := fakeShell(t, fmt.Sprintf("printf '%%s\\0' \"$@\" > %s\nprintf 'PATH=/opt/fake/bin\\0'", argsFile))
+	shell := fakeShell(t, fmt.Sprintf("printf '%%s\\0' \"$@\" > %s\nprintf '"+dumpMarker+"\\0PATH=/opt/fake/bin\\0'", argsFile))
 	if login := Resolve(context.Background(), "darwin", shell); login.Err != nil {
 		t.Fatalf("Resolve: %v", login.Err)
 	}
@@ -241,7 +241,7 @@ func TestResolveAsksALoginShell(t *testing.T) {
 // (GADAK_HOSTENV inherited from the probe child) must not launch another
 // one, however reachable its shell is.
 func TestResolveRefusesUnderTheGuardEnv(t *testing.T) {
-	shell := fakeShell(t, "printf 'PATH=/opt/never/bin\\0'")
+	shell := fakeShell(t, "printf '"+dumpMarker+"\\0PATH=/opt/never/bin\\0'")
 	t.Setenv(GuardEnv, "1")
 	login := Resolve(context.Background(), "darwin", shell)
 	if login.Err == nil {
@@ -282,5 +282,38 @@ func TestLocaleSource(t *testing.T) {
 		if got := LocaleSource(tc.goos, tc.base, tc.login); got != tc.want {
 			t.Errorf("%s: LocaleSource = %q; want %q", tc.name, got, tc.want)
 		}
+	}
+}
+
+// A profile that prints on its way to the dump cannot dictate the pane's
+// PATH. Everything before the last marker is the shell talking; only what
+// follows it is the environment (dumpMarker's own comment says why this is
+// not hypothetical — a debug echo or a banner with an equals sign is all
+// it takes).
+func TestResolveIgnoresProfileOutputBeforeTheDump(t *testing.T) {
+	shell := fakeShell(t, "printf 'PATH=/opt/profile-said/bin\\0LANG=xx_XX\\0'\nprintf '"+dumpMarker+"\\0PATH=/opt/real/bin\\0'")
+	login := Resolve(context.Background(), "darwin", shell)
+	if login.Err != nil {
+		t.Fatalf("Resolve: %v", login.Err)
+	}
+	if got := envValue(login.Env, "PATH"); got != "/opt/real/bin" {
+		t.Errorf("login PATH = %q; want the shell's own /opt/real/bin, not what the profile printed", got)
+	}
+	if got := envValue(login.Env, "LANG"); got != "" {
+		t.Errorf("login LANG = %q; want nothing — the profile's line is before the marker", got)
+	}
+}
+
+// A dump with no marker at all — a shell that never reached the printf, an
+// output the deadline truncated — contributes nothing rather than half an
+// environment.
+func TestResolveDropsAnUnframedDump(t *testing.T) {
+	shell := fakeShell(t, "printf 'PATH=/opt/unframed/bin\\0'")
+	login := Resolve(context.Background(), "darwin", shell)
+	if login.Err != nil {
+		t.Fatalf("Resolve: %v", login.Err)
+	}
+	if len(login.Env) != 0 {
+		t.Errorf("login env = %v; want nothing from an unframed dump", login.Env)
 	}
 }

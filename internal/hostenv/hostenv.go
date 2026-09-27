@@ -63,12 +63,20 @@ const resolveTimeout = 3 * time.Second
 // and a grandchild that inherited the pipe letting it go.
 const pipeDrainDelay = time.Second
 
+// dumpMarker frames the dump. A login shell's profile is free to print
+// anything on stdout on its way to our printf, and "anything" includes a
+// line shaped like PATH=… (a debug echo, a version banner with an equals
+// sign). Whatever precedes the last marker is the profile talking, not the
+// environment, so parseDump drops it — the pane's PATH must come from the
+// shell's own variable, never from something it happened to say.
+const dumpMarker = "gadak-hostenv-dump"
+
 // dumpScript is the one command Resolve runs. NUL-separated so a value
 // containing a newline survives the round trip, and restricted to the
 // whitelist's keys so the login environment never carries anything this
 // package would refuse to use anyway. printf with \0 (octal zero) is the
 // POSIX format escape, understood by the sh/dash/bash/zsh builtins alike.
-const dumpScript = `printf 'PATH=%s\0LANG=%s\0LC_ALL=%s\0LC_CTYPE=%s\0' "$PATH" "$LANG" "$LC_ALL" "$LC_CTYPE"`
+const dumpScript = `printf '` + dumpMarker + `\0PATH=%s\0LANG=%s\0LC_ALL=%s\0LC_CTYPE=%s\0' "$PATH" "$LANG" "$LC_ALL" "$LC_CTYPE"`
 
 // dumpKeys is the emission order of parseDump; localeKeys is the priority
 // order the locale rules read the trio in. Both orders are fixed so the
@@ -155,11 +163,20 @@ func probe(ctx context.Context, shell string) Login {
 	return Login{Env: parseDump(out)}
 }
 
-// parseDump reads the NUL-separated dump. Anything that is not one of the
-// whitelist keys with a non-empty value — noise a profile printed, a
-// stray newline — is dropped; a repeated key keeps its last value, the
-// same rule os/exec applies to the environment it hands children.
+// parseDump reads the NUL-separated dump. Everything up to and including
+// the last dumpMarker is the profile's own output and is dropped; after
+// it, anything that is not one of the whitelist keys with a non-empty
+// value is dropped too, and a repeated key keeps its last value — the same
+// rule os/exec applies to the environment it hands children. A dump with
+// no marker at all (a shell that failed to run the printf, an output the
+// deadline truncated) parses to nothing, which the caller reads as an
+// unaugmented environment rather than a half-read one.
 func parseDump(out []byte) []string {
+	i := bytes.LastIndex(out, []byte(dumpMarker+"\x00"))
+	if i < 0 {
+		return nil
+	}
+	out = out[i+len(dumpMarker)+1:]
 	got := map[string]string{}
 	known := map[string]bool{}
 	for _, k := range dumpKeys {
