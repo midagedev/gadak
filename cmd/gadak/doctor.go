@@ -23,6 +23,7 @@ import (
 	"github.com/midagedev/gadak/internal/attachcache"
 	"github.com/midagedev/gadak/internal/clitool"
 	"github.com/midagedev/gadak/internal/config"
+	"github.com/midagedev/gadak/internal/hostenv"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/originbind"
 	"github.com/midagedev/gadak/internal/retro"
@@ -173,12 +174,33 @@ type doctorReport struct {
 	// or older local.db, or none yet): no skew, nothing to say.
 	LocalSchemaSkew *doctorLocalSchema `json:"local_schema_skew,omitempty"`
 
+	// HostEnv is the standing report on the terminal environment correction
+	// (GDK-2032): whether the login-shell environment a pane augments from
+	// resolved, how many PATH entries it contributes, and where the pane's
+	// locale comes from. An unresolved probe is a diagnosis (the pane still
+	// opens, on the unaugmented environment), never a defect.
+	HostEnv doctorHostEnv `json:"host_env"`
+
 	// localDBSchema is local.db's on-disk PRAGMA user_version when the file
 	// exists — the local half of the `schemas` line (GDK-1967), collected
 	// before any open so the refusal paths report it too. Unexported: the
 	// JSON contract for that line is the workspace section's persist pair;
 	// local's skew already has its own field above.
 	localDBSchema *int
+}
+
+// doctorHostEnv is the one-line view of what the pane environment gained
+// from the login shell (GDK-2032) — the two numbers that answer "why
+// doesn't my pane see brew" and "why is multibyte input broken". No paths,
+// no error text: the paste-safe rule the banner states.
+type doctorHostEnv struct {
+	Resolved bool `json:"resolved"`
+	// PathAdded counts the PATH entries the login environment contributed.
+	PathAdded int `json:"path_added"`
+	// LocaleSource is one of base | login | default — hostenv.LocaleSource
+	// owns the words, so this line cannot disagree with the merge it
+	// reports on.
+	LocaleSource string `json:"locale_source"`
 }
 
 // doctorPriorityEntropy is the one-fact view of the open-issue priority
@@ -500,6 +522,8 @@ func collectDoctor() doctorReport {
 	// default Workspace above survives (GDK-1967).
 	rep.Workspace.PersistSchemaHead = issuetap.PersistSchemaVersion()
 	rep.BinaryPath, rep.BinarySignature = collectBuildIdentity()
+	// Independent of the mirror — the early returns below must not lose it.
+	rep.HostEnv = collectHostEnv()
 
 	// Agent wiring is independent of the mirror, and the mirror branch below
 	// returns early — collect it first so a user with no mirror still gets the
@@ -1298,6 +1322,7 @@ func formatDoctorText(r doctorReport) string {
 	line("binary", formatDoctorBuild(r.BinaryPath, r.BinarySignature))
 	line("go_version", r.GoVersion)
 	line("os", r.OS+"/"+r.Arch)
+	line("hostenv", formatDoctorHostEnv(r.HostEnv))
 	line("profile", r.Profile)
 	line("workspace_kind", r.WorkspaceKind)
 	line("origin_type", r.Workspace.OriginType)
@@ -1625,6 +1650,76 @@ func collectBuildIdentity() (path, sig string) {
 		return "unknown", doctorSigUnknown
 	}
 	return tildeHome(exe), probeCodeSignature(exe)
+}
+
+// collectHostEnv reports on the correction the terminal applies when it
+// starts a pane (GDK-2032): the login shell's environment, resolved the
+// same way startProc resolves it — same shell preference, same per-process
+// cache, same hostenv-owned timeout. The shell asked about is the
+// configured terminal.shell when there is one, so the line answers for the
+// shell a pane would actually run.
+func collectHostEnv() doctorHostEnv {
+	shell := ""
+	if cfg, err := config.Load(); err == nil && cfg != nil {
+		shell = cfg.EffectiveTerminal().Shell
+	}
+	login := hostenv.Resolve(context.Background(), runtime.GOOS, shell)
+	base := os.Environ()
+	aug := hostenv.Augment(runtime.GOOS, base, login)
+	return doctorHostEnv{
+		Resolved:     login.Err == nil,
+		PathAdded:    countPathAdded(base, aug),
+		LocaleSource: hostenv.LocaleSource(runtime.GOOS, base, login),
+	}
+}
+
+// countPathAdded measures what the augmentation contributed: PATH entries
+// present after it that base did not have. Counts only — the entries
+// themselves stay out of this paste-safe document.
+func countPathAdded(base, aug []string) int {
+	have := map[string]bool{}
+	if bp, ok := doctorEnvValue(base, "PATH"); ok {
+		for _, e := range filepath.SplitList(bp) {
+			have[e] = true
+		}
+	}
+	n := 0
+	if ap, ok := doctorEnvValue(aug, "PATH"); ok {
+		for _, e := range filepath.SplitList(ap) {
+			if e != "" && !have[e] {
+				have[e] = true
+				n++
+			}
+		}
+	}
+	return n
+}
+
+// doctorEnvValue is the "K=V" list lookup this file's probes share.
+func doctorEnvValue(env []string, key string) (string, bool) {
+	for _, kv := range env {
+		if k, v, ok := strings.Cut(kv, "="); ok && k == key {
+			return v, true
+		}
+	}
+	return "", false
+}
+
+// formatDoctorHostEnv is the one line that answers "why doesn't my pane
+// see my tools, or my language": whether the login environment behind the
+// pane's augmentation resolved, what it added, and where the locale came
+// from. Unresolved is a diagnosis — the pane opened anyway, on the
+// environment the serve itself got.
+func formatDoctorHostEnv(h doctorHostEnv) string {
+	verdict := "login environment unresolved"
+	if h.Resolved {
+		verdict = "login environment resolved"
+	}
+	entry := "entries"
+	if h.PathAdded == 1 {
+		entry = "entry"
+	}
+	return fmt.Sprintf("%s (+%d PATH %s, locale from %s)", verdict, h.PathAdded, entry, h.LocaleSource)
 }
 
 // probeCodeSignature is the thin wrapper around the classifier: one

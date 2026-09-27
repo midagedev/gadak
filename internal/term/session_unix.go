@@ -3,16 +3,21 @@
 package term
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/creack/pty"
+
+	"github.com/midagedev/gadak/internal/hostenv"
 )
 
 // ptyProc is the unix half of a session: the PTY master and the shell
@@ -102,13 +107,44 @@ func startProc(opts Options) (*ptyProc, error) {
 	}
 	cmd := exec.Command(shell, opts.Args...)
 	cmd.Dir = opts.Dir
-	env := append(os.Environ(), "TERM=xterm-256color", "GADAK_TERMINAL=1")
+	// GDK-2032: a serve launched from Finder/Dock inherits launchd's
+	// four-entry PATH and no locale, and this shell is not a login shell —
+	// it never reads the profiles that would fix either. hostenv is the
+	// one owner of that correction: resolve the login environment (cached
+	// per process, so a hundred panes still launch one login shell) and
+	// merge it under its whitelist — PATH and locale only, never a
+	// variable that names some other window's workspace. A failed
+	// resolution augments nothing and the pane opens anyway.
+	base := os.Environ()
+	login := hostenv.Resolve(context.Background(), runtime.GOOS, shell)
+	env := hostenv.Augment(runtime.GOOS, base, login)
+	env = append(env, "TERM=xterm-256color", "GADAK_TERMINAL=1")
+	// COLORTERM is the one pane variable that yields to a base that
+	// already carries one: a terminal that set its own word for this is
+	// saying something about the display behind it.
+	if !envCarries(base, "COLORTERM") {
+		env = append(env, "COLORTERM=truecolor")
+	}
+	// The caller's Env stays last (manager.go's contract): the serve's
+	// GADAK_WORKSPACE names the window this pane belongs to, and the last
+	// duplicate is the one the child sees.
 	cmd.Env = append(env, opts.Env...)
 	f, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: opts.Cols, Rows: opts.Rows})
 	if err != nil {
 		return nil, fmt.Errorf("term: start %s: %w", shell, err)
 	}
 	return &ptyProc{f: f, cmd: cmd}, nil
+}
+
+// envCarries reports whether env has key at all, empty value included —
+// presence, not value, is the not-overwriting rule for COLORTERM.
+func envCarries(env []string, key string) bool {
+	for _, kv := range env {
+		if k, _, ok := strings.Cut(kv, "="); ok && k == key {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *ptyProc) Read(b []byte) (int, error) { return p.f.Read(b) }

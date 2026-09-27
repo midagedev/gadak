@@ -232,6 +232,29 @@ func TestSessionEnvNamesItsOwnSession(t *testing.T) {
 	}
 }
 
+// GDK-2032: the pane's environment is now built through hostenv.Augment,
+// and the ordering contract that must survive that insertion is
+// manager.go's Options.Env one — the serve's GADAK_WORKSPACE is appended
+// after everything this package sets, so it is always the last duplicate
+// and the pane's bare `gadak` answers for the window it lives in. The
+// login shell's contribution cannot mask it either: hostenv's whitelist
+// never lets GADAK_WORKSPACE cross from a login environment.
+func TestSessionCallerEnvStillWinsLast(t *testing.T) {
+	m := testManager(t, Config{})
+	s := shellSession(t, m, Options{Env: []string{"GADAK_WORKSPACE=wired-2032"}})
+	a, err := s.Attach()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Write([]byte("printf 'W=%s\\n' \"$GADAK_WORKSPACE\"\n")); err != nil {
+		t.Fatal(err)
+	}
+	out := readUntil(t, a, "W=wired-2032", 10*time.Second)
+	if !strings.Contains(out, "W=wired-2032") {
+		t.Fatalf("GADAK_WORKSPACE in the pane = %q; want the caller's value", out)
+	}
+}
+
 // awaitTTYSize keeps asking the child for its own tty size until want shows
 // up in the output. One `stty size` plus a fixed wall-clock wait on its echo
 // is the shape that flaked under full-suite load (GDK-977/1007/1071): the
