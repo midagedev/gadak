@@ -8,7 +8,9 @@
 #   1. README.md wraps web-demo.gif in <details> (not an inline hero)
 #   2. docs/MCP.md and contracts/agent.md do not list {text} as gadak_search's
 #      primary argument (query is primary; text/q are aliases)
-#   3. README.md and docs/INSTALL.md say "N issues" matching examples/demo.db
+#   3. every front door says the demo issue count in its own locale's shape
+#      (en "${n} issues", ko "이슈 ${n}건", ja "${n} 件の課題"), matching
+#      examples/demo.db — READMEs, INSTALL, llms.txt, the site copy
 #   4. docs/project/STATE_OF_PLAY.md has no leftover "enables GitHub Pages"
 #   5. docs/, specs/, AGENTS.md carry no literal 519 (demo issue count moved)
 #   6. The version a reader sees first matches the latest tag: the README
@@ -251,18 +253,38 @@ if [[ -n "$text_primary" ]]; then
 fi
 ok "gadak_search primary arg is not {text} in MCP.md / agent.md"
 
-# ── 3. Demo issue count matches README + INSTALL ─────────────────────────
+# ── 3. Demo issue count matches every door, in its own locale's shape ────
+# GDK-2016: the count rode on six surfaces and the loop read three, and
+# only in English — "이슈 534건" (README.ko.md) and "534 件の課題"
+# (README.ja.md) drifted free, and so did the site's demoSub strings (three
+# locales in site/src/i18n.ts). The 519→534 move already proved the class
+# (that incident is why check 5 exists). Each door is asserted in the shape
+# its locale actually prints: the ja README spaces its counter ("534 件の
+# 課題") while the i18n copy glues it ("534件の課題"), and ko glues the
+# counter to the digit ("이슈 534건") — one English "${n} issues" grep
+# cannot see any of the three.
 if ! command -v sqlite3 >/dev/null; then
   fail "sqlite3 not on PATH (needed to count examples/demo.db issues)"
 fi
 n="$(sqlite3 examples/demo.db "select count(*) from issues")"
 [[ "$n" =~ ^[0-9]+$ ]] || fail "sqlite3 did not return a count (got ${n@Q})"
-for f in README.md docs/INSTALL.md site/public/llms.txt; do
-  if ! grep -q "${n} issues" "$f"; then
-    fail "$f does not mention ${n} issues (demo.db count)"
+demo_shapes=(
+  "README.md|${n} issues"
+  "docs/INSTALL.md|${n} issues"
+  "site/public/llms.txt|${n} issues"
+  "site/src/i18n.ts|${n} issues"
+  "README.ko.md|이슈 ${n}건"
+  "site/src/i18n.ts|이슈 ${n}건"
+  "README.ja.md|${n} 件の課題"
+  "site/src/i18n.ts|${n}件の課題"
+)
+for shape in "${demo_shapes[@]}"; do
+  f="${shape%%|*}"; want="${shape#*|}"
+  if ! grep -qF -- "$want" "$f"; then
+    fail "$f does not carry the demo count in its locale shape: $want"
   fi
 done
-ok "README.md, docs/INSTALL.md and site/public/llms.txt say ${n} issues"
+ok "README (en+ko+ja), docs/INSTALL.md, llms.txt and the site copy all say ${n} issues"
 
 # ── 4. Hosted demo is live; no "enables GitHub Pages" leftover ───────────
 if grep -n "enables GitHub Pages" docs/project/STATE_OF_PLAY.md; then
@@ -1861,7 +1883,7 @@ else
   ok "scoop manifest, AUR PKGBUILD and .SRCINFO agree with ${tag}"
 fi
 
-# ── 30. README's benchmark table carries the CURRENT measurement (GDK-773) ─
+# ── 30. README benchmark figures — table rows and first-sync prose — carry the CURRENT measurement (GDK-773, GDK-2016) ─
 # The class this closes: a re-measurement lands on one surface and the others
 # keep publishing the old numbers. Measured 2026-08-24 — docs/BENCHMARKS.md
 # and site/src/i18n.ts carried the 2026-08-23 re-run (7,166 issues, 23×)
@@ -1875,6 +1897,16 @@ fi
 # the README caption must name that section's date and corpus, and every
 # ms/× figure in the README table must appear in it. A future re-measurement
 # therefore cannot be published to one surface only.
+#
+# GDK-2016: the first-full-sync figure also travels as PROSE — "3.7
+# minutes" / "3.7분" / "3.7 分" in running text, not a table row — in all
+# three READMEs and in site/src/i18n.ts's speed notes (three locales). The
+# row scan below never saw those lines, and check 61's literal pass only
+# asks site files whether the ledger carries the figure at all. The prose
+# is now checked against its authority: the default row's bolded total
+# wall in this file's first-full-sync section, in minutes with one
+# decimal. FAIL-first 2026-09-28: README.md's "3.7 minutes" edited to
+# "3.9 minutes" made this check fail before the revert.
 readme_bench=$(
   python3 - <<'BENCHPY'
 import re
@@ -1927,6 +1959,42 @@ else:
                         "docs/BENCHMARKS.md's latest measurement section"
                     )
 
+# First-full-sync prose (GDK-2016), same authority file, different
+# section: the "## First full sync" block, not the latest measurement.
+# Decimal minutes only — integer-minute prose ("1 分の遅れ" is a latency
+# promise, not a measurement) deliberately does not match the pattern.
+sync_head = re.search(r"^## First full sync", bench, re.M)
+if not sync_head:
+    fails.append("docs/BENCHMARKS.md has no 'First full sync' section — the prose figure has no authority left")
+else:
+    sec = bench[sync_head.start():]
+    cut = re.search(r"^## ", sec[3:], re.M)
+    if cut:
+        sec = sec[: cut.start() + 3]
+    wall = re.search(r"default[^\n]*\*\*(\d+)\s*m\s*(\d+)\s*s\*\*", sec)
+    if not wall:
+        fails.append("docs/BENCHMARKS.md first-full-sync section: the default row's bolded total wall is gone")
+    else:
+        want = f"{(int(wall.group(1)) * 60 + int(wall.group(2))) / 60:.1f}"
+        for path in ("README.md", "README.ko.md", "README.ja.md", "site/src/i18n.ts"):
+            prose = "\n".join(
+                ln for ln in Path(path).read_text().splitlines()
+                if not ln.lstrip().startswith("|")
+            )
+            claims = re.findall(r"(\d+\.\d+)\s*(?:minutes?|分|분)", prose)
+            if not claims:
+                fails.append(
+                    f"{path}: no decimal-minute figure in prose "
+                    f"(the first-full-sync claim read {want} min — deleted?)"
+                )
+            for c in claims:
+                if c != want:
+                    fails.append(
+                        f"{path}: prose claims {c} min for the first full sync; "
+                        f"docs/BENCHMARKS.md's default wall {wall.group(1)} m "
+                        f"{wall.group(2)} s = {want} min"
+                    )
+
 if fails:
     print("\n".join(dict.fromkeys(fails)))
 BENCHPY
@@ -1934,7 +2002,7 @@ BENCHPY
 if [[ -n "$readme_bench" ]]; then
   fail "README benchmark table disagrees with docs/BENCHMARKS.md's current measurement:"$'\n'"$readme_bench"
 fi
-ok "README (en+ko) benchmark table matches the current measurement in docs/BENCHMARKS.md"
+ok "README (en+ko+ja) benchmark table and first-sync prose (READMEs + site notes) match the current measurement in docs/BENCHMARKS.md"
 
 # ── 31. Copy units in the entry docs (GDK-772 wave) ──────────────────────
 # The class these close: a fenced block that a reader copies whole, but which
@@ -2660,7 +2728,7 @@ else
   echo "note: the ci-status fixture test is skipped — shallow checkout has no HEAD^, and its parent look-back cases (7-8) need real history. Full run locally or with fetch-depth: 0."
 fi
 
-# ── 45. llms.txt carries the front door's contract strings (GDK-1659) ────────
+# ── 45. the front doors carry the install-family contract strings (GDK-1659; widened GDK-2016) ─
 # site/public/llms.txt is the page an agent reads instead of the landing, and
 # nothing asserted it: on 2026-09-09 it was fourteen days behind the READMEs —
 # no Windows Store line, the Claude Desktop command GDK-1633 retired, and
@@ -2668,22 +2736,44 @@ fi
 # version); this one pins the install commands and the facts the review rounds
 # found wrong most often. FAIL-first 2026-09-09: the pre-rewrite file had
 # neither `gadak mcp install claude-desktop` nor the Store URL.
+#
+# GDK-2016: the llms.txt-only loop left the SAME strings unguarded on every
+# other door — the census map counted `brew install --cask` on five
+# surfaces, `gadak init && gadak serve` on five, the Store URL on five,
+# with only llms.txt asserted. The file sets below are the census's copy
+# lists, measured on this tree; a door that stops carrying a string it
+# owns goes red here. The subsets are ownership, not omission:
+# `gadak mcp install claude-desktop` lives in the READMEs' agents
+# sections (docs/INSTALL.md installs the cask and never lists MCP hosts),
+# the sibling-page links ride each non-English edition, and the ledger
+# pointer is llms.txt plus the site's own docs footer.
 llms=site/public/llms.txt
 for want in \
   'brew install --cask midagedev/tap/gadak' \
   'brew install midagedev/tap/gadak-cli' \
   'gadak init && gadak serve' \
   'http://gadak.localhost:7777' \
-  'gadak mcp install claude-desktop' \
-  'https://apps.microsoft.com/detail/9NZW91TXH36G' \
-  'https://gadak.dev/ko/' \
-  'https://gadak.dev/ja/' \
-  'docs/project/FACT_LEDGER.md'; do
+  'https://apps.microsoft.com/detail/9NZW91TXH36G'; do
+  for f in README.md README.ko.md README.ja.md docs/INSTALL.md "$llms"; do
+    if ! grep -qF -- "$want" "$f"; then
+      fail "$f is missing the contract string: $want"
+    fi
+  done
+done
+for f in README.md README.ko.md README.ja.md "$llms"; do
+  if ! grep -qF -- 'gadak mcp install claude-desktop' "$f"; then
+    fail "$f is missing the contract string: gadak mcp install claude-desktop"
+  fi
+done
+grep -qF -- 'https://gadak.dev/ko/' README.ko.md || fail "README.ko.md no longer links https://gadak.dev/ko/"
+grep -qF -- 'https://gadak.dev/ja/' README.ja.md || fail "README.ja.md no longer links https://gadak.dev/ja/"
+for want in 'https://gadak.dev/ko/' 'https://gadak.dev/ja/' 'docs/project/FACT_LEDGER.md'; do
   if ! grep -qF -- "$want" "$llms"; then
     fail "$llms is missing the contract string: $want"
   fi
 done
-ok "site/public/llms.txt carries the install commands, both MCP hosts, the Store URL and the ko/ja pages"
+grep -qF -- 'docs/project/FACT_LEDGER.md' site/src/i18n.ts || fail "site/src/i18n.ts is missing the contract string: docs/project/FACT_LEDGER.md"
+ok "the front doors (READMEs, INSTALL, llms.txt, site footer) carry the install commands, both MCP hosts, the Store URL, the sibling pages and the ledger pointer"
 
 # ── 46. a release is told in at most three themes, never as a list (user decision 2026-09-09) ──
 # "이전 버전 대비 달라진 핵심이 잡혀야 하는데 자꾸 사건들의 나열이 된다": a

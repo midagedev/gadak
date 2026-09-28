@@ -42,6 +42,7 @@ echo
 
 python3 - <<'PY'
 import re, subprocess, os
+from urllib.parse import unquote
 
 LEDGER = 'docs/project/FACT_LEDGER.md'
 GUARD = 'tools/doc-checks.sh'
@@ -77,6 +78,13 @@ for f in surfaces:
     except UnicodeDecodeError:
         lines[f] = []
 
+# GDK-2014: a copy can travel percent-encoded. Every Datasette Lite link
+# embeds its target URL as https%3A%2F%2F…, so raw-line matching counted
+# the published demo db URL zero times while five surfaces carried it.
+# Decode each line the way doc-checks check 61 decodes the Datasette URL
+# (tools/doc-checks.sh:3496) and match both spellings.
+dlines = {f: [unquote(ln) for ln in lns] for f, lns in lines.items()}
+
 guard_text = open(GUARD, encoding='utf-8').read()
 
 def copies_of(value, kind=None):
@@ -91,8 +99,12 @@ def copies_of(value, kind=None):
     out = []
     for f in surfaces:
         for i, ln in enumerate(lines[f], 1):
-            if (pat.search(ln) if pat else value in ln):
-                out.append(f'{f}:{i}')
+            dln = dlines[f][i - 1]
+            hays = (ln,) if dln == ln else (ln, dln)
+            for hay in hays:
+                if (pat.search(hay) if pat else value in hay):
+                    out.append(f'{f}:{i}')
+                    break
     return out
 
 # ── §17 ledger-contract rows: re-verify each ------------------------------

@@ -11,9 +11,13 @@ claims a reader will act on. Everything else — how a fact is introduced, what
 gets emphasised, what a section is called, what is left out — belongs to the
 edition.
 
-Last verified against the tree: 2026-09-08 (v0.21.0), re-verified the same
-evening against source for the review round GDK-1632 (sync interval, token
-storage and type, attribution, MCP clients, read exceptions, deletions).
+Last verified against the tree: 2026-09-28 — §3a, §8 and §16 read against
+source, which is where the wrong section pointer below was found (GDK-2015,
+GDK-2016). The date carries no version string on purpose: doc-checks check 6
+already measures the status minor, and a version in prose here has nothing
+that keeps it true. Earlier stamp: 2026-09-08, verified against source for
+the review round GDK-1632 (sync interval, token storage and type,
+attribution, MCP clients, read exceptions, deletions).
 
 ---
 
@@ -516,10 +520,14 @@ landing (`site/src/i18n.ts`) and all three READMEs.
   sixth section down while the READMEs kept it near the end. The landing puts
   `compare` directly under the hero; each README answers it in a clause in its
   opening and links to its own section. The compare table's axes include the
-  two that were missing: **rate limits** (§8's table row — 429 and a
+  two that were missing: **rate limits** (§6's table row — 429 and a
   Retry-After against reads off your disk) and **who maintains it** (§1 — one
-  person, Apache-2.0). Editions differ in where the section sits and what it
-  is called; they do not differ on whether the question is answered up top.
+  person, Apache-2.0). "Every edition" is the English landing and the three
+  READMEs: the ko and ja landings carry no compare block, and that is a
+  standing decision older than this bullet (2026-09-08, GDK-1619 — a reader
+  arriving from Twitter or a Qiita search did not come to compare against the
+  official MCP server). Where the section sits and what it is called are the
+  edition's; whether the question is answered up top is not.
 - **Every edition ends by asking what happened** (§13 wording) and says what
   must stay out of a public report — in **two sentences and one caution line**
   (2026-09-09). What was cut: telling the reader to withhold an issue count
