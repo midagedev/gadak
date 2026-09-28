@@ -580,6 +580,11 @@ func (c *Client) Upload(ctx context.Context, key, filename string, file io.Reade
 	// ceiling on `gadak attach` that had nothing to do with the origin's
 	// own limit (GDK-1617).
 	pr, pw := io.Pipe()
+	// If NewRequestWithContext below fails, nothing ever reads pr and the
+	// writer goroutine parks on its first Write forever. This Close is the
+	// drain for that path; on every other path the pipe is already closed and
+	// PipeReader.Close is idempotent, so this is a no-op there.
+	defer pr.Close()
 	mw := multipart.NewWriter(pw)
 	go func() {
 		// Declare the type from the filename. CreateFormFile hardcodes

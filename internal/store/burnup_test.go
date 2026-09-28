@@ -29,6 +29,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -213,5 +214,52 @@ func TestSprintBurnupFutureSprintHasNoDays(t *testing.T) {
 	}
 	if len(doc.Days) != 0 {
 		t.Fatalf("a future sprint answered %d days, want 0", len(doc.Days))
+	}
+}
+
+// The membership query narrows in SQL before Go decides (see the prefilter in
+// SprintBurnup): this table pins both halves of that split. An arrival whose
+// id is an element of a comma list ("6, 8") must survive the narrowing — an
+// equality-shaped prefilter would drop it — and an arrival for sprint 81,
+// whose id merely contains 8 as a substring, must still be refused by Go's
+// element test. Membership is by element, never by equality and never by
+// substring, whichever side of the boundary asks.
+func TestSprintBurnupMembershipIsByElementNotSubstring(t *testing.T) {
+	db := openTemp(t)
+	ctx := context.Background()
+	if err := db.UpsertSource(ctx, Source{ID: "jira", Kind: "jira", BaseURL: "https://example.invalid"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ReplaceAgile(ctx, "jira",
+		[]BoardRow{{ID: 1, Name: "NMB board", Type: "scrum"}},
+		[]SprintRow{{ID: 8, BoardID: 1, Name: "Sprint 8", State: "closed",
+			StartAt: "2026-03-02T10:00:00.000Z", EndAt: "2026-03-13T10:00:00.000Z",
+			CompleteAt: "2026-03-13T18:00:00.000Z"}}); err != nil {
+		t.Fatal(err)
+	}
+	// Arrives as an element of a list — the Cloud whole-membership shape.
+	seedBurnupIssue(t, db, "201", "NMB-7", false,
+		ChangeEntry{ID: "s8", At: burnupStamp("03", "09:00:00"), Field: "sprint", ToID: "6, 8", ToValue: "Sprint 6, Sprint 8"},
+	)
+	// Arrives at sprint 81, which contains the digit 8: a substring match,
+	// not a membership.
+	seedBurnupIssue(t, db, "202", "NMB-8", false,
+		ChangeEntry{ID: "s9", At: burnupStamp("04", "09:00:00"), Field: "sprint", ToID: "81", ToValue: "Sprint 81"},
+	)
+	doc, err := db.SprintBurnup(ctx, 8, burnupNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []BurnupDay{{"2026-03-02", 0, 0, 0}}
+	for day := 3; day <= 13; day++ {
+		want = append(want, BurnupDay{fmt.Sprintf("2026-03-%02d", day), 1, 0, 0})
+	}
+	if len(doc.Days) != len(want) {
+		t.Fatalf("days = %d, want %d: %+v", len(doc.Days), len(want), doc.Days)
+	}
+	for i, d := range doc.Days {
+		if d != want[i] {
+			t.Errorf("day %d = %+v, want %+v", i, d, want[i])
+		}
 	}
 }

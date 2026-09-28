@@ -39,6 +39,13 @@ const (
 // rather than an Options field because the CLI and the server share the pass
 // entry points. The pass clamps it to [1, MaxFetchConcurrency]; 1 is exactly
 // the serial pass of pre-1673, pause included.
+//
+// Deliberately unsynchronized: the only non-test write is cmd/gadak's flag
+// handling, one assignment in the caller's goroutine before the first pass
+// starts (cmd/gadak/sync.go; a serve process never writes it at all), and
+// both reads sit at pass setup, on the same goroutine or ones spawned after
+// that point — goroutine creation is the happens-before edge, so no read can
+// race the write. Tests keep the same shape: assign, then run the pass.
 var FetchConcurrency = DefaultFetchConcurrency
 
 // clampFetchWidth bounds a configured width to the pool's legal range.

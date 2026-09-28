@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strconv"
 	"time"
 )
 
@@ -98,11 +99,22 @@ func (db *DB) SprintBurnup(ctx context.Context, sprintID int64, now time.Time) (
 	// sprint's arrivals and departures. sprintIDs reads both origin shapes
 	// (the whole-membership list and the single moved-to id), the same
 	// helper the carry-over rule uses — one owner for "was this id in the
-	// value".
+	// value". The WHERE terms are a prefilter, not that authority: a row
+	// this sprint could possibly keep must mention the id's digits somewhere
+	// in from_id or to_id (an element of any grammar is a substring), so SQL
+	// narrows the years-deep changelog to candidates and idInSprintValue
+	// below still decides. That keeps the row set — and the replay's event
+	// order, which inSprintOn consumes — byte-identical to the unfiltered
+	// scan while a one-sprint walk stops hauling every sprint's rows across
+	// the SQLite boundary.
 	var members []memberEvent
+	sid := strconv.FormatInt(sprintID, 10)
 	sprintRows, err := db.sql.QueryContext(ctx, `
 		SELECT item_id, COALESCE(at,''), COALESCE(from_id,''), COALESCE(to_id,'')
-		FROM changelog WHERE field = 'sprint'`)
+		FROM changelog
+		WHERE field = 'sprint' AND COALESCE(at,'') != ''
+		  AND (instr(COALESCE(from_id,''), ?) > 0 OR instr(COALESCE(to_id,''), ?) > 0)`,
+		sid, sid)
 	if err != nil {
 		return BurnupDoc{}, err
 	}

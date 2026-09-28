@@ -326,8 +326,8 @@ func rangeHeaders(r *http.Request) http.Header {
 // artifact mode the response policy is setArtifactGuards's, and the long-lived
 // validator has no place there: the route is no-store by contract, so an ETag
 // would be an instruction the same headers forbid following.
-func (s *server) serveCached(w http.ResponseWriter, r *http.Request, id string, artifact bool) bool {
-	f, meta, err := s.cache.Get(id)
+func (s *server) serveCached(w http.ResponseWriter, r *http.Request, cacheKey string, artifact bool) bool {
+	f, meta, err := s.cache.Get(cacheKey)
 	if err != nil {
 		return false
 	}
@@ -347,7 +347,7 @@ func (s *server) serveCached(w http.ResponseWriter, r *http.Request, id string, 
 	// carried the site hostname and the workspace name (GDK-1621). An
 	// ETag is an opaque identity; it does not need to say what it is made
 	// of.
-	w.Header().Set("ETag", fmt.Sprintf("%q", "att-"+attachcache.Tag(id)))
+	w.Header().Set("ETag", fmt.Sprintf("%q", "att-"+attachcache.Tag(cacheKey)))
 	setAttachmentGuards(w, meta.ContentType)
 	http.ServeContent(w, r, "", time.Time{}, f)
 	return true
