@@ -973,6 +973,11 @@ export const settings = {
     ko: '해지',
     ja: '失効',
   },
+  'settings.devicesRevokeConfirm': {
+    en: 'Click again to revoke',
+    ko: '한 번 더 누르면 해지합니다',
+    ja: 'もう一度クリックすると解除します',
+  },
   'settings.devicesHomeRowHint': {
     en: 'The routing key of this machine. Rotate it from the terminal: gadak pairing mint --label _home',
     ko: '이 머신의 라우팅 키입니다. 터미널에서 교체하세요: gadak pairing mint --label _home',

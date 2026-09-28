@@ -182,4 +182,54 @@ test.describe('history view', () => {
 
     expect(ignoreFixtureNoise(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
   })
+
+  test('Clear history asks twice — the first click arms, the second clears (GDK-2006)', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await gotoApp(page)
+    await openIssue(page, 'NMB-110')
+
+    // The DELETE and the refetch after it stay page-mocked: this suite
+    // shares one home with every other spec (workers: 1 exists for exactly
+    // that), and a real clear would wipe the visits the tests above count.
+    // GETs pass through until the delete has happened — the arm click must
+    // still be able to read the honest, uncleared timeline. The pattern is
+    // a regex because the reload GET carries a query string
+    // (history/?limit=…) a `**/history/` glob silently misses.
+    let deleted = 0
+    await page.route(/\/history\/?(\?.*)?$/, async (route) => {
+      if (route.request().method() === 'DELETE') {
+        deleted += 1
+        await route.fulfill({ status: 200, json: {} })
+        return
+      }
+      if (deleted > 0) {
+        await route.fulfill({ status: 200, contentType: 'application/json', json: { items: [] } })
+        return
+      }
+      await route.continue()
+    })
+
+    await openHistory(page)
+    const row = page.locator('[data-testid="history-row"][data-key="NMB-110"]')
+    await expect(row).toBeVisible()
+
+    const clear = page.getByTestId('history-clear')
+    await clear.click()
+    // First click only arms: no request left the page, the rows are still
+    // there, and the button says it wants a second click.
+    expect(deleted).toBe(0)
+    await expect(clear).toHaveAttribute('data-armed', 'true')
+    await expect(row).toBeVisible()
+
+    await clear.click()
+    expect(deleted).toBe(1)
+    await expect(row).toHaveCount(0)
+    // The emptied timeline is the feedback (GDK-106): no clear button left
+    // to press on a screen with nothing to clear.
+    await expect(clear).toHaveCount(0)
+
+    expect(ignoreFixtureNoise(errors), `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
 })

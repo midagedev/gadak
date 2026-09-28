@@ -176,3 +176,87 @@ test.describe('list bulk edits', () => {
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 })
+
+test.describe('keyboard bulk selection (GDK-2005)', () => {
+  // The row is role=button tabindex=0 (GDK-829), but its keydown used to
+  // carry its own decision — always open the detail — so in select mode the
+  // keyboard toggled nothing and Shift+Enter could not grab a range. The
+  // fix is one decision owner: keydown runs the exact branches the click
+  // runs — shift = range (which is also how a keyboard user STARTS a
+  // selection: selectRange with no anchor adds the row), selection mode
+  // ≥1 = toggle, else open the detail. Bare Enter/Space with nothing
+  // selected opening the detail is parity, not the bug.
+  test('Shift+Space on a focused row starts bulk selection — the keyboard shift-click', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await captureIssue(page)
+
+    const input = searchInput(page)
+    await input.fill(KEY)
+    const row = page.locator(`[data-testid="issue-list-scroller"] [data-issue-key="${KEY}"]`)
+    await expect(row).toBeVisible()
+
+    await row.focus()
+    await page.keyboard.press('Shift+Space')
+
+    await expect(page.getByTestId('bulk-bar')).toBeVisible()
+    await expect(row.locator('button[aria-pressed]')).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByTestId('issue-layout')).toHaveAttribute('data-detail-open', 'false')
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('Enter toggles a row while a selection is active, and Shift+Enter grabs the range', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await captureIssue(page)
+
+    const input = searchInput(page)
+    await input.fill('NMB-11')
+    const first = page.locator('[data-testid="issue-list-scroller"] [data-issue-key="NMB-110"]')
+    const second = page.locator('[data-testid="issue-list-scroller"] [data-issue-key="NMB-111"]')
+    await expect(first).toBeVisible()
+    await expect(second).toBeVisible()
+
+    await first.focus()
+    await page.keyboard.press('Shift+Enter')
+    await expect(page.getByTestId('bulk-bar')).toBeVisible()
+    await expect(page.getByTestId('issue-layout')).toHaveAttribute('data-detail-open', 'false')
+
+    // Shift+Enter from the second row is the range grab shift-click is.
+    await second.focus()
+    await page.keyboard.press('Shift+Enter')
+    await expect(first.locator('button[aria-pressed]')).toHaveAttribute('aria-pressed', 'true')
+    await expect(second.locator('button[aria-pressed]')).toHaveAttribute('aria-pressed', 'true')
+
+    // Bare Enter now belongs to select mode — it toggles the row out
+    // instead of opening the detail, which is the parity this bug is on.
+    await page.keyboard.press('Enter')
+    await expect(second.locator('button[aria-pressed]')).toHaveAttribute('aria-pressed', 'false')
+    await expect(page.getByTestId('issue-layout')).toHaveAttribute('data-detail-open', 'false')
+    // The bar stays: the first row is still selected.
+    await expect(page.getByTestId('bulk-bar')).toBeVisible()
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('Enter with nothing selected still opens the detail — the third branch survives the merge', async ({
+    page,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await captureIssue(page)
+
+    const input = searchInput(page)
+    await input.fill(KEY)
+    const row = page.locator(`[data-testid="issue-list-scroller"] [data-issue-key="${KEY}"]`)
+    await expect(row).toBeVisible()
+
+    await row.focus()
+    await page.keyboard.press('Enter')
+    await expect(page.getByTestId('issue-layout')).toHaveAttribute('data-detail-open', 'true')
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+})

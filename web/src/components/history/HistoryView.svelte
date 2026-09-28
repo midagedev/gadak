@@ -137,14 +137,27 @@
   }
 
   /*
-   * The clear verb (GDK-106, spec 002's "a way to clear history"). No
-   * confirm dialog: the button's own label says it cannot be undone, which
-   * is the one sentence the spec asks the surface to carry before the click.
-   * After the DELETE the refetch is the feedback — an emptied timeline and
-   * the empty-state copy — so there is no toast to word. A failed clear
-   * leaves the rows on screen; the state itself says it did not happen.
+   * The clear verb (GDK-106, spec 002's "a way to clear history"). GDK-2006
+   * added the two-click arm: the rows live in local.db, which no origin can
+   * bring back, and the same screen's less destructive verbs already asked
+   * twice — so the first click swaps the label to the confirm sentence (the
+   * family "Click again" shape, SourcesTab's turn-on arm / the sidebar's
+   * view delete) and only the second clears. The unarmed label keeps the
+   * one sentence spec 002 asked for: it says it cannot be undone. After the
+   * DELETE the refetch is the feedback — an emptied timeline and the
+   * empty-state copy — so there is no toast to word. A failed clear leaves
+   * the rows on screen; the state itself says it did not happen.
    */
   let clearing = $state(false)
+  let clearLatch = $state(false)
+
+  function onClearClick(): void {
+    if (!clearLatch) {
+      clearLatch = true
+      return
+    }
+    void clearAll()
+  }
 
   async function clearAll(): Promise<void> {
     if (clearing) return
@@ -156,6 +169,7 @@
       console.debug('[history] clear failed', e)
     } finally {
       clearing = false
+      clearLatch = false
     }
   }
 
@@ -259,10 +273,11 @@
         type="button"
         class="flex h-control-sm flex-none items-center rounded-md px-2 text-micro font-medium text-status-reopen hover:bg-bg-hover disabled:opacity-60"
         data-testid="history-clear"
+        data-armed={clearLatch ? 'true' : undefined}
         disabled={clearing}
-        onclick={() => void clearAll()}
+        onclick={onClearClick}
       >
-        {t('history.clear')}
+        {t(clearLatch ? 'history.clearConfirm' : 'history.clear')}
       </button>
     {/if}
 

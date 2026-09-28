@@ -283,10 +283,13 @@
     else bulk.toggle(issue.issue_key)
   }
 
-  // Row click: shift = range, select mode (≥1) = toggle, else open detail.
-  function onRowClick(e: MouseEvent) {
-    if (e.shiftKey) {
-      e.preventDefault()
+  // Row activation (GDK-2005): what pressing the row does — shift = range,
+  // select mode (≥1) = toggle, else open detail. One owner for the decision:
+  // the keydown used to carry its own (always open the detail), so a
+  // keyboard-only user could not start a bulk selection at all. Click and
+  // keydown both call this; only the instrumentation source differs.
+  function activateRow(source: 'list-row' | 'list-row-key', shiftKey: boolean): void {
+    if (shiftKey) {
       bulk.selectRange(issue.issue_key)
       return
     }
@@ -294,7 +297,13 @@
       bulk.toggle(issue.issue_key)
       return
     }
-    selection.toggle(issue.issue_key, 'list-row')
+    selection.toggle(issue.issue_key, source)
+  }
+
+  // Row click: shift = range, select mode (≥1) = toggle, else open detail.
+  function onRowClick(e: MouseEvent) {
+    if (e.shiftKey) e.preventDefault()
+    activateRow('list-row', e.shiftKey)
   }
 </script>
 
@@ -313,10 +322,12 @@
   says "Tab moves rows", and this list was the one surface where that was
   false. j/k still moves the cursor, but Tab no longer skips the list
   entirely. role stays "button" (ARIA, not native): the browser does not
-  fire click on Enter for it, so open-cursor keeps the row. The ignore is
-  the analyzer reading the two conditionals apart: on a data row the role
-  is button, and on a header row tabindex is -1 — no row is ever both
-  noninteractive and tab-reachable.
+  fire click on Enter for it, so open-cursor keeps the row. GDK-2005: the
+  keydown below runs the click's own decision (activateRow), so a keyboard
+  user gets bulk selection — not a detail panel — in select mode. The
+  ignore is the analyzer reading the two conditionals apart: on a data row
+  the role is button, and on a header row tabindex is -1 — no row is ever
+  both noninteractive and tab-reachable.
 -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
@@ -358,7 +369,9 @@
     : (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
-          selection.toggle(issue.issue_key, 'list-row-key')
+          // GDK-2005: the same decision the click makes — a key event carries
+          // shiftKey too, so Shift+Enter is the range grab shift-click is.
+          activateRow('list-row-key', e.shiftKey)
         }
       }}
 >

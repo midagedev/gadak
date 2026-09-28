@@ -225,6 +225,43 @@ describe('GDK-1047 devices tab render contract', () => {
   })
 })
 
+describe('GDK-2006 revoke is a two-click arm, not a one-click revoke', () => {
+  // The tab is desktop-only and invisible under serve (pinned above), so
+  // no e2e can reach this button — the render contract here is the gate,
+  // same as the rest of this file. The structure asserted is the family's
+  // armed latch: SourcesTab's turn-on arm (GDK-1134) for the naming and
+  // the derived disarm, SidebarNav's deleteArmedId for the per-row shape.
+  const { source: src } = parseComponent(DEVICES_TAB, 'DevicesTab.svelte')
+
+  test('the first click only arms — arm precedes commit, and the button no longer wires revoke() directly', () => {
+    // Per-row latch: several rows carry a revoke button, one arm at a time.
+    expect(src).toMatch(/let revokeArmedLabel = \$state<string \| null>\(null\)/)
+    // Order on source, not a markup literal: the arm write must sit before
+    // the revoke call inside the click handler.
+    const armAt = src.indexOf('revokeArmedLabel = row.label')
+    const commitAt = src.indexOf('void revoke(row)')
+    expect(armAt, 'the click handler writes the latch first').toBeGreaterThan(-1)
+    expect(commitAt, 'and only then revokes').toBeGreaterThan(armAt)
+    // The old one-click wiring is gone from the row.
+    expect(src).not.toMatch(/onclick=\{\(\) => void revoke\(row\)\}/)
+    expect(src).toMatch(/onclick=\{\(\) => onRevokeClick\(row\)\}/)
+  })
+
+  test('armed is derived — the latch alone is not the answer', () => {
+    // A row that came back revoked (the list reloads after a revoke) must
+    // not read armed: same shape as isConfluenceArmed's "and the source is
+    // still off" clause (GDK-1134).
+    expect(src).toMatch(/\{@const revokeArmed = !revoked && revokeArmedLabel === row\.label\}/)
+    expect(src).toMatch(/data-armed=\{revokeArmed \? 'true' : undefined\}/)
+  })
+
+  test('the armed label is the confirm sentence — the family "Click again" swap', () => {
+    expect(src).toMatch(
+      /revokeArmed \? 'settings\.devicesRevokeConfirm' : 'settings\.devicesRevoke'/,
+    )
+  })
+})
+
 describe('GDK-1047 devices tab is wired into the dialog', () => {
   const dialog = readFileSync(SETTINGS_DIALOG, 'utf8')
 
@@ -279,6 +316,7 @@ describe('GDK-1047 devices copy is complete in every locale', () => {
     'settings.devicesErrLabelExists',
     'settings.devicesErrFailed',
     'settings.devicesRevoke',
+    'settings.devicesRevokeConfirm',
     // settings.devicesRevoked was pinned here with no caller — removed from
     // the catalog in the same round (GDK-1474).
     'settings.devicesHomeRowHint',

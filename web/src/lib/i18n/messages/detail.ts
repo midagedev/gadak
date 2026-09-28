@@ -786,6 +786,11 @@ export const detail = {
     ko: '기록 지우기 — 되돌릴 수 없음',
     ja: '履歴を消去—元に戻せません',
   },
+  'history.clearConfirm': {
+    en: 'Click again to clear',
+    ko: '한 번 더 누르면 지웁니다',
+    ja: 'もう一度クリックすると消去します',
+  },
   'history.filterEmpty': {
     en: 'No matches',
     ko: '일치하는 항목 없음',

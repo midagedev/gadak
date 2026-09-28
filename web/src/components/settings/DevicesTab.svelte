@@ -193,6 +193,27 @@
     }
   }
 
+  /*
+   * GDK-2006: the revoke's two-click arm. Revoking a pairing is the most
+   * destructive verb on this screen — the only way back is re-pairing with
+   * a new code — while the neighbors that merely toggle a source already
+   * asked twice (SourcesTab's turn-on arm, GDK-1134). Same family shape,
+   * per-row like the sidebar's view delete (deleteArmedId): the first
+   * click only swaps the label to the confirm sentence, the second calls
+   * revoke(). Armed is read as latch AND still-revocable, so a row that
+   * reloads revoked drops the arm on its own.
+   */
+  let revokeArmedLabel = $state<string | null>(null)
+
+  function onRevokeClick(row: DeviceRow): void {
+    if (revokeArmedLabel !== row.label) {
+      revokeArmedLabel = row.label
+      return
+    }
+    revokeArmedLabel = null
+    void revoke(row)
+  }
+
   async function copyOffer(): Promise<void> {
     if (!minted) return
     // copy-text.ts owns the desktop-vs-web transport (GDK-178); "copied"
@@ -308,6 +329,7 @@
         {#each devices as row (row.hash_prefix + row.label)}
           {@const isHome = row.scope === 'local-routing'}
           {@const revoked = row.state.startsWith('revoked')}
+          {@const revokeArmed = !revoked && revokeArmedLabel === row.label}
           <tr class="border-t border-border-subtle align-top" data-testid="devices-row-{row.label}">
             <td class="py-1.5 pr-2">
               <span class="font-mono text-text-primary">{row.label}</span>
@@ -327,14 +349,18 @@
             </td>
             <td class="py-1.5 text-right">
               {#if !isHome}
+                <!-- GDK-2006: armed = the confirm label, the family's
+                     "Click again" swap — red like every armed destructive
+                     verb in the app. -->
                 <button
                   type="button"
-                  class={COPY_BTN}
+                  class="{COPY_BTN} {revokeArmed ? 'text-status-reopen' : ''}"
                   disabled={revoked}
-                  onclick={() => void revoke(row)}
+                  onclick={() => onRevokeClick(row)}
                   data-testid="devices-revoke-{row.label}"
+                  data-armed={revokeArmed ? 'true' : undefined}
                 >
-                  {t('settings.devicesRevoke')}
+                  {t(revokeArmed ? 'settings.devicesRevokeConfirm' : 'settings.devicesRevoke')}
                 </button>
               {/if}
             </td>
