@@ -975,7 +975,9 @@ export function effectiveCategory(issueOrCat: IssueLite | string | null | undefi
   if (sc === 'done' || sc === 'complete' || sc === 'completed') return 'done'
   if (!sc) missingStatusCategoryCount++
   else categoryFallbackCount++
-  return 'inprogress'
+  // Same unknown-key answer as internal/statuscat.Category (GDK-2004): an
+  // unknown key can only ever miss a reopen, never invent one.
+  return 'new'
 }
 
 /**

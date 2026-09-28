@@ -111,9 +111,13 @@ const CATEGORY_ALIASES: Record<string, 'new' | 'inprogress' | 'done'> = {
   complete: 'done',
 }
 
-/** The three-bucket axis, tolerant of the aliases origins actually send. */
+/**
+ * The three-bucket axis, tolerant of the aliases origins actually send. An
+ * unknown key falls in with 'new', the same answer as internal/statuscat and
+ * effectiveCategory (GDK-2004) — miss a reopen at worst, never invent one.
+ */
 export function groupCategory(issue: GroupableIssue): 'new' | 'inprogress' | 'done' {
-  return CATEGORY_ALIASES[(issue.status_category ?? '').toLowerCase()] ?? 'inprogress'
+  return CATEGORY_ALIASES[(issue.status_category ?? '').toLowerCase()] ?? 'new'
 }
 
 function personIdentity(issue: GroupableIssue): string | null {

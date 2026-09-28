@@ -515,13 +515,15 @@ describe('effectiveCategory (GDK-272)', () => {
   })
 
   test("display name 'to do' is not a category key (GDK-272)", () => {
-    expect(effectiveCategory('to do')).toBe('inprogress')
-    expect(effectiveCategory(issueRow('To Do', 'to do'))).toBe('inprogress')
+    // GDK-2004: an unrecognized string folds to 'new' (statuscat.Category's
+    // answer), not 'inprogress' — a display name may never become progress.
+    expect(effectiveCategory('to do')).toBe('new')
+    expect(effectiveCategory(issueRow('To Do', 'to do'))).toBe('new')
   })
 
   test('unknown non-empty key increments categoryFallbackSeen', () => {
     const before = categoryFallbackSeen()
-    expect(effectiveCategory(issueRow('Anything', 'undefined'))).toBe('inprogress')
+    expect(effectiveCategory(issueRow('Anything', 'undefined'))).toBe('new')
     expect(categoryFallbackSeen()).toBe(before + 1)
   })
 
@@ -543,6 +545,10 @@ describe('effectiveCategory (GDK-272)', () => {
     effectiveCategory(issueRow('완료', ''))
     expect(missingStatusCategorySeen()).toBe(missingBefore + 1)
     expect(categoryFallbackSeen()).toBe(fallbackBefore)
+  })
+
+  test("unknown key folds to 'new', matching internal/statuscat (GDK-2004)", () => {
+    expect(effectiveCategory(issueRow('Anything', 'not-a-category'))).toBe('new')
   })
 })
 

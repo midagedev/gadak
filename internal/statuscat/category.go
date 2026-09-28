@@ -11,7 +11,9 @@
 // per account ("진행 중"). The web mirrors this fold in
 // web/src/lib/view-config.ts (effectiveCategory — saved-view status_category
 // axes and raw transition keys need it); this package stays the single
-// owner.
+// owner. Since GDK-2004 the web folds take the same unknown-key answer
+// ("new") as Category does — effectiveCategory and issue-group's
+// groupCategory both.
 package statuscat
 
 // KnownCategory maps a Jira statusCategory key or a gadak token onto the
