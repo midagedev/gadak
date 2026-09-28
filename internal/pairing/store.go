@@ -145,6 +145,22 @@ const (
 // passthrough). Production mints name their scope via MintScoped (pairflow's
 // mint command is the caller); this origin-scope surface carries no
 // production call site — the tests state the token contract through it.
+// ErrLabelExists is the duplicate-label refusal: a mint found an active
+// token already carrying the label it was asked for, and refused before
+// writing anything. Callers classify on it — the desktop's Devices tab
+// answers 409 (GDK-2008) — so the classification no longer rides on this
+// package's wording.
+var ErrLabelExists = errors.New("pairing: label already in use")
+
+// labelInUse is that refusal with the sentence it has always had. It
+// carries the sentinel through Is rather than through %w on purpose: %w
+// would print the sentinel's own text in front of the sentence, and this
+// sentence is what a device-pairing form shows a person.
+type labelInUse struct{ msg string }
+
+func (e *labelInUse) Error() string        { return e.msg }
+func (e *labelInUse) Is(target error) bool { return target == ErrLabelExists }
+
 func Mint(dir, label string, ttl time.Duration, now time.Time) (string, Meta, error) {
 	return MintScoped(dir, label, ScopeOrigin, ttl, now)
 }
@@ -162,7 +178,7 @@ func MintScoped(dir, label, scope string, ttl time.Duration, now time.Time) (str
 	err = mutateStore(dir, func(doc *storeDoc) error {
 		for _, m := range doc.Tokens {
 			if m.Label == meta.Label && m.Active(now) {
-				return fmt.Errorf("pairing: an active token labeled %q already exists; revoke it first or pick another label", meta.Label)
+				return &labelInUse{msg: fmt.Sprintf("pairing: an active token labeled %q already exists; revoke it first or pick another label", meta.Label)}
 			}
 		}
 		doc.Tokens = append(doc.Tokens, meta)
@@ -203,7 +219,7 @@ func MintScopedMulti(dir, label string, scopes []string, ttl time.Duration, now 
 	err := mutateStore(dir, func(doc *storeDoc) error {
 		for _, m := range doc.Tokens {
 			if m.Label == metas[0].Label && m.Active(now) {
-				return fmt.Errorf("pairing: an active token labeled %q already exists; revoke it first or pick another label", metas[0].Label)
+				return &labelInUse{msg: fmt.Sprintf("pairing: an active token labeled %q already exists; revoke it first or pick another label", metas[0].Label)}
 			}
 		}
 		doc.Tokens = append(doc.Tokens, metas...)

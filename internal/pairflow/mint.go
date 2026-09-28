@@ -52,6 +52,28 @@ func DefaultTTLFlag() string {
 	return fmt.Sprintf("%dd", int(DefaultTTL/(24*time.Hour)))
 }
 
+// The mint flow's refusals are sentinel errors so callers classify by
+// identity, never by this package's wording — the desktop's Devices tab
+// maps each refusal to an HTTP code, and rewording an error here must not
+// quietly degrade a form's specific refusal into a generic mint_failed
+// (GDK-2008; the loopback refusal had already moved to a type, GDK-1317).
+// Each sentinel is wrapped with %w at its raise site, which keeps every
+// user-visible sentence byte-identical to what it said before the
+// sentinel existed.
+var (
+	// ErrBadTTL prefixes both ParseTTL refusals — the count and the unit
+	// sentence each say the rest in their own words.
+	ErrBadTTL = errors.New("bad ttl")
+	// ErrBadEndpoint prefixes the endpoint-shape refusal.
+	ErrBadEndpoint = errors.New("bad endpoint")
+	// ErrNoLiveServe is the orphan-token refusal: nothing to advertise,
+	// and minting anyway would strand a token no device can reach.
+	ErrNoLiveServe = errors.New("no live serve found for this profile; start `gadak serve` first or pass --endpoint <url>")
+	// ErrPairedAway is Dir's refusal for a workspace whose home is another
+	// machine: it holds no tokens of its own to mint or revoke.
+	ErrPairedAway = errors.New("mint and revoke run on the home machine")
+)
+
 // ParseTTL accepts one integer with a single unit — "90d", "24h", "30m",
 // "45s". time.ParseDuration rejects "d", and inventing compound syntax
 // ("1d12h") is surface nobody asked for; a clear error beats guessing.
@@ -64,7 +86,7 @@ func ParseTTL(s string) (time.Duration, error) {
 	digits := s[:len(s)-1]
 	n, err := strconv.Atoi(digits)
 	if err != nil || n <= 0 {
-		return 0, fmt.Errorf("bad ttl %q: want <N><unit> with unit d, h, m, or s (e.g. 90d, 24h)", s)
+		return 0, fmt.Errorf("%w %q: want <N><unit> with unit d, h, m, or s (e.g. 90d, 24h)", ErrBadTTL, s)
 	}
 	switch unit {
 	case 'd':
@@ -76,7 +98,7 @@ func ParseTTL(s string) (time.Duration, error) {
 	case 's':
 		return time.Duration(n) * time.Second, nil
 	default:
-		return 0, fmt.Errorf("bad ttl %q: unit must be d, h, m, or s", s)
+		return 0, fmt.Errorf("%w %q: unit must be d, h, m, or s", ErrBadTTL, s)
 	}
 }
 
@@ -166,7 +188,7 @@ func Dir(cfg *config.Config) (string, error) {
 	if rem, err := origin.PairedStatus(cfg); err != nil {
 		return "", err
 	} else if rem != nil {
-		return "", fmt.Errorf("%s — mint and revoke run on the home machine", PairedLine(cfg, rem))
+		return "", fmt.Errorf("%s — %w", PairedLine(cfg, rem), ErrPairedAway)
 	}
 	if !cfg.HasCredential() {
 		return "", config.ErrNotConfigured
@@ -351,12 +373,12 @@ func resolveDeviceEndpoint(cfg *config.Config, endpoint string) (string, bool, e
 	if discovered {
 		ep = AdvertisedEndpoint(cfg)
 		if ep == "" {
-			return "", false, errors.New("no live serve found for this profile; start `gadak serve` first or pass --endpoint <url>")
+			return "", false, ErrNoLiveServe
 		}
 	}
 	u, err := url.Parse(ep)
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
-		return "", false, fmt.Errorf("bad endpoint %q: want an http(s) URL", ep)
+		return "", false, fmt.Errorf("%w %q: want an http(s) URL", ErrBadEndpoint, ep)
 	}
 	loopback := isLoopbackHost(u.Hostname())
 	// GDK-1266: the serve binds loopback by default, so the discovered
@@ -464,11 +486,11 @@ func resolveHomeEndpoint(cfg *config.Config, dir, endpoint string) (string, erro
 		}
 	}
 	if ep == "" {
-		return "", errors.New("no live serve found for this profile; start `gadak serve` first or pass --endpoint <url>")
+		return "", ErrNoLiveServe
 	}
 	u, err := url.Parse(ep)
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
-		return "", fmt.Errorf("bad endpoint %q: want an http(s) URL", ep)
+		return "", fmt.Errorf("%w %q: want an http(s) URL", ErrBadEndpoint, ep)
 	}
 	return ep, nil
 }
@@ -488,7 +510,7 @@ func issueHomeRoutingToken(dir string, cfg *config.Config, mintEndpoint string, 
 		}
 	}
 	if ep == "" {
-		return pairing.Meta{}, errors.New("no live serve found for this profile; start `gadak serve` first or pass --endpoint <url>")
+		return pairing.Meta{}, ErrNoLiveServe
 	}
 	if err := pairing.SaveRemote(dir, pairing.Remote{Endpoint: ep, Token: token, Label: pairing.HomeLabel}); err != nil {
 		// Rotate revoked every previous _home token in the same store write

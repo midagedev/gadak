@@ -79,11 +79,13 @@ const ENDPOINT_OUT_OF_SCOPE = 'shell endpoint is outside the app dialling scope'
  * ports included (GDK-1048), shared with the fetch path in lib/api.ts — so
  * the two transports agree on where this app may dial.
  *
- * Read it for what it is: a **correctness** guard, not a security boundary.
- * The grant is process-wide — anything running in this webview can call the
- * plugin directly and skip this function entirely. The boundary version is a
- * Rust command that validates against the stored pairing before connecting;
- * that is filed, not built (GDK-897).
+ * Read it for what it is: an early refusal, not the boundary. The boundary
+ * is built and lives in src-tauri/src/shell.rs (GDK-897): the websocket
+ * plugin and its process-wide grant are gone, and the shell_ws_* commands
+ * dial from the stored pairing — URL, scope verdict and Bearer decided on
+ * the Rust side. This function predicts that same refusal in JS, so
+ * obvious garbage dies without an IPC round-trip (the framing
+ * openPackagedSocket below already uses).
  */
 export function assertAllowedShellEndpoint(endpoint: string): void {
   if (!inDialScope(endpoint)) throw new Error(ENDPOINT_OUT_OF_SCOPE)

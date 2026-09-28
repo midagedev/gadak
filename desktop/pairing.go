@@ -167,24 +167,25 @@ func handlePairingMint(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := pairflow.MintDevice(dir, cfg, label, scope, body.TTL, strings.TrimSpace(body.Endpoint), time.Now())
 	if err != nil && res.Offer == "" {
-		// The flow refuses before minting; classify by its own wording,
-		// which never carries the credential. The loopback refusal is a
-		// typed error, matched like the CLI matches it (GDK-1317) — the
-		// string form is mint.go's wording, and wording is allowed to
-		// change without degrading this tab's specific refusal into a
-		// generic mint_failed.
+		// The flow refuses before minting; classify by its error identity,
+		// never its wording, which never carries the credential — the
+		// loopback refusal moved to a type in GDK-1317, the rest to
+		// sentinels in GDK-2008 — the duplicate-label one is the store's own
+		// (internal/pairing.ErrLabelExists), raised where the conflict is
+		// found rather than inferred afterwards from the token list. So
+		// rewording an error in either package cannot degrade this tab's
+		// specific refusal into a generic mint_failed.
 		var lb *pairflow.LoopbackEndpointError
 		switch {
-		case strings.Contains(err.Error(), "already exists"):
+		case errors.Is(err, pairing.ErrLabelExists):
 			writePairingErr(w, http.StatusConflict, "label_exists")
-		case errors.As(err, &lb),
-			strings.Contains(err.Error(), "no live serve"):
+		case errors.As(err, &lb), errors.Is(err, pairflow.ErrNoLiveServe):
 			// GDK-1266: the form sent no endpoint and the live serve is
 			// loopback-only — same prescription as no serve: fill it in.
 			writePairingErr(w, http.StatusConflict, "no_serve")
-		case strings.Contains(err.Error(), "bad endpoint"):
+		case errors.Is(err, pairflow.ErrBadEndpoint):
 			writePairingErr(w, http.StatusBadRequest, "bad_endpoint")
-		case strings.Contains(err.Error(), "bad ttl"):
+		case errors.Is(err, pairflow.ErrBadTTL):
 			writePairingErr(w, http.StatusBadRequest, "bad_ttl")
 		default:
 			log.Printf("pairing mint: %v", err)
@@ -286,7 +287,7 @@ func pairingUnavailable(err error) string {
 	if errors.Is(err, config.ErrNotConfigured) {
 		return "not_configured"
 	}
-	if strings.Contains(err.Error(), "run on the home machine") {
+	if errors.Is(err, pairflow.ErrPairedAway) {
 		return "paired_away"
 	}
 	return ""

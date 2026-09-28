@@ -229,7 +229,7 @@ func TestPairingMintRefusesDiscoveredLoopbackServe(t *testing.T) {
 // TestPairingMintRefusals: the route refuses what it must, with stable
 // codes — terminal scope (by design: it opens a shell), the reserved
 // _home label, an empty label, a non-http endpoint, no endpoint with no
-// live serve, and a duplicate active label.
+// live serve, a malformed ttl, and a duplicate active label.
 func TestPairingMintRefusals(t *testing.T) {
 	builtInDesktopHome(t)
 	h := pairingMuxForTest()
@@ -249,6 +249,7 @@ func TestPairingMintRefusals(t *testing.T) {
 		{"empty label", `{"label":"  ","scope":"serve"}`, 400, "label_required"},
 		{"bad endpoint scheme", `{"label":"p","scope":"serve","endpoint":"ftp://192.0.2.10:7877"}`, 400, "bad_endpoint"},
 		{"no serve no endpoint", `{"label":"p","scope":"serve"}`, 409, "no_serve"},
+		{"bad ttl unit", `{"label":"p","scope":"serve","ttl":"9x","endpoint":"http://192.0.2.10:7877"}`, 400, "bad_ttl"},
 		{"bad body", `not json`, 400, "bad_request"},
 	}
 	for _, tc := range cases {

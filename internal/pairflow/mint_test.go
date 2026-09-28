@@ -12,6 +12,7 @@ package pairflow
 
 import (
 	"bytes"
+	"errors"
 	"image/png"
 	"os"
 	"strings"
@@ -196,6 +197,59 @@ func TestMintDeviceContract(t *testing.T) {
 	if _, err := MintDevice(dir, cfg, "watch", pairing.ScopeServe, "1h", "", now); err == nil ||
 		!strings.Contains(err.Error(), "no live serve") {
 		t.Fatalf("endpoint-less mint without a serve refused with: %v", err)
+	}
+}
+
+// TestMintRefusalClassification pins the classification half of GDK-2008:
+// every refusal a caller maps to a code (the desktop's Devices tab) answers
+// errors.Is / errors.As, and the wrapping that carries the identity does
+// not disturb the sentences the wording tests above pin. A wording edit in
+// this package may move the words; it must not move the identity.
+func TestMintRefusalClassification(t *testing.T) {
+	dir, cfg := pairflowHome(t)
+	now := time.Now()
+	endpoint := "http://192.0.2.10:7877"
+
+	// Both ParseTTL refusals — the count and the unit sentence.
+	if _, err := ParseTTL("0d"); !errors.Is(err, ErrBadTTL) {
+		t.Fatalf("count refusal classifies as %v, want ErrBadTTL", err)
+	}
+	if _, err := ParseTTL("1x"); !errors.Is(err, ErrBadTTL) {
+		t.Fatalf("unit refusal classifies as %v, want ErrBadTTL", err)
+	}
+	if _, err := MintDevice(dir, cfg, "watch", pairing.ScopeServe, "1h", "ftp://192.0.2.10:7877", now); !errors.Is(err, ErrBadEndpoint) {
+		t.Fatalf("endpoint refusal classifies as %v, want ErrBadEndpoint", err)
+	}
+	if _, err := MintDevice(dir, cfg, "watch", pairing.ScopeServe, "1h", "", now); !errors.Is(err, ErrNoLiveServe) {
+		t.Fatalf("serve-less refusal classifies as %v, want ErrNoLiveServe", err)
+	}
+	// The _home endpoint refusals answer the same sentinels the device
+	// mint's do — one refusal family, not two spellings of it.
+	if _, err := MintHome(dir, cfg, "", now); !errors.Is(err, ErrNoLiveServe) {
+		t.Fatalf("_home serve-less refusal classifies as %v, want ErrNoLiveServe", err)
+	}
+
+	// The duplicate-label refusal carries the store's own sentinel, raised
+	// where the conflict is found — and the sentence a pairing form shows
+	// is unchanged by that classification.
+	if _, err := MintDevice(dir, cfg, "phone", pairing.ScopeServe, "1h", endpoint, now); err != nil {
+		t.Fatal(err)
+	}
+	_, err := MintDevice(dir, cfg, "phone", pairing.ScopeServe, "1h", endpoint, now)
+	if !errors.Is(err, pairing.ErrLabelExists) {
+		t.Fatalf("duplicate-label refusal classifies as %v, want pairing.ErrLabelExists", err)
+	}
+	if want := `pairing: an active token labeled "phone" already exists; revoke it first or pick another label`; err.Error() != want {
+		t.Fatalf("refusal sentence = %q, want %q", err.Error(), want)
+	}
+
+	// A revoked label frees the name: the classification follows the
+	// store's liveness, not the label's history.
+	if _, err := pairing.Revoke(dir, "phone", now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := MintDevice(dir, cfg, "phone", pairing.ScopeServe, "1h", endpoint, now); err != nil {
+		t.Fatalf("re-mint after revoke refused: %v", err)
 	}
 }
 
