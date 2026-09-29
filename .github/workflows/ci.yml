@@ -1223,6 +1223,15 @@ jobs:
         working-directory: desktop
         run: go test ./... -run 'Protocol' -count=1
 
+      # GDK-891: the ConPTY contract (spawn roundtrip, resize answered by
+      # the child, Job-Object tree kill, close idempotence) can only
+      # execute on Windows — dev machines are macOS. Runs from the repo
+      # root: internal/term belongs to the root module, unlike the desktop
+      # step above.
+      - name: Terminal (ConPTY) tests
+        if: steps.cifilter.outputs.run == 'true'
+        run: go test ./internal/term/ -count=1
+
       # makeappx validates the manifest schema; only an install proves the
       # identity, the full-trust entry point, the protocol declaration and the
       # app-execution alias are accepted. The Store re-signs with its own certificate, so here
