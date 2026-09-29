@@ -76,6 +76,7 @@ import {
   type ListOrder,
 } from '../../../web/src/lib/issue-sort'
 import { groupIssues, isLiteGroupBy } from '../../../web/src/lib/issue-group'
+import { CATEGORY_ALIASES, categoryOf } from '../../../web/src/lib/status-category'
 import { isSamePerson, type PersonRef } from '../../../web/src/lib/person-match'
 import { builtinViews } from '../../../web/src/lib/builtin-views'
 import { highlightSegments } from '../../../web/src/lib/format'
@@ -97,29 +98,19 @@ function personRef(me: Me | null): PersonRef | null {
 
 /**
  * Fold the aliases Jira and the older web mappers emit into the three
- * buckets logic may key on. Mirrors web/src/lib/view-config.ts
- * `effectiveCategory` — the desktop writes its saved views against that
- * folding, so the phone must read them the same way. `categoryAliases()`
- * below is the parity surface the drift test reads.
+ * buckets logic may key on. The table's owner is
+ * web/src/lib/status-category.ts (GDK-2042) — the same fold the desk's
+ * filtering and grouping read, so a saved view buckets the same rows on
+ * both surfaces. `categoryAliases()` below is the parity surface the drift
+ * test reads.
  */
-const CATEGORY_ALIASES: Record<string, 'new' | 'inprogress' | 'done'> = {
-  new: 'new',
-  todo: 'new',
-  inprogress: 'inprogress',
-  indeterminate: 'inprogress',
-  done: 'done',
-  complete: 'done',
-  completed: 'done',
-}
-
-/** The alias table, for the parity test against the desktop's owner. */
 export function categoryAliases(): Record<string, string> {
   return { ...CATEGORY_ALIASES }
 }
 
-/** Effective status bucket. Unknown / missing reads as inprogress, like the desk. */
+/** Effective status bucket. Unknown / missing reads as new, like the desk. */
 export function effectiveCategory(issue: IssueLite): 'new' | 'inprogress' | 'done' {
-  return CATEGORY_ALIASES[(issue.status_category ?? '').toLowerCase()] ?? 'inprogress'
+  return categoryOf(issue.status_category)
 }
 
 /** Open = not in the done category. Resolution text is not consulted. */

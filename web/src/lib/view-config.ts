@@ -14,6 +14,7 @@
 
 import { config, feature, type GadakFeatures } from './config'
 import { columnLabel, type ColumnLabelKey } from './i18n'
+import { knownCategory, type StatusCategory } from './status-category'
 import type { DeployState, FlowSummary, IssueLite } from './types'
 
 /* ── Filter state ── */
@@ -868,7 +869,7 @@ export function configToParams(config: ViewConfig): Record<string, string | null
 
 /* ── Filter application helpers ── */
 
-export type StatusCategory = 'new' | 'inprogress' | 'done'
+export type { StatusCategory }
 
 /**
  * Times a category decision ran with an empty status_category.
@@ -954,30 +955,27 @@ export function prioritySortRank(rank: number | null | undefined): number {
 }
 
 /**
- * Trust a real new|inprogress|done status_category. Fold Jira's
- * indeterminate (REST key for in progress) and the aliases the deleted
- * web mappers already accepted (todo → new, complete/completed → done).
+ * The category of a row, a raw key, or nothing. The fold itself is
+ * status-category.ts's (GDK-2042): the alias table and the 'new'
+ * unknown-key answer live there, shared with the grouper and the phone, so
+ * a row cannot bucket differently per surface. What stays here is the
+ * input coercion — an issue, a raw key, or null, so the list, the
+ * transition control, and transition to_category strings share one
+ * decision — and the two counters: empty key raises
+ * missingStatusCategoryCount, non-empty unknown key categoryFallbackCount.
  * Never a status display name.
- *
- * Accepts an issue or a raw key so the list, the transition control, and
- * transition to_category strings share one decision. Go's internal/statuscat
- * owns the canonical fold — this is its view-side mirror, kept because
- * saved-view status_category axes and transition keys arrive as raw REST keys.
  */
 export function effectiveCategory(issueOrCat: IssueLite | string | null | undefined): StatusCategory {
   const raw =
     typeof issueOrCat === 'string' || issueOrCat == null
       ? (issueOrCat ?? '')
       : (issueOrCat.status_category ?? '')
-  const sc = raw.toLowerCase()
-  if (sc === 'new' || sc === 'todo') return 'new'
-  if (sc === 'inprogress' || sc === 'indeterminate') return 'inprogress'
-  if (sc === 'done' || sc === 'complete' || sc === 'completed') return 'done'
-  if (!sc) missingStatusCategoryCount++
-  else categoryFallbackCount++
-  // Same unknown-key answer as internal/statuscat.Category (GDK-2004): an
-  // unknown key can only ever miss a reopen, never invent one.
-  return 'new'
+  const cat = knownCategory(raw)
+  if (cat === null) {
+    if (raw === '') missingStatusCategoryCount++
+    else categoryFallbackCount++
+  }
+  return cat ?? 'new'
 }
 
 /**

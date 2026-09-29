@@ -194,11 +194,11 @@ const scopeOf = (list: Scope[], id: string): Scope => {
 }
 
 describe('effectiveCategory', () => {
-  it('folds the desk aliases, unknown reads as inprogress', () => {
+  it('folds the desk aliases, unknown reads as new like the desk (GDK-2042)', () => {
     expect(effectiveCategory(issue({ issue_key: 'STD-60', status_category: 'todo' }))).toBe('new')
     expect(effectiveCategory(issue({ issue_key: 'STD-61', status_category: 'indeterminate' }))).toBe('inprogress')
     expect(effectiveCategory(issue({ issue_key: 'STD-62', status_category: 'completed' }))).toBe('done')
-    expect(effectiveCategory(issue({ issue_key: 'STD-63', status_category: 'weird' }))).toBe('inprogress')
+    expect(effectiveCategory(issue({ issue_key: 'STD-63', status_category: 'weird' }))).toBe('new')
   })
 })
 

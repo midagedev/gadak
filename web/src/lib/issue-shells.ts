@@ -63,11 +63,12 @@ export function shellForIssue(
 /**
  * The category, only when the app's mapper actually recognized the string.
  *
- * effectiveCategory (view-config.ts) is the one owner of the fold, and its
- * fallback for an unknown key is 'inprogress' — the right default for
- * *filtering* (better to show an issue than hide it) and the wrong one for
- * *accusing*, because it would put the mark on every row whose status gadak
- * failed to mirror, and on every string that is not a category at all.
+ * effectiveCategory (view-config.ts) folds through the one owner
+ * (status-category.ts, GDK-2042) and its fallback for an unknown key is
+ * 'new' (GDK-2004) — safe for *filtering* (it can only miss a reopen,
+ * never invent one), but *accusing* may not borrow a fold answer at all:
+ * it would judge every row whose status gadak failed to mirror, and every
+ * string that is not a category, by the bucket the fallback parked it in.
  *
  * Rather than copy the mapper's key list here — two lists that drift is how
  * "keyed by display name" comes back — this reads the fallback counter the

@@ -87,9 +87,10 @@ describe('unattended in progress', () => {
   })
 
   test('a row with no category is not accused', () => {
-    // effectiveCategory falls back to 'inprogress' for an unknown value —
-    // right for filtering, wrong for marking. An unmirrored status is a gap
-    // in gadak, not an abandoned claim.
+    // effectiveCategory falls back to 'new' for an unknown value (GDK-2004)
+    // — safe for filtering, wrong for marking either way. An unmirrored
+    // status is a gap in gadak, not an abandoned claim, so this reads the
+    // recognition, never the fold's answer.
     expect(isUnattendedInProgress(issue('GDK-1', ''), [])).toBe(false)
     expect(isUnattendedInProgress(issue('GDK-1', '   '), [])).toBe(false)
     expect(isUnattendedInProgress(null, [])).toBe(false)

@@ -24,6 +24,7 @@
  * of the axis.
  */
 import { categoryLabel, t } from './i18n'
+import { categoryOf, type StatusCategory } from './status-category'
 import { prioritySortRank, type GroupBy } from './view-config'
 
 /**
@@ -102,22 +103,14 @@ export function isLiteGroupBy(v: unknown): v is LiteGroupBy {
 /** Status category buckets read in work order: doing, then queued, then done. */
 const IN_RANK: Record<string, number> = { inprogress: 0, new: 1, done: 2 }
 
-const CATEGORY_ALIASES: Record<string, 'new' | 'inprogress' | 'done'> = {
-  new: 'new',
-  indeterminate: 'inprogress',
-  inprogress: 'inprogress',
-  'in progress': 'inprogress',
-  done: 'done',
-  complete: 'done',
-}
-
 /**
- * The three-bucket axis, tolerant of the aliases origins actually send. An
- * unknown key falls in with 'new', the same answer as internal/statuscat and
- * effectiveCategory (GDK-2004) — miss a reopen at worst, never invent one.
+ * The three-bucket axis, through the one owner (status-category.ts,
+ * GDK-2042) — the same table and the same 'new' unknown-key answer
+ * effectiveCategory filters by, so a row cannot sit in Done under a filter
+ * and in New under a group header. Miss a reopen at worst, never invent one.
  */
-export function groupCategory(issue: GroupableIssue): 'new' | 'inprogress' | 'done' {
-  return CATEGORY_ALIASES[(issue.status_category ?? '').toLowerCase()] ?? 'new'
+export function groupCategory(issue: GroupableIssue): StatusCategory {
+  return categoryOf(issue.status_category)
 }
 
 function personIdentity(issue: GroupableIssue): string | null {

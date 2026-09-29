@@ -9,11 +9,10 @@
 // firewall, docs/ARCHITECTURE.md:79). Stdlib only — nothing here may grow a
 // dependency. Never key on status display names: they are localized
 // per account ("진행 중"). The web mirrors this fold in
-// web/src/lib/view-config.ts (effectiveCategory — saved-view status_category
-// axes and raw transition keys need it); this package stays the single
-// owner. Since GDK-2004 the web folds take the same unknown-key answer
-// ("new") as Category does — effectiveCategory and issue-group's
-// groupCategory both.
+// web/src/lib/status-category.ts (GDK-2042 — one front-end table behind
+// the filter, the grouper and the phone, for saved-view status_category
+// axes and raw transition keys); this package stays the single owner,
+// and the web takes the same unknown-key answer ("new") as Category.
 package statuscat
 
 // KnownCategory maps a Jira statusCategory key or a gadak token onto the

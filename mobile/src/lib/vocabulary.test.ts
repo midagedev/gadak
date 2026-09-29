@@ -145,18 +145,45 @@ describe('GDK-885 the picker wears the desktop section headings', () => {
 })
 
 describe('status-category folding stays parity with the desktop', () => {
-  it('accepts every alias web/src/lib/view-config.ts accepts', async () => {
+  it('accepts every alias the desktop owner accepts, with the same fold', async () => {
+    // GDK-2042 moved the table into web/src/lib/status-category.ts. The
+    // owner is parsed from source, not imported, so a phone-side
+    // re-declaration of the table cannot satisfy this gate by construction.
     const owner = readFileSync(
-      join(srcDir, '../../web/src/lib/view-config.ts'),
+      join(srcDir, '../../web/src/lib/status-category.ts'),
       'utf8',
     )
-    const body = owner.slice(owner.indexOf('export function effectiveCategory'))
-    const fn = body.slice(0, body.indexOf('\n}'))
-    // Every quoted alias the desk compares `sc` against.
-    const aliases = [...fn.matchAll(/sc === '([a-z]+)'/g)].map((m) => m[1])
-    expect(aliases.length).toBeGreaterThan(5)
+    const start = owner.indexOf('export const CATEGORY_ALIASES')
+    expect(start, 'the owner table parsed').toBeGreaterThan(0)
+    const table = owner.slice(start, owner.indexOf('\n}', start))
+    const desk: Record<string, string> = {}
+    for (const m of table.matchAll(/'?([A-Za-z][A-Za-z ]*)'?: '(new|inprogress|done)'/g)) {
+      desk[m[1]] = m[2]
+    }
+    expect(Object.keys(desk).length, 'aliases parsed from the owner table').toBeGreaterThan(5)
     const { categoryAliases } = await import('./domain')
-    expect(Object.keys(categoryAliases()).sort()).toEqual([...aliases].sort())
+    expect(categoryAliases()).toEqual(desk)
+  })
+
+  it('folds an unknown key and an empty key the way the desk does', async () => {
+    // GDK-2042: the axis this suite never had. The alias test above
+    // compares the table and stayed green while the phone folded unknown
+    // keys to 'inprogress' and the desk to 'new' — two views of one
+    // workspace bucketing the same unmirrored row differently. Both
+    // answers are pinned, not just their agreement.
+    const { effectiveCategory: deskCategory } = await import(
+      '../../../web/src/lib/view-config'
+    )
+    const { effectiveCategory } = await import('./domain')
+    const phoneRow = (status_category: string) =>
+      ({ status_category }) as Parameters<typeof effectiveCategory>[0]
+    for (const raw of ['nosuch-key', '']) {
+      expect(deskCategory(raw), `the desk folds ${JSON.stringify(raw)}`).toBe('new')
+      expect(
+        effectiveCategory(phoneRow(raw)),
+        `the phone folds ${JSON.stringify(raw)}`,
+      ).toBe('new')
+    }
   })
 })
 
