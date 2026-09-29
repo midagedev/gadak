@@ -50,7 +50,10 @@ becomes a key.
 
 `gadak open <KEY>` is the origin escape hatch (system browser to the issue's page on Jira or Linear).
 `gadak views open` is the "open in gadak" verb (focus the running app or serve
-tab). The names collide; the verbs do not.
+tab). The names collide; the verbs do not. `gadak issue <KEY> --link` is the
+pasteable member of the family: it prints the `gadak://` deep link, plus the
+http form when a serve is listening — reach for it when the ask is a link to
+hand someone.
 
 First, check it is there and current:
 
@@ -62,7 +65,10 @@ gadak status --json     # counts, watermark, last_error, schema_version, custom_
 `gadak sync --if-stale 15m` is the session preamble on a CLI-only host: it
 returns immediately when every source is fresh, and runs one incremental
 pass when a source is older than 15m or its last sync failed. A running
-`gadak serve` keeps the mirror fresh on its own.
+`gadak serve` keeps the mirror fresh on its own. `gadak sync --source
+jira|linear|confluence` narrows a pass to one source on a workspace that
+carries several (default `all`). `--watch` is a foreground loop that never
+returns — do not run it.
 
 `gadak sync --concurrency N` (1–8, default 4) widens the Confluence fetch
 pool; 1 is the old one-at-a-time pass. Every Jira or Confluence sync pass
@@ -286,7 +292,7 @@ in that table, and so do its goal and its dates. `versions` is the project catal
 `pages` is
 the Confluence projection. `comments`, `attachments`, `changelog`, `links`,
 and `dev_links` (development-panel PRs) hang off `items.id`. `items_fts` is
-one FTS5 index over titles, bodies, and
+one FTS5 index over titles, labels, bodies, and
 comment text — issues and wiki pages together. `labels`, `components`, and
 `fix_versions` are JSON arrays; reach them with `json_each`. Mapped custom
 fields live in `issues.custom` (and `issues_full.custom`) keyed by alias —
@@ -482,8 +488,11 @@ Search covers labels as well as titles, bodies and comments — an issue whose
 only signal is a label comes back, and `--json` attributes it to field
 `labels`. English stem variants match (`payments` hits `payment`). CJK
 queries of two or more runes match inside a compound (`결제` hits
-`간편결제`). English middles still miss (`ency` does not hit a title that is
-only `idempotency`). JQL `project NOT IN (KEY, …)` applies; `status NOT IN`
+`간편결제`). A Latin word or key written straight against CJK (`NMB-110` in
+`追跡issueはNMB-110で`) still matches — a hidden index column re-indexes the
+runs the tokenizer would swallow. English middles still miss (`ency` does
+not hit a title that is only `idempotency`). JQL `project NOT IN (KEY, …)`
+applies; `status NOT IN`
 does not (`cannot apply JQL — status not in … (only = and IN)`). Prefer
 `status_category` / `status_id` in SQL — never `status = 'In Progress'`.
 
@@ -493,6 +502,7 @@ To put the human on a view, do not describe the filters — set them:
 gadak views                         # Jira filters (after sync) + saved views
 gadak views open "the name"         # focuses the running desktop app or serve tab
 gadak views save "Night triage" --jql '…'   # keep a named view in local.db (survives deleting the mirror)
+gadak views save "Triage board" --jql '…' --layout board   # board|list (default list); views open takes --layout with --jql/--keys
 ```
 
 `views open` writes a one-shot hash the UI applies (`ks=` for `--keys`,

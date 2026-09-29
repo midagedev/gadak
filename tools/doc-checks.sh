@@ -3673,4 +3673,226 @@ EOF
 done
 ok "every released changelog heading carries its date"
 
+# ── 64. the agent surface teaches what the binary accepts (GDK-2017) ──────
+# Class: a verb, flag, or search-field lands in cmd/gadak and nothing makes
+# SKILL.md or the MCP tool descriptions follow. Four of those shipped
+# (--layout, --link, --source, the labels half of gadak_search) before this
+# check existed, and CLAUDE.md names internal/mcp/tools.go "a surface with
+# no gate": a shell-less agent reads only that text, and go / e2e / this
+# script were green whatever it claimed.
+#
+# Four axes, each derived from source (never a hand list of today's flags):
+#   a) every flag cmd/gadak registers must appear in SKILL.md -- or in the
+#      INTENTIONAL list below, each entry with its one-line reason
+#   b) same for the verb catalog (main.go's commands map), with aliases and
+#      human-setup verbs intentionally out
+#   c) reverse: every --flag SKILL.md teaches must exist (the GDK-1278
+#      rename class; --workspace/--profile are globals parsed in main.go)
+#   d) every field resolveSearchMatch can attribute (read.go) must be named
+#      by both MCP descriptions, and the CJK-glued tokenizer rule
+#      (GDK-1978's script_runs column) must stay on both surfaces
+#
+# FAIL-first 2026-09-29 against the unmodified tree (check 64's own run):
+#   cmd/gadak/views.go:131 --layout, cmd/gadak/agent_issue.go:214 --link,
+#   cmd/gadak/sync.go:26 --source, gadak_search's "titles, bodies,
+#   comments" (labels missing), and no script_runs sentence on either
+#   description or in SKILL.md. Teaching the five made it green; the
+#   INTENTIONAL lists below were written from the same measured diff.
+python3 - <<'PY64' || fail "the agent surface (SKILL.md / MCP tool descriptions) drifted from the binary's verb/flag catalog (GDK-2017) — each line below names its fix"
+import re
+import sys
+from pathlib import Path
+
+skill_text = Path("skills/gadak/SKILL.md").read_text()
+skill_flat = re.sub(r"\s+", " ", skill_text)
+fails = []
+
+# ── a) the flag catalog vs SKILL.md ─────────────────────────────────────
+FLAG_DEF = re.compile(
+    r'fs\.(?:String|Bool|Int|Int64|Float64|Duration|StringSlice)\(\s*"([a-z0-9-]+)"'
+    r"|fs\.Var\([^,]+,\s*\"([a-z0-9-]+)\""
+)
+flags = {}
+for path in sorted(Path("cmd/gadak").glob("*.go")):
+    if path.name.endswith("_test.go"):
+        continue
+    for n, line in enumerate(path.read_text().splitlines(), 1):
+        for m in FLAG_DEF.finditer(line):
+            name = m.group(1) or m.group(2)
+            flags.setdefault(name, "%s:%d" % (path.as_posix(), n))
+if len(flags) < 120:
+    fails.append("parsed only %d flags out of cmd/gadak (floor 120) — the catalog regex rotted; fix the regex, not the floor" % len(flags))
+
+# Flags deliberately not taught to agents. Every entry carries its reason;
+# an entry whose flag no longer exists FAILS below (an exemption list that
+# only grows is how a guard rots into decoration).
+INTENTIONAL_FLAGS = {
+    # gadak demo — serves the demo fixture; a maintainer tool, not agent work
+    "addr": "gadak demo listen address (maintainer fixture server)",
+    "db": "gadak demo snapshot path (maintainer fixture server)",
+    "locale": "gadak demo display language (maintainer fixture server)",
+    "static": "gadak demo web UI directory (maintainer fixture server)",
+    "writable": "gadak demo writable mode (maintainer fixture server)",
+    # gadak export-static — builds the hosted demo; maintainer
+    "api-base": "export-static URL rewrite (maintainer)",
+    "attachments": "export-static attachment copy (maintainer)",
+    "auth-base": "export-static auth rewrite (maintainer)",
+    "import-attachments": "export-static attachment import (maintainer)",
+    "keep-description": "export-static body policy (maintainer)",
+    "require-label": "export-static publish gate (maintainer)",
+    "scrub": "export-static scrub pass (maintainer)",
+    # gadak snapshot — demo fixture generator; maintainer
+    "derive-sprints": "snapshot fixture knob (maintainer)",
+    "now": "snapshot clock pin (maintainer)",
+    "scale": "snapshot issue cloning (maintainer)",
+    "seed": "snapshot determinism reserve (maintainer)",
+    "spread": "snapshot timestamp window (maintainer)",
+    # the deployment-report half of gadak dev; the issue-work half
+    # (dev link / dev scan) is the taught one
+    "author": "dev deployment report — PR author filter",
+    "branch": "dev deployment report — head ref",
+    "env": "dev deployment report — target environment",
+    "install-hook": "dev deployment report — pre-push hook install",
+    "number": "dev deployment report — build number",
+    "state": "dev deployment report — deployment state",
+    "url": "dev deployment report — run URL",
+    # human setup verbs, not agent sessions
+    "dir": "install-cli target directory (human setup)",
+    "print": "install-cli plan preview (human setup)",
+    "uninstall": "install-service removal (human setup)",
+    "overwrite": "team import conflict policy (human admin)",
+    "with-members": "team export member emails (human admin)",
+    "no-qr": "pairing mint QR suppression (token tuning)",
+    "scope": "pairing mint token scope (token tuning)",
+    "ttl": "pairing mint token lifetime (token tuning)",
+    "token": "init credential entry — a human paste, not agent work",
+    "token-expires": "init credential entry — a human paste, not agent work",
+    "token-file": "init credential entry — a human paste, not agent work",
+    "token-stdin": "init credential entry — a human paste, not agent work",
+    "pairing-code": "argument form of the pairing bind; --pairing-code-stdin is the taught form (an argv code is visible in ps)",
+    "no-sync": "flag of the untaught mcp verb (see INTENTIONAL_VERBS)",
+    "public-url": "serve advertises its own URL (setup)",
+    "allow-remote": "serve bind policy (setup)",
+    # escape-hatch and niche knobs on taught verbs
+    "as": "phrase-alias of link --type for URL targets; --type/--title are the taught forms",
+    "due": "one more edit/create field flag; the edit examples teach the shape, not every field",
+    "attach": "create --attach; the gadak attach verb is the taught path",
+    "data": "api --write body — escape-hatch flag on the escape-hatch verb",
+    "query": "api repeated query params — escape hatch",
+    "status": "api HTTP-code echo; --headers already teaches the pattern",
+    "doc-file": "page ADF body file; --storage-file is the taught safe path",
+    "sample": "fields --apply sampling knob",
+    "emit": "search JQL preview — niche",
+    "lib": "dashboards vendor-library pin by id; the fence names the vendored path",
+    "replace": "dashboards upstream vendor-byte acceptance (maintainer)",
+    "watch": "sync foreground loop that never returns — SKILL.md warns about it, and the warning is the only teaching it gets",
+    # --layout/--link/--source are NOT here: this round teaches them (GDK-2017)
+}
+
+for name in sorted(flags):
+    if len(name) == 1:
+        taught = re.search(r"(?<![a-zA-Z0-9-])-%s(?![a-zA-Z0-9])" % name, skill_text)
+    else:
+        taught = re.search(r"--%s(?![a-zA-Z0-9-])" % name, skill_text)
+    if taught or name in INTENTIONAL_FLAGS:
+        continue
+    fails.append("%s --%s: taught by the binary, absent from SKILL.md and from this check's intentional list — teach it, or list it with a reason" % (flags[name], name))
+
+for name in sorted(INTENTIONAL_FLAGS):
+    if name not in flags:
+        fails.append("INTENTIONAL_FLAGS lists --%s but cmd/gadak no longer defines it — prune the list" % name)
+
+# ── b) the verb catalog vs SKILL.md ─────────────────────────────────────
+commands_src = Path("cmd/gadak/main.go").read_text()
+block = re.search(r"var commands = map\[string\]func\(\[\]string\) error\{(.*?)\n\}", commands_src, re.S)
+verbs = re.findall(r'"([a-z-]+)":\s*cmd\w+', block.group(1)) if block else []
+if len(verbs) < 50:
+    fails.append("parsed only %d verbs out of main.go's commands map (floor 50) — the verb regex rotted" % len(verbs))
+
+INTENTIONAL_VERBS = {
+    "demo": "maintainer demo-fixture server",
+    "done": "alias of close (taught under its own name)",
+    "export-static": "maintainer hosted-demo builder",
+    "import": "Jira backup import — a human migration step",
+    "install-cli": "human PATH setup",
+    "install-service": "human launchd setup",
+    "mcp": "MCP install is the shell-less-host path; this file is the shell-host surface and teaches gadak skill install (docs/MCP.md owns mcp)",
+    "raycast": "Raycast extension install — human setup",
+    "recent": "alias of recents (taught under its own name)",
+    "show": "alias of issue (taught under its own name)",
+    "snapshot": "demo-fixture generator — maintainer",
+    "team": "settings sharing export/import — human admin",
+    "version": "gadak --version is the taught spelling",
+    "view": "alias of views (taught under its own name)",
+}
+
+for v in sorted(set(verbs)):
+    # A global --workspace/--profile (with its placeholder words) may sit
+    # between `gadak` and the verb: `gadak --workspace <new name> migrate`.
+    pat = re.compile(
+        r"gadak(?:\s+--(?:workspace|profile)\b[^\n]{0,30}?)?\s+" + re.escape(v) + r"(?![a-z0-9-])"
+    )
+    if pat.search(skill_text) or v in INTENTIONAL_VERBS:
+        continue
+    fails.append("cmd/gadak/main.go verb %s: taught by the binary, absent from SKILL.md and from this check's intentional list" % v)
+
+for v in sorted(INTENTIONAL_VERBS):
+    if v not in verbs:
+        fails.append("INTENTIONAL_VERBS lists %s but main.go's commands map no longer has it — prune the list" % v)
+
+# ── c) reverse: SKILL.md must not teach flags the binary lacks ──────────
+# CSS custom properties in the dashboard example fence (--row-h) read as
+# flags to a bare token scan; html fences are stripped first.
+skill_stripped = re.sub(r"```html.*?```", "", skill_text, flags=re.S)
+GLOBAL_FLAGS = {"workspace", "profile", "help", "version", "home"}
+for tok in sorted(set(re.findall(r"(?<![\w-])--([a-z][a-z0-9-]*)", skill_stripped))):
+    if tok not in flags and tok not in GLOBAL_FLAGS:
+        fails.append("skills/gadak/SKILL.md teaches --%s but cmd/gadak defines no such flag" % tok)
+
+# ── d) the MCP descriptions cover every field a hit can be attributed to ─
+mcp_src = Path("internal/mcp/tools.go").read_text()
+
+
+def const_block(name):
+    m = re.search(r"const " + name + r" = `(.*?)`", mcp_src, re.S)
+    return m.group(1) if m else ""
+
+
+descs = {
+    "toolQueryDescription": const_block("toolQueryDescription"),
+    "toolSearchDescription": const_block("toolSearchDescription"),
+}
+for name, body in descs.items():
+    if not body:
+        fails.append("internal/mcp/tools.go: cannot read %s — check 64's extractor rotted" % name)
+
+# The field set is derived from resolveSearchMatch (read.go): a fifth value
+# added there must be named by both descriptions the same commit.
+fields = sorted(set(re.findall(r'Field:\s*"(\w+)"', Path("internal/store/read.go").read_text())))
+if len(fields) < 4:
+    fails.append("read.go yielded only %s as SearchMatch fields (floor 4) — the field regex rotted" % fields)
+PLURAL = {"title": r"titles?\b", "labels": r"labels?\b", "body": r"bod(?:y|ies)\b", "comment": r"comments?\b"}
+for name, body in descs.items():
+    for f in fields:
+        if f not in PLURAL:
+            fails.append("check 64 has no plural form for new SearchMatch field %r — extend PLURAL" % f)
+        elif not re.search(PLURAL[f], body):
+            fails.append("internal/mcp/tools.go %s does not name search field %r that resolveSearchMatch can return" % (name, f))
+
+# GDK-1978: the tokenizer rule --help cannot reveal. tools.go names the
+# column (beside cjk_bigram, its house style); SKILL.md says it in prose.
+for name, body in descs.items():
+    if "script_runs" not in body:
+        fails.append("internal/mcp/tools.go %s lost the script_runs sentence (GDK-1978: Latin runs glued to CJK still match)" % name)
+if "straight against CJK" not in skill_flat:
+    fails.append("skills/gadak/SKILL.md lost the Latin-glued-to-CJK search rule (GDK-1978)")
+if "one FTS5 index over titles, labels, bodies, and comment text" not in skill_flat:
+    fails.append("skills/gadak/SKILL.md's items_fts sentence dropped labels from the search coverage claim")
+
+for f in fails:
+    print("  " + f)
+sys.exit(1 if fails else 0)
+PY64
+ok "SKILL.md and the MCP tool descriptions teach every verb, flag and search field the binary actually accepts (GDK-2017)"
+
 echo "doc-checks: all passed"

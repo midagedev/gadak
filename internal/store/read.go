@@ -1309,8 +1309,8 @@ func (db *DB) PageDetail(ctx context.Context, key string) (*PageDetail, error) {
 }
 
 // SearchMatch says which FTS column matched and shows a plain-text snippet.
-// Field is "title" | "body" | "comment". Snippet has no HTML or highlight
-// markers — the client highlights against its own query string.
+// Field is "title" | "labels" | "body" | "comment". Snippet has no HTML or
+// highlight markers — the client highlights against its own query string.
 type SearchMatch struct {
 	Field   string `json:"field"`
 	Snippet string `json:"snippet"`

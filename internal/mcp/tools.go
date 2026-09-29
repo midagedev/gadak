@@ -93,7 +93,8 @@ Schema essentials:
   (WHERE items_fts MATCH 'term'; join items, then issues or pages by kind).
   CJK mid-compound matches: '결제' hits '간편결제' (cjk_bigram column). English
   stem variants match ('payments' hits 'payment'); middles still miss
-  ('ency' ≠ 'idempotency').
+  ('ency' ≠ 'idempotency'). Latin runs glued straight to CJK ('NMB-110'
+  inside 追跡issueはNMB-110で) still match (script_runs column).
 - sync_state: watermark, version, last_error, last_full_sync_at, schema_version
 
 CRITICAL: filter on status_category / status_id / issue_type_id, never on display
@@ -127,14 +128,15 @@ Examples:
   JOIN pages p ON p.item_id = it.id
   WHERE items_fts MATCH 'billing' LIMIT 10;`
 
-const toolSearchDescription = `Find issues and wiki pages by a recalled phrase (FTS5 over titles, bodies, comments of both).
+const toolSearchDescription = `Find issues and wiki pages by a recalled phrase (FTS5 over titles, labels, bodies, comments of both).
 
 Use ONLY when the user does not have keys yet and is remembering wording
 ("the ticket about webhook retry"). Argument: {query: string, limit?: number}.
 Aliases: text, q.
 
 CJK mid-compound matches: '결제' hits '간편결제' (cjk_bigram column). English
-middles still miss ('ency' ≠ 'idempotency').
+middles still miss ('ency' ≠ 'idempotency'). Latin runs glued straight to CJK
+('NMB-110' inside 追跡issueはNMB-110で) still match (script_runs column).
 
 Do NOT use this for counts, grouping, "who is loaded", "what is stuck",
 "what was reopened", time windows, or epic rollups. Those are gadak_query.
