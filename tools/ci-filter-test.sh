@@ -145,7 +145,7 @@ docs/project/STATE_OF_PLAY.md
 specs/000-product/data-model.md
 artifacts/notes.txt
 contrib/README.md"
-for s in go e2e mobile desktop; do
+for s in go e2e mobile desktop staticcheck; do
   expect_skip "docs-only / $s" "$s" "$DOCS_ONLY"
 done
 # docs/media is mobile's ONE docs input (the brand-icon check reads it) —
@@ -157,7 +157,7 @@ echo "== case 2: one .go change runs every tier that compiles Go"
 # ci.yml, not taste: the race tier compiles the two packages from the root
 # module; e2e/serve.sh builds the binary it serves; gate-serve.sh runs
 # `gadak demo`; every desktop pack script builds ./cmd/gadak.
-for s in go e2e mobile desktop; do
+for s in go e2e mobile desktop staticcheck; do
   expect_run "one .go / $s" "$s" "internal/server/sync.go"
 done
 expect_run "cmd .go / go" go "cmd/gadak/main.go"
@@ -229,6 +229,42 @@ expect_skip "a stray file under examples/ / e2e" e2e "examples/notes.txt"
 expect_skip "a stray file under examples/ / mobile" mobile "examples/notes.txt"
 
 echo
+echo "== case 3d: subject staticcheck — both modules, no desktop carve-out (GDK-2003)"
+# The defect this subject closes: the staticcheck job's inline gofilter
+# regex carried `^desktop/`, so desktop/README.md alone woke the 335 s GOOS
+# matrix. The inverse trap is worse and is the reason this is a NEW subject
+# rather than subject `go`: the go table carves desktop/ out (no
+# root-module tier compiles it), but tools/staticcheck.sh DOES analyse the
+# desktop module (`run_module desktop desktop ./...`) — reusing `go` would
+# skip a desktop/main.go-only push and hide a Go change from a gate. The
+# run/skip pair below pins both directions; desktop/main.go is the row that
+# catches the reuse-go trap.
+expect_skip "desktop/README.md does not touch staticcheck" staticcheck "desktop/README.md"
+expect_run "desktop module .go → staticcheck (the reuse-go trap)" staticcheck "desktop/main.go"
+expect_run "run 35025858519 / staticcheck" staticcheck "$RUN_35025858519"
+expect_run "desktop module graph → staticcheck" staticcheck "desktop/go.mod"
+expect_run "desktop module sums → staticcheck" staticcheck "desktop/go.sum"
+expect_skip "pack scripts are not analysis inputs" staticcheck "desktop/build-linux.sh"
+expect_skip "the syso pair is a link input, not an analysis one" staticcheck "desktop/windows-app.manifest"
+expect_run "root module graph → staticcheck" staticcheck "go.mod"
+expect_run "root .go → staticcheck" staticcheck "internal/statuscat/category.go"
+# internal/ stays a whole-directory row for one measured reason: the
+# //go:embed files there are load-bearing. `go list -e` on a package whose
+# embed target is deleted reports "pattern data.json: no matching files
+# found" with Incomplete=true — the load itself fails, which
+# staticcheck.sh's classifier fails the run on. Content is never analysed;
+# existence is. (testdata/ is inert for staticcheck but shares the prefix.)
+expect_run "embed catalogs are load-bearing" staticcheck "internal/config/tokencheck/catalog.json"
+expect_run "test-file embeds load too" staticcheck "internal/config/tokencheck/testdata/token-vectors.json"
+# The analysis owner and the skip owner, each its own row (not dir:tools/:
+# doc-checks.sh edits must not wake this job).
+expect_run "the analysis script → staticcheck" staticcheck "tools/staticcheck.sh"
+expect_run "the filter owns this skip → staticcheck" staticcheck "tools/ci-filter.sh"
+expect_run "the workflow → staticcheck" staticcheck ".github/workflows/ci.yml"
+expect_skip "web does not touch staticcheck" staticcheck "web/src/routes/+page.svelte"
+expect_skip "docs-only / staticcheck (single file)" staticcheck "CHANGELOG.md"
+
+echo
 echo "== case 4: fail-open — no diff obtainable means run, always"
 : > "$WORK/empty.txt"
 printf 'CHANGELOG.md\n' > "$WORK/chg.txt"
@@ -237,6 +273,7 @@ export FAKE_GIT_DIFF="$WORK/chg.txt"
 # 4a. workflow_dispatch / schedule: no before at all.
 CI_ENV=(EVENT_NAME=workflow_dispatch SHA=deadbeef FAKE_GIT_MODE=ok)
 ci_mode "workflow_dispatch → run" run go
+ci_mode "workflow_dispatch → run (staticcheck, same ladder)" run staticcheck
 
 # 4b. push with no before (first push) and all-zero before (forced/tag push).
 CI_ENV=(EVENT_NAME=push BEFORE= SHA=deadbeef FAKE_GIT_MODE=ok)
@@ -291,9 +328,11 @@ expect_run "a workflow rewrite re-runs every tier" go ".github/workflows/ci.yml"
 expect_run "  (same, e2e)" e2e ".github/workflows/ci.yml"
 expect_run "  (same, mobile)" mobile ".github/workflows/ci.yml"
 expect_run "  (same, desktop)" desktop ".github/workflows/ci.yml"
+expect_run "  (same, staticcheck)" staticcheck ".github/workflows/ci.yml"
 # The filter itself lives under tools/: editing it re-runs every tier, so a
 # broken filter never ships hidden behind its own verdict.
 expect_run "filter self-edit → go" go "tools/ci-filter.sh"
+expect_run "filter self-edit → staticcheck" staticcheck "tools/ci-filter.sh"
 
 echo
 echo "== stdout contract: verdict line first, reason second, GITHUB_OUTPUT written"
@@ -321,7 +360,52 @@ echo "== FAIL-first: the checks go red on bad answers"
 expect_skip "webmap.ts is not web/" e2e "webmap.ts"
 expect_skip "a nested go.mod that is not the root one" go "docs/go.mod"
 expect_skip "a .go suffix inside a filename, not at the end" go "proto.go.txt"
+expect_skip "  (same, staticcheck)" staticcheck "proto.go.txt"
 expect_skip "gomodulate is not go.mod" desktop "gomodulate.sh"
+expect_skip "desktop/gomod.sh is not desktop/go.mod" staticcheck "desktop/gomod.sh"
+expect_skip "docs/go.mod is not the root go.mod" staticcheck "docs/go.mod"
+
+echo
+echo "== the mobile table covers everything the phone imports out of web/ (GDK-2044)"
+# Derived, never enumerated. The mobile subject's web rows rotted once: the
+# table named lib/i18n/ and lib/terminal/ while mobile/src imported 24
+# modules out of web/src/lib, so a push touching only
+# web/src/lib/view-config.ts skipped the Mobile job and CI went green over
+# a phone that reads that file. An enumeration is what rotted, so this
+# reads the imports off the phone's own source and asks the filter itself.
+# Only real import/@import statements — a path a comment merely names is
+# not an input (mobile/src cites several web components in prose).
+mobile_web_imports() {
+  grep -rhE "^[[:space:]]*(import|@import|} from|export .* from)[^\n]*web/src/" mobile/src mobile/e2e 2>/dev/null \
+    | grep -oE "web/src/[A-Za-z0-9/_.-]+" \
+    | sed "s#/*\$##" | sort -u
+}
+imported="$(mobile_web_imports)"
+n_imports=$(printf '%s\n' "$imported" | grep -c . || true)
+if [[ "$n_imports" -lt 8 ]]; then
+  fail "only $n_imports web/ imports found in mobile/src (floor 8) — the scan rotted, fix the scan and not the floor"
+fi
+uncovered=""
+while IFS= read -r f; do
+  [[ -z "$f" ]] && continue
+  # Module specifiers drop the extension; resolve to whatever is on disk.
+  if [[ ! -f "$f" ]]; then
+    if [[ -f "$f.ts" ]]; then f="$f.ts"
+    elif [[ -f "$f.svelte" ]]; then f="$f.svelte"
+    elif [[ -f "$f/index.ts" ]]; then f="$f/index.ts"
+    else continue
+    fi
+  fi
+  if [[ "$(decide mobile "$f")" != run=true ]]; then
+    uncovered="$uncovered $f"
+  fi
+done <<<"$imported"
+if [[ -n "$uncovered" ]]; then
+  fail "mobile/src imports these out of web/, and the mobile subject skips them —
+      a push touching only one would leave the Mobile job unrun:$uncovered"
+else
+  echo "- all $n_imports web/ paths the phone imports run the mobile subject"
+fi
 
 echo
 if [[ "$FAILURES" -eq 0 ]]; then

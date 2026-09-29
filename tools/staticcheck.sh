@@ -318,7 +318,10 @@ fi
 # --- real run --------------------------------------------------------------
 if ! command -v staticcheck >/dev/null 2>&1; then
   echo "staticcheck.sh: staticcheck is not on PATH." >&2
-  echo "  go install honnef.co/go/tools/cmd/staticcheck@latest" >&2
+  # The version CI pins (.github/workflows/ci.yml, STATICCHECK_VERSION).
+  # @latest would install a build with checks this tree has never been
+  # measured against, so a local run could disagree with the gate.
+  echo "  go install honnef.co/go/tools/cmd/staticcheck@v0.7.0" >&2
   exit 2
 fi
 

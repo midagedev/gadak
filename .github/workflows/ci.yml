@@ -11,7 +11,12 @@ permissions:
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # A cancelled run keeps neither its compute nor a verdict, and every main
+  # commit must carry a green one — so only PR heads cancel (only their
+  # latest head ever matters). workflow_dispatch evaluates false here
+  # (event_name != 'pull_request'), on purpose: a dispatched run is an
+  # explicit request that cancelling would discard.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -154,8 +159,9 @@ jobs:
 
       # GDK-1912: the census measured 31 of 127 commits in one cycle
       # touching only CHANGELOG/CLAUDE.md/docs — each re-billing this tier
-      # (~1,150 s of race compute). Same shape as the staticcheck job's
-      # gofilter and the same fail-open contract, one generalization:
+      # (~1,150 s of race compute). Same shape and fail-open contract as
+      # the staticcheck job's original inline gofilter (since GDK-2003 a
+      # ci-filter.sh subject too), one generalization:
       # tools/ci-filter.sh owns the input table so every filtered job reads
       # the same one (subject `go`: **/*.go, module files, internal/
       # testdata + embeds, tools/, .github/workflows/). The step's log line
@@ -234,7 +240,7 @@ jobs:
       # GDK-1912: subject `mobile` — mobile/, the two web/src slices it
       # imports, the root lockfile (Playwright), the brand mark, the
       # pairing vectors, and the Go module gate-serve.sh builds for
-      # `gadak demo`. Fail-open like the gofilter; the log line names the
+      # `gadak demo`. Fail-open by the ci-filter.sh contract; the log line names the
       # verdict.
       - name: Did this change touch the mobile inputs?
         id: cifilter
@@ -312,7 +318,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ steps.pwver.outputs.version }}
+          key: playwright-chromium-${{ steps.pwver.outputs.version }}-${{ runner.os }}-${{ runner.arch }}
 
       - name: Install Playwright Chromium
         if: steps.cifilter.outputs.run == 'true'
@@ -369,6 +375,11 @@ jobs:
     name: Staticcheck
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Single owner of the pin: the cache key below and the install
+      # command both read it, so a bump cannot leave a stale-keyed binary
+      # behind (GDK-2003).
+      STATICCHECK_VERSION: v0.7.0
 
     steps:
       - uses: actions/checkout@v4
@@ -376,71 +387,74 @@ jobs:
       # GDK-1702: this job billed ~5 min of setup+install per push while
       # the census measured most pushes touching no Go at all. It is a gate
       # (the cross-platform list is empty since 90e27bdf), so the skip must
-      # never hide a Go change — hence the fail-open rules below. GitHub Actions has no
-      # per-job paths filter (`on:` filters are workflow-level and would
-      # skip every job), so the first step diffs the change and every step
-      # below is gated on its output.
-      #
-      # It fails OPEN, and that is the contract: a forced push whose before
-      # is unreachable, a first push (all-zero before), workflow_dispatch,
-      # an empty event base, or any diff error runs the job. A gate skipped
-      # by mistake is the failure mode that matters; a gate run for nothing
-      # is five minutes.
-      #
-      # The path list is the Go surface plus the job's own inputs: the
-      # script it runs, and this workflow (a change here can rewrite the
-      # gate itself). `git diff A B` compares trees without needing shared
-      # history, so two depth-1 objects are enough.
-      - name: Did this change touch Go?
-        id: gofilter
+      # never hide a Go change — the fail-open contract (unreachable or
+      # all-zero before, unknown event, failed diff → run) is owned by
+      # tools/ci-filter.sh, same as every other filtered tier. The subject
+      # is its own, not `go`: staticcheck analyses the desktop module too
+      # (`run_module desktop desktop ./...`), so this table has no
+      # desktop/ carve-out — and its path list is the script's actual
+      # inputs, which the old inline regex here was not (`^desktop/` woke
+      # the 335 s GOOS matrix for a README line; GDK-2003 removed the last
+      # inline filter copy in this file).
+      - name: Did this change touch the staticcheck inputs?
+        id: cifilter
         env:
           EVENT_NAME: ${{ github.event_name }}
           BEFORE: ${{ github.event.before }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           SHA: ${{ github.sha }}
-        run: |
-          run_job() { echo "go=true" >> "$GITHUB_OUTPUT"; echo "staticcheck: $1"; exit 0; }
-          skip_job() { echo "go=false" >> "$GITHUB_OUTPUT"; echo "staticcheck: $1"; exit 0; }
-          case "$EVENT_NAME" in
-            pull_request) base="$BASE_SHA" ;;
-            push) base="$BEFORE" ;;
-            *) run_job "event '$EVENT_NAME' has no before — running (fail open)" ;;
-          esac
-          if [ -z "$base" ] || printf '%s' "$base" | grep -Eq '^0+$'; then
-            run_job "no usable base sha (first push or forced push) — running (fail open)"
-          fi
-          if ! git fetch --no-tags --depth=1 origin "$base" 2>/dev/null; then
-            run_job "base $base not fetchable — running (fail open)"
-          fi
-          if ! changed="$(git diff --name-only "$base" "$SHA")"; then
-            run_job "git diff failed — running (fail open)"
-          fi
-          n=$(printf '%s\n' "$changed" | grep -c . || true)
-          if printf '%s\n' "$changed" | grep -Eq '\.go$|^go\.mod$|^go\.sum$|^desktop/|^tools/staticcheck\.sh$|^\.github/workflows/ci\.yml$'; then
-            run_job "Go-touching change in ${n} changed path(s)"
-          fi
-          skip_job "no Go-touching change in ${n} changed path(s)"
+        run: bash tools/ci-filter.sh staticcheck
 
       - name: Set up Go
-        if: steps.gofilter.outputs.go == 'true'
+        if: steps.cifilter.outputs.run == 'true'
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
 
+      # The exact toolchain the analysis will run under — setup-go resolved
+      # it from go.mod, the single owner of the Go version. GOVERSION (not
+      # a go.mod hash, which also rotates on every dependency bump) is what
+      # makes a hit trustworthy: a staticcheck binary built by a different
+      # Go can analyse differently.
+      - name: Go toolchain stamp
+        id: gover
+        if: steps.cifilter.outputs.run == 'true'
+        run: echo "version=$(go env GOVERSION)" >> "$GITHUB_OUTPUT"
+
+      # The pinned binary is a pure function of (staticcheck version, OS,
+      # arch, Go toolchain) — nothing repo-specific enters it — so it is
+      # cached whole (GDK-2003; 25–35 s of `go install` per Go-touching
+      # run otherwise). No restore-keys on purpose: a prefix hit could
+      # restore a binary built by a different toolchain or version and
+      # quietly change what the gate analyses. A miss is today's behaviour
+      # — install — so the safe failure is a miss.
+      - name: staticcheck binary cache
+        if: steps.cifilter.outputs.run == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin/staticcheck
+          key: staticcheck-bin-${{ env.STATICCHECK_VERSION }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.gover.outputs.version }}
+
       # What decides whether a finding fails the run or is a build-tag
       # artefact is the script's classifier, not staticcheck. It runs over
       # fixtures, needs no toolchain, and takes a second.
       - name: staticcheck.sh self-test
-        if: steps.gofilter.outputs.go == 'true'
+        if: steps.cifilter.outputs.run == 'true'
         run: bash tools/staticcheck.sh --self-test
 
       # Pinned on purpose: staticcheck gains checks between releases, and
-      # @latest would turn a new check into a CI change nobody made.
+      # @latest would turn a new check into a CI change nobody made. On a
+      # cache hit the binary is already in ~/go/bin and the existence check
+      # is the skip; $GITHUB_PATH is added on both paths (GDK-2003).
       - name: Install staticcheck
-        if: steps.gofilter.outputs.go == 'true'
+        if: steps.cifilter.outputs.run == 'true'
         run: |
-          go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
+          if [ ! -x "$(go env GOPATH)/bin/staticcheck" ]; then
+            go install "honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION}"
+          else
+            echo "staticcheck ${STATICCHECK_VERSION} restored from cache — install skipped"
+          fi
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # A gate since the cross-platform list reached zero (GDK-1463 triage,
@@ -452,7 +466,7 @@ jobs:
       # second copy of the mirror-flaky apt step in this file for a job that
       # cannot fail. The root module gets all three either way.
       - name: staticcheck over the GOOS matrix
-        if: steps.gofilter.outputs.go == 'true'
+        if: steps.cifilter.outputs.run == 'true'
         run: bash tools/staticcheck.sh
 
   e2e:
@@ -484,7 +498,7 @@ jobs:
       # GDK-1912: subject `e2e` — the whole web surface plus the Go module,
       # because e2e/serve.sh (the webServer playwright waits on) builds the
       # gadak binary before serving the committed fixtures. Fail-open like
-      # the gofilter; the log line names the verdict.
+      # ci-filter.sh's fail-open contract; the log line names the verdict.
       - name: Did this change touch the e2e inputs?
         id: cifilter
         env:
@@ -528,7 +542,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ steps.pwver.outputs.version }}
+          key: playwright-chromium-${{ steps.pwver.outputs.version }}-${{ runner.os }}-${{ runner.arch }}
 
       # --with-deps is two unlike jobs: apt (root, dpkg lock, not safely
       # killable) and a browser download (no lock, retryable). Wrapping the
@@ -699,7 +713,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # GDK-1912: subject `desktop` — desktop/ plus the root module and web
-      # build every pack script compiles. Fail-open like the gofilter.
+      # build every pack script compiles. Fail-open by ci-filter.sh's contract.
       - name: Did this change touch the desktop inputs?
         id: cifilter
         env:
@@ -780,7 +794,7 @@ jobs:
 
       # GDK-1912: subject `desktop` — the Linux pack compiles the root
       # module, the desktop module and the web build, so the table is the
-      # union. Fail-open like the gofilter.
+      # union. Fail-open by ci-filter.sh's contract.
       - name: Did this change touch the desktop inputs?
         id: cifilter
         env:
@@ -1142,8 +1156,8 @@ jobs:
       - uses: actions/checkout@v4
 
       # GDK-1912: subject `desktop` — this job builds the root module
-      # (cmd/gadak), the desktop module and the web build. Fail-open like
-      # the gofilter.
+      # (cmd/gadak), the desktop module and the web build. Fail-open by
+      # ci-filter.sh's contract.
       - name: Did this change touch the desktop inputs?
         id: cifilter
         env:

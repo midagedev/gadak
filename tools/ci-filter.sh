@@ -52,8 +52,20 @@
 #           of examples/ (dashboards/, compose/, plugins/ are read by demo
 #           recordings and Go tests outside this filtered tier).
 #
-#   mobile  mobile/ (own src, e2e, package-lock.json, tauri) plus the two
-#           web/src slices it imports (lib/i18n/, lib/terminal/); the root
+#   mobile  mobile/ (own src, e2e, package-lock.json, tauri) plus the web
+#           slices it imports — web/src/lib/ WHOLE and web/src/app.css
+#           (GDK-2044). It was two slices (lib/i18n/, lib/terminal/) until a
+#           count showed the phone importing 24 modules out of that
+#           directory — adf, api, issue-group, view-config, keyboard,
+#           person-match and the rest — so a push touching only
+#           web/src/lib/view-config.ts skipped the Mobile job while the
+#           phone read that file. That is the one direction this filter
+#           must never fail in: CI green over a broken phone, the inverse
+#           of the local-green/CI-red class. The directory row is
+#           deliberate over a 24-line enumeration, which is what rotted the
+#           first time; ci-filter-test.sh derives the import set from
+#           mobile/src and fails if any of it falls outside this table, so
+#           narrowing the row later is red rather than silent. The root
 #           package.json/package-lock.json (Playwright lives at the root);
 #           docs/media/logo.png (check-brand-icons.sh diffs the phone icons
 #           against the mark); internal/pairing/testdata/ (offer-vectors.json
@@ -74,6 +86,37 @@
 #           windows-manifest.sh, this filter); .nvmrc;
 #           .github/workflows/. No desktop/ carve-out here: this subject
 #           IS the one that builds it.
+#
+#   staticcheck  tools/staticcheck.sh analyses BOTH modules over the GOOS
+#           matrix (`run_module root . ./cmd/... ./internal/... ./tools/...`
+#           + `run_module desktop desktop ./...`, GOOS darwin/linux/windows):
+#           **/*.go with NO desktop/ carve-out — unlike subject `go`, the
+#           desktop module IS an analysis input here, so desktop/main.go
+#           must run this subject (the run 35025858519 push that subject
+#           `go` rightly skips must run this one); go.mod, go.sum,
+#           desktop/go.mod, desktop/go.sum (the two module graphs staticcheck
+#           resolves). internal/ stays a whole-directory row for one
+#           MEASURED reason, not the race tier's: the //go:embed files
+#           there are load-bearing — `go list -e` on a package whose embed
+#           target is deleted answers `pattern data.json: no matching
+#           files found`, Incomplete=true (verified with a scratch module),
+#           and staticcheck.sh's classifier fails the run on a load error.
+#           Content is never analysed (staticcheck type-checks, never
+#           executes); existence is. The measured set: catalog.json,
+#           dim-catalog.json (internal/config/tokencheck/), and
+#           testdata/token-vectors.json — tokencheck_test.go embeds it and
+#           staticcheck loads _test.go files; other internal/ testdata is
+#           inert but shares the prefix. NOT web/, package.json, .nvmrc
+#           (no Node anywhere in this job), NOT examples/, contrib/ or the
+#           root package embed.go (outside the ./cmd/... ./internal/...
+#           ./tools/... patterns — a stray suffix:.go match on those four
+#           files is cost, never a wrong skip). tools/staticcheck.sh (the
+#           analysis owner) and tools/ci-filter.sh (the skip owner — the
+#           same pairing as subject go's race-partition.sh row: a change
+#           here can rewrite the gate itself) as exact rows, NOT dir:tools/
+#           — doc-checks.sh and the e2e/race partitioners are not this
+#           job's inputs and must not wake it. .github/workflows/ (the job
+#           and the pinned staticcheck version live there).
 #
 # Visibility: a filter that never says anything is its own defect, so every
 # decision — run or skip — prints one line naming the subject, the verdict,
@@ -99,7 +142,7 @@ SELF="ci-filter"
 usage() {
   cat >&2 <<'EOF'
 usage:
-  tools/ci-filter.sh <subject>              subject: go | e2e | mobile | desktop
+  tools/ci-filter.sh <subject>              subject: go | e2e | mobile | desktop | staticcheck
   tools/ci-filter.sh <subject> --files <f>  decide from a path list ('-' = stdin)
 EOF
   exit 2
@@ -155,8 +198,8 @@ EOF
       cat <<'EOF'
 not:desktop/
 dir:mobile/
-dir:web/src/lib/i18n/
-dir:web/src/lib/terminal/
+dir:web/src/lib/
+exact:web/src/app.css
 exact:docs/media/logo.png
 dir:internal/pairing/testdata/
 exact:examples/demo.db
@@ -184,8 +227,21 @@ exact:package-lock.json
 exact:.nvmrc
 EOF
       ;;
+    staticcheck)
+      cat <<'EOF'
+suffix:.go
+exact:go.mod
+exact:go.sum
+exact:desktop/go.mod
+exact:desktop/go.sum
+dir:internal/
+exact:tools/staticcheck.sh
+exact:tools/ci-filter.sh
+dir:.github/workflows/
+EOF
+      ;;
     *)
-      echo "$SELF: unknown subject '$1' (go | e2e | mobile | desktop)" >&2
+      echo "$SELF: unknown subject '$1' (go | e2e | mobile | desktop | staticcheck)" >&2
       exit 2
       ;;
   esac
