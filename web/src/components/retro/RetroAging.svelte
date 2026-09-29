@@ -20,8 +20,8 @@
    * where thirty bars are all coloured has told the reader nothing.
    */
   import { t } from '../../lib/i18n'
-  import { formatDays } from './metrics'
-  import { agingChart } from './materials'
+  import { formatDays } from '../../lib/retro/metrics'
+  import { agingChart } from '../../lib/retro/materials'
   import type { RetroAging } from '../../lib/types'
 
   let {

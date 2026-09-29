@@ -16,7 +16,7 @@
    * G9: progress, not score).
    */
   import { t } from '../../lib/i18n'
-  import { METRIC_SPECS, formatValue } from './metrics'
+  import { METRIC_SPECS, formatValue } from '../../lib/retro/metrics'
   import type { RetroAction } from '../../lib/types'
 
   let {

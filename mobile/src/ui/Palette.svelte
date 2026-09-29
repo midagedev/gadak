@@ -261,6 +261,21 @@
     </button>
   {/if}
 
+  <!-- The retro (GDK-1827, second half) has no data condition, and that is
+       the decision rather than an omission: every workspace has a weekly
+       report — an empty one is an answer the screen has its own copy for —
+       and nothing the store holds predicts it (the report's inputs are
+       visits and changelog, which the phone never caches; sprints gate on
+       rows the store does hold because those rows ARE that screen). The
+       desk's palette offers the retro the same way. -->
+  <p class="palette-section">{t('retro.title')}</p>
+  <button class="palette-row" onclick={() => setOwner('retro')}>
+    <span class="name">{t('retro.title')}</span>
+    <svg class="go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="m9 18 6-6-6-6" />
+    </svg>
+  </button>
+
   {#if offersTerminal(app.terminal)}
     <!-- The shell is an owner of the column (DESIGN.md §10), so it is a row
          in the owner list — and it is absent, not disabled, until a

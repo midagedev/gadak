@@ -23,8 +23,8 @@
  *      → 'L4 a delta signs a translated unit'
  */
 import { afterEach, describe, expect, it } from 'vitest'
-import { en, ja, ko } from '../../lib/i18n/catalog'
-import { initLocale } from '../../lib/i18n'
+import { en, ja, ko } from '../i18n/catalog'
+import { initLocale } from '../i18n'
 import { formatDays, formatDelta, formatSeconds } from './metrics'
 
 /*

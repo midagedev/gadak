@@ -102,6 +102,16 @@ const OPT_OUT: { file: string; needle: string; why: string }[] = [
     needle: 'No Mods',
     why: 'keycap legend, a deliberate naming the file documents (look verdict 2026-08-27: Clear/Reset are terminal commands, No Mods states what is true); the keycap cluster is unlocalized keyboard vocabulary — reported for the desk-catalog decision',
   },
+  {
+    file: 'screens/Retro.svelte',
+    needle: 'in progress',
+    why: 'the retro metric row name — the wire field RetroBucket keys by (spaces included), used to look the row up in SUMMARY_KEYS and the empty-bucket test; the word the screen prints is t("retro.inProgress")',
+  },
+  {
+    file: 'screens/Retro.svelte',
+    needle: 'wip age max',
+    why: 'same — the wire row name both surfaces’ summary strips key by; the printed label is t("retro.wipAge")',
+  },
 ]
 
 /** Developer-string lines: the message never reaches the phone's reader. */

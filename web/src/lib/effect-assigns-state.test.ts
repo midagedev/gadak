@@ -183,6 +183,11 @@ const ALLOWED: Exception[] = [
     'detail',
     'detailError',
   ),
+  {
+    file: 'mobile/src/screens/Retro.svelte',
+    name: 'load',
+    why: 'refetch on entry: the retro doc moves with the serve’s clock (no ETag by design), so becoming the owner is the fetch’s key — the effect reads the store’s owner, not these, and load()’s generation guard drops the stale answer',
+  },
   /* ── GDK-1583 one-hop findings (2026-09-08) ──
    *
    * Each entry names the HELPER the effect calls; its writes ride the

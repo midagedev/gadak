@@ -1170,6 +1170,14 @@ export const detail = {
   'retro.table.title': { en: 'Every number', ko: '숫자 표 전체', ja: '数値表のすべて' },
   'retro.table.show': { en: 'Show', ko: '펼치기', ja: '開く' },
   'retro.table.hide': { en: 'Hide', ko: '접기', ja: '畳む' },
+  // The phone retro screen's one line about the axis it does not draw: the
+  // week-by-week table is a desk reading (402px holds no such grid). ko/ja
+  // are the lead's to write — this round fills en only.
+  'retro.tableDesktop': {
+    en: 'Every number, week by week, is on the desktop.',
+    ko: '주별 숫자 표 전체는 데스크톱에 있습니다.',
+    ja: '週ごとの数値表はデスクトップにあります。',
+  },
   // The three lines each section unfolds when the definitions are on: what
   // it is, why a retro looks at it, how to read it.
   'retro.explain.aging.what': {

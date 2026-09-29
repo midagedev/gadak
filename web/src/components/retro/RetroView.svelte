@@ -63,8 +63,8 @@
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
   import { createResource } from '../../lib/resource.svelte'
   import { sprints } from '../../stores/sprints.svelte'
-  import { METRIC_SPECS, TONE_CLASS, deltaOf, formatDays, formatValue, type MetricSpec } from './metrics'
-  import { hasMaterials, setCount } from './materials'
+  import { METRIC_SPECS, TONE_CLASS, deltaOf, formatDays, formatValue, type MetricSpec } from '../../lib/retro/metrics'
+  import { hasMaterials, setCount } from '../../lib/retro/materials'
 
   // Three windows, plus the sprint cut when this workspace has sprints
   // (GDK-1693). Sprint is not a fourth window — it is a different bucket

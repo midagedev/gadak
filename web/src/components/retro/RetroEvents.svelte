@@ -21,7 +21,7 @@
   import Icon from '../ui/Icon.svelte'
   import type { IconName } from '../ui/Icon.svelte'
   import { t, locale } from '../../lib/i18n'
-  import { densityStrip } from './materials'
+  import { densityStrip } from '../../lib/retro/materials'
   import type { RetroBucket, RetroSurpriseKind } from '../../lib/types'
 
   let {

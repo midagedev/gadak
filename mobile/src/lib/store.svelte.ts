@@ -82,7 +82,7 @@ const RECENTS_KEY = 'gadak.search.recents'
  * unbounded list that never fitted fixed slots. `list` means "the current
  * scope draws the column" — which scope stays `app.scopeId`.
  */
-export type Owner = 'list' | 'shell' | 'sprints'
+export type Owner = 'list' | 'shell' | 'sprints' | 'retro'
 /** Push layers above the column. Settings is one; it is not an owner. */
 export type Layer = 'settings'
 export type Phase = 'boot' | 'unpaired' | 'paired'
@@ -201,6 +201,14 @@ export const app = $state({
    * cache empties underneath it (the empty state is reachable, not skipped).
    */
   sprintsEntered: false,
+  /**
+   * True once the retro screen has been the owner at least once (GDK-1827,
+   * second half) — the same latch `sprintsEntered` is. The report is fetched
+   * by the screen itself (the doc moves with the serve's clock, so there is
+   * nothing to cache), which is why the store's whole share in this surface
+   * is the mount latch and the owner.
+   */
+  retroEntered: false,
   /**
    * The palette, in place of the list body (GDK-902). Dormant on boot.
    */
@@ -1054,6 +1062,7 @@ function resetSessionState(): void {
   app.owner = 'list'
   app.shellEntered = false
   app.sprintsEntered = false
+  app.retroEntered = false
   app.palette = false
   // The narrow belonged to a list on the host being left (GDK-1994) — its
   // values are that workspace's ids.
@@ -1414,6 +1423,7 @@ export function setOwner(owner: Owner): void {
   app.owner = owner
   if (owner === 'shell') app.shellEntered = true
   if (owner === 'sprints') app.sprintsEntered = true
+  if (owner === 'retro') app.retroEntered = true
   app.palette = false
 }
 

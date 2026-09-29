@@ -8,8 +8,8 @@
  * surfaces print the same number.
  */
 
-import { t } from '../../lib/i18n'
-import type { RetroBucket } from '../../lib/types'
+import { t } from '../i18n'
+import type { RetroBucket } from '../types'
 
 export type Unit = 'count' | 'seconds' | 'days'
 

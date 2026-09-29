@@ -15,7 +15,7 @@
    * concatenating English fragments would be neither.
    */
   import { t } from '../../lib/i18n'
-  import { splitTemplate } from './materials'
+  import { splitTemplate } from '../../lib/retro/materials'
 
   let {
     values,

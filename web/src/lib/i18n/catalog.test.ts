@@ -160,6 +160,7 @@ const ALLOWED_PHONE_ONLY = new Map<string, string>([
   ['sprints.state.active', 'sprint state badge (phone Sprints screen); the desk has a board'],
   ['sprints.state.closed', 'sprint state badge (phone Sprints screen); the desk has a board'],
   ['sprints.state.future', 'sprint state badge (phone Sprints screen); the desk has a board'],
+  ['retro.tableDesktop', 'phone retro screen’s pointer to the desk’s week table (Retro, GDK-1827); the desk’s retro IS the table'],
   ['common.applying', 'inline transition feedback (Detail meta line); the desk applies transitions with no inline state'],
   ['list.nothingOpenAssigned', 'assigned-scope empty state (Issues); the desk list renders its own empty states'],
   ['list.noIdentityFilter', 'no-identity-on-serve note (Issues), pair of the row above'],

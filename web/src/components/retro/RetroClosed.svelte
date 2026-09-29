@@ -17,8 +17,8 @@
    * report has been since GDK-1660.
    */
   import { t } from '../../lib/i18n'
-  import { formatDays } from './metrics'
-  import { cycleScatter, setCount } from './materials'
+  import { formatDays } from '../../lib/retro/metrics'
+  import { cycleScatter, setCount } from '../../lib/retro/materials'
   import type { RetroBucket, RetroClosedGroup } from '../../lib/types'
 
   let {

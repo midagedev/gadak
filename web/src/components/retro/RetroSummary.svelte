@@ -16,7 +16,7 @@
    */
   import { t } from '../../lib/i18n'
   import type { RetroBucket } from '../../lib/types'
-  import { METRIC_SPECS, SUMMARY_KEYS, TONE_CLASS, deltaOf, formatValue } from './metrics'
+  import { METRIC_SPECS, SUMMARY_KEYS, TONE_CLASS, deltaOf, formatValue } from '../../lib/retro/metrics'
 
   let {
     bucket,

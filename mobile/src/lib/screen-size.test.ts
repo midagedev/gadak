@@ -122,6 +122,11 @@ const CEILINGS: Record<string, { lines: number; state: number }> = {
   // Measured 2026-09-16 at birth (GDK-1827): the sprint list is the first
   // screen with no local state at all — every row is derived from the store.
   'Sprints.svelte': { lines: 262, state: 0 },
+  // Measured 2026-09-30 at birth (GDK-1827, second half): the retro reading
+  // — sentence, four numbers, tail, closures. Three $state for the fetch
+  // (doc/loading/failed) and nothing else: every row is derived from the
+  // doc the screen asked for, through the desk's own lib/retro modules.
+  'Retro.svelte': { lines: 491, state: 3 },
   // Raised 2026-09-16 for GDK-1966 (hosted mode): the gate's hosted branch —
   // the unreachable sentence replaces the pairing form a hosted page cannot
   // complete, and the scan entry is unreachable at its guard. 247 → 260.

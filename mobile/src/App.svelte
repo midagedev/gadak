@@ -11,6 +11,7 @@
   import Settings from './screens/Settings.svelte'
   import Shell from './screens/Shell.svelte'
   import Sprints from './screens/Sprints.svelte'
+  import Retro from './screens/Retro.svelte'
   import Detail from './screens/Detail.svelte'
   import PageDetail from './screens/PageDetail.svelte'
   import ToastHost from './ui/ToastHost.svelte'
@@ -178,6 +179,14 @@
          afterwards — a workspace without sprints never pays for this pane. -->
     {#if app.sprintsEntered}
       <div class="pane" class:off={app.owner !== 'sprints'}><Sprints /></div>
+    {/if}
+    <!-- The retro (GDK-1827, second half) on the same latch pattern, with one
+         difference the comment above states for sprints too: the screen pays
+         its own fetch on entry, so an unentered phone pays nothing and a
+         workspace whose serve cannot answer the route pays it only on the
+         tap that asked. -->
+    {#if app.retroEntered}
+      <div class="pane" class:off={app.owner !== 'retro'}><Retro /></div>
     {/if}
   </div>
   {#if app.layer === 'settings'}

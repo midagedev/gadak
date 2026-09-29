@@ -18,7 +18,7 @@
    * nothing rather than two confident zeroes.
    */
   import { t } from '../../lib/i18n'
-  import { setCount } from './materials'
+  import { setCount } from '../../lib/retro/materials'
   import type { RetroBucket } from '../../lib/types'
 
   let {

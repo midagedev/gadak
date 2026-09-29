@@ -18,8 +18,8 @@ import {
   setCount,
   splitTemplate,
 } from './materials'
-import type { RetroBucket } from '../../lib/types'
-import { detail as messages } from '../../lib/i18n/messages/detail'
+import type { RetroBucket } from '../types'
+import { detail as messages } from '../i18n/messages/detail'
 
 describe('percentile', () => {
   it('is nearest-rank, the ladder the report itself uses', () => {

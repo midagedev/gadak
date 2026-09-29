@@ -15,7 +15,7 @@
  * -first for the geometry and the browser only has to confirm it rendered.
  */
 
-import type { RetroAgingItem, RetroBucket, RetroCyclePoint, RetroEvent } from '../../lib/types'
+import type { RetroAgingItem, RetroBucket, RetroCyclePoint, RetroEvent } from '../types'
 
 /** Nearest-rank percentile, the ladder the report itself uses. `p` is 0..1. */
 export function percentile(values: number[], p: number): number | null {
