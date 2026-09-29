@@ -182,10 +182,11 @@ type doctorReport struct {
 	// opens, on the unaugmented environment), never a defect.
 	HostEnv doctorHostEnv `json:"host_env"`
 
-	// TermWin32 is the ConPTY control plane's last failure — which Win32
-	// call, which error code (GDK-891) — so "my pane won't open on
-	// Windows" has a next question to ask without a debugger. A call name
-	// and a number only, and empty (none recorded) on every healthy
+	// TermWin32 is the ConPTY terminal state — which Win32 call last
+	// failed and with what error code (GDK-891), plus on Windows the
+	// pump and child-lifetime counts — so "my pane won't open on
+	// Windows" has a next question to ask without a debugger. Counts and
+	// short tokens only, and empty (none recorded) on every healthy
 	// serve and every non-Windows build.
 	TermWin32 string `json:"term_win32,omitempty"`
 
@@ -1683,17 +1684,30 @@ func collectHostEnv() doctorHostEnv {
 	}
 }
 
-// collectTermWin32 is the terminal subsystem's last control-plane failure
-// as one paste-safe token pair: the Win32 call's name and its error code
-// (GDK-891) — the same counts-and-short-tokens rule the hostenv line
-// keeps. Non-Windows builds and healthy serves report none recorded; the
-// recorder is ConPTY code.
+// collectTermWin32 is the terminal subsystem's standing state as one
+// paste-safe line (GDK-891): the Win32 control plane's last failure as a
+// call name and error code, and — on Windows, where the ConPTY data plane
+// exists — the pump and child-lifetime counts beside it. The counts are
+// what name the worst failure mode outright: panes dying at startup read
+// zero reads with a short child exit code, a signature the failure record
+// alone cannot carry. Non-Windows builds and healthy serves report none
+// recorded; the recorders are ConPTY code.
 func collectTermWin32() string {
 	call, code, ok := term.LastWin32Failure()
-	if !ok {
-		return "none recorded"
+	fail := "none recorded"
+	if ok {
+		fail = fmt.Sprintf("%s win32 %d", call, code)
 	}
-	return fmt.Sprintf("%s win32 %d", call, code)
+	if runtime.GOOS != "windows" {
+		return fail
+	}
+	io := term.ReadTermIOStats()
+	exit := "unknown"
+	if io.LastExitKnown {
+		exit = strconv.Itoa(io.LastChildExit)
+	}
+	return fmt.Sprintf("%s, %d reads/%d bytes, %d children/%d live, last exit %s",
+		fail, io.ReadCalls, io.ReadBytes, io.ChildrenStarted, io.ChildrenLive, exit)
 }
 
 // countPathAdded measures what the augmentation contributed: PATH entries

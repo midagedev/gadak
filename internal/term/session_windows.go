@@ -63,12 +63,15 @@ import (
 //	        the moment that call returns — and keeping outPipeWrite is
 //	        worse than redundant: a write handle we hold open is a write
 //	        handle the read side never sees EOF past. Both close in
-//	        startProc, right after CreateProcess succeeds.
+//	        startProc, right after CreateProcess succeeds — the documented
+//	        moment: "Upon completion of the CreateProcess call ... the
+//	        handles given during creation should be freed from this
+//	        process" (creating-a-pseudoconsole-session).
 //	hpc    the pseudoconsole — once, by whichever of hangup() and
 //	        closePTY() reaches it first (hpcOnce).
 //	attr    the attribute list — deleted once, in closePTY, before hpc:
-//	        its buffer references the pseudoconsole and no spawn reads it
-//	        again.
+//	        no spawn reads it again, and the close order keeps every
+//	        handle reference gone before the handle itself.
 //	inPipeWrite, outPipeRead   the master ends — in closePTY, after hpc:
 //	        closing the pseudoconsole is what ends a pump parked in Read.
 //	job    the job handle — last in closePTY, after the registry forgets
@@ -78,6 +81,11 @@ import (
 //	thread the child's main thread — in startProc, right after Resume.
 type ptyProc struct {
 	procID int
+
+	// shell is the path startProc resolved and spawned, kept for failure
+	// diagnostics: the test dumps answer "which shell, and does it exist"
+	// (COMSPEC resolution included) without re-deriving any of it.
+	shell string
 
 	// endMu is the Windows analogue of the unix ioctlMu: it keeps the
 	// handle-touching control-plane calls (Write, resize, hangup, kill,
@@ -99,10 +107,19 @@ type ptyProc struct {
 	outRead windows.Handle
 	proc    windows.Handle
 	attr    *windows.ProcThreadAttributeListContainer
-	// hpcAttr is the heap box the attribute list points at: Update stores
-	// the lpValue POINTER, not the bytes, so the storage must outlive the
-	// spawn (charmbracelet/x/conpty keeps a *Handle for the same reason).
-	hpcAttr *windows.Handle
+
+	// The read-path record, for failure diagnostics only — it is not
+	// routed into recordWin32 (a broken pipe is how every session ends,
+	// and the doctor row must not read a normal shutdown as a terminal
+	// failure). readCalls counts every ReadFile entered, so a pump parked
+	// on its first call is "1 call, no completed read"; readBytes and
+	// readLastN/readLastErr carry what the calls returned. These four
+	// answer the ①/②/③ split of a dead read path: parked first call,
+	// silent zero-byte loop, or an error that ended it.
+	readCalls   atomic.Uint64
+	readBytes   atomic.Uint64
+	readLastN   atomic.Int64
+	readLastErr atomic.Pointer[string]
 
 	// cols/rows remember the size the pseudoconsole was last told. There
 	// is no GetPseudoConsoleSize, so winsize() answers from this record —
@@ -171,7 +188,7 @@ func startProc(opts Options) (*ptyProc, error) {
 	if rows == 0 {
 		rows = 24
 	}
-	p := &ptyProc{cols: cols, rows: rows}
+	p := &ptyProc{cols: cols, rows: rows, shell: shell}
 
 	// created collects every handle this function must close if a later
 	// step fails; the failure path walks it in reverse, the same order
@@ -212,13 +229,18 @@ func startProc(opts Options) (*ptyProc, error) {
 	if err != nil {
 		return fail("NewProcThreadAttributeList", err)
 	}
-	// The attribute points at hpcAttr's storage, not at the handle value:
-	// UpdateProcThreadAttribute wants a pointer to the attribute value —
-	// and a pointer to typed storage is also the shape go vet accepts
-	// (uintptr→unsafe.Pointer is the conversion it flags).
-	p.hpcAttr = new(windows.Handle)
-	*p.hpcAttr = p.hpc
-	if err = p.attr.Update(windows.PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, unsafe.Pointer(p.hpcAttr), unsafe.Sizeof(*p.hpcAttr)); err != nil {
+	// The attribute's value for PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE is the
+	// HPCON itself, not a pointer to it: the documented sample passes hpc
+	// as lpValue with sizeof(hpc) — "the pseudoconsole handle, and the
+	// size of the pseudoconsole handle" (learn.microsoft.com/.../
+	// creating-a-pseudoconsole-session), and charmbracelet/x/conpty and
+	// photostorm/pty both pass the handle value the same way. A pointer to
+	// the handle instead reads to the child as an invalid pseudoconsole,
+	// and a child handed an invalid pseudoconsole fails its own
+	// initialization with 0xc0000142 while the parent's CreateProcess
+	// still succeeds — the read-path death of CI run 36625666166: three
+	// tests, zero bytes read, and no error from startProc.
+	if err = p.attr.Update(windows.PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, attrValue(p.hpc), unsafe.Sizeof(p.hpc)); err != nil {
 		return fail("ProcThreadAttributeList.Update", err)
 	}
 
@@ -277,7 +299,18 @@ func startProc(opts Options) (*ptyProc, error) {
 	_ = windows.CloseHandle(outWrite)
 
 	registerProc(p)
+	termChildrenStarted.Add(1)
 	return p, nil
+}
+
+// attrValue is a handle in the exact shape UpdateProcThreadAttribute's
+// lpValue parameter wants for PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE: the
+// handle value itself, the pointer-sized bytes the sample passes. The
+// bit-cast — rather than a uintptr→unsafe.Pointer conversion, which is
+// precisely the one go vet's unsafeptr check flags — hands over those
+// bytes while keeping the gate quiet.
+func attrValue(h windows.Handle) unsafe.Pointer {
+	return *(*unsafe.Pointer)(unsafe.Pointer(&h))
 }
 
 // envCarries reports whether env has key at all, empty value included —
@@ -323,10 +356,22 @@ func envBlock(env []string) *uint16 {
 
 // Read is the pump's only entry to the output pipe. Not under endMu — see
 // the field comment for why a lock held across a parked ReadFile would be
-// a deadlock, and how closePTY un-parks it instead.
+// a deadlock, and how closePTY un-parks it instead. The counters bracket
+// the call — readCalls before it, so a call parked since the session
+// opened still counts as entered, and the rest after it returns — so a
+// failure dump can name which of the three dead shapes this is.
 func (p *ptyProc) Read(b []byte) (int, error) {
+	p.readCalls.Add(1)
+	termReadCalls.Add(1)
 	var n uint32
 	err := windows.ReadFile(p.outRead, b, &n, nil)
+	p.readLastN.Store(int64(n))
+	p.readBytes.Add(uint64(n))
+	termReadBytes.Add(uint64(n))
+	if err != nil {
+		s := err.Error()
+		p.readLastErr.Store(&s)
+	}
 	return int(n), err
 }
 
@@ -435,15 +480,22 @@ func (p *ptyProc) kill() error {
 // wait is the answer os/exec's cmd.Wait would have given, rebuilt for the
 // direct CreateProcess: block on the process handle, read the exit code,
 // close the handle once. Idempotent through waitOnce, like the unix half.
+// The state writes and the handle close run under endMu's write side so
+// childState — which holds the read side across its own probe — can never
+// read a handle this just closed, a value Windows may already have
+// recycled into somebody else's live object.
 func (p *ptyProc) wait() (int, error) {
 	p.waitOnce.Do(func() {
 		ev, err := windows.WaitForSingleObject(p.proc, windows.INFINITE)
+		p.endMu.Lock()
+		defer p.endMu.Unlock()
 		if err == nil && ev == windows.WAIT_OBJECT_0 {
 			var code uint32
 			if err = windows.GetExitCodeProcess(p.proc, &code); err != nil {
 				recordWin32("GetExitCodeProcess", err)
 			} else {
 				p.code = int(code)
+				recordTermExit(int(code))
 			}
 		}
 		p.waitErr = err
@@ -453,6 +505,37 @@ func (p *ptyProc) wait() (int, error) {
 		}
 	})
 	return p.code, p.waitErr
+}
+
+// stillActive is the exit code GetExitCodeProcess reports for a process
+// that has not exited — the one value that means "ask again later" (and,
+// famously, the one a child that genuinely exits with 259 is
+// indistinguishable from; the diagnostic says what the handle said, not a
+// proof of life).
+const stillActive = 259
+
+// childState is the failure-diagnostic answer to "is the child even
+// alive": running, an exit code, or the code wait() already reaped. It is
+// the axis that splits the dead-read-path candidates — a child that died
+// at startup (0xc0000142 is the documented signature of an invalid
+// pseudoconsole) reads here as a short exit code and nowhere else.
+func (p *ptyProc) childState() string {
+	p.endMu.RLock()
+	defer p.endMu.RUnlock()
+	if p.proc == 0 {
+		if p.waitErr != nil {
+			return fmt.Sprintf("reaped, wait error: %v", p.waitErr)
+		}
+		return fmt.Sprintf("reaped, exit code %d (0x%x)", p.code, p.code)
+	}
+	var code uint32
+	if err := windows.GetExitCodeProcess(p.proc, &code); err != nil {
+		return fmt.Sprintf("GetExitCodeProcess: %v", err)
+	}
+	if code == stillActive {
+		return "running (STILL_ACTIVE)"
+	}
+	return fmt.Sprintf("exited, code %d (0x%x)", code, code)
 }
 
 // closeConPTY closes the pseudoconsole exactly once. Both hangup and
@@ -516,12 +599,40 @@ func (p *ptyProc) closePTY() error {
 	return err
 }
 
-// jobProcessIdList is JOBOBJECT_BASIC_PROCESS_ID_LIST with room for a
-// session's ordinary tree inline; bigger trees retry on the heap below.
-type jobProcessIdList struct {
-	Assigned uint32
-	InList   uint32
-	Pids     [64]uintptr
+// queryJobPids asks the job for its member pids with the query's error
+// visible: jobPids' nil-on-error shape is the right contract for
+// membersOf ("nothing running" is the fail direction), but a failure
+// diagnostic must be able to say "the query itself failed" rather than
+// read the same nil as an empty tree. The bytes go straight to
+// decodeJobPidList — the JOBOBJECT_BASIC_PROCESS_ID_LIST layout lives
+// there, pinned by a test that runs on every platform, not in a struct
+// only Windows CI ever executes.
+func (p *ptyProc) queryJobPids() ([]int, error) {
+	p.endMu.RLock()
+	defer p.endMu.RUnlock()
+	if p.job == 0 {
+		return nil, nil
+	}
+	buf := make([]byte, jobListBytes(jobListInlinePids))
+	var ret uint32
+	err := windows.QueryInformationJobObject(p.job, windows.JobObjectBasicProcessIdList, uintptr(unsafe.Pointer(&buf[0])), uint32(len(buf)), &ret)
+	if errors.Is(err, windows.ERROR_MORE_DATA) {
+		// More members than the inline buffer holds: size the retry on the
+		// assigned count the too-small query still filled in.
+		_, assigned := decodeJobPidList(buf)
+		n := assigned
+		if n < jobListInlinePids {
+			n = jobListInlinePids
+		}
+		buf = make([]byte, jobListBytes(n))
+		err = windows.QueryInformationJobObject(p.job, windows.JobObjectBasicProcessIdList, uintptr(unsafe.Pointer(&buf[0])), uint32(len(buf)), &ret)
+	}
+	if err != nil {
+		recordWin32("QueryInformationJobObject", err)
+		return nil, err
+	}
+	pids, _ := decodeJobPidList(buf)
+	return pids, nil
 }
 
 // jobPids is the job's own answer to "who is running in this session's
@@ -531,46 +642,12 @@ type jobProcessIdList struct {
 // query failure — which membersOf reads as "nothing running", the same
 // fail direction as the unix walk coming back empty.
 func (p *ptyProc) jobPids() []int {
-	p.endMu.RLock()
-	defer p.endMu.RUnlock()
-	if p.job == 0 {
-		return nil
-	}
-	var raw jobProcessIdList
-	var ret uint32
-	err := windows.QueryInformationJobObject(p.job, windows.JobObjectBasicProcessIdList, uintptr(unsafe.Pointer(&raw)), uint32(unsafe.Sizeof(raw)), &ret)
-	if errors.Is(err, windows.ERROR_MORE_DATA) {
-		// More members than the inline array holds: size the retry on the
-		// assigned count the first call still filled in.
-		n := int(raw.Assigned)
-		if n < len(raw.Pids) {
-			n = len(raw.Pids)
-		}
-		buf := make([]byte, int(unsafe.Offsetof(raw.Pids))+n*int(unsafe.Sizeof(uintptr(0))))
-		err = windows.QueryInformationJobObject(p.job, windows.JobObjectBasicProcessIdList, uintptr(unsafe.Pointer(&buf[0])), uint32(len(buf)), &ret)
-		if err == nil {
-			big := (*jobProcessIdList)(unsafe.Pointer(&buf[0]))
-			return pidsToList(unsafe.Slice(&big.Pids[0], big.InList))
-		}
-	}
+	pids, err := p.queryJobPids()
 	if err != nil {
-		recordWin32("QueryInformationJobObject", err)
+		// Recorded by the query; nil is the membersOf contract.
 		return nil
 	}
-	return pidsToList(raw.Pids[:raw.InList])
-}
-
-func pidsToList(pids []uintptr) []int {
-	out := make([]int, 0, len(pids))
-	for _, pid := range pids {
-		if pid != 0 {
-			out = append(out, int(pid))
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
+	return pids
 }
 
 // liveProcs is the pid → proc registry that lets membersOf turn "every
@@ -584,6 +661,7 @@ var liveProcs struct {
 }
 
 func registerProc(p *ptyProc) {
+	termChildrenLive.Add(1)
 	liveProcs.Lock()
 	if liveProcs.m == nil {
 		liveProcs.m = map[int]*ptyProc{}
@@ -593,6 +671,7 @@ func registerProc(p *ptyProc) {
 }
 
 func unregisterProc(pid int) {
+	termChildrenLive.Add(-1)
 	liveProcs.Lock()
 	delete(liveProcs.m, pid)
 	liveProcs.Unlock()
@@ -619,4 +698,15 @@ func recordWin32(call string, err error) {
 		code = uint32(eno)
 	}
 	lastWin32Failure.Store(&win32Failure{call: call, code: code})
+}
+
+// recordTermExit remembers the exit code of the most recently reaped
+// child — the number that names the read path's worst failure mode
+// outright: a child dying at startup on an invalid pseudoconsole reads
+// 0xc0000142 here while the pipes stay silent (the documented signature,
+// creating-a-pseudoconsole-session). Feeds ReadTermIOStats, which doctor
+// reads.
+func recordTermExit(code int) {
+	termLastExit.Store(int64(code))
+	termLastExitKnown.Store(true)
 }

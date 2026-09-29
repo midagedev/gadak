@@ -47,16 +47,50 @@ func comspecSession(t *testing.T, m *Manager, opts Options) *Session {
 	}
 	s, err := m.Create(opts)
 	if err != nil {
+		dumpPtyDiag(t, nil, "Create failed")
 		t.Fatalf("Create: %v", err)
 	}
 	t.Cleanup(func() { _ = s.Close() })
 	return s
 }
 
+// dumpPtyDiag prints the failure-path evidence for a Windows session:
+// the axes the three candidates of a dead read path split on — what the
+// control plane last failed at, which shell was resolved and whether it
+// exists, whether the child is alive (or what code it died with), what
+// the job says it holds, and what the read pipe actually did. Failure
+// paths only: a green run's log stays clean. p may be nil (startProc or
+// Create already failed) — the control-plane record prints anyway.
+func dumpPtyDiag(t *testing.T, p *ptyProc, note string) {
+	t.Helper()
+	if call, code, ok := LastWin32Failure(); ok {
+		t.Logf("%s: last win32 failure: %s code %d", note, call, code)
+	} else {
+		t.Logf("%s: no win32 failure recorded", note)
+	}
+	if p == nil {
+		t.Logf("%s: no ptyProc — start failed above", note)
+		return
+	}
+	_, statErr := os.Stat(p.shell)
+	t.Logf("%s: shell %q (stat: %v), COMSPEC=%q", note, p.shell, statErr, os.Getenv("COMSPEC"))
+	t.Logf("%s: child: %s", note, p.childState())
+	members, qerr := p.queryJobPids()
+	t.Logf("%s: job members %v (query err: %v)", note, members, qerr)
+	lastErr := "<none>"
+	if e := p.readLastErr.Load(); e != nil {
+		lastErr = *e
+	}
+	t.Logf("%s: reads: %d calls, %d bytes total, last n=%d, last err %s",
+		note, p.readCalls.Load(), p.readBytes.Load(), p.readLastN.Load(), lastErr)
+}
+
 // readUntil collects output until want appears or the deadline passes.
 // On Done it drains once before failing: a backlog pending at the end is
 // still readable through Take, so a marker that arrived in the last chunk
-// must not be reported missing.
+// must not be reported missing. Both failure branches dump the pty's
+// state — a marker that never arrives is the symptom this round chased,
+// and the dump is what tells the next round which candidate it was.
 func readUntil(t *testing.T, a *Attachment, want string, within time.Duration) string {
 	t.Helper()
 	var got strings.Builder
@@ -73,8 +107,10 @@ func readUntil(t *testing.T, a *Attachment, want string, within time.Duration) s
 			if strings.Contains(got.String(), want) {
 				return got.String()
 			}
+			dumpPtyDiag(t, a.sess.proc, "readUntil("+want+") attachment ended")
 			t.Fatalf("waiting for %q; attachment ended with %q", want, got.String())
 		case <-deadline:
+			dumpPtyDiag(t, a.sess.proc, "readUntil("+want+") deadline")
 			t.Fatalf("waiting for %q; got %q", want, got.String())
 		}
 	}
@@ -175,6 +211,7 @@ func TestResizeChildAnswers(t *testing.T) {
 func TestKillTakesTheTreeWithIt(t *testing.T) {
 	p, err := startProc(Options{Cols: 80, Rows: 24})
 	if err != nil {
+		dumpPtyDiag(t, nil, "startProc failed")
 		t.Fatalf("startProc: %v", err)
 	}
 	t.Cleanup(func() { _ = p.closePTY() })
@@ -190,6 +227,7 @@ func TestKillTakesTheTreeWithIt(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	if len(members) < 2 {
+		dumpPtyDiag(t, p, "grandchild join")
 		t.Fatalf("grandchild never joined the job; members=%v", members)
 	}
 	if err := p.kill(); err != nil {
@@ -206,6 +244,7 @@ func TestKillTakesTheTreeWithIt(t *testing.T) {
 			t.Fatalf("wait after kill: %v", werr)
 		}
 	case <-time.After(20 * time.Second):
+		dumpPtyDiag(t, p, "wait after kill")
 		t.Fatal("wait did not return after kill")
 	}
 	deadline = time.Now().Add(5 * time.Second)
@@ -226,6 +265,7 @@ func TestKillTakesTheTreeWithIt(t *testing.T) {
 func TestClosePTYTwiceAfterHangup(t *testing.T) {
 	p, err := startProc(Options{Cols: 80, Rows: 24})
 	if err != nil {
+		dumpPtyDiag(t, nil, "startProc failed")
 		t.Fatalf("startProc: %v", err)
 	}
 	if err := p.hangup(); err != nil {
