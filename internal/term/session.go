@@ -160,8 +160,10 @@ type Session struct {
 // ID is the session id a socket URL carries.
 func (s *Session) ID() string { return s.id }
 
-// PID is the shell's process id — also its process-group id, because the
-// child is started with Setsid.
+// PID is the shell's process id. On unix it is also its process-group id,
+// because the child is started with Setsid; Windows has no process group
+// at all — there the tree's owner is the session's Job Object, and this is
+// the shell's pid and nothing more (GDK-891).
 func (s *Session) PID() int { return s.pid }
 
 // TokenID is the pairing token this session was opened with, empty for a

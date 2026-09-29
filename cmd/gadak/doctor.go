@@ -30,6 +30,7 @@ import (
 	"github.com/midagedev/gadak/internal/skillinstall"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
+	"github.com/midagedev/gadak/internal/term"
 	issuetap "github.com/midagedev/issuetap"
 )
 
@@ -180,6 +181,13 @@ type doctorReport struct {
 	// locale comes from. An unresolved probe is a diagnosis (the pane still
 	// opens, on the unaugmented environment), never a defect.
 	HostEnv doctorHostEnv `json:"host_env"`
+
+	// TermWin32 is the ConPTY control plane's last failure — which Win32
+	// call, which error code (GDK-891) — so "my pane won't open on
+	// Windows" has a next question to ask without a debugger. A call name
+	// and a number only, and empty (none recorded) on every healthy
+	// serve and every non-Windows build.
+	TermWin32 string `json:"term_win32,omitempty"`
 
 	// localDBSchema is local.db's on-disk PRAGMA user_version when the file
 	// exists — the local half of the `schemas` line (GDK-1967), collected
@@ -524,6 +532,7 @@ func collectDoctor() doctorReport {
 	rep.BinaryPath, rep.BinarySignature = collectBuildIdentity()
 	// Independent of the mirror — the early returns below must not lose it.
 	rep.HostEnv = collectHostEnv()
+	rep.TermWin32 = collectTermWin32()
 
 	// Agent wiring is independent of the mirror, and the mirror branch below
 	// returns early — collect it first so a user with no mirror still gets the
@@ -1323,6 +1332,7 @@ func formatDoctorText(r doctorReport) string {
 	line("go_version", r.GoVersion)
 	line("os", r.OS+"/"+r.Arch)
 	line("hostenv", formatDoctorHostEnv(r.HostEnv))
+	line("term-conpty", r.TermWin32)
 	line("profile", r.Profile)
 	line("workspace_kind", r.WorkspaceKind)
 	line("origin_type", r.Workspace.OriginType)
@@ -1671,6 +1681,19 @@ func collectHostEnv() doctorHostEnv {
 		PathAdded:    countPathAdded(base, aug),
 		LocaleSource: hostenv.LocaleSource(runtime.GOOS, base, login),
 	}
+}
+
+// collectTermWin32 is the terminal subsystem's last control-plane failure
+// as one paste-safe token pair: the Win32 call's name and its error code
+// (GDK-891) — the same counts-and-short-tokens rule the hostenv line
+// keeps. Non-Windows builds and healthy serves report none recorded; the
+// recorder is ConPTY code.
+func collectTermWin32() string {
+	call, code, ok := term.LastWin32Failure()
+	if !ok {
+		return "none recorded"
+	}
+	return fmt.Sprintf("%s win32 %d", call, code)
 }
 
 // countPathAdded measures what the augmentation contributed: PATH entries
