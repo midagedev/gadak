@@ -1,9 +1,9 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, request, errorMessage, type FetchLike } from './api'
-import { inDialScope } from './dial-scope'
+import { inDialScope, loopbackAllowedHere } from './dial-scope'
 
 /*
  * GDK-1048 gate: the TS dial predicate and the `http:default` capability
@@ -128,9 +128,13 @@ describe('dial scope: TS predicate and the capability corpus agree', () => {
   ]
 
   it('every row: expected == capability URLPattern == inDialScope', () => {
+    // `true` is the UNION axis — every allow entry in the corpus, the
+    // whole truth a non-iOS target enforces (and what a caller outside a
+    // tauri webview has no native reason to narrow). The per-platform
+    // split is the GDK-2009 block below.
     for (const [url, expected] of TABLE) {
       expect(allowedByCapability(url), `capability verdict for ${url}`).toBe(expected)
-      expect(inDialScope(url), `predicate verdict for ${url}`).toBe(expected)
+      expect(inDialScope(url, true), `predicate verdict for ${url}`).toBe(expected)
     }
   })
 
@@ -148,6 +152,138 @@ describe('dial scope: TS predicate and the capability corpus agree', () => {
       const owns = TABLE.some(([url, expected]) => expected && capabilityVerdict(pattern, url))
       expect(owns, `allow entry ${pattern} must back at least one in-scope row`).toBe(true)
     }
+  })
+})
+
+/*
+ * GDK-2009 gate: the platform axis. The corpus is a set of files, each
+ * carrying its own platform list — default.json has none (every target),
+ * dev-loopback.json rides its `platforms` array — and the ACL a target
+ * actually enforces is the union of the files that name it. The predicate
+ * must predict THAT, not the union of everything in the directory: on iOS
+ * the shipped ACL is default.json alone, so the front refuses loopback
+ * before the dial instead of passing it and folding the native refusal
+ * into 'network' after (the defect this round closed). Everything here is
+ * derived from the files — the platforms array is read, never restated,
+ * so adding or removing an item in dev-loopback.json moves these rows
+ * with it.
+ */
+describe('dial scope: the platform axis (GDK-2009)', () => {
+  /** The allow set one target's ACL carries: a file with no `platforms`
+   *  key rides every target; a file with one rides only where named. */
+  const allowUrlsFor = (platform: string): string[] => {
+    const urls: string[] = []
+    for (const doc of readCapabilityDocs().values()) {
+      if (doc.platforms && !doc.platforms.includes(platform)) continue
+      urls.push(...httpAllowUrls(doc))
+    }
+    return urls
+  }
+
+  const loopbackPlatforms = (): string[] =>
+    readCapabilityDocs().get('dev-loopback.json')?.platforms ?? []
+
+  // iOS is under test precisely because the array does not name it. The
+  // set is derived per call so a platforms edit cannot leave it stale.
+  const platformsUnderTest = (): string[] => [...new Set([...loopbackPlatforms(), 'iOS'])]
+
+  // One row per verdict class: tailnet names (in scope on every axis),
+  // out-of-scope shapes (out on every axis), and the loopback rows where
+  // the axis IS the verdict.
+  const AXIS_ROWS = [
+    'https://h.ts.net:8443/',
+    'https://deep.home.example.ts.net:10000/',
+    'http://h.ts.net:8443/',
+    'https://ts.net.evil.com/',
+    'http://[::1]:7877/',
+    'not a url',
+    'http://127.0.0.1:7777/',
+    'http://localhost:5173/',
+  ]
+
+  it("every platform: TS verdict == that platform's ACL, verdict for verdict", () => {
+    for (const platform of platformsUnderTest()) {
+      const axis = loopbackPlatforms().includes(platform)
+      const acl = (url: string): boolean =>
+        allowUrlsFor(platform).some((p) => capabilityVerdict(p, url))
+      for (const url of AXIS_ROWS) {
+        expect(inDialScope(url, axis), `${platform} ${url}`).toBe(acl(url))
+      }
+    }
+  })
+
+  it('iOS refuses the loopback set before the dial — the rows GDK-2009 exists for', () => {
+    const axis = loopbackPlatforms().includes('iOS')
+    const acl = (url: string): boolean => allowUrlsFor('iOS').some((p) => capabilityVerdict(p, url))
+    for (const url of [
+      'http://127.0.0.1:7777/', // exactly what a dev pairing holds (the vite proxy port)
+      'http://localhost:7777/',
+      'http://localhost/', // loopback host on the scheme's default port
+      'http://LOCALHOST:7777/', // the URL parser lowercases; loopback is loopback
+      'https://127.0.0.1:8443/', // right host, wrong scheme — out of scope on every axis
+    ]) {
+      expect(inDialScope(url, axis), url).toBe(acl(url))
+    }
+  })
+})
+
+describe('loopbackAllowedHere(): the platform arm at runtime (GDK-2009)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  // hasTauri() (lib/runtime.ts) reads the window for the bridge marker;
+  // Node has neither window nor navigator until a test stubs them.
+  const inTauriWebview = (): void => {
+    vi.stubGlobal('window', { __TAURI_INTERNALS__: {} })
+  }
+
+  it('outside a tauri webview there is no native ACL to predict: the union', () => {
+    // The dev vite proxy and the hosted /m/ page never consult the judge
+    // (their scope checks are skipped first); a direct caller asking
+    // corpus questions gets the corpus union, and the axis splits live in
+    // the predicate's parameter.
+    expect(loopbackAllowedHere()).toBe(true)
+  })
+
+  it('inside the webview an iPhone/iPad UA refuses loopback — iOS is the narrow axis', () => {
+    inTauriWebview()
+    vi.stubGlobal('navigator', {
+      userAgent:
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/22C152',
+    })
+    expect(loopbackAllowedHere()).toBe(false)
+    vi.stubGlobal('navigator', {
+      userAgent:
+        'Mozilla/5.0 (iPad; CPU OS 18_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/22C152',
+    })
+    expect(loopbackAllowedHere()).toBe(false)
+  })
+
+  it('a UA that names a dev-loopback platform keeps loopback', () => {
+    inTauriWebview()
+    vi.stubGlobal('navigator', {
+      userAgent:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/620.1.14 (KHTML, like Gecko)',
+    })
+    expect(loopbackAllowedHere()).toBe(true)
+    vi.stubGlobal('navigator', {
+      userAgent:
+        'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36',
+    })
+    expect(loopbackAllowedHere()).toBe(true)
+  })
+
+  it('an unreadable UA inside the webview refuses loopback — narrow is the default', () => {
+    // The failure direction the round spec pinned: inside the packaged
+    // webview the judge may never answer loopback WIDE on missing
+    // evidence. (The reverse miss — refusing loopback on some non-iOS UA
+    // spelling — costs a dev build a named refusal, not a wrong dial.)
+    inTauriWebview()
+    vi.stubGlobal('navigator', { userAgent: '' })
+    expect(loopbackAllowedHere()).toBe(false)
+    vi.stubGlobal('navigator', undefined)
+    expect(loopbackAllowedHere()).toBe(false)
   })
 })
 

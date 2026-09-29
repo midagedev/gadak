@@ -11,7 +11,7 @@
 
 import { coerceDroppedReason } from '../../../../web/src/lib/terminal/protocol'
 import type { SocketHandle, SocketHandlers } from '../../../../web/src/lib/terminal/protocol'
-import { inDialScope } from '../dial-scope'
+import { inDialScope, loopbackAllowedHere } from '../dial-scope'
 import { runtimeMode } from '../runtime'
 
 const IS_DEV = import.meta.env.DEV
@@ -72,12 +72,14 @@ const ENDPOINT_OUT_OF_SCOPE = 'shell endpoint is outside the app dialling scope'
  * The endpoint is inside the same scope the platform enforces for HTTP.
  *
  * `http:default` in capabilities/default.json is URL-scoped to
- * `https://*.ts.net:*` and loopback, so a fetch outside that scope is refused
- * by Tauri itself. The websocket permission carries no such list, which
- * would otherwise let the shell socket reach a host the mirror's own
- * transport cannot. The list itself lives in lib/dial-scope.ts — one owner,
- * ports included (GDK-1048), shared with the fetch path in lib/api.ts — so
- * the two transports agree on where this app may dial.
+ * `https://*.ts.net:*`, plus loopback where dev-loopback.json's `platforms`
+ * admits the target (everywhere but iOS — GDK-2009), so a fetch outside
+ * that scope is refused by Tauri itself. The websocket permission carries
+ * no such list, which would otherwise let the shell socket reach a host
+ * the mirror's own transport cannot. The list itself lives in
+ * lib/dial-scope.ts — one owner, ports included (GDK-1048), platform arm
+ * included (GDK-2009), shared with the fetch path in lib/api.ts — so the
+ * two transports agree on where this app may dial.
  *
  * Read it for what it is: an early refusal, not the boundary. The boundary
  * is built and lives in src-tauri/src/shell.rs (GDK-897): the websocket
@@ -88,7 +90,7 @@ const ENDPOINT_OUT_OF_SCOPE = 'shell endpoint is outside the app dialling scope'
  * openPackagedSocket below already uses).
  */
 export function assertAllowedShellEndpoint(endpoint: string): void {
-  if (!inDialScope(endpoint)) throw new Error(ENDPOINT_OUT_OF_SCOPE)
+  if (!inDialScope(endpoint, loopbackAllowedHere())) throw new Error(ENDPOINT_OUT_OF_SCOPE)
 }
 
 /**

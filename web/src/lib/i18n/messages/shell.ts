@@ -981,10 +981,17 @@ export const shell = {
   // GDK-1048: the pre-dial scope refusal in mobile lib/api.ts. Not
   // 'network' — the server may be perfectly up; this app never sent the
   // request because the endpoint is outside the http capability scope.
+  //
+  // The sentence names the tailnet shape only (GDK-2009). It used to add
+  // "or this machine over loopback", which the shipped phone cannot do:
+  // loopback rides dev-loopback.json, whose platforms array excludes iOS
+  // (GDK-1581), so on the App Store binary that clause described a scope
+  // the reader would be refused in. A non-iOS packaged build keeps the
+  // loopback arm, but it has no reader this line is written for.
   'app.endpointScope': {
-    en: 'This app does not send requests to that address. It only talks to tailnet HTTPS names (`*.ts.net`) or this machine over loopback. Pair again with a serve address of that shape.',
-    ko: '이 앱은 그 주소로 요청을 보내지 않습니다. 테일넷 HTTPS 주소(`*.ts.net`)나 이 기기의 루프백 주소로만 통신합니다. 그 형태의 serve 주소로 다시 페어링하세요.',
-    ja: 'このアプリはそのアドレスにリクエストを送信しません。テールネットのHTTPSアドレス（`*.ts.net`）かこの端末のループバックのみに接続します。その形式のserveアドレスで再度ペアリングしてください。',
+    en: 'This app does not send requests to that address. It only talks to tailnet HTTPS names (`*.ts.net`). Pair again with a serve address of that shape.',
+    ko: '이 앱은 그 주소로 요청을 보내지 않습니다. 테일넷 HTTPS 주소(`*.ts.net`)로만 통신합니다. 그 형태의 serve 주소로 다시 페어링하세요.',
+    ja: 'このアプリはそのアドレスにリクエストを送信しません。テールネットのHTTPSアドレス（`*.ts.net`）にのみ接続します。その形式のserveアドレスで再度ペアリングしてください。',
   },
   'app.offlineBanner': {
     en: 'Offline — showing cached data',

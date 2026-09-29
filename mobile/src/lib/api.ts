@@ -12,7 +12,7 @@
 // never appears in an error, a log line, or a URL.
 
 import { demoRequest, isDemoSession } from './demo'
-import { inDialScope } from './dial-scope'
+import { inDialScope, loopbackAllowedHere } from './dial-scope'
 import { runtimeMode } from './runtime'
 import { t } from './i18n'
 import { classifyRefusal, REFUSAL_KEYS } from './terminal/refusal'
@@ -206,12 +206,15 @@ async function dial(path: string, opts: RequestOpts): Promise<Response> {
   const s = opts.session ?? session
   const dev = opts.dev ?? IS_DEV
   const url = apiUrl(s.endpoint, path, dev)
-  // The scope check is the Tauri capability list's shadow (dial-scope.ts).
+  // The scope check is the Tauri capability list's shadow (dial-scope.ts),
+  // platform arm included (GDK-2009): on iOS the shadow is default.json
+  // alone, so a loopback pairing is refused HERE — named below — instead of
+  // passing the check and folding the plugin's own refusal into 'network'.
   // A hosted page's URL is the bare same-origin path `/api/v1/…`, which
   // `new URL` cannot parse — there is no Tauri scope in a browser tab, so
   // hosted skips the check rather than fail on its own address book
   // (GDK-1966). Dev already skips it (the proxy is the boundary).
-  if (!dev && runtimeMode() !== 'hosted' && !inDialScope(url)) {
+  if (!dev && runtimeMode() !== 'hosted' && !inDialScope(url, loopbackAllowedHere())) {
     throw new ApiError('endpoint_out_of_scope', 0)
   }
   const doFetch = opts.fetchFn ?? (await pickFetch())
