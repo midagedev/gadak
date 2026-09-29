@@ -70,15 +70,8 @@
 //     .CloseByToken is how `gadak pairing revoke` reaches a live shell —
 //     see internal/server's watchdog for who calls it.
 //
-//   - Windows runs on ConPTY (GDK-891): CreatePseudoConsole plus a child
-//     spawned with PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, inside a Job
-//     Object. The unix ladder maps onto the job rather than onto signals —
-//     hangup closes the pseudoconsole, kill terminates the job, and the
-//     job owns every descendant, so the tree needs no controlling-terminal
-//     walk. ErrUnsupportedPlatform survives as the contract for a platform
-//     that has no PTY at all; no supported GOOS answers with it today.
-//     Runtime proof is the Windows CI job — the shape cannot be exercised
-//     on a developer's macOS.
+//   - Windows returns ErrUnsupportedPlatform from Create, naming GDK-861
+//     (the ConPTY shape). An honest stub beats a silent one.
 //
 // Snapshot() is the debug surface: per-session id, pid, pids (every
 // process on the session's controlling terminal), size, attachment

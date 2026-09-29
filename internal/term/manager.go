@@ -204,10 +204,7 @@ type Info struct {
 	// (GDK-1192): "matched/N" (read-back agreed on attempt N),
 	// "unverified:<err>" (read-back failed and the set was trusted),
 	// "exhausted" (bounded attempts, error returned), "set-error:<err>",
-	// or, on Windows, "set" — ConPTY has no GetPseudoConsoleSize to read
-	// the size back with, so there is no read-back branch to name and the
-	// word says only that ResizePseudoConsole returned (GDK-891).
-	// Empty before the first resize. Pure
+	// or "unsupported" on Windows. Empty before the first resize. Pure
 	// diagnostic — it changes no behaviour, it names it.
 	LastResizeExit string `json:"last_resize_exit,omitempty"`
 }

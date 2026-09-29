@@ -30,7 +30,6 @@ import (
 	"github.com/midagedev/gadak/internal/skillinstall"
 	"github.com/midagedev/gadak/internal/store"
 	syncer "github.com/midagedev/gadak/internal/sync"
-	"github.com/midagedev/gadak/internal/term"
 	issuetap "github.com/midagedev/issuetap"
 )
 
@@ -181,14 +180,6 @@ type doctorReport struct {
 	// locale comes from. An unresolved probe is a diagnosis (the pane still
 	// opens, on the unaugmented environment), never a defect.
 	HostEnv doctorHostEnv `json:"host_env"`
-
-	// TermWin32 is the ConPTY terminal state — which Win32 call last
-	// failed and with what error code (GDK-891), plus on Windows the
-	// pump and child-lifetime counts — so "my pane won't open on
-	// Windows" has a next question to ask without a debugger. Counts and
-	// short tokens only, and empty (none recorded) on every healthy
-	// serve and every non-Windows build.
-	TermWin32 string `json:"term_win32,omitempty"`
 
 	// localDBSchema is local.db's on-disk PRAGMA user_version when the file
 	// exists — the local half of the `schemas` line (GDK-1967), collected
@@ -533,7 +524,6 @@ func collectDoctor() doctorReport {
 	rep.BinaryPath, rep.BinarySignature = collectBuildIdentity()
 	// Independent of the mirror — the early returns below must not lose it.
 	rep.HostEnv = collectHostEnv()
-	rep.TermWin32 = collectTermWin32()
 
 	// Agent wiring is independent of the mirror, and the mirror branch below
 	// returns early — collect it first so a user with no mirror still gets the
@@ -1333,7 +1323,6 @@ func formatDoctorText(r doctorReport) string {
 	line("go_version", r.GoVersion)
 	line("os", r.OS+"/"+r.Arch)
 	line("hostenv", formatDoctorHostEnv(r.HostEnv))
-	line("term-conpty", r.TermWin32)
 	line("profile", r.Profile)
 	line("workspace_kind", r.WorkspaceKind)
 	line("origin_type", r.Workspace.OriginType)
@@ -1682,32 +1671,6 @@ func collectHostEnv() doctorHostEnv {
 		PathAdded:    countPathAdded(base, aug),
 		LocaleSource: hostenv.LocaleSource(runtime.GOOS, base, login),
 	}
-}
-
-// collectTermWin32 is the terminal subsystem's standing state as one
-// paste-safe line (GDK-891): the Win32 control plane's last failure as a
-// call name and error code, and — on Windows, where the ConPTY data plane
-// exists — the pump and child-lifetime counts beside it. The counts are
-// what name the worst failure mode outright: panes dying at startup read
-// zero reads with a short child exit code, a signature the failure record
-// alone cannot carry. Non-Windows builds and healthy serves report none
-// recorded; the recorders are ConPTY code.
-func collectTermWin32() string {
-	call, code, ok := term.LastWin32Failure()
-	fail := "none recorded"
-	if ok {
-		fail = fmt.Sprintf("%s win32 %d", call, code)
-	}
-	if runtime.GOOS != "windows" {
-		return fail
-	}
-	io := term.ReadTermIOStats()
-	exit := "unknown"
-	if io.LastExitKnown {
-		exit = strconv.Itoa(io.LastChildExit)
-	}
-	return fmt.Sprintf("%s, %d reads/%d bytes, %d children/%d live, last exit %s",
-		fail, io.ReadCalls, io.ReadBytes, io.ChildrenStarted, io.ChildrenLive, exit)
 }
 
 // countPathAdded measures what the augmentation contributed: PATH entries
