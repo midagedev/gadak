@@ -113,16 +113,28 @@ hard-won 목록)와 `AGENTS.md`(기여 계약)·`docs/MIRROR.md`(스키마·SQL 
 - 웹: `make typecheck` (svelte-check). e2e: Playwright, CI 세트는
   `e2e/*.spec.ts`(demo/·hosted/·perf/ 제외 — `e2e/playwright.config.ts`).
 - **`mobile/`은 루트 게이트가 보지 않는다** — 자기 tsconfig·자기 lockfile을
-  갖고 있으면서 `web/src`의 일부 모듈(i18n 카탈로그, `lib/terminal/protocol`)을
-  직접 import한다. **그 둘 중 하나를 건드렸으면** `cd mobile && npm test &&
-  npm run check && npm run lint:ios`도 게이트다 (2026-08-26: 웹에서 지운
-  i18n 키를 `mobile/src/screens/Shell.svelte`가 계속 써서, 로컬 go·typecheck·
-  vitest·e2e 326·doc-checks가 전부 초록인 채로 Mobile 잡만 빨갰다).
+  갖고 있으면서 `web/src/lib`을 직접 import한다. **`lib` 둘만이 아니다**:
+  2026-09-29 실측으로 24개다(`adf`·`api`·`issue-group`·`issue-sort`·
+  `keyboard`·`person-match`·`types`·`url-state`·`view-config`·`terminal/`·
+  `i18n/` …) 그리고 `web/src/app.css`. **`web/src/lib` 아래 무엇이든 건드렸으면**
+  `cd mobile && npm test && npm run check && npm run lint:ios`도 게이트다.
+  세는 명령은 하나다 —
+  `grep -rhoE "web/src/[A-Za-z0-9/_.-]+" mobile/src mobile/e2e | sort -u`.
+  이 문장이 "둘"이라고 말하는 동안 `tools/ci-filter.sh`의 mobile 표도 둘만
+  들고 있었고, 그래서 `web/src/lib/view-config.ts` 하나만 바뀐 푸시가 Mobile
+  잡을 건너뛰었다 — **CI가 초록인 채로 폰이 깨지는** 방향이다(GDK-2044).
+  지금은 `ci-filter-test.sh`가 폰의 import를 소스에서 훑어 표가 전부 덮는지
+  재므로, 표가 다시 낡으면 빨갛다. 이 문장이 낡는 것은 여전히 사람 몫이다.
+  원 사건은 2026-08-26 이다: 웹에서 지운 i18n 키를
+  `mobile/src/screens/Shell.svelte`가 계속 써서, 로컬 go·typecheck·vitest·
+  e2e 326·doc-checks가 전부 초록인 채로 Mobile 잡만 빨갰다.
   **`mobile/src`의 화면·스토어를 건드렸으면 `npm run viewport-gate`까지가
   게이트다** — `mobile/e2e/`(Playwright, 402×874 + 셸 6종)는 위 세 명령이
   전혀 보지 않는데 CI Mobile 잡은 돌린다 (2026-08-29: dev 셸 자동 채택이
-  "페어링 없으면 탭 3개" 계약을 깼고, 로컬 go·web e2e 378·mobile vitest·
-  check·lint:ios가 전부 초록인 채로 CI에서 8개가 빨갰다). 반대 방향도 있다:
+  당시의 "페어링 없으면 탭 3개" 계약을 깼고, 로컬 go·web e2e 378·mobile
+  vitest·check·lint:ios가 전부 초록인 채로 CI에서 8개가 빨갰다 — 탭 바 자체는
+  GDK-902 로 사라졌고 지금 진입은 팔레트다. 사건이 말하는 것은 그 계약이
+  아니라 **그 게이트만 보는 축이 있다**는 것이다). 반대 방향도 있다:
   **폰에서 i18n 키의 마지막 사용처를 지우면 웹 `npm run test:unit`이
   게이트다** — `web/src/lib/i18n/catalog.test.ts`가 미사용 키를 빨강으로
   만든다 (2026-09-07 GDK-1542: mobile만 건드린 커밋이 CI Frontend unit만
@@ -224,13 +236,18 @@ hard-won 목록)와 `AGENTS.md`(기여 계약)·`docs/MIRROR.md`(스키마·SQL 
 - **푸시는 끝이 아니다 — CI 초록이 끝이다.** 푸시 직후
   `tools/ci-status.sh`(HEAD의 런을 기다려 결론을 내고, 빨간 상태 위에
   쌓았으면 그것도 알려준다). 라운드 완료 보고에 그 결과를 쓴다.
-- **PR은 로컬에서 못 도는 잡에 걸리는 변경만** (사용자 결정 2026-08-19).
-  리뷰어가 없으므로 PR이 사는 것은 리뷰가 아니라 "CI 평결이 main이 아니라
-  브랜치에 떨어진다" 하나뿐이다. 그 값이 실제로 나오는 것은 로컬 게이트가
-  대신할 수 없는 잡뿐이다 — `desktop/`, `.github/workflows/`, 팩 스크립트
-  (Desktop Windows build는 `windows-latest`, Desktop Linux build는 GTK4·
-  WebKitGTK·AppImage). **그 외에는 로컬 게이트가 전부 초록이면 main에 직접
-  푸시**하고 `tools/ci-status.sh`로 확인한다. 기본값은 직접이다.
+- **PR을 열지 않는다 — main에 직접 커밋한다** (사용자 지시 2026-09-30
+  "피알로 작업하지 말고 바로 메인에 커밋하면서 진행해줘"). 리뷰어가 없으므로
+  PR이 주는 것은 "CI 평결이 main이 아니라 브랜치에 떨어진다" 하나뿐인데,
+  그 값보다 브랜치·리베이스·머지의 왕복이 비싸다. 로컬 게이트가 전부 초록이면
+  올리고 `tools/ci-status.sh`로 확인한다.
+  **남는 판단 하나**: 로컬이 못 도는 잡(`desktop/`, `.github/workflows/`,
+  팩 스크립트 — Desktop Windows build는 `windows-latest`, Desktop Linux build는
+  GTK4·WebKitGTK·AppImage)에만 걸리는 변경은 **올려 봐야 알 수 있다.** 그것을
+  main에 올리는 것은 정상이고, 빨개지면 그 위에서 고친다 — 다만 **이미 빨간
+  것을 알면서 올리지는 않는다**(GDK-891의 ConPTY가 그 경우였다: 브랜치의
+  Windows 잡이 세 테스트를 빨갛게 냈고, 그 상태를 main에 얹는 것은 다음 커밋
+  전부의 평결을 오염시킨다). 그때는 브랜치를 잠깐 두고 고친 뒤 main으로 옮긴다.
 - **PR 두 개 이상이 동시에 열려 있으면 리베이스는 손으로 하지 않는다** —
   `tools/rebase-pr.sh <branch>`. main에 뭘 올릴 때마다 열린 PR 전부가 뒤로
   밀리고, 충돌은 매번 같은 두 곳이다: CHANGELOG 참조 링크 꼬리(양쪽이 다
