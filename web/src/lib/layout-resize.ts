@@ -81,14 +81,19 @@ export const KEY_COMMIT_DELAY_MS = 400
 function currentWidth(axis: LayoutTokenAxis, layout: HTMLElement | null): number {
   const eff = effectiveLayout()
   if (axis === 'sidebar') return eff.sidebar
-  if (eff.list !== undefined) return eff.list
-  // The list has no number when it is unset — its width is whatever the
-  // active track resolved the var() fallback to, which only the box knows.
-  // Measuring is therefore not a shortcut here, it is the only honest read,
-  // and it is what makes the first drag continue from the visible seam
-  // instead of jumping to a catalog default.
+  // The list is MEASURED, pinned or not (GDK-2047). The token is what the
+  // list asked for; the track is what the grid gave it, and those are two
+  // different numbers whenever the ceiling bites — minmax() clamps a max
+  // the box cannot afford, so a pin of 1398px on a 1680px window paints
+  // 736px. Reading the token here meant `startGripDrag`'s one commit saved
+  // a width the person never saw: the seam stood still under the pointer
+  // and 1398px went into the settings document anyway, where the browse
+  // grid then spent it out of the webview's column. Reading back the box
+  // after each paint is what makes the saved number the painted one, which
+  // is the only number the gesture was ever about.
   const measured = layout?.querySelector<HTMLElement>('[data-testid="terminal-split"]')
-  return measured ? measured.getBoundingClientRect().width : eff.listMin
+  if (measured) return measured.getBoundingClientRect().width
+  return eff.list ?? eff.listMin
 }
 
 /**

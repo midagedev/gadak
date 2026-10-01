@@ -233,16 +233,20 @@ test('converted declarations resolve to the exact pre-conversion geometry', () =
   expect(resolve(declOf(CSS_CODE, '.issue-layout', 'grid-template-columns'))).toBe(
     '272px minmax(0, 1360px) minmax(0, 1fr)',
   )
+  // GDK-2047: `0fr` is the unset arm of --layout-detail-grow, and its base
+  // size is the clamp it wraps — measured identical to the bare clamp that
+  // stood here before, which is what lets the pinned grids below have an
+  // `fr` without the default paint moving a pixel.
   expect(resolve(declOf(CSS_CODE, '.issue-layout.detail-open', 'grid-template-columns'))).toBe(
-    '272px minmax(390px, 1fr) clamp(438px, 34vw, 720px)',
+    '272px minmax(390px, 1fr) minmax(clamp(438px, 34vw, 720px), 0fr)',
   )
   // GDK-1311: the reading-width default (40vw) only where the list has slack;
   // at 1440 it cost the list title 84px (row-narrow.spec).
   expect(resolve(declOf(wide1600, '.issue-layout.detail-open', 'grid-template-columns'))).toBe(
-    '272px minmax(390px, 1fr) clamp(438px, 40vw, 720px)',
+    '272px minmax(390px, 1fr) minmax(clamp(438px, 40vw, 720px), 0fr)',
   )
   expect(resolve(declOf(wide1600, '.issue-layout.browse-open', 'grid-template-columns'))).toBe(
-    '272px clamp(640px, 40vw, 800px) minmax(0, 1fr)',
+    '272px minmax(0, clamp(640px, 40vw, 800px)) minmax(438px, 1fr)',
   )
 
   /*
@@ -255,16 +259,25 @@ test('converted declarations resolve to the exact pre-conversion geometry', () =
    * browse pane. The floor (--layout-list-min) still wins in the docked
    * tracks, because minmax() clamps a max below its own min back up.
    */
-  const pinned = { ...base, '--layout-list': '520px' }
+  const pinned = { ...base, '--layout-list': '520px', '--layout-detail-grow': '1fr' }
   expect(resolve(declOf(CSS_CODE, '.issue-layout', 'grid-template-columns'), pinned)).toBe(
     '272px minmax(0, 520px) minmax(0, 1fr)',
   )
+  /*
+   * GDK-2047: the two tracks that sit BESIDE a pinned list. Both used to be
+   * inflexible, which is the defect in one line — --layout-list replaces the
+   * `1fr`, so pinning the list left each of these grids with nothing that
+   * could take the slack. The detail stranded it (a strip of nothing at the
+   * right edge) and the browse pane was starved of it (the native webview's
+   * rectangle down to single digits). Each now has an `fr`, and the
+   * unpinned expectations above are the other half: neither default moved.
+   */
   expect(
     resolve(declOf(CSS_CODE, '.issue-layout.detail-open', 'grid-template-columns'), pinned),
-  ).toBe('272px minmax(390px, 520px) clamp(438px, 34vw, 720px)')
+  ).toBe('272px minmax(390px, 520px) minmax(clamp(438px, 34vw, 720px), 1fr)')
   expect(
     resolve(declOf(wide1600, '.issue-layout.browse-open', 'grid-template-columns'), pinned),
-  ).toBe('272px 520px minmax(0, 1fr)')
+  ).toBe('272px minmax(0, 520px) minmax(438px, 1fr)')
   expect(resolve(declOf(CSS_CODE, '.issue-sidebar', 'width'))).toBe('272px')
   expect(resolve(declOf(CSS_CODE, '.browse-pane', 'inset'))).toBe('0 0 0 272px')
   expect(resolve(declOf(CSS_CODE, '.browse-reentry', 'left'))).toBe('calc(272px + 1rem)')

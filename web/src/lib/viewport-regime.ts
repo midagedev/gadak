@@ -245,8 +245,34 @@ export function layoutTokenStyle(): string {
   // ABSENT so app.css's per-track var() fallbacks resolve (1360px capped,
   // 1fr docked, the browse clamp). Installing a number here — even the
   // catalog default — would flatten those three tracks into one width.
-  if (eff.list !== undefined) decls.push(`--layout-list:${eff.list}px`)
+  if (eff.list !== undefined) {
+    for (const [name, value] of listPinDecls(eff.list)) decls.push(`${name}:${value}`)
+  }
   return decls.join(';')
+}
+
+/**
+ * The declarations a pinned list width installs — the width itself, and the
+ * permission the track beside it needs to take the slack (GDK-2047).
+ *
+ * --layout-detail-grow is a condition, not a dimension: it is `1fr` exactly
+ * while --layout-list is set, and absent otherwise, so app.css can give the
+ * detail column `minmax(<the clamp>, var(--layout-detail-grow, 0fr))` and
+ * get the bare clamp back when nothing is pinned. The reason it has to be
+ * installed rather than written in CSS is that CSS cannot ask whether a
+ * custom property is set, and the answer is only known here.
+ *
+ * Why the detail needed the permission at all: --layout-list REPLACES the
+ * 1fr in the docked grid, so a pin left that grid with no flexible track —
+ * a narrow pin stranded the leftover px at the right edge (the "the right
+ * side is empty" report) and a wide one had nowhere to grow. Not a px value,
+ * so it is not a dim catalog entry and `gadak config set` cannot write it.
+ */
+function listPinDecls(px: number): [name: string, value: string][] {
+  return [
+    ['--layout-list', `${px}px`],
+    ['--layout-detail-grow', '1fr'],
+  ]
 }
 
 /**
@@ -270,9 +296,16 @@ function refreshLayoutTokenInstall(): void {
   el.style.setProperty('--layout-docked-min', `${eff.dockedMin}px`)
   // removeProperty, not a default px: see layoutTokenStyle(). This is the
   // line that makes a double-click reset actually restore the shipped
-  // per-track widths rather than pinning the catalog default.
-  if (eff.list === undefined) el.style.removeProperty('--layout-list')
-  else el.style.setProperty('--layout-list', `${eff.list}px`)
+  // per-track widths rather than pinning the catalog default. The grow
+  // permission travels with the width — installed and removed together, or
+  // a reset would leave the detail column flexible with nothing pinned
+  // beside it, which is a different grid from the one that shipped.
+  if (eff.list === undefined) {
+    el.style.removeProperty('--layout-list')
+    el.style.removeProperty('--layout-detail-grow')
+  } else {
+    for (const [name, value] of listPinDecls(eff.list)) el.style.setProperty(name, value)
+  }
 }
 
 /**
@@ -484,20 +517,40 @@ export function layoutGeometryDebug(): {
   overrides: LayoutOverrides
   pinned: LayoutTokenAxis[]
   installed: Record<string, string>
+  /** What the grid actually resolved to, and whether it fills the box
+   *  (GDK-2047: a pinned width used to leave px belonging to no column, and
+   *  the only way to see it was to sum the tracks by hand against the
+   *  element — which is the probe this line keeps). */
+  painted: { tracks: string; sum: number; box: number; unclaimed: number } | null
   clamp: typeof LAYOUT_DRAG_CLAMP
   narrow: boolean
 } {
   const installed: Record<string, string> = {}
+  let painted: { tracks: string; sum: number; box: number; unclaimed: number } | null = null
   if (typeof document !== 'undefined') {
     const el = document.querySelector<HTMLElement>('[data-testid="issue-layout"]')
     for (const name of [
       '--layout-sidebar',
       '--layout-list',
+      '--layout-detail-grow',
       '--layout-list-min',
       '--layout-detail-min',
       '--layout-docked-min',
     ]) {
       installed[name] = el?.style.getPropertyValue(name) || '(unset)'
+    }
+    if (el) {
+      const tracks = getComputedStyle(el).gridTemplateColumns
+      const sum = tracks
+        .split(/\s+/)
+        .reduce((n, part) => n + (Number.parseFloat(part) || 0), 0)
+      const box = el.getBoundingClientRect().width
+      painted = {
+        tracks,
+        sum: Math.round(sum),
+        box: Math.round(box),
+        unclaimed: Math.round(box - sum),
+      }
     }
   }
   return {
@@ -505,6 +558,7 @@ export function layoutGeometryDebug(): {
     overrides: { ...layoutOverrides },
     pinned: [...pinnedAxes],
     installed,
+    painted,
     clamp: LAYOUT_DRAG_CLAMP,
     narrow: readNarrowViewport(),
   }

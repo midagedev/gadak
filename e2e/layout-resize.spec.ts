@@ -42,6 +42,16 @@ async function sidebarWidth(page: Page): Promise<number> {
  * explicit because the PUT count is only meaningful next to a frame count:
  * a per-frame save would answer `steps`, not 1.
  */
+/**
+ * Open the first row so the detail panel takes column 3 — the track the
+ * GDK-2047 geometry test is about. Without it the layout is the two-track
+ * closed grid and the third column holds nothing to measure.
+ */
+async function openFirstIssue(page: Page): Promise<void> {
+  await page.locator('[data-testid="issue-list-scroller"] [role="button"]').first().click()
+  await expect(page.getByTestId('issue-detail-panel')).toHaveClass(/is-open/)
+}
+
 async function dragHandle(page: Page, testid: string, toX: number, steps = 20): Promise<void> {
   const handle = page.getByTestId(testid)
   const box = await handle.boundingBox()
@@ -190,6 +200,81 @@ test.describe('layout resize handles', () => {
         return doc.ui?.tokens?.layout?.list ?? null
       })
       .toBe('600px')
+  })
+
+  /*
+   * GDK-2047: the grid still fills the window, and the saved width is the
+   * painted one.
+   *
+   * This is the axis layout-tokens.test.ts could not reach. That test
+   * resolves the declarations symbolically and pins the strings — true, and
+   * it stayed true through the whole defect, because a correct-looking
+   * declaration list can still sum to less than the box it is in.
+   * `--layout-list` REPLACES the `1fr` in the docked grid, so pinning the
+   * list left nothing beside it that could take the slack: the leftover px
+   * belonged to no column at all and painted as a strip of nothing down the
+   * right edge. Only a browser can add the tracks up against a real element.
+   *
+   * The second half is the drag's own honesty. With a ceiling in force the
+   * token and the track are different numbers, and `startGripDrag` saves
+   * exactly once — so if that one save reads the token it writes a width
+   * nobody ever saw, and the browse grid later spends it out of the
+   * webview's column. Pulling the seam past where the box can afford it is
+   * the only way to make those two numbers differ on purpose.
+   */
+  test('a pinned list leaves no unclaimed px, and saves what it painted', async ({
+    page,
+    request,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await page.setViewportSize({ width: 1680, height: 1000 })
+    await gotoApp(page)
+    await openFirstIssue(page)
+
+    const unclaimed = async (): Promise<number> => {
+      const geom = await page.evaluate(() => {
+        const el = document.querySelector('[data-testid="issue-layout"]') as HTMLElement
+        const sum = getComputedStyle(el)
+          .gridTemplateColumns.split(/\s+/)
+          .reduce((n, part) => n + (Number.parseFloat(part) || 0), 0)
+        return { sum, box: el.getBoundingClientRect().width }
+      })
+      return Math.round(geom.box - geom.sum)
+    }
+
+    // Nothing pinned: the baseline the fix must not move.
+    expect(await unclaimed()).toBeLessThanOrEqual(1)
+
+    // Pull the seam LEFT — the gesture for "make the right pane wider". The
+    // detail column has to absorb the 208px the list gave up.
+    const left = (await page.getByTestId('issue-layout').boundingBox())?.x ?? 0
+    await dragHandle(page, 'layout-resize-list', Math.round(left + 272 + 528))
+    expect(Math.round((await page.getByTestId('terminal-split').boundingBox())?.width ?? 0)).toBe(
+      528,
+    )
+    expect(await unclaimed(), 'a narrow pin must not strand px at the right edge').toBeLessThanOrEqual(
+      1,
+    )
+
+    // Pull it RIGHT, past what the box can afford. The clamp allows 2000px;
+    // the detail's floor does not, so the paint stops short — and the saved
+    // number must stop with it.
+    await dragHandle(page, 'layout-resize-list', 1670)
+    const painted = Math.round(
+      (await page.getByTestId('terminal-split').boundingBox())?.width ?? 0,
+    )
+    expect(painted, 'the seam cannot cross the detail floor').toBeLessThan(1398)
+    expect(await unclaimed()).toBeLessThanOrEqual(1)
+    await expect
+      .poll(async () => {
+        const doc = (await (await request.get(SETTINGS_URL)).json()) as {
+          ui?: { tokens?: { layout?: Record<string, string> } }
+        }
+        return doc.ui?.tokens?.layout?.list ?? null
+      })
+      .toBe(`${painted}px`)
+
+    expect(appConsoleErrors(errors)).toEqual([])
   })
 })
 

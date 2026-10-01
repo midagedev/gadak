@@ -840,11 +840,32 @@
     Track mins come from --layout-* tokens owned by viewport-regime.ts
     (sidebar 272 + list 390 + detail 438 = 1100). Overlay
     geometry is NOT decided here — see [data-viewport-regime="overlay"].
+
+    GDK-2047 (2026-10-01): --layout-detail-grow is why the detail track is a
+    minmax() rather than the bare clamp() it was. --layout-list REPLACES the
+    1fr beside it, so the moment a width is pinned — by a drag or by
+    `gadak config set ui.tokens.layout.list` — this grid had no flexible
+    track left at all, and the clamp could not take the slack: a list pinned
+    narrower than its share left a strip of nothing at the right edge (528 +
+    672 against a 1408px content box = 208px belonging to no column), and one
+    pinned wider could not grow, so the seam refused to move while the drag
+    still saved the width the pointer asked for.
+
+    The token is the condition, not a number: viewport-regime.ts installs it
+    as `1fr` exactly when it installs --layout-list, and removes both
+    together. Unset it falls back to 0fr, whose base size is the clamp and
+    whose share of free space is zero — measured identical to the bare
+    clamp this replaced, which is what keeps the default paint from moving.
+
+    The consequence worth saying out loud: with a pin in force the detail is
+    allowed PAST --layout-detail-max. That is the intent. Narrowing the list
+    is how a person asks to read wider — .detail-wide's 2.4fr is the same
+    bargain — and capping at 720 here would just put the dead strip back.
   */
   .issue-layout.detail-open {
     grid-template-columns:
       var(--layout-sidebar) minmax(var(--layout-list-min), var(--layout-list, 1fr))
-      clamp(var(--layout-detail-min), 34vw, var(--layout-detail-max, 720px));
+      minmax(clamp(var(--layout-detail-min), 34vw, var(--layout-detail-max, 720px)), var(--layout-detail-grow, 0fr));
   }
 
   /*
@@ -1023,14 +1044,29 @@
     .issue-layout.detail-open {
       grid-template-columns:
         var(--layout-sidebar) minmax(var(--layout-list-min), var(--layout-list, 1fr))
-        clamp(var(--layout-detail-min), 40vw, var(--layout-detail-max, 720px));
+        minmax(clamp(var(--layout-detail-min), 40vw, var(--layout-detail-max, 720px)), var(--layout-detail-grow, 0fr));
     }
 
-    /* The list keeps a working width; everything past it goes to the page. */
+    /*
+      The list keeps a working width; everything past it goes to the page.
+
+      GDK-2047: both tracks changed shape, and neither default moved. The
+      list was a BARE var(--layout-list, …) — a pinned width was a fixed
+      track with no ceiling, so it took its number out of column 3 and the
+      page got what was left: a 1398px pin on a 1680px window collapsed the
+      native webview's rectangle to 10px, and /desktop/browse/frame was
+      POSTed {w:9}. minmax(0, …) makes the pin a ceiling the grid may fall
+      short of instead of a demand it must meet.
+
+      Column 3 is the same track the docked detail panel sits in (both are
+      `grid-column: 3`), so its floor is the same number: a webview and a
+      description are the same reading column, one window apart.
+    */
     .issue-layout.browse-open,
     .issue-layout.detail-open.browse-open {
       grid-template-columns: var(--layout-sidebar, 272px)
-        var(--layout-list, clamp(640px, 40vw, 800px)) minmax(0, 1fr);
+        minmax(0, var(--layout-list, clamp(640px, 40vw, 800px)))
+        minmax(var(--layout-detail-min), 1fr);
     }
 
     .browse-pane {
