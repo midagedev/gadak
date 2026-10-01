@@ -2,6 +2,47 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## v0.24.1 — 2026-10-01
+
+**The app opens a shell that can see your tools.** A serve launched from
+Finder or the Dock inherits launchd's environment — `PATH=/usr/bin:/bin:
+/usr/sbin:/sbin` and no locale at all, measured on Gadak.app 0.24.0 — and the
+pane's shell is not a login shell, so it never read the two files that would
+fix either. On exactly the installs that get gadak from the cask, the bare
+`gadak` a pane promises was unfindable, every brew-installed tool was missing,
+and zsh's line editor could not see multibyte input. The login shell is asked
+once what its environment is and two things cross: PATH keeps every entry it
+had and gains what only the login shell knew, and the locale is filled only
+when there was none. A shell that is slow or unresolvable leaves the
+environment alone and the pane opens anyway, and `gadak doctor` says which of
+those happened ([GDK-2032]).
+
+**Columns you set stay where you put them.** Pinning the issue list's width —
+by dragging its right edge or with `gadak config set ui.tokens.layout.list` —
+used to leave the detail panel beside it unable to take the slack: narrow the
+list and a strip of nothing opened down the right edge of the window, widen it
+and the seam would not move while the width was saved anyway, after which the
+in-app browser spent that number out of its own column. The column beside a
+pinned list can now take what the list gave up, and a drag saves the width it
+painted rather than the one the pointer asked for ([GDK-2047]). On the same
+screen, a bulk selection can be started and extended from the keyboard —
+Enter and Shift+Enter had been opening the detail instead — and the two
+actions no origin can undo, revoking a pairing and clearing history, now ask
+twice like their quieter neighbours already did ([GDK-2005], [GDK-2006]).
+
+**The phone reads the retro, and the catalogs answer agents straight.** How
+the last week went is now a phone screen: the sentence the desk opens with,
+its four summary numbers, the stalled tail, and what closed — the desk's own
+arithmetic, not a squeezed copy of its week-column table ([GDK-1827]). A
+status whose category gadak has never seen folds the same way on the desk, on
+the phone and in Go, so a feature keyed on it stops working on half the
+accounts and not the other half ([GDK-2004], [GDK-2042]). Agents get four
+things the binary already accepted and the catalog never mentioned —
+`gadak sql --layout`, `issue --link`, labels from `gadak_search`, and
+`sync --source` ([GDK-2017]) — a `no such column` hint now guesses the
+suffixed spellings too ([GDK-2029]), and on an iPhone an address the app will
+not dial says so instead of reporting a network error ([GDK-2009]).
+
 ## v0.24.0 — 2026-09-18
 
 **The terminal works on a phone.** Open a shell in the phone app, or in a phone
@@ -1764,3 +1805,12 @@ priority sorting keyed on `priority_rank`.
 [GDK-1994]: https://gadak.dev/backlog/#/?ks=GDK-1994
 [GDK-1995]: https://gadak.dev/backlog/#/?ks=GDK-1995
 [GDK-1997]: https://gadak.dev/backlog/#/?ks=GDK-1997
+[GDK-2004]: https://gadak.dev/backlog/#/?ks=GDK-2004
+[GDK-2005]: https://gadak.dev/backlog/#/?ks=GDK-2005
+[GDK-2006]: https://gadak.dev/backlog/#/?ks=GDK-2006
+[GDK-2009]: https://gadak.dev/backlog/#/?ks=GDK-2009
+[GDK-2017]: https://gadak.dev/backlog/#/?ks=GDK-2017
+[GDK-2029]: https://gadak.dev/backlog/#/?ks=GDK-2029
+[GDK-2032]: https://gadak.dev/backlog/#/?ks=GDK-2032
+[GDK-2042]: https://gadak.dev/backlog/#/?ks=GDK-2042
+[GDK-2047]: https://gadak.dev/backlog/#/?ks=GDK-2047

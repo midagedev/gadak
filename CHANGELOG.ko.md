@@ -2,6 +2,42 @@
 
 <sub><a href="CHANGELOG.md">English</a> · 한국어. 영문판을 옮긴 것이고, 영문과 함께 갱신합니다(마지막 동기화 2026-09-09).</sub>
 
+## v0.24.1 — 2026-10-01
+
+**앱이 여는 셸이 당신의 도구를 볼 수 있습니다.** Finder나 Dock에서 띄운 serve는
+launchd의 환경을 물려받습니다 — Gadak.app 0.24.0에서 실측한 값은
+`PATH=/usr/bin:/bin:/usr/sbin:/sbin`에 로캘은 아예 없음이었습니다. 그런데 pane의
+셸은 로그인 셸이 아니라서, 그 둘을 고쳐 줄 파일 두 개를 읽을 일이 없었습니다.
+하필 cask로 gadak을 받은 설치에서, pane이 약속하는 맨 `gadak`을 찾을 수 없었고
+brew로 깐 도구가 전부 없었으며 zsh의 라인 에디터가 한글 입력을 보지 못했습니다.
+이제 로그인 셸에게 환경을 한 번 물어보고 넘어오는 것은 둘뿐입니다. PATH는 원래
+있던 항목을 그대로 두고 로그인 셸만 알던 것을 덧붙이고, 로캘은 아무것도 없을 때만
+채웁니다. 셸이 느리거나 찾을 수 없으면 환경을 건드리지 않고 pane은 그대로 열리며,
+둘 중 무엇이었는지는 `gadak doctor`가 말해 줍니다 ([GDK-2032]).
+
+**맞춰 둔 칸은 맞춰 둔 자리에 있습니다.** 이슈 목록의 폭을 고정하면 — 오른쪽
+모서리를 끌거나 `gadak config set ui.tokens.layout.list`로 — 옆의 상세 패널이
+남는 공간을 받지 못했습니다. 목록을 좁히면 창 오른쪽 끝에 아무것도 아닌 띠가
+열렸고, 넓히면 이음매는 움직이지 않는데 폭은 저장돼서, 그다음 앱 안의 브라우저가
+자기 칸에서 그 숫자를 빼 썼습니다. 이제 고정된 목록 옆의 칸이 목록이 내놓은 만큼을
+받고, 드래그는 포인터가 요구한 폭이 아니라 실제로 그려진 폭을 저장합니다
+([GDK-2047]). 같은 화면에서 벌크 선택을 키보드로 시작하고 늘릴 수 있습니다 —
+Enter와 Shift+Enter가 상세를 열어 버리고 있었습니다 — 그리고 origin이 되돌려 줄 수
+없는 두 동작, 페어링 파기와 기록 비우기는 더 조용한 이웃들이 이미 그랬던 것처럼
+두 번 묻습니다 ([GDK-2005], [GDK-2006]).
+
+**폰이 회고를 읽고, 카탈로그가 에이전트에게 곧이곧대로 답합니다.** 지난 한 주가
+어땠는지가 폰 화면이 됐습니다. 데스크가 먼저 꺼내는 문장, 요약의 네 숫자, 아직
+붙잡을 수 있는 멈춘 일, 그리고 닫힌 것 — 주 단위 열 표를 눌러 담은 것이 아니라
+데스크의 계산 그대로입니다 ([GDK-1827]). gadak이 본 적 없는 카테고리의 상태는
+데스크에서도 폰에서도 Go에서도 같은 쪽으로 접힙니다. 그래야 그 값에 기대는 기능이
+어떤 계정에서는 돌고 어떤 계정에서는 안 도는 일이 없습니다 ([GDK-2004],
+[GDK-2042]). 에이전트는 바이너리가 이미 받고 있었지만 카탈로그가 말하지 않던 넷을
+받습니다 — `gadak sql --layout`, `issue --link`, `gadak_search`의 labels,
+`sync --source` ([GDK-2017]). `no such column` 힌트는 접미어가 붙은 철자도 넘겨
+짚고 ([GDK-2029]), 아이폰에서 앱이 걸지 않을 주소는 네트워크 오류가 아니라 걸지
+않는다고 말합니다 ([GDK-2009]).
+
 ## v0.24.0 — 2026-09-18
 
 **폰에서 터미널을 제대로 쓸 수 있습니다.** 폰 앱에서 열든 `tailscale serve`를 거쳐
@@ -1677,3 +1713,12 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1994]: https://gadak.dev/backlog/#/?ks=GDK-1994
 [GDK-1995]: https://gadak.dev/backlog/#/?ks=GDK-1995
 [GDK-1997]: https://gadak.dev/backlog/#/?ks=GDK-1997
+[GDK-2004]: https://gadak.dev/backlog/#/?ks=GDK-2004
+[GDK-2005]: https://gadak.dev/backlog/#/?ks=GDK-2005
+[GDK-2006]: https://gadak.dev/backlog/#/?ks=GDK-2006
+[GDK-2009]: https://gadak.dev/backlog/#/?ks=GDK-2009
+[GDK-2017]: https://gadak.dev/backlog/#/?ks=GDK-2017
+[GDK-2029]: https://gadak.dev/backlog/#/?ks=GDK-2029
+[GDK-2032]: https://gadak.dev/backlog/#/?ks=GDK-2032
+[GDK-2042]: https://gadak.dev/backlog/#/?ks=GDK-2042
+[GDK-2047]: https://gadak.dev/backlog/#/?ks=GDK-2047
