@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/midagedev/gadak/internal/adf"
+	"github.com/midagedev/gadak/internal/atlhttp"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/confluence"
 	"github.com/midagedev/gadak/internal/jira"
@@ -895,27 +896,25 @@ const (
 // classifyReconcileConfirm sorts one confirm-GET error. The readings follow
 // the fetch path's existing attitude (fetchPageRecord): ErrNotFound is
 // "deleted or view-restricted between listing and fetch — not a failure",
-// and 410 joins it — a page this credential can no longer read must not
-// stay in the cache and the FTS index. A dead credential
+// and 410 joins it. A forbidden confirm GET keeps the candidate and lets
+// the pass continue: 403 cannot prove deletion. A dead credential
 // (IsRejectedCredential), a cancelled context, a throttle (429) or a server
 // error (≥500) aborts the pass loudly: those answers say nothing about the
 // page, and the next pass retries. Any other 4xx is an answer about this
 // request only — the candidate is kept for the next pass and the rest of
 // the pass proceeds. Anything unrecognized (network, decode) aborts.
 //
-// 403 is deliberately absent from the gone rule: atlhttp.Do folds 401 and
-// 403 into a rejected credential before the API error mapping runs
-// (internal/atlhttp/auth.go authFromStatus), so a wire 403 arrives here as
-// IsRejectedCredential — confirmAbort — and a Status-403 APIError cannot
-// come off the wire. Whether a restricted page should instead read as gone
-// is an open lead decision (GDK-1887); a synthetic APIError{403} falls
-// through to the undecidable default below.
+// atlhttp.Do retains the status alongside the rejected-credential identity.
+// Only this missing-page confirmation treats 403 as undecidable rather than
+// fatal; listing, body fetches and writes keep their existing auth policy.
 func classifyReconcileConfirm(err error) confirmVerdict {
 	switch {
 	case err == nil:
 		return confirmCheckPage
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return confirmAbort
+	case confirmErrStatus(err) == http.StatusForbidden:
+		return confirmKeep
 	case IsRejectedCredential(err):
 		return confirmAbort
 	case errors.Is(err, confluence.ErrNotFound):
@@ -935,11 +934,14 @@ func classifyReconcileConfirm(err error) confirmVerdict {
 	return confirmAbort
 }
 
-// apiErrStatus reports the APIError status inside err, 0 when there is none.
-// Call it only where classifyReconcileConfirm already proved the shape
-// (confirmKeep): the pair logged for a kept candidate names the status the
-// pass could not decide on.
-func apiErrStatus(err error) int {
+// confirmErrStatus reports the HTTP status inside a confirm error, 0 when
+// there is none. Auth responses carry atlhttp.StatusError; other non-2xx
+// responses carry confluence.APIError.
+func confirmErrStatus(err error) int {
+	var statusErr *atlhttp.StatusError
+	if errors.As(err, &statusErr) {
+		return statusErr.Status
+	}
 	var apiErr *confluence.APIError
 	if errors.As(err, &apiErr) {
 		return apiErr.Status
@@ -977,7 +979,7 @@ func deleteAbsentConfluencePages(ctx context.Context, c *confluence.Client, db *
 					// An answer about this request, not about the page: keep
 					// the row for the next pass and let the other candidates
 					// decide.
-					keptPairs = append(keptPairs, fmt.Sprintf("%s=%d", id, apiErrStatus(err)))
+					keptPairs = append(keptPairs, fmt.Sprintf("%s=%d", id, confirmErrStatus(err)))
 					continue
 				case confirmGone:
 					// Search pagination can omit a still-current page under
