@@ -42,6 +42,18 @@ func (e AuthError) Unwrap() error { return ErrAuth }
 
 func (e AuthError) RejectedCredential() {}
 
+// StatusError preserves a response's HTTP status without changing the
+// underlying error's identity or message. A caller may apply a narrower
+// policy to one operation while other callers still see ErrAuth.
+type StatusError struct {
+	Status int
+	Err    error
+}
+
+func (e *StatusError) Error() string { return e.Err.Error() }
+
+func (e *StatusError) Unwrap() error { return e.Err }
+
 // Auth returns a rejected-credential error named by prefix
 // (Config.ErrPrefix: "jira", "confluence", …).
 func Auth(prefix string) error {
@@ -66,7 +78,10 @@ func Do(ctx context.Context, cfg Config, method, path string, payload []byte, ha
 	}
 	if authErr := authFromStatus(status, cfg.ErrPrefix); authErr != nil {
 		statusLine := fmt.Sprintf("%d %s", status, http.StatusText(status))
-		return status, data, fmt.Errorf("%s %s: %w (%s)", method, path, authErr, statusLine)
+		return status, data, &StatusError{
+			Status: status,
+			Err:    fmt.Errorf("%s %s: %w (%s)", method, path, authErr, statusLine),
+		}
 	}
 	return status, data, nil
 }

@@ -438,6 +438,64 @@ func TestWatchStopsOnConfluenceForbidden(t *testing.T) {
 	}
 }
 
+// A forbidden missing-page confirmation must not mark the wiki source dead:
+// the same Watch process must finish the reconcile and its next incremental.
+func TestWatchContinuesAfterConfluenceReconcileForbidden(t *testing.T) {
+	f := newConfFixture(t)
+	cclient := f.start()
+	db := newMirror(t)
+	cfg := confCfg([]string{"AAA"})
+	if _, err := RunConfluence(context.Background(), cfg, db.DB, Options{Full: true, ConfluenceClient: cclient}); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	delete(f.pages, "1002")
+	f.bodyStatus = map[string]int{"1002": http.StatusForbidden}
+	f.mu.Unlock()
+
+	site := newSite(t, "en")
+	jclient := site.start()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	completed := make(chan struct{}, 2)
+	go func() {
+		done <- Watch(ctx, cfg, db.DB, Options{
+			Client: jclient, ConfluenceClient: cclient, Reconcile: true, Tick: testTick,
+			Log: func(line string) {
+				if strings.HasPrefix(line, "confluence done:") {
+					select {
+					case completed <- struct{}{}:
+					default:
+					}
+				}
+			},
+		})
+	}()
+	defer func() {
+		cancel()
+		if err := <-done; !errors.Is(err, context.Canceled) {
+			t.Errorf("Watch returned %v, want context.Canceled", err)
+		}
+	}()
+
+	timer := time.NewTimer(testNextTickWait)
+	defer timer.Stop()
+	for range 2 {
+		select {
+		case <-completed:
+		case <-timer.C:
+			t.Fatal("Watch must complete the wiki reconcile and the next incremental after a page 403")
+		}
+	}
+	state, err := db.SyncState(context.Background(), ConfluenceSourceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.LastError != nil || state.SyncCount < 3 {
+		t.Fatalf("wiki must keep syncing after a skipped confirm 403: %+v", state)
+	}
+}
+
 // TestWatchRetriesConfluenceTransportError: a 500 is not ErrAuth — the loop
 // must keep requesting Confluence on the next tick instead of skipping it.
 func TestWatchRetriesConfluenceTransportError(t *testing.T) {

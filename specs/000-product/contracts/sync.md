@@ -84,6 +84,10 @@ for a resolvable space succeeds does sync check mirrored pages absent from
 that listing. It confirms each candidate through direct page GET, then
 deletes it only if the local row has not changed since the listing began.
 This includes the last page in an otherwise empty space.
+If a candidate's confirm GET returns 403, sync keeps its existing mirror row,
+logs its page ID and status, and continues confirming other candidates. The
+pass can complete successfully; the retained page remains searchable and is
+checked again on the next reconcile. A 403 alone does not prove deletion.
 An ordinary incremental CQL window cannot prove a deletion. Space-scope
 pruning still removes pages when a space leaves the configured scope.
 
@@ -144,7 +148,10 @@ display language and ignores `Accept-Language`. Two consequences:
   30 s; respect `Retry-After` when present.
 - At most 4 concurrent requests per source by default.
 - A `401` or `403` aborts the run immediately and records `last_error`; retrying
-  a bad credential just burns the rate budget.
+  a bad credential just burns the rate budget. The exception is a Confluence
+  missing-page confirm GET during reconcile: its `403` keeps only that page
+  and lets the pass continue, as described above. Listing, body-fetch and
+  write failures retain the normal credential-rejection policy.
 
 ## Watch mode
 

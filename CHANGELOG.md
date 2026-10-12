@@ -2,6 +2,13 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## Unreleased
+
+A forbidden page no longer stops the wiki reconcile. When a page missing from
+the listing answers 403 on its confirm GET, sync keeps its cached row, logs the
+page ID and status, and continues processing other candidates. Confirmed
+deletions still leave the mirror, and subsequent wiki sync ticks keep running.
+
 ## v0.24.1 — 2026-10-01
 
 **The app opens a shell that can see your tools.** A serve launched from
