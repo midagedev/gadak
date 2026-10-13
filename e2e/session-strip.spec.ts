@@ -107,10 +107,17 @@ async function mockBoundary(page: Page, boundary: string | null): Promise<() => 
   }
 }
 
-/** 30 days before now — crosses enough of the fixture's updated_at spread
- *  that (a)'s n is the fixture's own recent-change count, not a constant. */
-function thirtyDaysAgo(): string {
-  return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+/** Anchor the boundary to the served fixture, which does not age with the
+ *  wall clock. Using today's date eventually leaves no changed issues. */
+async function thirtyDaysBeforeLatestUpdate(page: Page): Promise<string> {
+  const response = await page.request.get('/api/v1/issues/bootstrap/')
+  expect(response.ok()).toBeTruthy()
+  const boot = (await response.json()) as BootBody
+  const timestamps = (boot.issues ?? [])
+    .map((issue) => Date.parse(issue.updated_at ?? ''))
+    .filter(Number.isFinite)
+  expect(timestamps.length, 'the fixture must contain dated issues').toBeGreaterThan(0)
+  return new Date(Math.max(...timestamps) - 30 * 24 * 60 * 60 * 1000).toISOString()
 }
 
 /** Issues strictly after the boundary — changedSince's rule, recomputed in
@@ -127,7 +134,7 @@ test.describe('session strip', () => {
     page,
   }) => {
     const errors = attachConsoleErrors(page)
-    const since = thirtyDaysAgo()
+    const since = await thirtyDaysBeforeLatestUpdate(page)
     const served = await mockBoundary(page, since)
     await gotoApp(page)
 
@@ -262,7 +269,7 @@ test.describe('session strip', () => {
         }),
       })
     })
-    const since = thirtyDaysAgo()
+    const since = await thirtyDaysBeforeLatestUpdate(page)
     const served = await mockBoundary(page, since)
     await gotoApp(page)
 
@@ -300,7 +307,7 @@ test.describe('session strip', () => {
     page,
   }) => {
     const errors = attachConsoleErrors(page)
-    const since = thirtyDaysAgo()
+    const since = await thirtyDaysBeforeLatestUpdate(page)
 
     // ① First visit: no boundary in the header (the body has had none to
     //    strip since 0.22, GDK-1548). The pool lands in IndexedDB; the strip

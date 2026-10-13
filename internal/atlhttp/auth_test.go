@@ -84,6 +84,15 @@ func TestDoClassifies401And403(t *testing.T) {
 			if !errors.Is(err, ErrAuth) {
 				t.Fatalf("err = %v, want ErrAuth", err)
 			}
+			wrapped := fmt.Errorf("caller: %w", err)
+			var statusErr *StatusError
+			if !errors.As(wrapped, &statusErr) || statusErr.Status != code {
+				t.Fatalf("wrapped response must preserve HTTP status %d: %v", code, wrapped)
+			}
+			var rc RejectedCredential
+			if !errors.As(wrapped, &rc) || !errors.Is(wrapped, Auth("third")) {
+				t.Fatalf("response wrapper must preserve rejected-credential identity: %v", wrapped)
+			}
 			if !strings.Contains(err.Error(), "third:") {
 				t.Fatalf("err = %q, want third:", err)
 			}

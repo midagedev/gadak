@@ -115,7 +115,19 @@ func pickInProgressWithChange(t *testing.T, db *sql.DB, first, now time.Time) (i
 // FAIL-first: A1 is the row the pre-guard loop miscounted — it counted the
 // stale comment (delta would be 1), which is the defect this round closes.
 func TestMismatchRecencyGuardWiring(t *testing.T) {
-	now := time.Now().Truncate(time.Second)
+	// The committed fixture does not advance with the wall clock. Anchor
+	// the window to its latest status change, leaving room for both claims.
+	_, anchorDB := demoFixture(t, false)
+	var latest string
+	if err := anchorDB.QueryRow(`SELECT max(status_changed_at) FROM issues
+		WHERE status_category = 'inprogress'`).Scan(&latest); err != nil {
+		t.Fatal(err)
+	}
+	anchor, ok := parseTime(latest)
+	if !ok {
+		t.Fatalf("invalid fixture status change: %q", latest)
+	}
+	now := anchor.Add(24 * time.Hour).Truncate(time.Second)
 	since := 21 * 24 * time.Hour
 	first := Buckets(now, since)[0].From
 
