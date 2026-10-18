@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -388,8 +389,11 @@ func TestScopeChangeFetchesWhatTheNewProjectAlreadyHad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !res.Full {
-		t.Errorf("a pass under a widened scope must be full; the stored watermark was earned on the old scope")
+	// GDK-2051 (2026-10-18) re-pinned this from "the pass is full": the contract is that the
+	// new project's backlog arrives, and the remedy is a back-fill of only the
+	// added project (see scope_widen_test.go), not a full pass over every one.
+	if !reflect.DeepEqual(res.Backfilled, []string{"LOC"}) {
+		t.Errorf("a pass under a widened scope must back-fill the added project; Backfilled = %v", res.Backfilled)
 	}
 	got := mirrorKeys(t, db)
 	if len(got) != 3 {

@@ -122,6 +122,9 @@ type Result struct {
 	// build or an upsert (GDK-1075). A quiet tick reports Fetched 0 and every
 	// window hit here. Confluence leaves it at 0 (its gate reports PageSkips).
 	Skips int
+	// Backfilled names the projects a widened scope added and this pass read in
+	// full history (GDK-2051); the projects already in scope were not re-read.
+	Backfilled []string
 }
 
 func (o Options) logf(format string, args ...any) {
@@ -429,15 +432,8 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 				}
 			}
 		}
-	} else {
-		jql := incrementalJQL(cfg.Projects, state.Watermark)
-		beginSearch("incremental: "+scopeLabel(cfg)+" — changes since "+sinceLabel(state.Watermark), "", false)
-		if pre.discoveryMode && !cfg.HasBuiltInOrigin() {
-			opts.logf("tip: run `gadak sync --full` once to auto-configure custom fields")
-		}
-		if err := c.Search(ctx, jql, fieldIDs, true, page); err != nil {
-			return record(ctx, cfg, db, SourceID, err)
-		}
+	} else if err := incrementalSearch(ctx, c, cfg, opts, state, pre, fieldIDs, page, beginSearch, res); err != nil {
+		return record(ctx, cfg, db, SourceID, err)
 	}
 
 	res.Watermark = maxRaw
@@ -536,6 +532,32 @@ func runJiraPass(ctx context.Context, c *jira.Client, cfg *config.Config, db *st
 	return nil
 }
 
+// incrementalSearch is the watermark-incremental leg of a Jira pass, then the
+// back-fill of a widened scope (GDK-2051). A back-fill failure returns before
+// RecordSync, so the old scope signature stays and the next pass redoes the
+// widen; the watermark is max over everything fetched, and the back-filled rows
+// sit behind it, so it cannot move backwards.
+func incrementalSearch(ctx context.Context, c *jira.Client, cfg *config.Config, opts Options, state store.SyncState, pre jiraPreflight,
+	fieldIDs []string, page func([]jira.Issue) error, beginSearch func(startLine, countJQL string, withAbout bool), res *Result) error {
+	jql := incrementalJQL(cfg.Projects, state.Watermark)
+	beginSearch("incremental: "+scopeLabel(cfg)+" — changes since "+sinceLabel(state.Watermark), "", false)
+	if pre.discoveryMode && !cfg.HasBuiltInOrigin() {
+		opts.logf("tip: run `gadak sync --full` once to auto-configure custom fields")
+	}
+	if err := c.Search(ctx, jql, fieldIDs, true, page); err != nil {
+		return err
+	}
+	for _, p := range pre.backfill {
+		bj := fullJQL(p)
+		beginSearch("backfill: "+p, bj, true)
+		if err := c.Search(ctx, bj, fieldIDs, true, page); err != nil {
+			return err
+		}
+		res.Backfilled = append(res.Backfilled, p)
+	}
+	return nil
+}
+
 // jiraPreflight is what runJiraPass's preflight decided: whether this pass
 // runs in discovery mode, the locale and scope stamps the closing RecordSync
 // must persist so the next pass can diff against them, and whether the full
@@ -545,6 +567,9 @@ type jiraPreflight struct {
 	syncedLocale  string
 	localeRebuild bool
 	scope         string
+	// backfill is the added projects of a widened scope (GDK-2051): the pass
+	// stays incremental and reads only these in full history.
+	backfill []string
 }
 
 // fullPassReasons is the preflight that can flip an incremental pass to a
@@ -593,7 +618,13 @@ func fullPassReasons(ctx context.Context, cfg *config.Config, db *store.DB, opts
 	// forces nothing — this pass records it, and the two-way reconcile
 	// covers that mirror in the meantime.
 	pre.scope = scopeSignature(cfg.Projects)
-	if !res.Full && state.ScopeHash != "" && state.ScopeHash != pre.scope {
+	if added, ok := widenedProjects(state.ScopeHash, pre.scope, cfg.Projects); ok && !res.Full {
+		// Only the added projects lack history behind the watermark; the
+		// projects already in scope are covered by it (GDK-2051). The pass
+		// stays incremental and back-fills just these, after it.
+		pre.backfill = added
+		opts.logf("scope widened: + %s — backfilling only the added project(s) (GDK-2051)", strings.Join(added, ", "))
+	} else if !res.Full && state.ScopeHash != "" && state.ScopeHash != pre.scope {
 		res.Full = true
 		opts.logf("scope changed %s → %s: one full pass — an incremental one cannot see what the new scope already had (GDK-1400)",
 			state.ScopeHash, pre.scope)
@@ -615,6 +646,7 @@ func fullPassReasons(ctx context.Context, cfg *config.Config, db *store.DB, opts
 		}
 		if !res.Full && stored != pre.syncedLocale {
 			res.Full = true
+			pre.backfill = nil // the full pass covers the added projects too
 			pre.localeRebuild = true
 			opts.logf("locale changed %s → %s: rebuilding the mirror — display names follow the workspace language (GDK-597)",
 				stored, pre.syncedLocale)
@@ -1651,6 +1683,38 @@ func incrementalJQL(projects []string, watermark string) string {
 	}
 	return fmt.Sprintf("project in (%s) AND updated >= %q ORDER BY updated ASC",
 		quoteList(projects), floor)
+}
+
+// widenedProjects reports whether the scope moved from the stored signature
+// to the configured one by only adding explicit projects, and which ones. Any
+// other move — narrowed, replaced, "*" on either side — is not a widen.
+func widenedProjects(stored, current string, projects []string) ([]string, bool) {
+	if stored == "*" || current == "*" || stored == "" || stored == current {
+		return nil, false
+	}
+	old := map[string]bool{}
+	for _, p := range strings.Split(stored, ",") {
+		old[p] = true
+	}
+	now := map[string]bool{}
+	for _, p := range strings.Split(current, ",") {
+		now[p] = true
+	}
+	for p := range old {
+		if !now[p] {
+			return nil, false
+		}
+	}
+	var added []string
+	seen := map[string]bool{}
+	for _, p := range projects {
+		p = strings.TrimSpace(p)
+		if p != "" && !old[p] && !seen[p] {
+			seen[p] = true
+			added = append(added, p)
+		}
+	}
+	return added, len(added) > 0
 }
 
 // scopeSignature fingerprints a source's configured scope — Jira project keys,

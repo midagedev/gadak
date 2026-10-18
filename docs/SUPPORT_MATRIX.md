@@ -98,7 +98,7 @@ Markers:
 | **Surface** · config.json `capabilities` — the origin's statement of its own abilities (GDK-1152) | ✅[^152] | ✅[^153] | ✅[^154] | ✅[^155] |
 
 [^1]: Atlassian Cloud REST (`internal/jira/client.go:116`), mirrored by the
-    Jira-family sync pass (`internal/sync/run.go:50`, `internal/sync/sync.go:156`).
+    Jira-family sync pass (`internal/sync/run.go:50`, `internal/sync/sync.go:163`).
 
 [^2]: Read-only GraphQL at `api.linear.app` (`internal/linear/client.go`),
     mirrored by the Linear pass (`internal/sync/run.go:62`,
@@ -126,7 +126,7 @@ Markers:
 [^8]: Same in-memory evaluation; a clause over a column Linear does not
     populate matches nothing rather than erroring.
 
-[^9]: Comments mirror with the issue (`internal/sync/sync.go:1185`).
+[^9]: Comments mirror with the issue (`internal/sync/sync.go:1221`).
 
 [^10]: Fetched as follow-up passes after the issue list — comments, labels,
     attachments each round-trip once (`internal/sync/linear.go:110`); comment
@@ -201,16 +201,16 @@ Markers:
     app (`internal/server/read.go:562`).
 
 [^22]: Opt-in: `dev_status` in config gates the fetch and the panel
-    (`internal/sync/sync.go:1298`).
+    (`internal/sync/sync.go:1334`).
 
 [^23]: Linear exposes no development panel to mirror — the Linear record
     builder has no dev-link half (`internal/sync/linear.go`).
 
-[^24]: Always fetched, embedded or paired (`internal/sync/sync.go:1772`);
+[^24]: Always fetched, embedded or paired (`internal/sync/sync.go:1840`);
     `dev link|deploy|build` writes pass through (`cmd/gadak/dev.go:55`,
     `issuetap/docs/COMPATIBILITY.md:78`).
 
-[^25]: Mirrored with the issue row (`internal/sync/sync.go:1185`).
+[^25]: Mirrored with the issue row (`internal/sync/sync.go:1221`).
 
 [^26]: Labels arrive as a follow-up fetch (`internal/sync/linear.go:113`).
 
@@ -289,7 +289,7 @@ Markers:
 [^40]: Editable set with allowed values (`issuetap/docs/COMPATIBILITY.md:73`).
 
 [^41]: `parent_key` mirrors the direct parent; `epic_key` (nearest
-    hierarchy-level-1 ancestor) is derived at sync (`internal/sync/sync.go:1266`).
+    hierarchy-level-1 ancestor) is derived at sync (`internal/sync/sync.go:1302`).
 
 [^42]: `parent_key` is a true mapping from `Issue.parent`; `epic_key` stays
     NULL — "epic" is a Jira-ism that would lie whenever a team nests
@@ -573,7 +573,7 @@ Markers:
 
 [^118]: v2 comment bodies are wiki-markup strings and land in `body_text`
     as-is; the visibility block is read into `comments.visibility_type` /
-    `visibility_value` (`internal/sync/sync.go:1318`). Measured: a comment
+    `visibility_value` (`internal/sync/sync.go:1354`). Measured: a comment
     restricted to the Administrators role mirrors as `role` /
     `Administrators`.
 
@@ -616,7 +616,7 @@ Markers:
     through.
 
 [^125]: Server publishes no `hierarchyLevel` on issue types; sub-tasks come
-    from the `subtask` flag (`internal/sync/sync.go:1282`) and epics are
+    from the `subtask` flag (`internal/sync/sync.go:1318`) and epics are
     derived from who has a standard child (`internal/store/write.go:171`,
     GDK-1658). A standard issue's epic is the Epic Link custom field, read
     into `parent_key` / `epic_key` (GDK-1651). Measured: epic → story →
@@ -744,7 +744,7 @@ this table from the code instead of maintaining it by hand is GDK-1301.
     (`internal/sync/linear.go:428`); GDK-1299.
 
 [^107]: The link-type catalog is fetched once per sync run
-    (`internal/sync/sync.go:210`) and cached into `link_types`; `open_blockers`
+    (`internal/sync/sync.go:217`) and cached into `link_types`; `open_blockers`
     resolves which types block from that catalog, never a hardcoded name
     (`internal/store/flow.go:125`, `:158`), and `gadak ready` reads the column
     (`cmd/gadak/list.go:119`). "Ready" means no *recorded* open blocker —
@@ -809,7 +809,7 @@ this table from the code instead of maintaining it by hand is GDK-1301.
 [^143]: The sprint field's id is per-site, so its changelog rows arrived under
     that site's own custom field id and nothing could ask for them; sync
     normalises the field to `sprint` using the id it already discovers for the
-    issue field (`internal/sync/sync.go:1518`, `internal/sync/sprint.go`).
+    issue field (`internal/sync/sync.go:1554`, `internal/sync/sprint.go`).
     `Derive` then counts the distinct sprints an issue has entered
     (`internal/store/derive.go`), reading both origin shapes — Jira's growing
     membership list and the built-in tracker's single-id move — with one rule.
