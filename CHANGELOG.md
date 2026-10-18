@@ -4,10 +4,9 @@
 
 ## Unreleased
 
-A forbidden page no longer stops the wiki reconcile. When a page missing from
-the listing answers 403 on its confirm GET, sync keeps its cached row, logs the
-page ID and status, and continues processing other candidates. Confirmed
-deletions still leave the mirror, and subsequent wiki sync ticks keep running.
+**Sync stops doing work it does not need, and stops reporting losses that did not happen.** Adding one project to `projects` used to re-read every project: measured, four existing projects and one new one cost 13,410 issues and ten minutes. A scope that only widens now stays incremental and reads the full history of the added projects after it; narrowing or replacing the scope still takes one full pass ([GDK-2051]). A write's refresh read the issue back through Jira search, which sees a new issue seconds late, so `gadak create` printed "issue not found upstream" for an issue it had just made — four of six in one batch — and the same miss after an edit could drop a live row from the cache. A miss is now checked with a direct read of the issue: only a 404 removes it, and an issue that exists is searched again for up to 3.5 s ([GDK-2050], [GDK-2054]). A page that answers 403 when the wiki reconcile checks it is kept and logged, and the pass goes on with the other pages instead of stopping wiki sync.
+
+**Errors name the move that works.** A Markdown comment with inline code inside bold text was rejected by Jira with a bare 400 INVALID_INPUT. The converter no longer puts the bold mark on code, a pair Jira's document format does not allow ([GDK-1892]). `gadak sql` rejects an unknown flag with the flags it accepts, and answers `--format json` with `--json` ([GDK-2030]); asking `comments` for `key` points at the join to `items` instead of at the `issues` table ([GDK-2053]). A sync that failed because the credential was rejected says to sign in again with `gadak init` or to turn wiki sync off, instead of suggesting a retry that fails the same way ([GDK-2049]). After an upgrade, the installed skill file is checked at once instead of on the next UTC day ([GDK-2031]).
 
 ## v0.24.1 — 2026-10-01
 
@@ -1784,6 +1783,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1886]: https://gadak.dev/backlog/#/?ks=GDK-1886
 [GDK-1888]: https://gadak.dev/backlog/#/?ks=GDK-1888
 [GDK-1889]: https://gadak.dev/backlog/#/?ks=GDK-1889
+[GDK-1892]: https://gadak.dev/backlog/#/?ks=GDK-1892
 [GDK-1897]: https://gadak.dev/backlog/#/?ks=GDK-1897
 [GDK-1898]: https://gadak.dev/backlog/#/?ks=GDK-1898
 [GDK-1932]: https://gadak.dev/backlog/#/?ks=GDK-1932
@@ -1818,6 +1818,13 @@ priority sorting keyed on `priority_rank`.
 [GDK-2009]: https://gadak.dev/backlog/#/?ks=GDK-2009
 [GDK-2017]: https://gadak.dev/backlog/#/?ks=GDK-2017
 [GDK-2029]: https://gadak.dev/backlog/#/?ks=GDK-2029
+[GDK-2030]: https://gadak.dev/backlog/#/?ks=GDK-2030
+[GDK-2031]: https://gadak.dev/backlog/#/?ks=GDK-2031
 [GDK-2032]: https://gadak.dev/backlog/#/?ks=GDK-2032
 [GDK-2042]: https://gadak.dev/backlog/#/?ks=GDK-2042
 [GDK-2047]: https://gadak.dev/backlog/#/?ks=GDK-2047
+[GDK-2049]: https://gadak.dev/backlog/#/?ks=GDK-2049
+[GDK-2050]: https://gadak.dev/backlog/#/?ks=GDK-2050
+[GDK-2051]: https://gadak.dev/backlog/#/?ks=GDK-2051
+[GDK-2053]: https://gadak.dev/backlog/#/?ks=GDK-2053
+[GDK-2054]: https://gadak.dev/backlog/#/?ks=GDK-2054

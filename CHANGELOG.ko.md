@@ -4,10 +4,9 @@
 
 ## Unreleased
 
-권한이 없는 페이지 하나가 위키 대조 작업 전체를 중단하지 않습니다. 목록에서
-빠진 페이지를 직접 확인할 때 403이 반환되면 기존 미러 행을 유지하고 페이지 ID와
-상태 코드를 로그에 남긴 뒤 다른 후보를 계속 처리합니다. 삭제가 확인된 페이지는
-미러에서 제거하고, 이후 위키 동기화도 계속 실행합니다.
+**동기화가 필요 없는 일을 덜 하고, 일어나지 않은 손실을 보고하지 않습니다.** `projects`에 프로젝트 하나를 더하면 모든 프로젝트를 다시 읽었습니다. 실측으로 기존 넷에 하나를 더했을 때 13,410건, 10분이 걸렸습니다. 이제 범위가 넓어지기만 했으면 증분 동기화를 그대로 하고, 더해진 프로젝트만 전체 이력을 받습니다. 범위를 줄이거나 바꾸면 지금처럼 전체를 한 번 받습니다([GDK-2051]). 쓰기 직후의 갱신은 Jira 검색으로 이슈를 다시 읽는데, 검색은 새 이슈를 몇 초 늦게 봅니다. 그래서 `gadak create`가 방금 만든 이슈를 두고 "issue not found upstream"이라고 했고(한 번의 일괄 생성에서 여섯 건 중 네 건), 편집 직후 같은 일이 생기면 살아 있는 행이 캐시에서 지워질 수 있었습니다. 이제 검색에서 못 찾으면 이슈를 직접 읽어 확인합니다. 404일 때만 지우고, 있는 이슈는 최대 3.5초 동안 다시 검색합니다([GDK-2050], [GDK-2054]). 위키 대조 중 403을 돌려주는 페이지는 남겨 두고 로그에 적은 뒤, 위키 동기화를 멈추지 않고 나머지 페이지를 계속 처리합니다.
+
+**오류가 실제로 통하는 다음 행동을 알려 줍니다.** 굵은 글씨 안에 인라인 코드가 든 마크다운 댓글을 Jira가 400 INVALID_INPUT 한 줄로 거절했습니다. 이제 변환기가 코드에 굵게 표시를 붙이지 않습니다. Jira 문서 형식이 그 조합을 허용하지 않기 때문입니다([GDK-1892]). `gadak sql`은 모르는 플래그를 받으면 받는 플래그 목록을 보여 주고, `--format json`에는 `--json`을 알려 줍니다([GDK-2030]). `comments`에서 `key`를 찾으면 `issues` 테이블이 아니라 `items`와의 조인을 안내합니다([GDK-2053]). 자격증명이 거부돼 실패한 동기화는 같은 이유로 또 실패할 재시도 대신 `gadak init`으로 다시 인증하거나 위키 동기화를 끄라고 안내합니다([GDK-2049]). 업그레이드 뒤에는 설치된 스킬 파일을 다음 UTC 날짜까지 기다리지 않고 바로 확인합니다([GDK-2031]).
 
 ## v0.24.1 — 2026-10-01
 
@@ -1692,6 +1691,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1886]: https://gadak.dev/backlog/#/?ks=GDK-1886
 [GDK-1888]: https://gadak.dev/backlog/#/?ks=GDK-1888
 [GDK-1889]: https://gadak.dev/backlog/#/?ks=GDK-1889
+[GDK-1892]: https://gadak.dev/backlog/#/?ks=GDK-1892
 [GDK-1897]: https://gadak.dev/backlog/#/?ks=GDK-1897
 [GDK-1898]: https://gadak.dev/backlog/#/?ks=GDK-1898
 [GDK-1932]: https://gadak.dev/backlog/#/?ks=GDK-1932
@@ -1726,6 +1726,13 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-2009]: https://gadak.dev/backlog/#/?ks=GDK-2009
 [GDK-2017]: https://gadak.dev/backlog/#/?ks=GDK-2017
 [GDK-2029]: https://gadak.dev/backlog/#/?ks=GDK-2029
+[GDK-2030]: https://gadak.dev/backlog/#/?ks=GDK-2030
+[GDK-2031]: https://gadak.dev/backlog/#/?ks=GDK-2031
 [GDK-2032]: https://gadak.dev/backlog/#/?ks=GDK-2032
 [GDK-2042]: https://gadak.dev/backlog/#/?ks=GDK-2042
 [GDK-2047]: https://gadak.dev/backlog/#/?ks=GDK-2047
+[GDK-2049]: https://gadak.dev/backlog/#/?ks=GDK-2049
+[GDK-2050]: https://gadak.dev/backlog/#/?ks=GDK-2050
+[GDK-2051]: https://gadak.dev/backlog/#/?ks=GDK-2051
+[GDK-2053]: https://gadak.dev/backlog/#/?ks=GDK-2053
+[GDK-2054]: https://gadak.dev/backlog/#/?ks=GDK-2054

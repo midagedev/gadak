@@ -4,10 +4,9 @@
 
 ## Unreleased
 
-権限のないページがあっても、ウィキの照合処理が止まらなくなりました。一覧から消えた
-ページの確認GETが403を返した場合は、キャッシュ済みの行を保持し、ページIDと
-ステータスをログに記録して、残りの候補の処理を続けます。削除を確認できたページは
-引き続きミラーから取り除かれ、その後のウィキの定期同期も継続します。
+**同期は要らない仕事を減らし、起きていない欠損を報告しなくなりました。**`projects`にプロジェクトを一つ足すと、すべてのプロジェクトを読み直していました。実測では既存の四つに一つ足しただけで13,410件、10分かかりました。範囲が広がっただけなら同期は差分のまま進み、足したプロジェクトだけ全履歴を取ります。範囲を狭めたり入れ替えたりしたときは、これまでどおり全体を一度取ります([GDK-2051])。書き込み直後の更新はJiraの検索で課題を読み直しますが、検索は新しい課題を数秒遅れて見ます。そのため`gadak create`が作ったばかりの課題に「issue not found upstream」と出し(一回の一括作成で六件中四件)、編集直後に同じことが起きると生きている行がキャッシュから消えることがありました。いまは検索で見つからなければ課題を直接読んで確かめます。404のときだけ消し、存在する課題は最大3.5秒まで検索し直します([GDK-2050]、[GDK-2054])。ウィキの照合で403を返すページは残してログに書き、ウィキ同期を止めずに残りのページを続けます。
+
+**エラーが、本当に効く次の手を示します。**太字の中にインラインコードを入れたMarkdownのコメントは、Jiraに400 INVALID_INPUTの一行で拒否されていました。変換器はもうコードに太字の印を付けません。Jiraの文書形式がその組み合わせを許さないためです([GDK-1892])。`gadak sql`は知らないフラグに受け付けるフラグの一覧を返し、`--format json`には`--json`を示します([GDK-2030])。`comments`で`key`を探すと、`issues`テーブルではなく`items`との結合を案内します([GDK-2053])。資格情報が拒否されて失敗した同期は、同じ理由でまた失敗する再試行ではなく、`gadak init`での再認証かウィキ同期の停止を案内します([GDK-2049])。アップグレードの後は、インストール済みのスキルファイルを次のUTC日付を待たずにすぐ確かめます([GDK-2031])。
 
 ## v0.24.1 — 2026-10-01
 
@@ -1783,6 +1782,7 @@ Jiraサイトでも同じ意味になる軸をキーにします。解決の判�
 [GDK-1886]: https://gadak.dev/backlog/#/?ks=GDK-1886
 [GDK-1888]: https://gadak.dev/backlog/#/?ks=GDK-1888
 [GDK-1889]: https://gadak.dev/backlog/#/?ks=GDK-1889
+[GDK-1892]: https://gadak.dev/backlog/#/?ks=GDK-1892
 [GDK-1897]: https://gadak.dev/backlog/#/?ks=GDK-1897
 [GDK-1898]: https://gadak.dev/backlog/#/?ks=GDK-1898
 [GDK-1932]: https://gadak.dev/backlog/#/?ks=GDK-1932
@@ -1817,6 +1817,13 @@ Jiraサイトでも同じ意味になる軸をキーにします。解決の判�
 [GDK-2009]: https://gadak.dev/backlog/#/?ks=GDK-2009
 [GDK-2017]: https://gadak.dev/backlog/#/?ks=GDK-2017
 [GDK-2029]: https://gadak.dev/backlog/#/?ks=GDK-2029
+[GDK-2030]: https://gadak.dev/backlog/#/?ks=GDK-2030
+[GDK-2031]: https://gadak.dev/backlog/#/?ks=GDK-2031
 [GDK-2032]: https://gadak.dev/backlog/#/?ks=GDK-2032
 [GDK-2042]: https://gadak.dev/backlog/#/?ks=GDK-2042
 [GDK-2047]: https://gadak.dev/backlog/#/?ks=GDK-2047
+[GDK-2049]: https://gadak.dev/backlog/#/?ks=GDK-2049
+[GDK-2050]: https://gadak.dev/backlog/#/?ks=GDK-2050
+[GDK-2051]: https://gadak.dev/backlog/#/?ks=GDK-2051
+[GDK-2053]: https://gadak.dev/backlog/#/?ks=GDK-2053
+[GDK-2054]: https://gadak.dev/backlog/#/?ks=GDK-2054
