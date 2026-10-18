@@ -1106,6 +1106,7 @@ type unknownFlagErr struct {
 	token    string
 	accepted []string
 	cmd      string
+	hint     string // optional "did you mean …?" line, empty for most verbs
 }
 
 func (e *unknownFlagErr) Error() string {
@@ -1114,6 +1115,9 @@ func (e *unknownFlagErr) Error() string {
 		fmt.Fprintf(&b, "unknown flag %s", e.token)
 	} else {
 		fmt.Fprintf(&b, "unknown flag %s — accepted: %s", e.token, strings.Join(e.accepted, ", "))
+	}
+	if e.hint != "" {
+		fmt.Fprintf(&b, " — %s", e.hint)
 	}
 	fmt.Fprintf(&b, "\nrun \"gadak %s --help\" for examples", e.cmd)
 	return b.String()

@@ -1813,3 +1813,27 @@ func TestSkillInstallExplicitUnderGadakHomeStillWorks(t *testing.T) {
 		t.Fatalf("the deliberate install must land: %v", err)
 	}
 }
+
+// GDK-2031: the daily stamp written by the previous release must not hold
+// the first check of a newly installed binary off for the rest of the UTC day.
+func TestSkillAutoSyncDueAfterVersionChange(t *testing.T) {
+	now := time.Date(2026, 10, 18, 9, 0, 0, 0, time.UTC)
+	today := now.Add(-time.Hour).Format(time.RFC3339)
+	cases := []struct {
+		name  string
+		stamp skillAutoSyncStamp
+		cur   string
+		want  bool
+	}{
+		{"same version same day", skillAutoSyncStamp{LastCheck: today, Version: "0.24.1"}, "0.24.1", false},
+		{"upgrade same day", skillAutoSyncStamp{LastCheck: today, Version: "0.23.1"}, "0.24.1", true},
+		{"old stamp without version", skillAutoSyncStamp{LastCheck: today}, "0.24.1", true},
+		{"same version yesterday", skillAutoSyncStamp{LastCheck: now.Add(-24 * time.Hour).Format(time.RFC3339), Version: "0.24.1"}, "0.24.1", true},
+		{"no stamp", skillAutoSyncStamp{}, "0.24.1", true},
+	}
+	for _, c := range cases {
+		if got := skillAutoSyncDue(c.stamp, c.cur, now); got != c.want {
+			t.Errorf("%s: due = %v, want %v", c.name, got, c.want)
+		}
+	}
+}

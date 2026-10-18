@@ -271,3 +271,45 @@ func TestSuggestColumnSuffixMisses(t *testing.T) {
 		t.Errorf("created → %q, want created_at", got)
 	}
 }
+
+// GDK-2053: a table that hangs off items.id through item_id has no key; the
+// useful answer is the join, not "query issues" and not a did-you-mean that
+// names a column the queried table lacks.
+func TestWithColumnSuggestionItemChildKeyJoin(t *testing.T) {
+	db, err := sql.Open("sqlite", "file::memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`CREATE TABLE issues (key TEXT, summary TEXT);
+		CREATE TABLE items (id TEXT, key TEXT);
+		CREATE TABLE comments (id TEXT, item_id TEXT, author TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+	hintFor := func(q string) string {
+		rows, err := db.Query(q)
+		if err == nil {
+			rows.Close()
+			t.Fatalf("query %q unexpectedly succeeded", q)
+		}
+		return WithColumnSuggestion(db, q, err).Error()
+	}
+	for _, q := range []string{
+		`SELECT key, author FROM comments`,
+		`SELECT issue_key, author FROM comments`,
+		`SELECT c.key FROM comments c`,
+	} {
+		got := hintFor(q)
+		if !strings.Contains(got, "JOIN items it ON it.id = comments.item_id") || !strings.Contains(got, "it.key") {
+			t.Errorf("%q: join hint missing: %s", q, got)
+		}
+		if strings.Contains(got, "did you mean") || strings.Contains(got, "query issues") {
+			t.Errorf("%q: hint names a column/table comments does not have: %s", q, got)
+		}
+	}
+	// A table with no item_id keeps the old sentence.
+	got := hintFor(`SELECT key, zz FROM items WHERE nope = 1 AND key2 = 1`)
+	if strings.Contains(got, "JOIN items") {
+		t.Errorf("join hint leaked onto a non-child table: %s", got)
+	}
+}

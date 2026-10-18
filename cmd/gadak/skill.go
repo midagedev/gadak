@@ -456,6 +456,9 @@ const skillAutoSyncStampName = "skill-autosync.json"
 // case — already checked today — costs one small-file read and no skill I/O.
 type skillAutoSyncStamp struct {
 	LastCheck string `json:"last_check"` // RFC3339, UTC
+	// Version is the binary that ran that check. A different binary ignores
+	// the date (GDK-2031); a stamp without the field counts as different.
+	Version string `json:"version,omitempty"`
 }
 
 // skillAutoSyncSkip names the commands the hook never runs for:
@@ -486,23 +489,31 @@ func skillAutoSyncStampPath() (string, error) {
 // lastSkillAutoCheck returns the stamp's last_check, or "" for a missing,
 // unreadable or corrupt stamp — which simply means "check now".
 func lastSkillAutoCheck() string {
+	return readSkillAutoSyncStamp().LastCheck
+}
+
+// readSkillAutoSyncStamp is the zero stamp for a missing, unreadable or
+// corrupt file.
+func readSkillAutoSyncStamp() skillAutoSyncStamp {
+	var s skillAutoSyncStamp
 	p, err := skillAutoSyncStampPath()
 	if err != nil {
-		return ""
+		return s
 	}
 	raw, err := os.ReadFile(p)
 	if err != nil {
-		return ""
+		return s
 	}
-	var s skillAutoSyncStamp
 	if err := json.Unmarshal(raw, &s); err != nil {
-		return ""
+		return skillAutoSyncStamp{}
 	}
-	return s.LastCheck
+	return s
 }
 
+// writeSkillAutoSyncStamp records the check with the running binary's
+// version (the package-level `version`).
 func writeSkillAutoSyncStamp(path string, now time.Time) {
-	raw, err := json.MarshalIndent(skillAutoSyncStamp{LastCheck: now.Format(time.RFC3339)}, "", "  ")
+	raw, err := json.MarshalIndent(skillAutoSyncStamp{LastCheck: now.Format(time.RFC3339), Version: version}, "", "  ")
 	if err != nil {
 		return
 	}
@@ -523,6 +534,18 @@ func skillAutoSyncCheckedToday(stamp string, now time.Time) bool {
 	return y1 == y2 && m1 == m2 && d1 == d2
 }
 
+// skillAutoSyncDue is the rate-limit decision: check unless this binary
+// already checked today. A different binary version re-checks at once — the
+// daily date was written by the previous release, so after an upgrade it
+// vouched for a copy that release judged, not this one (GDK-2031). What
+// protects repo hooks and dev builds is skillAutoWriteAllowed, not this.
+func skillAutoSyncDue(stamp skillAutoSyncStamp, curVersion string, now time.Time) bool {
+	if stamp.Version != curVersion {
+		return true
+	}
+	return !skillAutoSyncCheckedToday(stamp.LastCheck, now)
+}
+
 // maybeAutoSyncSkill is the once-a-day hook main() puts on the dispatch path.
 // It never returns an error and never prints unless it actually updated the
 // copy: any failure is swallowed (a read-only gadak home is a supported
@@ -536,7 +559,7 @@ func maybeAutoSyncSkill(w io.Writer, cmd string) {
 		return
 	}
 	now := time.Now().UTC()
-	if skillAutoSyncCheckedToday(lastSkillAutoCheck(), now) {
+	if !skillAutoSyncDue(readSkillAutoSyncStamp(), version, now) {
 		return
 	}
 	stampPath, err := skillAutoSyncStampPath()

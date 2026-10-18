@@ -120,7 +120,7 @@ func warnIfStale(db freshness.Querier) {
 	case freshness.StateNeverSynced:
 		warn("the mirror has never finished a sync — run `gadak sync`")
 	case freshness.StateSyncFailed:
-		warn("last sync failed (%s): %s", freshness.FormatSourceID(rep.SourceID), rep.LastError)
+		warn("%s", syncFailedWarning(rep))
 	case freshness.StateStaleSource:
 		warn("%s", staleSourceWarning(rep.SourceID, rep.SyncedAt, rep.Age))
 	}
@@ -133,6 +133,22 @@ func warnIfStale(db freshness.Querier) {
 func confluenceConfigured() bool {
 	cfg, err := config.Load()
 	return err == nil && cfg.Confluence != nil
+}
+
+// syncFailedWarning is the failed-sync line. A rejected credential gets the
+// moves that work — sync would hit the same refusal again (GDK-2049): sign in
+// again, or for the wiki source switch wiki sync off. Other errors keep the
+// plain line.
+func syncFailedWarning(rep freshness.Report) string {
+	line := "last sync failed (" + freshness.FormatSourceID(rep.SourceID) + "): " + rep.LastError
+	if !rep.CredentialRejected() {
+		return line
+	}
+	fix := " — the credential was rejected; re-authenticate with `gadak init`"
+	if rep.SourceID == syncer.ConfluenceSourceID {
+		fix += ", or turn wiki sync off with `gadak config set wiki.enabled false`"
+	}
+	return line + fix
 }
 
 // staleSourceWarning is the one-line age warning. Source, stored synced_at,

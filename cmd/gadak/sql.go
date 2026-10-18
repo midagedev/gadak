@@ -59,7 +59,12 @@ func cmdSQL(args []string) error {
 			// plus the statement), not a flag candidate — flag.Parse cannot
 			// tell those apart, which is why this command matches flags by name.
 			if sqlFlagCandidate(a) && sqlQueryFollows(args, i+1) {
-				return usageError("sql", fmt.Sprintf("unknown flag %s", a))
+				return &unknownFlagErr{
+					token:    a,
+					accepted: []string{"--json", "--csv", "--no-header"},
+					cmd:      "sql",
+					hint:     sqlFormatHint(args, i),
+				}
 			}
 			words = append(words, a)
 		}
@@ -341,6 +346,28 @@ func sqlFlagCandidate(a string) bool {
 		return false
 	}
 	return !strings.ContainsAny(a, " \t\n\r")
+}
+
+// sqlFormatHint answers the `--format json|csv` an agent carries over from
+// other CLIs with the flag gadak sql actually has (GDK-2030). Other values
+// stay unhinted — a bad guess is worse than none.
+func sqlFormatHint(args []string, i int) string {
+	var val string
+	switch a := args[i]; {
+	case a == "--format" && i+1 < len(args):
+		val = args[i+1]
+	case strings.HasPrefix(a, "--format="):
+		val = strings.TrimPrefix(a, "--format=")
+	default:
+		return ""
+	}
+	switch strings.ToLower(strings.TrimSpace(val)) {
+	case "json":
+		return "did you mean --json?"
+	case "csv":
+		return "did you mean --csv?"
+	}
+	return ""
 }
 
 // sqlQueryFollows reports a later argv that looks like SQL, not another flag.

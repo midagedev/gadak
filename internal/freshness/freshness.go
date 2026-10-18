@@ -250,6 +250,15 @@ func FormatSourceID(id string) string {
 	return s
 }
 
+// CredentialRejected reports whether a StateSyncFailed report's stored
+// last_error is a rejected credential (atlhttp.ErrAuth's "credential
+// rejected", which every connector prefixes the same way). The stored error
+// is text by then, so the marker is matched, as doctor's classifier does.
+// Retrying the sync cannot fix it (GDK-2049).
+func (r Report) CredentialRejected() bool {
+	return r.State == StateSyncFailed && strings.Contains(strings.ToLower(r.LastError), "credential rejected")
+}
+
 // noticePrefix is the fixed start of the in-result notice, so a host (or a
 // test) can recognize the line without parsing the sentence.
 const noticePrefix = "Mirror freshness: "

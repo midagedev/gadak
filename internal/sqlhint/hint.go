@@ -78,6 +78,9 @@ func WithColumnSuggestion(db *sql.DB, query string, err error) error {
 		}
 		return err
 	}
+	if table := itemChildTable(db, query); table != "" && (strings.EqualFold(name, "key") || strings.EqualFold(name, "issue_key")) {
+		return fmt.Errorf("%w; %s has no key — it hangs off items: JOIN items it ON it.id = %s.item_id and select it.key", err, table, table)
+	}
 	cols, owner, colErr := hintColumns(db)
 	if colErr != nil || len(cols) == 0 {
 		return err
@@ -100,6 +103,50 @@ func WithColumnSuggestion(db *sql.DB, query string, err error) error {
 		tail = strings.Join(quoted[:len(quoted)-1], ", ") + " or " + tail
 	}
 	return fmt.Errorf("%w; did you mean %s?", err, tail)
+}
+
+// fromTableRe captures the relation name after FROM or JOIN.
+var fromTableRe = regexp.MustCompile(`(?i)\b(?:from|join)\s+["` + "`" + `\[]?([A-Za-z_][A-Za-z0-9_]*)`)
+
+// itemChildTable returns the first relation in query's FROM/JOIN list that
+// hangs off items.id through an item_id column (comments, attachments,
+// changelog, links, ...), or "" when there is none or the query already
+// reads items/issues — there `key` is a real column and the plain
+// did-you-mean stays right (GDK-2053).
+func itemChildTable(db *sql.DB, query string) string {
+	var child string
+	for _, m := range fromTableRe.FindAllStringSubmatch(StripComments(query), -1) {
+		table := m[1]
+		switch strings.ToLower(table) {
+		case "items", "issues", "issues_full":
+			return ""
+		}
+		if child != "" || !tableHasColumn(db, table, "item_id") {
+			continue
+		}
+		child = table
+	}
+	return child
+}
+
+func tableHasColumn(db *sql.DB, table, column string) bool {
+	rows, err := db.Query("PRAGMA table_info(" + table + ")")
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, typ string
+		var dflt *string
+		if rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk) != nil {
+			return false
+		}
+		if strings.EqualFold(name, column) {
+			return true
+		}
+	}
+	return false
 }
 
 // columnNameFrom is the shape SQLite's column-naming errors share: capture

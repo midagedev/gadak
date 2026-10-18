@@ -2,6 +2,8 @@ package main
 
 import (
 	"database/sql"
+	"errors"
+	"github.com/midagedev/gadak/internal/freshness"
 	"os"
 	"path/filepath"
 	"strings"
@@ -116,6 +118,26 @@ func TestSQLUnknownFlagIsUsageError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), `run "gadak sql --help"`) {
 		t.Fatalf("want usageError help pointer, got %v", err)
+	}
+	// GDK-2030: like every other verb, the refusal lists what is accepted.
+	if !strings.Contains(err.Error(), "accepted: --json, --csv, --no-header") {
+		t.Fatalf("unknown flag must list the accepted flags, got %v", err)
+	}
+	var u *unknownFlagErr
+	if !errors.As(err, &u) || exitStatus(err) != 2 {
+		t.Fatalf("want *unknownFlagErr (exit 2), got %T exit %d", err, exitStatus(err))
+	}
+}
+
+func TestSQLFormatFlagHintsOutputFlag(t *testing.T) {
+	sqlDemoHome(t)
+	for flagVal, want := range map[string]string{"json": "--json", "csv": "--csv"} {
+		_, err := capture(t, func() error {
+			return cmdSQL([]string{"select 1", "--format", flagVal})
+		})
+		if err == nil || !strings.Contains(err.Error(), "did you mean "+want+"?") {
+			t.Errorf("--format %s: want did-you-mean %s, got %v", flagVal, want, err)
+		}
 	}
 }
 
@@ -635,5 +657,30 @@ func TestSQLZeroRowScopeHintCoversItemIDs(t *testing.T) {
 	}
 	if strings.Contains(ctl, "outside this workspace") {
 		t.Fatalf("present item id must not claim a scope miss, got %q", ctl)
+	}
+}
+
+// GDK-2049: a rejected credential is not fixed by `sync --if-stale`; the
+// failed-sync warning names the moves that work, and other errors keep the
+// plain line byte for byte.
+func TestSyncFailedWarningRejectedCredential(t *testing.T) {
+	wiki := freshness.Report{State: freshness.StateSyncFailed, SourceID: "confluence",
+		LastError: "GET /rest/api/content/1: confluence: credential rejected (403 Forbidden)"}
+	got := syncFailedWarning(wiki)
+	for _, want := range []string{"credential rejected (403 Forbidden)", "gadak init", "gadak config set wiki.enabled false"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("wiki rejected: missing %q in %q", want, got)
+		}
+	}
+	if strings.Contains(got, "sync --if-stale") {
+		t.Errorf("must not teach sync --if-stale for a rejected credential: %q", got)
+	}
+	jira := freshness.Report{State: freshness.StateSyncFailed, SourceID: "jira", LastError: "jira: credential rejected (401)"}
+	if got := syncFailedWarning(jira); !strings.Contains(got, "gadak init") || strings.Contains(got, "wiki.enabled") {
+		t.Errorf("jira rejected: want init only, got %q", got)
+	}
+	plain := freshness.Report{State: freshness.StateSyncFailed, SourceID: "jira", LastError: "planted jira fail"}
+	if got, want := syncFailedWarning(plain), "last sync failed (jira): planted jira fail"; got != want {
+		t.Errorf("plain error changed: %q", got)
 	}
 }
