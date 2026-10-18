@@ -13,13 +13,15 @@
  * its whole job is to name port, pid, command and stamped worktree, then
  * exit 1 so the build never starts.
  *
- * Exit 0: nothing listens (or the probe cannot reach it) — serve.sh proceeds.
+ * Exit 0: nothing listens (or the probe cannot reach it, or the listener was an
+ * abandoned gate serve and has been reaped) — serve.sh proceeds.
  * Exit 1: something listens; the report on stderr says who.
  */
 import { createConnection } from 'node:net'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { reapAbandonedServe } from './orphan-serve.mjs'
 
 const PROBE_TIMEOUT_MS = 500
 
@@ -73,6 +75,15 @@ if (!port || !/^[1-9][0-9]*$/.test(port) || Number(port) > 65535) {
 }
 
 if (!(await probe(Number(port)))) process.exit(0)
+
+// GDK-1951: a serve whose run is gone (ppid 1, a gate-shaped command) is
+// taken back here instead of left for a person to lsof and kill. Anything
+// else on the port still gets the refusal below.
+const reaped = reapAbandonedServe(Number(port))
+if (reaped) {
+  console.error(`[e2e] ${reaped}`)
+  if (!(await probe(Number(port)))) process.exit(0)
+}
 
 const lines = [`[e2e] port ${port} is already listening — this serve cannot bind it (GDK-1757).`]
 for (const l of listenersOn(port)) {

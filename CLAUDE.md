@@ -165,9 +165,13 @@ hard-won 목록)와 `AGENTS.md`(기여 계약)·`docs/MIRROR.md`(스키마·SQL 
   신호이고(스탬프 불일치는 `assertServedArtifact`가 잡는다), 한 스위트
   안은 `workers: 1`이다. **포트를 배정하기 전에 `lsof -nP -iTCP:<p> -sTCP:LISTEN`으로
   비었는지 확인한다** — 다른 세션의 프로세스가 물고 있으면 webServer가 exit 1로
-  죽어 스위트가 실행도 못 한다. **중단(TaskStop)한 Playwright 런의 포트는
-  버린다**: 부모만 죽고 `e2e/.tmp/gadak-<port> serve` 자식은 남아 있어, 같은
-  포트로 다시 띄우면 낡은 serve에 붙어 수백 건이 수백 ms 안에 연쇄 실패한다.
+  죽어 스위트가 실행도 못 한다. **중단(TaskStop)한 Playwright 런이 남긴
+  serve는 다음 게이트가 회수한다** (GDK-1951): 부모만 죽고 남은
+  `e2e/.tmp/gadak-<port> serve`(폰 게이트의 demo·vite preview도)는 ppid 1이
+  되고, `e2e/orphan-serve.mjs`가 그 모양만 골라 죽인 뒤 한 줄로 알린다. 빌드
+  전(`port-held.mjs`)이면 그대로 진행하고, Playwright가 이미 그 serve를 채택한
+  뒤(globalSetup 스탬프 검사)면 회수하고 "re-run"으로 실패한다. 부모가 살아
+  있는 serve와 개발자의 serve는 건드리지 않는다 — 그때는 여전히 포트를 버린다.
 - **터미널 e2e(`e2e/terminal*.spec.ts`·`e2e/issue-command.spec.ts`)를
   건드렸으면 `npm run test:e2e:wide-prompt`도 게이트다.** 그 스위트는 pane의
   셸을 `e2e/ci-shell.sh`로 바꿔 리눅스 CI 러너의 환경 셋을 재현한다 —

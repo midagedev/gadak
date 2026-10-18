@@ -20,6 +20,7 @@ import type { PlaywrightTestConfig } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { reapAbandonedServe } from '../../e2e/orphan-serve.mjs'
 
 const E2E_DIR = dirname(fileURLToPath(import.meta.url))
 const MOBILE_DIR = dirname(E2E_DIR)
@@ -236,7 +237,31 @@ export async function fetchServedBundleStamp(
   return { stamp: parseStamp(await res.text(), url), where: url }
 }
 
-export async function assertServedBundle(env: NodeJS.ProcessEnv = process.env): Promise<GateStamp> {
+/**
+ * GDK-1951: when a gate check refuses an adopted server, an abandoned gate
+ * serve (ppid 1, gate-shaped command) holding that port is taken back, so the
+ * re-run needs no lsof/kill. The run still fails — playwright already adopted
+ * the listener. Foreign or living holders are never touched.
+ */
+async function reapOnRefusal<T>(port: string, check: () => Promise<T>): Promise<T> {
+  try {
+    return await check()
+  } catch (err) {
+    const reaped = reapAbandonedServe(Number(port))
+    if (reaped) throw new Error(`${reaped}\nThe stale server is gone; re-run. (${(err as Error).message})`)
+    throw err
+  }
+}
+
+export function assertServedBundle(env: NodeJS.ProcessEnv = process.env): Promise<GateStamp> {
+  return reapOnRefusal(mobileUIPort(env), () => checkServedBundle(env))
+}
+
+export function assertServedAPI(env: NodeJS.ProcessEnv = process.env): Promise<HealthzDoc> {
+  return reapOnRefusal(mobileAPIPort(env), () => checkServedAPI(env))
+}
+
+async function checkServedBundle(env: NodeJS.ProcessEnv): Promise<GateStamp> {
   const origin = mobileUIOrigin(env)
   const { stamp, where } = await fetchServedBundleStamp(origin)
   checkStamp({
@@ -299,7 +324,7 @@ export type HealthzDoc = {
  * The side stamp file (apiStampPath) is still written by gate-serve.sh as the
  * build record the log prints; it is no longer in the trust path.
  */
-export async function assertServedAPI(env: NodeJS.ProcessEnv = process.env): Promise<HealthzDoc> {
+async function checkServedAPI(env: NodeJS.ProcessEnv): Promise<HealthzDoc> {
   const origin = mobileAPIOrigin(env)
   const url = `${origin}/healthz`
   const expected = expectedStamp('api')

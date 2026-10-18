@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { expect, test as base, type ConsoleMessage, type Locator, type Page } from '@playwright/test'
 import { en, ja, ko, type MessageKey } from '../web/src/lib/i18n/catalog'
 import { LOCALES, type Locale } from '../web/src/lib/i18n/types'
+import { reapAbandonedServe } from './orphan-serve.mjs'
 
 /*
  * The suite's `test`, extended with one teardown (GDK-1735).
@@ -369,6 +370,19 @@ function stampHolderSentence(stamp: ServedStamp, port: string): string {
  * worktree's current served artifact (absolute worktree + source digest).
  */
 export function assertServedArtifact(opts: AssertServedArtifactOpts = {}): void {
+  try {
+    checkServedArtifact(opts)
+  } catch (err) {
+    // GDK-1951: playwright already adopted the listener, so this run cannot
+    // use it — but an orphan of a stopped run is taken back so the re-run
+    // needs no lsof/kill step. A foreign or living holder is never touched.
+    const reaped = reapAbandonedServe(opts.port ?? e2eServePort())
+    if (reaped) throw new Error(`${reaped}\nThe stale server is gone; re-run. (${(err as Error).message})`)
+    throw err
+  }
+}
+
+function checkServedArtifact(opts: AssertServedArtifactOpts): void {
   const root = opts.root ?? worktreeRoot()
   const port = opts.port ?? e2eServePort()
   const stampPath = opts.stampPath ?? servedStampPathFor(port)
