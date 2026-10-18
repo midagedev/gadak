@@ -8,6 +8,8 @@
 
 **Errors name the move that works.** A Markdown comment with inline code inside bold text was rejected by Jira with a bare 400 INVALID_INPUT. The converter no longer puts the bold mark on code, a pair Jira's document format does not allow ([GDK-1892]). `gadak sql` rejects an unknown flag with the flags it accepts, and answers `--format json` with `--json` ([GDK-2030]); asking `comments` for `key` points at the join to `items` instead of at the `issues` table ([GDK-2053]). A sync that failed because the credential was rejected says to sign in again with `gadak init` or to turn wiki sync off, instead of suggesting a retry that fails the same way ([GDK-2049]). After an upgrade, the installed skill file is checked at once instead of on the next UTC day ([GDK-2031]). `gadak sync --if-stale 0s` says the threshold must be positive and that plain `gadak sync` always runs, instead of asking for a duration it was given ([GDK-2055]).
 
+**The screen agrees with itself.** With the in-app browser open, the list column's resize grip sat half under the page and could not be grabbed; it now sits wholly on the list side of the seam and drags from wherever it is pressed ([GDK-2048]). The status legend above the board reads in the board's column order instead of by count ([GDK-1850]), and a retro window where nothing happened says so instead of drawing a row of hairlines ([GDK-1953]).
+
 ## v0.24.1 — 2026-10-01
 
 **The app opens a shell that can see your tools.** A serve launched from
@@ -1765,6 +1767,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1839]: https://gadak.dev/backlog/#/?ks=GDK-1839
 [GDK-1846]: https://gadak.dev/backlog/#/?ks=GDK-1846
 [GDK-1848]: https://gadak.dev/backlog/#/?ks=GDK-1848
+[GDK-1850]: https://gadak.dev/backlog/#/?ks=GDK-1850
 [GDK-1853]: https://gadak.dev/backlog/#/?ks=GDK-1853
 [GDK-1854]: https://gadak.dev/backlog/#/?ks=GDK-1854
 [GDK-1858]: https://gadak.dev/backlog/#/?ks=GDK-1858
@@ -1790,6 +1793,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-1943]: https://gadak.dev/backlog/#/?ks=GDK-1943
 [GDK-1946]: https://gadak.dev/backlog/#/?ks=GDK-1946
 [GDK-1949]: https://gadak.dev/backlog/#/?ks=GDK-1949
+[GDK-1953]: https://gadak.dev/backlog/#/?ks=GDK-1953
 [GDK-1959]: https://gadak.dev/backlog/#/?ks=GDK-1959
 [GDK-1966]: https://gadak.dev/backlog/#/?ks=GDK-1966
 [GDK-1969]: https://gadak.dev/backlog/#/?ks=GDK-1969
@@ -1823,6 +1827,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-2032]: https://gadak.dev/backlog/#/?ks=GDK-2032
 [GDK-2042]: https://gadak.dev/backlog/#/?ks=GDK-2042
 [GDK-2047]: https://gadak.dev/backlog/#/?ks=GDK-2047
+[GDK-2048]: https://gadak.dev/backlog/#/?ks=GDK-2048
 [GDK-2049]: https://gadak.dev/backlog/#/?ks=GDK-2049
 [GDK-2050]: https://gadak.dev/backlog/#/?ks=GDK-2050
 [GDK-2051]: https://gadak.dev/backlog/#/?ks=GDK-2051

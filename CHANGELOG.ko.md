@@ -8,6 +8,8 @@
 
 **오류가 실제로 통하는 다음 행동을 알려 줍니다.** 굵은 글씨 안에 인라인 코드가 든 마크다운 댓글을 Jira가 400 INVALID_INPUT 한 줄로 거절했습니다. 이제 변환기가 코드에 굵게 표시를 붙이지 않습니다. Jira 문서 형식이 그 조합을 허용하지 않기 때문입니다([GDK-1892]). `gadak sql`은 모르는 플래그를 받으면 받는 플래그 목록을 보여 주고, `--format json`에는 `--json`을 알려 줍니다([GDK-2030]). `comments`에서 `key`를 찾으면 `issues` 테이블이 아니라 `items`와의 조인을 안내합니다([GDK-2053]). 자격증명이 거부돼 실패한 동기화는 같은 이유로 또 실패할 재시도 대신 `gadak init`으로 다시 인증하거나 위키 동기화를 끄라고 안내합니다([GDK-2049]). 업그레이드 뒤에는 설치된 스킬 파일을 다음 UTC 날짜까지 기다리지 않고 바로 확인합니다([GDK-2031]). `gadak sync --if-stale 0s`는 이미 받은 기간을 다시 달라고 하지 않고, 문턱은 양수여야 하며 그냥 `gadak sync`가 늘 한 번 돈다고 알려 줍니다([GDK-2055]).
 
+**화면이 스스로와 어긋나지 않습니다.** 앱 안 브라우저를 연 동안 목록 열의 크기 조절 손잡이가 절반쯤 페이지 아래에 깔려 잡히지 않았습니다. 이제 손잡이 전체가 이음매의 목록 쪽에 있고, 누른 자리에서 그대로 끌립니다([GDK-2048]). 보드 위의 상태 범례는 개수 순이 아니라 보드의 컬럼 순서로 놓이고([GDK-1850]), 아무 일도 없던 회고 구간은 머리카락 같은 선을 늘어놓는 대신 아무 일도 없었다고 말합니다([GDK-1953]).
+
 ## v0.24.1 — 2026-10-01
 
 **앱이 여는 셸이 당신의 도구를 볼 수 있습니다.** Finder나 Dock에서 띄운 serve는
@@ -1673,6 +1675,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1839]: https://gadak.dev/backlog/#/?ks=GDK-1839
 [GDK-1846]: https://gadak.dev/backlog/#/?ks=GDK-1846
 [GDK-1848]: https://gadak.dev/backlog/#/?ks=GDK-1848
+[GDK-1850]: https://gadak.dev/backlog/#/?ks=GDK-1850
 [GDK-1853]: https://gadak.dev/backlog/#/?ks=GDK-1853
 [GDK-1854]: https://gadak.dev/backlog/#/?ks=GDK-1854
 [GDK-1858]: https://gadak.dev/backlog/#/?ks=GDK-1858
@@ -1698,6 +1701,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-1943]: https://gadak.dev/backlog/#/?ks=GDK-1943
 [GDK-1946]: https://gadak.dev/backlog/#/?ks=GDK-1946
 [GDK-1949]: https://gadak.dev/backlog/#/?ks=GDK-1949
+[GDK-1953]: https://gadak.dev/backlog/#/?ks=GDK-1953
 [GDK-1959]: https://gadak.dev/backlog/#/?ks=GDK-1959
 [GDK-1966]: https://gadak.dev/backlog/#/?ks=GDK-1966
 [GDK-1969]: https://gadak.dev/backlog/#/?ks=GDK-1969
@@ -1731,6 +1735,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-2032]: https://gadak.dev/backlog/#/?ks=GDK-2032
 [GDK-2042]: https://gadak.dev/backlog/#/?ks=GDK-2042
 [GDK-2047]: https://gadak.dev/backlog/#/?ks=GDK-2047
+[GDK-2048]: https://gadak.dev/backlog/#/?ks=GDK-2048
 [GDK-2049]: https://gadak.dev/backlog/#/?ks=GDK-2049
 [GDK-2050]: https://gadak.dev/backlog/#/?ks=GDK-2050
 [GDK-2051]: https://gadak.dev/backlog/#/?ks=GDK-2051
