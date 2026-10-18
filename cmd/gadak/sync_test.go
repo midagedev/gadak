@@ -136,6 +136,11 @@ func TestSyncIfStaleZeroDurationIsUsageError(t *testing.T) {
 	if !strings.Contains(err.Error(), "--if-stale") {
 		t.Fatalf("usage must name --if-stale, got %v", err)
 	}
+	// GDK-2055: "0s" is a duration, so "want a duration" did not say what was
+	// wrong. The refusal names the rule and the command that does run now.
+	if !strings.Contains(err.Error(), "positive") || !strings.Contains(err.Error(), `"gadak sync"`) {
+		t.Fatalf("a non-positive --if-stale must say it must be positive and name plain gadak sync, got %v", err)
+	}
 }
 
 func TestSyncIfStaleDoesNotBypassFrozen(t *testing.T) {

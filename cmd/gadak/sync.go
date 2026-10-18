@@ -42,8 +42,14 @@ func cmdSync(args []string) error {
 	ifStaleRaw := strings.TrimSpace(*ifStale)
 	if ifStaleRaw != "" {
 		d, err := time.ParseDuration(ifStaleRaw)
-		if err != nil || d <= 0 {
+		if err != nil {
 			return usageError("sync", fmt.Sprintf("invalid --if-stale %q (want a duration like 15m or 1h)", *ifStale))
+		}
+		// GDK-2055: "0s" parses, so "want a duration" did not say what was
+		// wrong. A threshold of zero or less means "always", which is what
+		// the flag's absence already does.
+		if d <= 0 {
+			return usageError("sync", fmt.Sprintf(`invalid --if-stale %q (must be positive; plain "gadak sync" always runs one pass)`, *ifStale))
 		}
 		staleEvery = d
 	}
