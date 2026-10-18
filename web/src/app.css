@@ -1075,6 +1075,17 @@
       grid-column: 3;
       grid-row: 1;
     }
+
+    /* GDK-2048: while the browser pane holds column 3 the list grip's 4px
+       overhang would sit under it, and in the desktop app under the native
+       page, which is drawn over column 3 at the rectangle browse-viewport
+       reports. The grip's centre then hit the pane: no cursor, no paint, no
+       drag. A z-index bump is not the fix — only the pane's top chrome would
+       become grabbable, and everything below it would still fail silently.
+       So the whole 9px moves into column 2, pixels the SPA owns. */
+    .issue-layout.browse-open .layout-resize-handle[data-axis='list'] {
+      right: 0;
+    }
   }
 
   /*

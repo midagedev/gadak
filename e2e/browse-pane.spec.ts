@@ -1,6 +1,6 @@
 import { type Page } from '@playwright/test'
 import { test, expect } from './helpers'
-import { attachConsoleErrors, gotoApp, searchInput } from './helpers'
+import { attachConsoleErrors, gotoApp, resetUiSettings, searchInput } from './helpers'
 import { mockBrowseRoutes, pretendDesktop, type BrowseMock } from './browse-mock'
 
 /*
@@ -294,5 +294,68 @@ test.describe('in-app browser pane', () => {
     expect(desktopCalls).toEqual([])
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+  /*
+   * GDK-2048: the list grip sits wholly in column 2 while the pane holds
+   * column 3. Its default 4px overhang landed under the pane (and, in the
+   * desktop app, under the native page), so the grip's centre was not
+   * grabbable.
+   */
+  test('the list grip is grabbable beside the pane and drags the seam (GDK-2048)', async ({
+    page,
+    request,
+  }) => {
+    const errors = attachConsoleErrors(page)
+    await bootDesktop(page)
+    await openIssue(page, 'NMB-110')
+    await openInApp(page, 'NMB-110')
+    await expect(page.getByTestId('browse-pane')).toBeVisible()
+
+    const grip = page.getByTestId('layout-resize-list')
+    const box = await grip.boundingBox()
+    if (!box) throw new Error('list grip has no box')
+    const cx = box.x + box.width / 2
+    const cy = box.y + box.height / 2
+    const hit = await page.evaluate(
+      ({ x, y }) => document.elementFromPoint(x, y)?.getAttribute('data-testid') ?? null,
+      { x: cx, y: cy },
+    )
+    expect(hit, 'the grip centre must hit the grip, not the pane').toBe('layout-resize-list')
+
+    const pane = page.getByTestId('browse-pane')
+    const paneBefore = (await pane.boundingBox())!
+    const listBefore = (await page.locator('.issue-main-column').boundingBox())!
+    // The whole grip is left of the pane's left edge.
+    expect(box.x + box.width).toBeLessThanOrEqual(paneBefore.x + 0.5)
+
+    // The drag commits a list width to the serve's settings, which every
+    // later spec on this port reads: undo it even when an assertion fails.
+    try {
+      await page.mouse.move(cx, cy)
+      await page.mouse.down()
+      await page.mouse.move(cx - 120, cy, { steps: 12 })
+      await page.mouse.up()
+
+      const paneAfter = (await pane.boundingBox())!
+      const listAfter = (await page.locator('.issue-main-column').boundingBox())!
+      expect(Math.abs(listBefore.width - listAfter.width - 120)).toBeLessThanOrEqual(2)
+      expect(Math.abs(paneAfter.width - paneBefore.width - 120)).toBeLessThanOrEqual(2)
+    } finally {
+      await resetUiSettings(request)
+    }
+
+    expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
+  })
+
+  test('with the detail panel open and no pane the list grip still overhangs the seam by 4px', async ({
+    page,
+  }) => {
+    await bootDesktop(page)
+    await openIssue(page, 'NMB-110')
+    await expect(page.getByTestId('browse-pane')).toHaveCount(0)
+
+    const grip = (await page.getByTestId('layout-resize-list').boundingBox())!
+    const list = (await page.locator('.issue-main-column').boundingBox())!
+    expect(Math.round(grip.x + grip.width - (list.x + list.width))).toBe(4)
   })
 })

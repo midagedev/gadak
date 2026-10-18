@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, unlinkSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { expect, test as base, type ConsoleMessage, type Locator, type Page } from '@playwright/test'
+import { expect, test as base, type APIRequestContext, type ConsoleMessage, type Locator, type Page } from '@playwright/test'
 import { en, ja, ko, type MessageKey } from '../web/src/lib/i18n/catalog'
 import { LOCALES, type Locale } from '../web/src/lib/i18n/types'
 import { reapAbandonedServe } from './orphan-serve.mjs'
@@ -216,6 +216,31 @@ async function freeLoopbackPort(): Promise<string> {
 export function apiURL(path = ''): string {
   const p = !path ? '' : path.startsWith('/') ? path : `/${path}`
   return `http://127.0.0.1:${e2eServePort()}${p}`
+}
+
+/**
+ * Puts the serve's `ui` settings back to empty and waits until it reads so.
+ *
+ * A grip drag commits its width to the serve's settings, and the serve's home
+ * is shared by every spec on the port — so a drag that is not undone narrows
+ * the list for every spec after it. GDK-2048's first drag test leaked exactly
+ * that, and eleven unrelated specs then saw no label chips, no doc panel and
+ * no epic chip. Every spec that drags a layout grip calls this when it is done.
+ */
+export async function resetUiSettings(request: APIRequestContext): Promise<void> {
+  const url = apiURL('/api/v1/issues/settings/')
+  const res = await request.get(url)
+  if (!res.ok()) return
+  const body = (await res.json()) as Record<string, unknown>
+  await request.put(url, { data: { ...body, ui: {} } })
+  await expect
+    .poll(async () => {
+      const check = await request.get(url)
+      if (!check.ok()) return null
+      const doc = (await check.json()) as { ui?: { tokens?: unknown } }
+      return doc.ui?.tokens === undefined ? 'reset' : null
+    })
+    .toBe('reset')
 }
 
 /** Absolute URL on the Linear-fixture serve. Same shape as apiURL(). */

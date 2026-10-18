@@ -107,10 +107,11 @@ function widthForPointer(
   axis: LayoutTokenAxis,
   clientX: number,
   layout: HTMLElement,
+  grab = 0,
 ): number {
   const left = layout.getBoundingClientRect().left
   const origin = axis === 'sidebar' ? left : left + effectiveLayout().sidebar
-  return clampLayoutPx(axis, clientX - origin)
+  return clampLayoutPx(axis, clientX - origin - grab)
 }
 
 /**
@@ -243,9 +244,14 @@ export function layoutGrip(
     min: () => LAYOUT_DRAG_CLAMP[axis].min,
     max: () => LAYOUT_DRAG_CLAMP[axis].max,
     current: () => currentWidth(axis, layoutEl()),
-    fromPointer: (event) => {
+    fromPointer: (event, start) => {
       const layout = layoutEl()
-      return layout ? widthForPointer(axis, event.clientX, layout) : null
+      if (!layout) return null
+      // GDK-2048: the grip may be grabbed off the seam (the list grip sits
+      // wholly left of it beside the browser pane). The seam keeps the
+      // distance the hand pressed at, rather than snapping under the cursor.
+      const grab = widthForPointer(axis, start.clientX, layout) - start.value
+      return widthForPointer(axis, event.clientX, layout, grab)
     },
     paint: (px) => setLayoutOverride(axis, px),
     commit: (px) => void persistLayoutWidth(axis, px),

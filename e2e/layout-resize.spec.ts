@@ -22,6 +22,7 @@ import {
   drainTerminalSessions,
   expect,
   gotoApp,
+  resetUiSettings,
   test,
 } from './helpers'
 
@@ -64,18 +65,7 @@ async function dragHandle(page: Page, testid: string, toX: number, steps = 20): 
 
 test.describe('layout resize handles', () => {
   test.afterEach(async ({ request }) => {
-    const res = await request.get(SETTINGS_URL)
-    if (!res.ok()) return
-    const body = (await res.json()) as Record<string, unknown>
-    await request.put(SETTINGS_URL, { data: { ...body, ui: {} } })
-    await expect
-      .poll(async () => {
-        const check = await request.get(SETTINGS_URL)
-        if (!check.ok()) return null
-        const doc = (await check.json()) as { ui?: { tokens?: unknown } }
-        return doc.ui?.tokens === undefined ? 'reset' : null
-      })
-      .toBe('reset')
+    await resetUiSettings(request)
   })
 
   test('a sidebar drag moves the column and survives a reload', async ({ page, request }) => {
