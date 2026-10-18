@@ -408,10 +408,35 @@ func textNode(s string, marks []any) []any {
 		return nil
 	}
 	n := map[string]any{"type": "text", "text": s}
-	if len(marks) > 0 {
+	if marks = allowedMarks(marks); len(marks) > 0 {
 		n["marks"] = marks
 	}
 	return []any{n}
+}
+
+// allowedMarks is the single owner of which mark sets a text node may carry
+// (GDK-1892). The ADF schema lets `code` combine only with `link`; Jira
+// answers `code`+`strong` with 400 INVALID_INPUT. Every text node the
+// converter emits passes through textNode, so every nesting (`**a `b`**`,
+// `~~`b`~~`, `*_x_ `b`*`) is closed here: a code node keeps code (and link)
+// and loses the style marks, the text around it keeps them.
+func allowedMarks(marks []any) []any {
+	hasCode := false
+	for _, m := range marks {
+		if mm, _ := m.(map[string]any); mm != nil && mm["type"] == "code" {
+			hasCode = true
+		}
+	}
+	if !hasCode {
+		return marks
+	}
+	var out []any
+	for _, m := range marks {
+		if mm, _ := m.(map[string]any); mm != nil && (mm["type"] == "code" || mm["type"] == "link") {
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
 func withContent(node map[string]any, content []any) map[string]any {
