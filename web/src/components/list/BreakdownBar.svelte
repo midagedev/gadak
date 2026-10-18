@@ -5,6 +5,7 @@
   import { categoryMetaOf } from '../../lib/format'
   import { ESC_TIER, isEscapeKey, onEscape, onOutsideClick } from '../../lib/dom-actions'
   import { groupByEnabled, type GroupBy } from '../../lib/view-config'
+  import { orderBreakdownGroups } from '../../lib/issue-group'
   import Icon, { type IconName } from '../ui/Icon.svelte'
 
   // An axis that is a field wears the field's name — fieldLabel(), the same
@@ -74,7 +75,11 @@
       : filters.display.group_by === 'development_test_result' ||
           filters.display.group_by === 'qa_impact'
         ? filters.groups
-        : [...filters.groups].sort((a, b) => b.counts.total - a.counts.total),
+        : orderBreakdownGroups(
+            filters.groups,
+            filters.display.group_by,
+            filters.display.layout === 'board' ? 'board' : 'list',
+          ),
   )
   // GDK-1348: how many chips the strip shows is a width budget, not a fixed
   // six. Six chips squeezed into a 350px strip (docked detail, 1024 viewport)

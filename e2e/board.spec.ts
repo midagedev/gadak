@@ -161,6 +161,17 @@ test.describe('GDK-1175 status board', () => {
     await expect(columns.nth(1)).toHaveAttribute('data-board-column', 'inprogress')
     await expect(columns.nth(2)).toHaveAttribute('data-board-column', 'done')
 
+    // GDK-1850: the legend strip above the board reads in the columns' order,
+    // not in count order. Each chip's title is the group label, the same
+    // string the column header carries.
+    const chips = page.getByTestId('breakdown-strip').locator('button')
+    await expect.poll(() => chips.count()).toBeGreaterThanOrEqual(2)
+    const titles = await chips.evaluateAll((els) => els.map((e) => e.getAttribute('title') ?? ''))
+    const heads = (await columns.allInnerTexts()).map((h) => h.toLowerCase())
+    const at = titles.map((title) => heads.findIndex((h) => h.includes(title.toLowerCase())))
+    expect(at.every((i) => i >= 0), `chips ${titles} vs columns ${heads}`).toBe(true)
+    expect(at, 'chip order follows column order').toEqual([...at].sort((x, y) => x - y))
+
     await expect(page.getByTestId('board-card').first()).toBeVisible()
 
     // Back to the list, and the param goes with it. (The breakdown click

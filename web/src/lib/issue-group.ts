@@ -104,6 +104,33 @@ export function isLiteGroupBy(v: unknown): v is LiteGroupBy {
 const IN_RANK: Record<string, number> = { inprogress: 0, new: 1, done: 2 }
 
 /**
+ * The board's status columns, left to right — BoardView draws them from this
+ * list. The list draws its sections in IN_RANK order instead. The breakdown
+ * strip above either one reads in the order of the screen below it (GDK-1850),
+ * so both read the same owner rather than a copy of it.
+ */
+export const BOARD_COLUMN_ORDER = ['new', 'inprogress', 'done'] as const
+const BOARD_RANK: Record<string, number> = Object.fromEntries(BOARD_COLUMN_ORDER.map((k, i) => [k, i]))
+
+/**
+ * The breakdown strip's chip order. Every axis is count-descending except
+ * `status_category`, which follows the sections or columns drawn below it:
+ * list section order on the list, column order on the board. Keys are
+ * status_category values, never display names.
+ */
+export function orderBreakdownGroups<T extends { key: string; counts: { total: number } }>(
+  groups: readonly T[],
+  by: GroupBy,
+  surface: 'list' | 'board',
+): T[] {
+  if (by === 'status_category') {
+    const rank = surface === 'board' ? BOARD_RANK : IN_RANK
+    return [...groups].sort((a, b) => (rank[a.key] ?? 99) - (rank[b.key] ?? 99))
+  }
+  return [...groups].sort((a, b) => b.counts.total - a.counts.total)
+}
+
+/**
  * The three-bucket axis, through the one owner (status-category.ts,
  * GDK-2042) — the same table and the same 'new' unknown-key answer
  * effectiveCategory filters by, so a row cannot sit in Done under a filter

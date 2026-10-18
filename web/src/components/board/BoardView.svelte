@@ -35,6 +35,7 @@
   import type { TerminalSessionState } from '../../lib/terminal/strip'
   import { categoryMetaOf } from '../../lib/format'
   import type { StatusCategory } from '../../lib/view-config'
+  import { BOARD_COLUMN_ORDER } from '../../lib/issue-group'
   import { boardDrag } from '../../lib/board-drag.svelte'
   import BoardColumn from './BoardColumn.svelte'
   import BoardDropChoice from './BoardDropChoice.svelte'
@@ -46,7 +47,7 @@
   /** How long the landing ring stays. Long enough to look up at. */
   const LANDED_MS = 1_200
 
-  const CATEGORIES: StatusCategory[] = ['new', 'inprogress', 'done']
+  const CATEGORIES: StatusCategory[] = [...BOARD_COLUMN_ORDER]
 
   let boardEl = $state<HTMLElement | null>(null)
 
