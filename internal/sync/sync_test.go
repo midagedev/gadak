@@ -73,6 +73,9 @@ type fakeSite struct {
 	// devStatusFail, when true, makes every dev-status GET answer 500.
 	devStatusFail bool
 	devStatusHits int
+	// searchLag is how many more `key = "X"` searches answer empty for X while
+	// GET /issue/X already returns it (Jira Cloud's search index lags a write).
+	searchLag map[string]int
 }
 
 func newSite(t *testing.T, lang string) *fakeSite {
@@ -126,6 +129,8 @@ func (f *fakeSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.count(w, r)
 	case r.URL.Path == "/rest/api/3/search/jql":
 		f.search(w, r)
+	case strings.HasPrefix(r.URL.Path, "/rest/api/3/issue/") && !strings.Contains(strings.TrimPrefix(r.URL.Path, "/rest/api/3/issue/"), "/"):
+		f.issueGet(w, strings.TrimPrefix(r.URL.Path, "/rest/api/3/issue/"))
 	case strings.HasSuffix(r.URL.Path, "/changelog"):
 		f.child(w, f.changelog, r.URL.Path, "/changelog")
 	case strings.HasSuffix(r.URL.Path, "/comment"):
@@ -225,6 +230,19 @@ func (f *fakeSite) search(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if key, ok := strings.CutPrefix(body.JQL, "key = "); ok {
+		// SyncIssue's single-key re-read: answer only that key, and miss it
+		// while the lag counter runs.
+		key = strings.Trim(key, `"`)
+		var hit []json.RawMessage
+		if f.searchLag[key] > 0 {
+			f.searchLag[key]--
+		} else if raw, ok := f.byKey(key); ok {
+			hit = append(hit, raw)
+		}
+		json.NewEncoder(w).Encode(map[string]any{"issues": hit, "isLast": true})
+		return
+	}
 	end := min(offset+f.pageSize, len(f.issues))
 	page := map[string]any{"issues": f.issues[min(offset, len(f.issues)):end]}
 	if end < len(f.issues) {
@@ -233,6 +251,29 @@ func (f *fakeSite) search(w http.ResponseWriter, r *http.Request) {
 		page["isLast"] = true
 	}
 	json.NewEncoder(w).Encode(page)
+}
+
+// byKey is the fixture issue with that key.
+func (f *fakeSite) byKey(key string) (json.RawMessage, bool) {
+	for _, raw := range f.issues {
+		var h struct {
+			Key string `json:"key"`
+		}
+		if json.Unmarshal(raw, &h) == nil && h.Key == key {
+			return raw, true
+		}
+	}
+	return nil, false
+}
+
+// issueGet is GET /issue/{key}: strongly consistent, unaffected by searchLag.
+func (f *fakeSite) issueGet(w http.ResponseWriter, key string) {
+	raw, ok := f.byKey(key)
+	if !ok {
+		http.Error(w, `{"errorMessages":["Issue does not exist or you do not have permission to see it."]}`, http.StatusNotFound)
+		return
+	}
+	w.Write(raw)
 }
 
 func (f *fakeSite) child(w http.ResponseWriter, from map[string]string, path, suffix string) {

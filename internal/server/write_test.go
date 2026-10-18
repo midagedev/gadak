@@ -239,6 +239,13 @@ func (f *fakeJira) route(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(raw))
 	case strings.HasPrefix(path, "/issue/") && r.Method == http.MethodGet && !strings.Contains(strings.TrimPrefix(path, "/issue/"), "/"):
 		raw := f.issueStatusJSON
+		// The write-through refresh confirms a search miss with this GET: a key
+		// the fake does not know is a 404 (the re-read's "deleted upstream").
+		if k := strings.TrimPrefix(path, "/issue/"); raw == "" && k != "NMB-1" && k != "NMB-2" && k != f.newKey {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"errorMessages":["Issue does not exist or you do not have permission to see it."]}`))
+			return
+		}
 		if raw == "" {
 			raw = `{"fields":{"status":{"id":"3","name":"진행 중","statusCategory":{"key":"indeterminate"}},
 				"assignee":{"accountId":"acc-hc","displayName":"김현철"}}}`

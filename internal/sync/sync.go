@@ -93,6 +93,10 @@ type Options struct {
 	// sprintField caches the gh-sprint custom field id for one Watch (or one
 	// Run). Nil means this call has no cache yet; runJiraPass allocates one.
 	sprintField *sprintFieldCache
+	// searchLagBackoff overrides the waits SyncIssue makes between searches
+	// that missed an issue a direct GET proved exists. Nil is the production
+	// default; tests pass zeros so nothing sleeps.
+	searchLagBackoff []time.Duration
 }
 
 // Result is the tally of one source pass (Run or RunConfluence).

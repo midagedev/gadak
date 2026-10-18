@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/confluence"
@@ -16,6 +18,17 @@ import (
 // ErrNotFound means the upstream answered but no issue/page with that key came
 // back: it is outside the credential's permissions, or it was just deleted.
 var ErrNotFound = errors.New("sync: issue not found upstream")
+
+// ErrIndexedLate means the issue exists upstream (a direct GET answered) but
+// JQL search still did not return it after the bounded retries. Jira Cloud's
+// search index lags a write by seconds; the mirror row is untouched and the
+// next scheduled sync picks the issue up. It is deliberately not ErrNotFound:
+// nothing was deleted and nothing is missing.
+var ErrIndexedLate = errors.New("sync: issue exists upstream but search has not indexed it yet")
+
+// defaultSearchLagBackoff is the waits before each retry of a search that
+// missed an issue a direct GET proved exists (total 3.5 s).
+var defaultSearchLagBackoff = []time.Duration{500 * time.Millisecond, time.Second, 2 * time.Second}
 
 // SyncIssue re-reads one issue and writes it to the mirror. RefreshIssue is
 // the write-through tail that routes here (or to SyncLinearIssue); CLI/REST
@@ -76,40 +89,71 @@ func SyncIssue(ctx context.Context, cfg *config.Config, db *store.DB, key string
 		opts.sprintField = &sprintFieldCache{}
 	}
 	agile := opts.sprintField.resolve(ctx, c, opts)
-	found := false
-	err = c.Search(ctx, fmt.Sprintf("key = %q", key), appendSprintField(fieldList(cfg, false), agile), true, func(issues []jira.Issue) error {
-		// Force rewrites the row even when `updated` looks unchanged. That is the
-		// point: the rewrite is what moves synced_at and bumps sync_state.version,
-		// so the client's next delta carries the row and its ETag no longer matches.
-		batch := store.Batch{Categories: cats, Priorities: prios, Force: true}
-		for _, iss := range issues {
-			if id := iss.Fields.Status.ID; id != "" {
-				if _, ok := cats[id]; !ok {
-					cats[id] = statuscat.Category(iss.Fields.Status.StatusCategory.Key)
+	searchOnce := func() (bool, error) {
+		found := false
+		err := c.Search(ctx, fmt.Sprintf("key = %q", key), appendSprintField(fieldList(cfg, false), agile), true, func(issues []jira.Issue) error {
+			// Force rewrites the row even when `updated` looks unchanged. That is the
+			// point: the rewrite is what moves synced_at and bumps sync_state.version,
+			// so the client's next delta carries the row and its ETag no longer matches.
+			batch := store.Batch{Categories: cats, Priorities: prios, Force: true}
+			for _, iss := range issues {
+				if id := iss.Fields.Status.ID; id != "" {
+					if _, ok := cats[id]; !ok {
+						cats[id] = statuscat.Category(iss.Fields.Status.StatusCategory.Key)
+					}
 				}
+				r, err := build(ctx, c, cfg, iss, agile)
+				if err != nil {
+					return err
+				}
+				batch.Records = append(batch.Records, r)
+				found = true
 			}
-			r, err := build(ctx, c, cfg, iss, agile)
-			if err != nil {
-				return err
-			}
-			batch.Records = append(batch.Records, r)
-			found = true
-		}
-		_, err := db.UpsertIssues(ctx, batch)
-		return err
-	})
+			_, err := db.UpsertIssues(ctx, batch)
+			return err
+		})
+		return found, err
+	}
+	found, err := searchOnce()
 	if err != nil {
 		return err
 	}
-	if !found {
-		n, delErr := db.DeleteItems(ctx, SourceID, []string{key})
-		if delErr != nil {
-			return delErr
-		}
-		opts.logf("sync: tombstone %s (%d rows)", key, n)
-		return fmt.Errorf("%s: %w", key, ErrNotFound)
+	if found {
+		return nil
 	}
-	return nil
+	// A search miss is not proof of deletion: the index lags a write by
+	// seconds. Only a 404 from the direct (strongly consistent) read is.
+	_, _, perr := c.IssueStatus(ctx, key)
+	var apiErr *jira.APIError
+	if perr == nil {
+		backoff := opts.searchLagBackoff
+		if backoff == nil {
+			backoff = defaultSearchLagBackoff
+		}
+		for _, d := range backoff {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(d):
+			}
+			if found, err = searchOnce(); err != nil {
+				return err
+			} else if found {
+				return nil
+			}
+		}
+		opts.logf("sync: %s exists upstream but search has not indexed it", key)
+		return fmt.Errorf("%s: %w", key, ErrIndexedLate)
+	}
+	if !errors.As(perr, &apiErr) || apiErr.Status != http.StatusNotFound {
+		return perr
+	}
+	n, delErr := db.DeleteItems(ctx, SourceID, []string{key})
+	if delErr != nil {
+		return delErr
+	}
+	opts.logf("sync: tombstone %s (%d rows)", key, n)
+	return fmt.Errorf("%s: %w", key, ErrNotFound)
 }
 
 // SyncPage re-reads one Confluence page and writes it to the mirror. Used when
