@@ -150,6 +150,16 @@ export function densityStrip(
   return days
 }
 
+/**
+ * Whether the strip has anything to draw (GDK-1953). A window whose days are
+ * all zero is "nothing happened" — the same state as no window — and must get
+ * the same sentence: drawn, it is a row of one-pixel floors that reads as a
+ * render that failed. The per-day floor stays for a quiet day among busy ones.
+ */
+export function densityHasEvents(days: readonly DensityDay[]): boolean {
+  return days.some((d) => d.total > 0)
+}
+
 /** One dot on the cycle-time scatter. `x` and `y` are 0..1 of the box. */
 export interface ScatterPoint {
   key: string

@@ -21,7 +21,7 @@
   import Icon from '../ui/Icon.svelte'
   import type { IconName } from '../ui/Icon.svelte'
   import { t, locale } from '../../lib/i18n'
-  import { densityStrip } from '../../lib/retro/materials'
+  import { densityHasEvents, densityStrip } from '../../lib/retro/materials'
   import type { RetroBucket, RetroSurpriseKind } from '../../lib/types'
 
   let {
@@ -78,7 +78,7 @@
   }
 </script>
 
-{#if days.length}
+{#if densityHasEvents(days)}
   <!-- Flexed rather than an SVG grid: the columns share the width the
        section has, and a day is a box, not a curve. -->
   <!--

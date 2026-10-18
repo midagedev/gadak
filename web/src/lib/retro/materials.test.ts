@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest'
 import {
   agingChart,
   cycleScatter,
+  densityHasEvents,
   densityStrip,
   hasMaterials,
   percentile,
@@ -77,6 +78,25 @@ describe('agingChart', () => {
 
 describe('densityStrip', () => {
   const now = new Date('2026-03-10T12:00:00Z')
+
+  // GDK-1953: a window whose days are all zero is "nothing happened", the
+  // same state as no window at all. The strip would be a row of one-pixel
+  // floors — a hairline that reads as a failed render — so the section must
+  // say its sentence instead. The decision is the totals', not the array's
+  // length.
+  it('reports no events for a window of empty days', () => {
+    const empty = densityStrip([], '2026-03-02T00:00:00Z', '2026-03-09T00:00:00Z', now)
+    expect(empty).toHaveLength(7)
+    expect(densityHasEvents(empty)).toBe(false)
+    expect(densityHasEvents([])).toBe(false)
+    const one = densityStrip(
+      [{ at: '2026-03-04T09:00:00Z', key: 'A-2', kind: 'resolved' }],
+      '2026-03-02T00:00:00Z',
+      '2026-03-09T00:00:00Z',
+      now,
+    )
+    expect(densityHasEvents(one)).toBe(true)
+  })
 
   it('keeps a column for every day, including the empty ones', () => {
     const s = densityStrip(
