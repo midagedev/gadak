@@ -1128,7 +1128,7 @@ func TestReconcileDeletesVanishedKeys(t *testing.T) {
 	if len(lites) != 1 || lites[0].IssueKey != "NMB-1" {
 		t.Errorf("mirror = %+v", lites)
 	}
-	gone, err := db.DeletedKeysSince(context.Background(), "")
+	gone, err := db.DeletedKeysSince(context.Background(), "", store.TombstoneIssues)
 	if err != nil {
 		t.Fatal(err)
 	}

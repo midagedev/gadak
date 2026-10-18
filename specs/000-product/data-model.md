@@ -576,12 +576,14 @@ never outlive an edit that removed the mention.
 
 Tombstones. Jira reports nothing when an issue leaves scope, so the reconcile
 pass proves absence and deletes the row — but a client that was offline at that
-moment would keep showing it forever. `delta` reads its `deleted_keys` from here.
+moment would keep showing it forever. `delta` reads its `deleted_keys` from here,
+issue sources only: wiki page tombstones live in the same table and never reach the
+issue client (v55).
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `key` | TEXT PK | The key that vanished upstream |
-| `source_id` | TEXT | Which source it belonged to |
+| `key` | TEXT | The key that vanished upstream (PK with `source_id`) |
+| `source_id` | TEXT | Which source it belonged to (PK with `key`) |
 | `deleted_at` | TEXT | When the mirror dropped it; the `delta` cursor compares against this |
 
 Index: `(deleted_at)`.

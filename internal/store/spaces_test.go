@@ -465,7 +465,7 @@ func TestPruneConfluenceSpacesRemovesOutOfScope(t *testing.T) {
 		t.Errorf("jira issue lost in prune: keys=%v", res.Keys)
 	}
 
-	gone, err := db.DeletedKeysSince(ctx, cursor)
+	gone, err := db.DeletedKeysSince(ctx, cursor, TombstoneWiki)
 	if err != nil {
 		t.Fatal(err)
 	}

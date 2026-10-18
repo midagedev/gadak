@@ -720,7 +720,7 @@ func TestDeleteItemsCascadesAndTombstones(t *testing.T) {
 	if res, err := db.Search(context.Background(), "budget", 10); err != nil || len(res.Keys) != 0 {
 		t.Errorf("deleted item still in the full-text index: %v (%v)", res.Keys, err)
 	}
-	deleted, err := db.DeletedKeysSince(context.Background(), cursor)
+	deleted, err := db.DeletedKeysSince(context.Background(), cursor, TombstoneIssues)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -734,7 +734,7 @@ func TestDeleteItemsCascadesAndTombstones(t *testing.T) {
 	if _, err := db.UpsertIssues(context.Background(), b); err != nil {
 		t.Fatal(err)
 	}
-	if deleted, err := db.DeletedKeysSince(context.Background(), cursor); err != nil || len(deleted) != 0 {
+	if deleted, err := db.DeletedKeysSince(context.Background(), cursor, TombstoneIssues); err != nil || len(deleted) != 0 {
 		t.Errorf("resurrected issue still tombstoned: %v (%v)", deleted, err)
 	}
 }

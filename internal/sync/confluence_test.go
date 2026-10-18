@@ -1865,7 +1865,7 @@ func TestConfluenceFullSyncDeletesPageGoneFromSameSpace(t *testing.T) {
 	if len(pages) != 1 || pages[0].Key != "1001" {
 		t.Fatalf("pages after deletion = %+v, want only 1001", pages)
 	}
-	gone, err := db.DeletedKeysSince(ctx, "")
+	gone, err := db.DeletedKeysSince(ctx, "", store.TombstoneWiki)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1965,7 +1965,7 @@ func TestConfluenceReconcileConfirmVerdicts(t *testing.T) {
 	}
 	tombstoned := func(t *testing.T, db *mirror, key string) bool {
 		t.Helper()
-		gone, err := db.DeletedKeysSince(ctx, "")
+		gone, err := db.DeletedKeysSince(ctx, "", store.TombstoneWiki)
 		if err != nil {
 			t.Fatal(err)
 		}

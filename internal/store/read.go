@@ -379,10 +379,35 @@ func (db *DB) issueLites(ctx context.Context, query string, args ...any) ([]Issu
 	return out, rows.Err()
 }
 
-// DeletedKeysSince lists keys tombstoned after the cursor. `delta` must report
-// these: a missed deletion leaves a tombstone visible in the client forever.
-func (db *DB) DeletedKeysSince(ctx context.Context, since string) ([]string, error) {
-	rows, err := db.sql.QueryContext(ctx, `SELECT key FROM deleted_items WHERE deleted_at >= ? ORDER BY deleted_at`, since)
+// TombstoneScope says whose tombstones DeletedKeysSince lists. deleted_items
+// holds issue keys and wiki page ids side by side (GDK-1890); a client of one
+// must never be handed the other's.
+type TombstoneScope int
+
+const (
+	// TombstoneIssues is every source except the wiki: Jira, Linear and the
+	// built-in tracker. It is the exclusion, not a list, so a new issue
+	// source id needs no edit here.
+	TombstoneIssues TombstoneScope = iota
+	// TombstoneWiki is the Confluence source only.
+	TombstoneWiki
+)
+
+// wikiSourceID duplicates sync.ConfluenceSourceID (store cannot import sync);
+// the sync Confluence delete tests read page tombstones through TombstoneWiki,
+// so a drift between the two fails them.
+const wikiSourceID = "confluence"
+
+// DeletedKeysSince lists keys tombstoned after the cursor, within one scope.
+// `delta` must report these: a missed deletion leaves a tombstone visible in
+// the client forever. The issue delta asks for TombstoneIssues so a page id
+// never reaches the issue client as a stray key.
+func (db *DB) DeletedKeysSince(ctx context.Context, since string, scope TombstoneScope) ([]string, error) {
+	cmp := "<>"
+	if scope == TombstoneWiki {
+		cmp = "="
+	}
+	rows, err := db.sql.QueryContext(ctx, `SELECT key FROM deleted_items WHERE deleted_at >= ? AND source_id `+cmp+` ? ORDER BY deleted_at`, since, wikiSourceID)
 	if err != nil {
 		return nil, err
 	}

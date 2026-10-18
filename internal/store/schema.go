@@ -3,7 +3,7 @@ package store
 // migrations are applied in order and the index+1 is the schema version. A
 // released migration is never edited; a schema change is a new entry at the end
 // plus a documented row in specs/000-product/data-model.md.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48, schemaV49, schemaV50, schemaV51, schemaV52, schemaV53, schemaV54}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48, schemaV49, schemaV50, schemaV51, schemaV52, schemaV53, schemaV54, schemaV55}
 
 // MirrorSchemaVersion is the mirror schema level this build writes
 // (len(migrations)) — the head of a have/head pair. `gadak doctor` prints it
@@ -1174,3 +1174,26 @@ const apiUsageCopyVersion = 53
 // Japanese again and nothing said. v25 and v50 took this entry for the same
 // reason; script_runs is the one that skipped it (GDK-1999).
 const schemaV54 = `SELECT 1`
+
+// schemaV55 (GDK-1890) makes deleted_items' primary key (source_id, key). The
+// key alone was the PK, so a Confluence page id and an issue key that spelled
+// the same string overwrote each other's tombstone, source_id included, and
+// the issue delta could not tell whose tombstone it was handed. SQLite cannot
+// alter a PK: create, copy, drop, rename, recreate the index. Rows keep their
+// source_id; the old PK made (source_id, key) unique already, so the copy
+// cannot conflict. The table is a mirror cache (90-day tombstones) and holds
+// nothing the origin cannot regenerate. The stamp moves user_version, so
+// SchemaTooNewError and RefuseForward treat a v55 file like any newer one.
+const schemaV55 = `
+CREATE TABLE deleted_items_v55 (
+  key        TEXT NOT NULL,
+  source_id  TEXT NOT NULL,
+  deleted_at TEXT NOT NULL,
+  PRIMARY KEY (source_id, key)
+);
+INSERT INTO deleted_items_v55 (key, source_id, deleted_at)
+  SELECT key, source_id, deleted_at FROM deleted_items;
+DROP TABLE deleted_items;
+ALTER TABLE deleted_items_v55 RENAME TO deleted_items;
+CREATE INDEX deleted_items_at ON deleted_items(deleted_at);
+`

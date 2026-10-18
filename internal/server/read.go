@@ -339,7 +339,7 @@ func (s *server) handleDelta(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
-	deleted, err := s.db.DeletedKeysSince(r.Context(), since)
+	deleted, err := s.db.DeletedKeysSince(r.Context(), since, store.TombstoneIssues)
 	if err != nil {
 		serverError(w, r, err)
 		return

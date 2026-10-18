@@ -1126,7 +1126,7 @@ func (db *DB) deleteItems(ctx context.Context, sourceID string, keys []string, g
 			}
 			if _, err := tx.Exec(`
 				INSERT INTO deleted_items (key, source_id, deleted_at) VALUES (?,?,?)
-				ON CONFLICT(key) DO UPDATE SET deleted_at = excluded.deleted_at`,
+				ON CONFLICT(source_id, key) DO UPDATE SET deleted_at = excluded.deleted_at`,
 				key, sourceID, at); err != nil {
 				return nil, err
 			}
