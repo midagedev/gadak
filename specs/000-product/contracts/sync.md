@@ -88,6 +88,12 @@ If a candidate's confirm GET returns 403, sync keeps its existing mirror row,
 logs its page ID and status, and continues confirming other candidates. The
 pass can complete successfully; the retained page remains searchable and is
 checked again on the next reconcile. A 403 alone does not prove deletion.
+The same holds for a page body GET that returns 403 during a wiki pass: sync
+keeps that page's existing row, logs its page ID and status, and continues. A
+403 on a page's comments or attachments keeps the page without them for that
+pass. A full pass in which every body GET returns 403 and none succeeds
+fails as a rejected credential. An incremental pass does not: it may list
+only the restricted page, and the listing already proved the credential.
 An ordinary incremental CQL window cannot prove a deletion. Space-scope
 pruning still removes pages when a space leaves the configured scope.
 
@@ -150,8 +156,10 @@ display language and ignores `Accept-Language`. Two consequences:
 - A `401` or `403` aborts the run immediately and records `last_error`; retrying
   a bad credential just burns the rate budget. The exception is a Confluence
   missing-page confirm GET during reconcile: its `403` keeps only that page
-  and lets the pass continue, as described above. Listing, body-fetch and
-  write failures retain the normal credential-rejection policy.
+  and lets the pass continue, as described above. The other is a Confluence
+  page body `403`: it keeps only that page. Listing and write failures, and a
+  full pass where every body fetch returns `403`, retain the normal
+  credential-rejection policy.
 
 ## Watch mode
 

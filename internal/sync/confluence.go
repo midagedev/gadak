@@ -113,6 +113,15 @@ type pageFetch struct {
 	versions  []store.PageVersion
 	gone      bool
 	goneErr   error
+	// forbidden marks a body GET that answered 403 (GDK-2049): the page's
+	// cache row is kept as it is and the pass goes on. It is not gone — a
+	// 403 does not prove deletion — so it never joins the absence
+	// bookkeeping. forbiddenErr carries the answer for the log and for the
+	// all-forbidden guard. notes are per-page degrade lines (a forbidden
+	// comments or attachments container) the committer logs in order.
+	forbidden    bool
+	forbiddenErr error
+	notes        []string
 }
 
 // runConfluencePass is the Confluence-specific body inside the shared runSource
@@ -279,6 +288,20 @@ func runConfluencePass(ctx context.Context, c *confluence.Client, cfg *config.Co
 		opts.logf("%s", line)
 	}
 
+	// GDK-2049: a 403 on a page's body is a per-page restriction — the
+	// listing this pass just ran answered with the same credential. Only a
+	// full pass, which asks for every page in scope, can say more: when every
+	// body it fetched answered 403, that is the rejected credential it looks
+	// like, and the pass fails as before. An incremental pass may list just
+	// the one restricted page; failing it would repeat on every tick, since
+	// the watermark never moves past that page.
+	if res.Full && p.forbiddenN > 0 && p.fetchedOK == 0 {
+		return record(ctx, cfg, db, ConfluenceSourceID, p.firstForbidden)
+	}
+	if p.forbiddenN > 0 {
+		opts.logf("confluence: %d pages unreadable (403), rows kept", p.forbiddenN)
+	}
+
 	res.Watermark = p.maxRaw
 	if err := db.RecordSync(ctx, ConfluenceSourceID, store.SyncResult{Watermark: p.maxRaw, FullSync: res.Full}); err != nil {
 		return err
@@ -322,6 +345,13 @@ type confluencePass struct {
 	maxUTC, maxRaw string
 	wms            map[string]string
 	spaces         []string
+	// fetchedOK counts body fetches that answered; forbiddenN counts those
+	// that answered 403, and firstForbidden keeps the first such error. They
+	// are written only by emit (one goroutine) and read where the pass
+	// decides success (GDK-2049).
+	fetchedOK      int
+	forbiddenN     int
+	firstForbidden error
 	// verifiedSpaces marks the keys this pass verified against the origin
 	// (path ①'s listing, path ②'s resolved GETs, the memory.space join).
 	verifiedSpaces map[string]bool
@@ -343,8 +373,16 @@ type confluencePass struct {
 func (p *confluencePass) fetchOne(ctx context.Context, hit confluence.Page) (pageFetch, error) {
 	before := p.c.Usage().Throttled
 	var pf pageFetch
-	rec, spaceName, when, err := fetchPageRecord(ctx, p.c, p.cfg, hit, p.atts)
-	if err == nil {
+	rec, spaceName, when, notes, err := fetchPageRecordTolerant(ctx, p.c, p.cfg, hit, p.atts, true)
+	pf.notes = notes
+	if err != nil && confirmErrStatus(err) == http.StatusForbidden && !errors.Is(err, confluence.ErrNotFound) {
+		// GDK-2049: one page the credential may not read is not a dead
+		// credential. Keep its row and go on; the pass decides in
+		// finishForbidden whether the 403s stand alone or are all there is.
+		pf.forbidden, pf.forbiddenErr = true, err
+		err = nil
+	}
+	if err == nil && !pf.forbidden {
 		pf.versions, err = fetchPageVersions(ctx, p.c, p.db, p.poolLogf, rec.Item.ID, rec.Item.ExternalID, rec.Page.Version)
 	}
 	if errors.Is(err, confluence.ErrNotFound) {
@@ -430,6 +468,21 @@ type hitBatch struct {
 // the absence bookkeeping; a live one joins the batch, flushing at
 // pageBatchSize.
 func (p *confluencePass) emit(b *hitBatch, i int, pf pageFetch) error {
+	for _, n := range pf.notes {
+		p.opts.logf("confluence: %s %s", b.kept[i].ID, n)
+	}
+	if pf.forbidden {
+		// GDK-2049: the old row stays (no tombstone, no upsert) and the page
+		// stays in the listing's seen set, so the absence delete cannot take
+		// it. Its stamp is not noted: the floor must not claim it was read.
+		p.forbiddenN++
+		if p.firstForbidden == nil {
+			p.firstForbidden = pf.forbiddenErr
+		}
+		p.opts.logf("confluence: skip %s (forbidden, %d: row kept): %v", b.kept[i].ID, confirmErrStatus(pf.forbiddenErr), pf.forbiddenErr)
+		return nil
+	}
+	p.fetchedOK++
 	if pf.gone {
 		// Deleted or view-restricted between the listing and the fetch.
 		// A full listing excludes this ID from seen; candidate verification
@@ -1451,9 +1504,25 @@ func noteStamp(when string, maxUTC, maxRaw *string) {
 // rest of the pass skips the request instead of collecting the same refusal
 // per page. Nil degrades the same way with nobody to tell.
 func fetchPageRecord(ctx context.Context, c *confluence.Client, cfg *config.Config, hit confluence.Page, atts *attachmentSupport) (store.PageRecord, string, string, error) {
+	rec, spaceName, when, _, err := fetchPageRecordTolerant(ctx, c, cfg, hit, atts, false)
+	return rec, spaceName, when, err
+}
+
+// fetchPageRecordTolerant is fetchPageRecord with one switch: with
+// tolerateForbidden, a 403 on the comments or attachments container is read
+// like the 404 beside it (restricted child content) — the page keeps its body
+// and drops that child for this pass, with a note for the log (GDK-2049). The
+// pooled pass sets it; the write-through refresh (SyncPage) does not, so a 403
+// there stays an error to its caller. The body GET's own 403 is returned
+// either way: the pass decides what it means.
+func fetchPageRecordTolerant(ctx context.Context, c *confluence.Client, cfg *config.Config, hit confluence.Page, atts *attachmentSupport, tolerateForbidden bool) (store.PageRecord, string, string, []string, error) {
+	var notes []string
+	forbiddenChild := func(err error) bool {
+		return tolerateForbidden && confirmErrStatus(err) == http.StatusForbidden
+	}
 	full, err := c.Page(ctx, hit.ID)
 	if err != nil {
-		return store.PageRecord{}, "", "", err
+		return store.PageRecord{}, "", "", nil, err
 	}
 	// Prefer full fetch fields; fall back to search hit.
 	if full.ID == "" {
@@ -1464,8 +1533,11 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, cfg *config.Conf
 		// The page itself fetched fine but its comment container 404s (seen
 		// live: restricted child content). Keep the page, drop the comments.
 		cms = nil
+	} else if forbiddenChild(err) {
+		cms = nil
+		notes = append(notes, "comments forbidden (403): kept without")
 	} else if err != nil {
-		return store.PageRecord{}, "", "", err
+		return store.PageRecord{}, "", "", nil, err
 	}
 	attRows := []confluence.Attachment(nil)
 	if !atts.skipListing() {
@@ -1475,6 +1547,8 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, cfg *config.Conf
 			attRows = listed
 		case errors.Is(err, confluence.ErrNotFound):
 			// Same restricted-child shape comments tolerate.
+		case forbiddenChild(err):
+			notes = append(notes, "attachments forbidden (403): kept without")
 		case isUnsupportedEndpoint(err):
 			// issuetap's wiki has no child/attachment route yet: it answers
 			// 501 unsupported_endpoint. That gap is the origin's, not the
@@ -1482,7 +1556,7 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, cfg *config.Conf
 			// (one refusal is measured, not one per page).
 			atts.noteRefused()
 		default:
-			return store.PageRecord{}, "", "", err
+			return store.PageRecord{}, "", "", nil, err
 		}
 	}
 
@@ -1592,7 +1666,7 @@ func fetchPageRecord(ctx context.Context, c *confluence.Client, cfg *config.Conf
 			// to keep true (GDK-1639).
 		})
 	}
-	return rec, spaceName, when, nil
+	return rec, spaceName, when, notes, nil
 }
 
 // attachmentSupport is one pass's memory of whether the origin lists page

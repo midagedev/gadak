@@ -838,7 +838,7 @@ this table from the code instead of maintaining it by hand is GDK-1301.
     `GET /wiki/rest/api/content/{pageId}/child/attachment`,
     `start`-paged 100 rows at a time — and mirrored into the same
     attachments table an issue's ride, keyed apart by `item_id`
-    (`internal/confluence/client.go:562`, `internal/sync/confluence.go:1578`,
+    (`internal/confluence/client.go:562`, `internal/sync/confluence.go:1544`,
     `internal/store/write.go:859`). The page detail carries them in the same
     wire shape the issue detail does (`internal/server/read.go:927`), and the
     bytes stream from `content/{attId}/download` through `origin.Wiki` on the
@@ -850,7 +850,7 @@ this table from the code instead of maintaining it by hand is GDK-1301.
     compares each search hit's `children.attachment` ids (a shape measured
     live) with the cached set and re-fetches the page when they differ; a
     listing truncated at the expansion's limit is left uncompared
-    (`internal/sync/confluence.go:715`).
+    (`internal/sync/confluence.go:768`).
 
 [^148]: The built-in wiki serves the page surface (footnote 46) but not this
     one: `child/attachment` and `content/{id}/download` fall to
@@ -858,7 +858,7 @@ this table from the code instead of maintaining it by hand is GDK-1301.
     (`issuetap/internal/api/confluence.go:164`). The sync pass measures the
     refusal once, skips the listing for the rest of the pass, and reports the
     degrade in one summary line while the pages themselves mirror normally
-    (`internal/sync/confluence.go:1601`); the byte proxy needs no change when
+    (`internal/sync/confluence.go:1675`); the byte proxy needs no change when
     the origin grows the routes — that is an issuetap round.
 
 [^150]: The seed YAML is the built-in tracker's own format — a Jira, Server,
