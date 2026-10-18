@@ -1236,6 +1236,11 @@ var commandSynonyms = map[string]string{
 	"history":  "recents",
 	"finish":   "done",
 	"complete": "done",
+	// GDK-2058: the read half of attach is a subcommand, so a session
+	// looking for a download verb did not find it in the command list.
+	"download":    "attach get",
+	"attachment":  "attach get",
+	"attachments": "attach get",
 }
 
 // suggestCommand returns the command the name most likely meant, or "" when

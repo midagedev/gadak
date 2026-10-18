@@ -291,7 +291,9 @@ in that table, and so do its goal and its dates. `versions` is the project catal
 `fix_version_ids` (same-order ids next to the name array `fix_versions`).
 `pages` is
 the Confluence projection. `comments`, `attachments`, `changelog`, `links`,
-and `dev_links` (development-panel PRs) hang off `items.id`. `items_fts` is
+and `dev_links` (development-panel PRs) hang off `items.id`. `attachments`
+holds metadata, not bytes, and its `url` is empty on Jira by design — download
+a file with `gadak attach get <KEY> <filename|id> [--out DIR]`. `items_fts` is
 one FTS5 index over titles, labels, bodies, and
 comment text — issues and wiki pages together. `labels`, `components`, and
 `fix_versions` are JSON arrays; reach them with `json_each`. Mapped custom

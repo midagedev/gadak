@@ -239,6 +239,7 @@ Writing through to the workspace origin — ` + writeThroughOriginPhrase + `:
                    [--due YYYY-MM-DD] [--parent KEY] [--label L]... [--attach FILE]...
                    [-m <text|->] [--field alias=value]... [--json]
   attach     attach files     <KEY> <file>... [--json]
+                   | download one: attach get <KEY> <filename|id> [--out DIR|FILE|-]
   edit       edit an issue    <KEY> [--summary S] [-m <text|->]
                    [--label +x|-x]... [--component +x|-x]... [--fix-version +id-or-name|-id-or-name]...
                    [--priority NAME-or-id] [--due YYYY-MM-DD|none] [--parent KEY|none]

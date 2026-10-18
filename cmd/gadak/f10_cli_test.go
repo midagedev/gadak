@@ -394,6 +394,11 @@ func TestUnknownCommandSuggestsSynonym(t *testing.T) {
 		{"history", "recents"},
 		{"finish", "done"},
 		{"complete", "done"},
+		// GDK-2058: two agents looked for a download verb and missed
+		// `attach get`; the words they reached for now point at it.
+		{"download", "attach get"},
+		{"attachment", "attach get"},
+		{"attachments", "attach get"},
 	} {
 		if _, ok := commands[tc.in]; ok {
 			t.Errorf("%q became a real command; the synonym entry is dead code", tc.in)
