@@ -2,13 +2,47 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
-## Unreleased
+## v0.24.2 — 2026-10-19
 
-**Sync stops doing work it does not need, and stops reporting losses that did not happen.** Adding one project to `projects` used to re-read every project: measured, four existing projects and one new one cost 13,410 issues and ten minutes. A scope that only widens now stays incremental and reads the full history of the added projects after it; narrowing or replacing the scope still takes one full pass ([GDK-2051]). A write's refresh read the issue back through Jira search, which sees a new issue seconds late, so `gadak create` printed "issue not found upstream" for an issue it had just made — four of six in one batch — and the same miss after an edit could drop a live row from the cache. A miss is now checked with a direct read of the issue: only a 404 removes it, and an issue that exists is searched again for up to 3.5 s ([GDK-2050], [GDK-2054]). A page that answers 403 when the wiki reconcile checks it is kept and logged, and the pass goes on with the other pages instead of stopping wiki sync. The same now holds when that page's body answers 403: one restricted page was read as a rejected credential and stopped every wiki pass after it, while the same credential still listed the space ([GDK-2049]).
+**Sync does only the work it needs, and stops reporting losses that did not
+happen.** Adding one project to `projects` used to re-read every project: four
+existing projects and one new one cost 13,410 issues and ten minutes. A scope
+that only widens now stays incremental and reads the added project's history
+after it; narrowing or replacing the scope still takes one full pass
+([GDK-2051]). Jira search sees a new issue seconds late, so `gadak create`
+printed "issue not found upstream" for an issue it had just made — four of six
+in one batch — and the same miss after an edit could drop a live row from the
+cache. A miss is now checked by reading the issue directly: only a 404 removes
+it, and an issue that exists is searched again for up to 3.5 s ([GDK-2050],
+[GDK-2054]). One wiki page the credential may not read no longer stops wiki
+sync. Whether the 403 comes from the reconcile check (#111, thanks @wafe) or
+from the page body, the page is kept, logged and skipped; only a full pass in
+which every page answers 403 still fails as a rejected credential ([GDK-2049]).
 
-**Errors name the move that works.** A Markdown comment with inline code inside bold text was rejected by Jira with a bare 400 INVALID_INPUT. The converter no longer puts the bold mark on code, a pair Jira's document format does not allow ([GDK-1892]). `gadak sql` rejects an unknown flag with the flags it accepts, and answers `--format json` with `--json` ([GDK-2030]); asking `comments` for `key` points at the join to `items` instead of at the `issues` table ([GDK-2053]). A sync that failed because the credential was rejected says to sign in again with `gadak init` or to turn wiki sync off, instead of suggesting a retry that fails the same way ([GDK-2049]). After an upgrade, the installed skill file is checked at once instead of on the next UTC day ([GDK-2031]). `gadak sync --if-stale 0s` says the threshold must be positive and that plain `gadak sync` always runs, instead of asking for a duration it was given ([GDK-2055]). Two agents looking for a way to download a Jira attachment missed `gadak attach get`, because `gadak --help` listed only uploads; the help line now shows it, `gadak download` points at it, and the skill says that `attachments.url` is empty on Jira by design ([GDK-2058]).
+**Errors name the move that works.** Jira rejected a Markdown comment with
+inline code inside bold text with a bare 400 INVALID_INPUT. The converter no
+longer puts a bold mark on code, a pair Jira's document format does not allow
+([GDK-1892]). `gadak sql` answers an unknown flag with the flags it accepts, and
+`--format json` with `--json` ([GDK-2030]); asking `comments` for `key` points
+at the join to `items` instead of at the `issues` table ([GDK-2053]). A sync
+that failed on a rejected credential says to sign in again with `gadak init` or
+to turn wiki sync off, instead of suggesting a retry that fails the same way
+([GDK-2049]). `gadak sync --if-stale 0s` says the threshold must be positive and
+that plain `gadak sync` always runs ([GDK-2055]). Two agents looking for a way
+to download a Jira attachment missed `gadak attach get`, because `gadak --help`
+listed only uploads: the help line shows it now, `gadak download` points at it,
+and the skill says `attachments.url` is empty on Jira by design ([GDK-2058]).
+After an upgrade, the installed skill file is checked at once instead of on the
+next UTC day ([GDK-2031]).
 
-**The screen agrees with itself.** With the in-app browser open, the list column's resize grip sat half under the page and could not be grabbed; it now sits wholly on the list side of the seam and drags from wherever it is pressed ([GDK-2048]). The status legend above the board reads in the board's column order instead of by count ([GDK-1850]), and a retro window where nothing happened says so instead of drawing a row of hairlines ([GDK-1953]).
+**The screen agrees with itself.** Switching the language no longer reloads the
+page: a half-written new issue stays as it was, and the screen redraws in the
+new language ([GDK-2034]). With the in-app browser open, the list column's
+resize grip sat half under the page and could not be grabbed; it now sits wholly
+on the list side of the seam and drags from where it is pressed ([GDK-2048]).
+The status legend above the board follows the board's column order instead of
+the counts ([GDK-1850]), and a retro window where nothing happened says so
+instead of drawing a row of hairlines ([GDK-1953]).
 
 ## v0.24.1 — 2026-10-01
 
@@ -1825,6 +1859,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-2030]: https://gadak.dev/backlog/#/?ks=GDK-2030
 [GDK-2031]: https://gadak.dev/backlog/#/?ks=GDK-2031
 [GDK-2032]: https://gadak.dev/backlog/#/?ks=GDK-2032
+[GDK-2034]: https://gadak.dev/backlog/#/?ks=GDK-2034
 [GDK-2042]: https://gadak.dev/backlog/#/?ks=GDK-2042
 [GDK-2047]: https://gadak.dev/backlog/#/?ks=GDK-2047
 [GDK-2048]: https://gadak.dev/backlog/#/?ks=GDK-2048
