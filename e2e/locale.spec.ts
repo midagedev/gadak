@@ -2,7 +2,7 @@ import { test, expect } from './helpers'
 import { attachConsoleErrors, forceLocale, openServerSettings, DEMO_ISSUE_COUNT_EN_RE, DEMO_ISSUE_COUNT_KO, DEMO_ISSUE_COUNT_JA } from './helpers'
 
 test.describe('locale', () => {
-  test('switching to ko reloads with Korean copy', async ({ page }) => {
+  test('switching to ko re-renders in place with Korean copy', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await forceLocale(page, 'en')
     await page.goto('/')
@@ -12,12 +12,17 @@ test.describe('locale', () => {
     const dialog = page.getByRole('dialog', { name: 'Settings' })
     await expect(dialog.getByText('Language')).toBeVisible()
 
-    // setLocale writes localStorage and hard-reloads (URL hash unchanged).
+    // GDK-2034 (2026-10-19): setLocale used to write localStorage and
+    // hard-reload, and this assertion waited for that load event. The reload
+    // was the defect (it threw away every unpersisted edit), so the contract
+    // is now the opposite: the locale switches in place and the document
+    // survives. The language checks below are unchanged — they only lost the
+    // reload they used to ride on.
     // Language is the labeled select in the footer — not the interval presets on Sync.
-    await Promise.all([
-      page.waitForEvent('load'),
-      dialog.getByLabel('Language').selectOption('ko'),
-    ])
+    await page.evaluate(() => {
+      ;(window as unknown as { __noReload: number }).__noReload = 1
+    })
+    await dialog.getByLabel('Language').selectOption('ko')
 
     // ko.ts: sidebar.issueCount = '{n}건' (pool size; list count may be filtered).
     // .first(): the settings dialog is still open across the reload and its
@@ -35,10 +40,11 @@ test.describe('locale', () => {
     // locator would match both and trip Playwright strict mode.
     await expect(page.getByTestId('list-count')).toHaveText(/\d+건/)
 
+    expect(await page.evaluate(() => (window as unknown as { __noReload?: number }).__noReload)).toBe(1)
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 
-  test('switching to ja reloads with Japanese copy', async ({ page }) => {
+  test('switching to ja re-renders in place with Japanese copy', async ({ page }) => {
     const errors = attachConsoleErrors(page)
     await forceLocale(page, 'en')
     await page.goto('/')
@@ -48,10 +54,11 @@ test.describe('locale', () => {
     const dialog = page.getByRole('dialog', { name: 'Settings' })
     await expect(dialog.getByText('Language')).toBeVisible()
 
-    await Promise.all([
-      page.waitForEvent('load'),
-      dialog.getByLabel('Language').selectOption('ja'),
-    ])
+    // GDK-2034: in place, no load event (see the ko test above).
+    await page.evaluate(() => {
+      ;(window as unknown as { __noReload: number }).__noReload = 1
+    })
+    await dialog.getByLabel('Language').selectOption('ja')
 
     // ja.ts: sidebar.issueCount = '{n}件' (pool size; list count may be filtered).
     // .first() for the same reason as the ko assertion above: the open
@@ -69,6 +76,7 @@ test.describe('locale', () => {
     await expect(page.getByRole('button', { name: '+フィルター' })).toBeVisible()
     await expect(page.getByTestId('list-count')).toHaveText(/\d+件/)
 
+    expect(await page.evaluate(() => (window as unknown as { __noReload?: number }).__noReload)).toBe(1)
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([])
   })
 })

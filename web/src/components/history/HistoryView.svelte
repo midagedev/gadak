@@ -34,19 +34,19 @@
   import VirtualRows from '../ui/VirtualRows.svelte'
   import { createSkeletonGrace } from '../../lib/skeleton-grace.svelte'
 
-  const TABS: { key: HistoryKindFilter; label: string }[] = [
+  const TABS: { key: HistoryKindFilter; label: string }[] = $derived([
     { key: '', label: t('history.tabAll') },
     { key: 'issue', label: t('history.tabIssues') },
     { key: 'page', label: t('history.tabDocs') },
     { key: 'search', label: t('history.tabSearches') },
-  ]
+  ])
 
-  const GROUP_LABEL: Record<DateGroup, string> = {
+  const GROUP_LABEL: Record<DateGroup, string> = $derived({
     today: t('history.groupToday'),
     yesterday: t('history.groupYesterday'),
     week: t('history.groupThisWeek'),
     older: t('history.groupOlder'),
-  }
+  })
 
   $effect(() => {
     if (!pages.historyView) return

@@ -18,14 +18,14 @@
     () => me.feedFocus,
   )
 
-  const TABS: { key: FeedFocus; label: string }[] = [
+  const TABS: { key: FeedFocus; label: string }[] = $derived([
     { key: 'all', label: t('feed.filterAll') },
     { key: 'assignee', label: t('feed.filterAssignee') },
     { key: 'reporter', label: t('feed.filterReporter') },
     { key: 'mention', label: t('feed.filterMention') },
-  ]
+  ])
 
-  const EVENT_LABELS: Record<FeedItem['event_type'], string> = {
+  const EVENT_LABELS: Record<FeedItem['event_type'], string> = $derived({
     created: t('feed.kindCreated'),
     status_changed: t('feed.kindStatus'),
     reopened: t('feed.kindReopen'),
@@ -33,9 +33,9 @@
     comment_added: t('feed.kindComment'),
     attachment_added: t('feed.kindAttachment'),
     fields_changed: t('feed.kindField'),
-  }
+  })
 
-  const REASON_LABELS: Record<string, string> = {
+  const REASON_LABELS: Record<string, string> = $derived({
     assignee: t('feed.whyAssignee'),
     assigned: t('feed.whyNewAssignee'),
     reporter: t('feed.whyReporter'),
@@ -43,7 +43,7 @@
     watched: t('feed.whyWatch'),
     watch: t('feed.whyWatch'),
     mention: t('feed.whyMention'),
-  }
+  })
 
   // One glyph per event kind — information (what kind of thing happened),
   // not decoration (UX §5). Only names that already exist in Icon.svelte;

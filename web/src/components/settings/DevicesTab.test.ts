@@ -267,7 +267,11 @@ describe('GDK-1047 devices tab is wired into the dialog', () => {
 
   test('labeled, shown, and mounted', () => {
     expect(dialog).toMatch(/devices: t\('settings\.tabDevices'\)/)
-    expect(dialog).toMatch(/const showDevices = TABS\.some/)
+    // GDK-2034 (2026-10-19): TABS holds translated labels and is a $derived now
+    // (the locale switches without a reload), so the flag derived from it is
+    // one too. Same pin as before — showDevices still comes from TABS.some;
+    // only the wrapper the compiler requires is part of the shape.
+    expect(dialog).toMatch(/const showDevices = \$derived\(TABS\.some/)
     expect(dialog).toMatch(/tab === 'devices' && showDevices/)
     expect(dialog).toMatch(/<DevicesTab \/>/)
   })

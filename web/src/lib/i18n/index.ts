@@ -1,19 +1,19 @@
 /*
  * Thin i18n runtime — no library dependency.
  * Locale: localStorage gadak_locale > navigator.language (ko* / ja*) > en.
- * Changing locale reloads the page (see setLocale).
+ * The locale is reactive state (locale-state.ts): setLocale re-renders in
+ * place, no reload (GDK-2034).
  */
 
 import { formatAbs } from '../calendar'
 import { en, ja, ko, type MessageKey } from './catalog'
+import { getLocale, writeLocale } from './locale-state'
 import { LOCALES, type Locale } from './types'
 
 export type { Locale, MessageKey }
 
 const STORAGE_KEY = 'gadak_locale'
 const catalogs: Record<Locale, Record<MessageKey, string>> = { en, ko, ja }
-
-let current: Locale = 'en'
 
 function detectLocale(): Locale {
   try {
@@ -36,9 +36,10 @@ function detectLocale(): Locale {
 
 /** Call once at boot (before first render). Idempotent. */
 export function initLocale(): Locale {
-  current = detectLocale()
+  const next = detectLocale()
+  writeLocale(next)
   syncDocumentLang()
-  return current
+  return next
 }
 
 /** Keep <html lang> in sync so screen readers pick the right pronunciation. */
@@ -47,20 +48,26 @@ function syncDocumentLang(): void {
 }
 
 export function locale(): Locale {
-  return current
+  return getLocale()
 }
 
-/** Persist and hard-reload so all modules re-read catalogs. */
+/**
+ * Persist and switch in place (GDK-2034). The locale is reactive state, so
+ * every rendered string that reads it through t()/localeTag() re-renders;
+ * nothing reloads, and what the user was writing (a new-issue draft, an
+ * open edit, a terminal attachment) stays. A string computed once outside a
+ * reactive context would keep the old language — such owners must derive it
+ * from t() (or key it by locale) rather than cache it.
+ */
 export function setLocale(next: Locale): void {
   try {
     localStorage.setItem(STORAGE_KEY, next)
   } catch {
     /* ignore */
   }
-  if (next === current) return
-  current = next
-  syncDocumentLang() // reload re-runs initLocale, but don't leave a stale lang mid-teardown
-  location.reload()
+  if (next === getLocale()) return
+  writeLocale(next)
+  syncDocumentLang()
 }
 
 /**
@@ -69,6 +76,7 @@ export function setLocale(next: Locale): void {
  * two spellings drift apart the day a locale joins.
  */
 export function localeTag(): string {
+  const current = getLocale()
   if (current === 'ko') return 'ko-KR'
   if (current === 'ja') return 'ja-JP'
   return 'en-US'
@@ -112,7 +120,7 @@ function pluralRules(): Intl.PluralRules {
  *  string to opt out — that is how an identity number (an exit code, a page
  *  revision) keeps its plain digits. */
 export function t(key: MessageKey, params?: MessageParams): string {
-  const table = catalogs[current] ?? en
+  const table = catalogs[getLocale()] ?? en
   let s: string = table[key] ?? en[key] ?? String(key)
   if (s.includes('|')) {
     const n = params?.n

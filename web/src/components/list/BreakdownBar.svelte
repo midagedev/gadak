@@ -56,12 +56,14 @@
     true
   void _menuOrderCoversEveryAxis
 
-  const ALL_OPTIONS: { key: GroupBy; label: string }[] = MENU_ORDER.map((key) => ({
-    key,
-    label: GROUP_LABEL[key](),
-  }))
+  const ALL_OPTIONS: { key: GroupBy; label: string }[] = $derived(
+    MENU_ORDER.map((key) => ({
+      key,
+      label: GROUP_LABEL[key](),
+    })),
+  )
   // Disabled-feature axes (team/product/QA impact) are omitted from the options.
-  const OPTIONS = ALL_OPTIONS.filter((o) => groupByEnabled(o.key))
+  const OPTIONS = $derived(ALL_OPTIONS.filter((o) => groupByEnabled(o.key)))
 
   let open = $state(false)
 

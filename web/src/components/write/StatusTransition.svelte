@@ -243,7 +243,7 @@
   // Composed here, not in the each body below: the loop variable `t` shadows
   // the i18n `t` inside that block.
   const wipLabel = $derived(wipCount > 0 ? t('detail.wipCount', { n: wipCount }) : '')
-  const wipWhy = t('detail.wipCountWhy')
+  const wipWhy = $derived(t('detail.wipCountWhy'))
 
   /* Coaching, M2 receive end: CommentList's "Move to done" asks this menu to
      open (write.requestTransitionMenu — same nonce bridge as replyRequest).

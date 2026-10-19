@@ -70,7 +70,7 @@
   // the dialog's unmount used to do for free.
   let { onclose, tab = $bindable('sync') }: { onclose: () => void; tab?: Tab } = $props()
 
-  const LABELS: Record<Tab, string> = {
+  const LABELS: Record<Tab, string> = $derived({
     sync: t('settings.tabSync'),
     sources: t('settings.tabSources'),
     features: t('settings.tabFeatures'),
@@ -82,15 +82,14 @@
     integrations: t('settings.tabIntegrations'),
     devices: t('settings.tabDevices'),
     about: t('settings.tabAbout'),
-  }
+  })
   /* Header order is SETTINGS_TABS order, minus the tabs this surface has no
      server for (Integrations and Devices are desktop-only). One list, so the
      header and the `settings=` URL guard can never disagree about what
      exists. */
-  const TABS: [Tab, string][] = visibleSettingsTabs(SETTINGS_TABS, isDesktop()).map((id) => [
-    id,
-    LABELS[id],
-  ])
+  const TABS: [Tab, string][] = $derived(
+    visibleSettingsTabs(SETTINGS_TABS, isDesktop()).map((id) => [id, LABELS[id]]),
+  )
   /* One panel, swapped in place: every tab's aria-controls points here and
      the panel names the tab that filled it. Only the selected panel exists,
      which is why aria-labelledby is computed rather than nine ids. */
@@ -123,8 +122,8 @@
       ?.focus()
   }
 
-  const showIntegrations = TABS.some(([id]) => id === 'integrations')
-  const showDevices = TABS.some(([id]) => id === 'devices')
+  const showIntegrations = $derived(TABS.some(([id]) => id === 'integrations'))
+  const showDevices = $derived(TABS.some(([id]) => id === 'devices'))
 
   /** The identity field's editability (GDK-1973): the same predicate the
    *  Workspaces tab's block uses to show itself. Read once at setup —

@@ -893,7 +893,7 @@ import type { SettingsTab } from '../../lib/settings-tabs'
         ],
   )
 
-  const SECTION_LABEL: Record<Section, string> = {
+  const SECTION_LABEL: Record<Section, string> = $derived({
     person: t('palette.sectionPeople'),
     recent: t('palette.recent'),
     updated: t('palette.updated'),
@@ -902,7 +902,7 @@ import type { SettingsTab } from '../../lib/settings-tabs'
     view: t('palette.sectionViews'),
     action: t('palette.sectionActions'),
     unified: t('palette.sectionUnified'),
-  }
+  })
 
   /** First row that is safe to pre-select. create-now writes; it is never idx 0 by default. */
   function firstSafeIndex(list: Item[]): number {

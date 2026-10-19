@@ -72,12 +72,12 @@
   // question the reader is asking of it: how wide is a column.
   const RANGES = ['4w', '8w', '12w'] as const
   type Range = (typeof RANGES)[number] | 'sprint'
-  const RANGE_LABEL: Record<Range, string> = {
+  const RANGE_LABEL: Record<Range, string> = $derived({
     '4w': t('retro.range4w'),
     '8w': t('retro.range8w'),
     '12w': t('retro.range12w'),
     sprint: t('retro.bySprint'),
-  }
+  })
   const ranges = $derived<Range[]>(sprints.any ? [...RANGES, 'sprint'] : [...RANGES])
 
   const DEFS_KEY = 'gadak.retro.definitions'

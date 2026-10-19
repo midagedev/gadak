@@ -23,11 +23,11 @@
     ...filters.dynamicAxes.map((a) => ({ key: a.key, label: a.label, dynamic: true })),
   ])
 
-  const DATE_AXES: { key: RangeField; label: string }[] = [
+  const DATE_AXES: { key: RangeField; label: string }[] = $derived([
     { key: 'created', label: t('field.created') },
     { key: 'updated', label: t('field.updated') },
     { key: 'due', label: t('field.due') },
-  ]
+  ])
 
   let open = $state(false)
   let field = $state<Axis | null>(null)

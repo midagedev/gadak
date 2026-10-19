@@ -72,7 +72,7 @@
     },
   }
 
-  const builtins = builtinViews()
+  const builtins = $derived(builtinViews())
 
   // Identity views (my-work pack) are absent, not disabled, for an anonymous
   // reader: an empty "mine" list under a working row is a question with no
@@ -134,7 +134,7 @@
     return counts
   })
 
-  const STATUS_LABEL: Record<string, string> = {
+  const STATUS_LABEL: Record<string, string> = $derived({
     healthy: t('sync.stateOk'),
     running: t('sync.stateSyncing'),
     paused: t('sync.stateOffHours'),
@@ -142,7 +142,7 @@
     stale: t('sync.stateDelayed'),
     failed: t('sync.stateFailed'),
     missing: t('sync.stateNoRecord'),
-  }
+  })
 
   function relativeSync(value: string | null): string {
     return relativeTime(value, 'long')

@@ -10,7 +10,7 @@
    *  `/` focuses from anywhere; Esc clears.
    */
   import { onMount } from 'svelte'
-  import { t, formatNumber } from '../../lib/i18n'
+  import { t, formatNumber, locale } from '../../lib/i18n'
   import { parseJql } from '../../lib/api'
   import { isHostedDemo } from '../../lib/config'
   import { applyOmniboxAction, classifyOmnibox } from '../../lib/omnibox'
@@ -85,6 +85,12 @@
    * a decision made from the cached full width cannot oscillate when the
    * button then shrinks. A stale cache after a locale switch while compact
    * only errs toward staying compact — the safe direction.
+   *
+   * GDK-2034: the locale now switches without a reload, so that stale cache
+   * is reachable in place and a language with a shorter label stayed compact
+   * for good. The effect reads the locale: a switch drops the cached width,
+   * and the first measure after it un-compacts once so the label can be
+   * measured in the new language.
    */
   let slotCompact = $state(false)
   let boxEl = $state<HTMLDivElement | null>(null)
@@ -94,19 +100,32 @@
   let paletteBtn = $state<HTMLButtonElement | null>(null)
   $effect(() => {
     const el = boxEl
+    void locale()
     if (!el || typeof ResizeObserver === 'undefined') return
     let fullLabelWidth = 0
-    const ro = new ResizeObserver(() => {
+    let probed = false
+    const measure = () => {
       const button = paletteBtn
       if (button && button.querySelector('span')) {
         fullLabelWidth = Math.max(fullLabelWidth, button.offsetWidth)
       }
-      if (!fullLabelWidth) return
+      if (!fullLabelWidth) {
+        // Compact, so the label is not rendered and there is nothing to
+        // measure. Show it once and measure on the next frame; the width then
+        // decides whether it stays (a language switch lands here, GDK-2034).
+        if (!probed) {
+          probed = true
+          slotCompact = false
+          requestAnimationFrame(measure)
+        }
+        return
+      }
       const field = el.firstElementChild as HTMLElement | null
       const floor = field ? parseFloat(getComputedStyle(field).minWidth) || 0 : 0
       const gap = parseFloat(getComputedStyle(el).columnGap) || 0
       slotCompact = el.clientWidth < floor + gap + fullLabelWidth + 8
-    })
+    }
+    const ro = new ResizeObserver(measure)
     ro.observe(el)
     return () => ro.disconnect()
   })

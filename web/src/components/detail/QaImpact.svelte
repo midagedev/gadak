@@ -22,7 +22,7 @@
    * column mixing icons and glyphs, which is worse than either; converting all
    * seven is a redesign of the vocabulary, not a sweep. (2026-08-06)
    */
-  const RESULT_META: Record<string, { label: string; cls: string; mark: string }> = {
+  const RESULT_META: Record<string, { label: string; cls: string; mark: string }> = $derived({
     passed: { label: t('qa.pass'), cls: 'text-status-done', mark: '✓' },
     failed: { label: t('qa.fail'), cls: 'text-status-reopen', mark: '×' },
     blocked: { label: t('qa.block'), cls: 'text-status-stale', mark: '!' },
@@ -30,7 +30,7 @@
     in_progress: { label: t('qa.inProgress'), cls: 'text-accent-text', mark: '◐' },
     untested: { label: t('qa.untested'), cls: 'text-text-muted', mark: '○' },
     skipped: { label: t('qa.skip'), cls: 'text-text-muted', mark: '−' },
-  }
+  })
 
   // External QA dashboard is optional. No URL in config → no link.
   function dashboardUrl(run: QaRunContext, suite?: QaSuiteRef): string | null {

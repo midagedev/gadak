@@ -96,11 +96,11 @@
   // the account-free card was the second thing seen.
   let source = $state<Source | null>(null)
   let tokenFocused = $state(false)
-  const SOURCES: { id: Source; label: string; aux: string }[] = [
+  const SOURCES: { id: Source; label: string; aux: string }[] = $derived([
     { id: 'jira', label: t('onboarding.sourceJira'), aux: t('onboarding.sourceJiraAux') },
     { id: 'builtin', label: t('onboarding.sourceBuiltin'), aux: t('onboarding.sourceBuiltinAux') },
     { id: 'paired', label: t('onboarding.sourcePaired'), aux: t('onboarding.sourcePairedAux') },
-  ]
+  ])
 
   /*
    * GDK-1324: role=radiogroup made the source picker promise the one gesture
@@ -116,7 +116,7 @@
   const sourceUid = $props.id()
   const sourceQuestionId = `onboarding-source-question-${sourceUid}`
   const sourceEls: Record<string, HTMLButtonElement | null> = {}
-  for (const s of SOURCES) sourceEls[s.id] = null
+  for (const id of ['jira', 'builtin', 'paired']) sourceEls[id] = null
 
   function onSourceKeydown(e: KeyboardEvent): void {
     const dir =
@@ -405,12 +405,12 @@
   // and on a large site, the picker is truncated anyway, so "select all" was
   // never the same thing as "everything" (GDK-99).
   const canContinue = $derived(!saving)
-  const STEP_LABELS = [
+  const STEP_LABELS = $derived([
     t('onboarding.stepCredential'),
     t('onboarding.stepProjects'),
     t('onboarding.stepSync'),
     t('onboarding.stepAgent'),
-  ]
+  ])
 </script>
 
 <div

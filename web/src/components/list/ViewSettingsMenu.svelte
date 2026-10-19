@@ -32,7 +32,7 @@
   // GDK-832: one label per sort key, keyed by SortKey — a key added to
   // SORT_KEY_VALUES without a label here is a compile error, not a menu that
   // silently lacks the new sort.
-  const SORT_LABEL: Record<SortKey, string> = {
+  const SORT_LABEL: Record<SortKey, string> = $derived({
     updated: t('sort.updated'),
     created: t('sort.created'),
     // Aging axis (my-work pack): asc = longest in status first.
@@ -44,7 +44,7 @@
     reopen_count: t('sort.reopenCount'),
     relevance: t('sort.relevance'),
     keys: t('sort.keys'),
-  }
+  })
   // relevance and keys are auto-promoted labels, not pickable rows — they
   // join the menu only while they apply (below), so the always-on list is
   // every other key. The exhaustiveness check names any key that is neither
@@ -65,12 +65,14 @@
     : MissingFromSortMenu = true
   void _sortMenuCoversEveryKey
 
-  const BASE_SORTS: { k: SortKey; l: string }[] = BASE_SORT_ORDER.map((k) => ({
-    k,
-    l: SORT_LABEL[k],
-  }))
-  const RELEVANCE = { k: 'relevance' as SortKey, l: SORT_LABEL.relevance }
-  const KEYS_SORT = { k: 'keys' as SortKey, l: SORT_LABEL.keys }
+  const BASE_SORTS: { k: SortKey; l: string }[] = $derived(
+    BASE_SORT_ORDER.map((k) => ({
+      k,
+      l: SORT_LABEL[k],
+    })),
+  )
+  const RELEVANCE = $derived({ k: 'relevance' as SortKey, l: SORT_LABEL.relevance })
+  const KEYS_SORT = $derived({ k: 'keys' as SortKey, l: SORT_LABEL.keys })
 
   // Show relevance only while searching (or relevance is active) so auto-promote is visible.
   // keys-order is the same kind of auto label — not a picker unless it is already on.

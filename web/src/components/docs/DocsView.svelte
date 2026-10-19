@@ -38,11 +38,11 @@
   // paints nothing at all.
   const skeleton = createSkeletonGrace(() => pages.loading && !pages.loaded)
 
-  const TABS: { key: DocsTab; label: string }[] = [
+  const TABS: { key: DocsTab; label: string }[] = $derived([
     { key: 'viewed', label: t('docs.tabViewed') },
     { key: 'updated', label: t('docs.tabUpdated') },
     { key: 'author', label: t('docs.tabAuthor') },
-  ]
+  ])
 
   const tab = $derived(pages.docsTab)
 
