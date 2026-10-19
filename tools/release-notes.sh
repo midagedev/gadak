@@ -50,6 +50,18 @@ if not m:
 # The file's reference tail follows the last section; never carry it inside.
 section = re.sub(r"^\[GDK-\d+\]:.*\n?", "", m.group(1), flags=re.M).strip()
 
+# CHANGELOG.md is hard-wrapped at 80 columns, and a GitHub release page keeps
+# every newline as a line break, so v0.24.1's page read as ragged 80-column
+# lines. A prose paragraph goes on the page as one line; anything that is not
+# plain prose (a fence, a list, a table, an indented block) keeps its lines.
+def unwrap(par):
+    lines = par.split("\n")
+    if any(l.startswith(("```", "|", "    ", "- ", "* ", "#", ">")) for l in lines):
+        return par
+    return " ".join(l.strip() for l in lines)
+
+section = "\n\n".join(unwrap(p) for p in re.split(r"\n\s*\n", section))
+
 defs = dict(re.findall(r"^\[(GDK-\d+)\]:\s*(\S+)", md, re.M))
 cited = sorted(set(re.findall(r"\[(GDK-\d+)\]", section)), key=lambda k: int(k.split("-")[1]))
 missing = [k for k in cited if k not in defs]
