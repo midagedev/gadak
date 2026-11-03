@@ -15,6 +15,15 @@ minutes: one diagnostic query had no planner statistics and read the mirror
 quadratically. It now finishes in milliseconds, and a full sync leaves
 statistics behind for every other query ([GDK-2068]).
 
+**gadak asks before it installs its Claude Code skill.** `gadak init`, pairing
+and `gadak install-cli` wrote `~/.claude/skills/gadak/SKILL.md` whenever
+`~/.claude` existed, with no question and no way to stop it, so a cache set up
+for scripts also changed every Claude Code session on the machine. An
+interactive run now asks first; a run with `--json` or without a terminal
+installs nothing and points to `gadak skill install`. `--no-skill`,
+`GADAK_SKILL_AUTO=0` and the machine-wide `gadak config set skill.autoInstall
+false` turn it off, and answering `n` stores the same setting ([GDK-2070]).
+
 ## v0.24.2 — 2026-10-19
 
 **Sync does only the work it needs, and stops reporting losses that did not
@@ -1885,3 +1894,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-2058]: https://gadak.dev/backlog/#/?ks=GDK-2058
 [GDK-2068]: https://gadak.dev/backlog/#/?ks=GDK-2068
 [GDK-2069]: https://gadak.dev/backlog/#/?ks=GDK-2069
+[GDK-2070]: https://gadak.dev/backlog/#/?ks=GDK-2070

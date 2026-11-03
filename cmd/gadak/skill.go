@@ -11,6 +11,7 @@ package main
 // owns that table.
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -377,14 +378,144 @@ func skillAutoWriteAllowed(w io.Writer, dest, verb string) bool {
 	return false
 }
 
+// ---------------------------------------------------------------------------
+// GDK-2070 — creating the skill is consent-gated (GitHub #113)
+//
+// init (every mode), pairing and install-cli wrote ~/.claude/skills/gadak/
+// SKILL.md whenever ~/.claude existed, and nothing asked. Claude Code loads
+// every installed skill's description into every session on the machine, so
+// the write changes agent behaviour in unrelated projects; a user who set
+// gadak up only to read a mirror from scripts removed the file by hand and
+// the next init wrote it again — with no flag, config key or environment
+// variable to stop it.
+//
+// The consent point is creating a copy that does not exist. A run that can
+// ask (both stdio are terminals, no --json, stdin not already consumed)
+// asks once on stderr; empty or y installs, n declines and records the
+// machine-wide opt-out, anything else is asked once more and then declines
+// without recording. A run that cannot ask installs nothing and says the
+// one line that names the deliberate verb. `gadak skill install` never
+// passes through here.
+// ---------------------------------------------------------------------------
+
+// skillNoSkillFlag is the --no-skill flag's value, set at flag-parse time by
+// the commands that accept it (init, install-cli). It rides a package var
+// rather than a parameter because the auto-install call sites sit inside
+// helpers whose signatures the install-cli tests pin (installCLI); set once
+// before any skill decision can run, read only by skillAutoOptedOut.
+// Tests that flip it must restore it (t.Cleanup) — it is process state.
+var skillNoSkillFlag bool
+
+// Terminal seams and the prompt's edges, injectable so the consent branch is
+// testable under `go test` where nothing is a TTY (same pattern as
+// initIsTerminal / pairingStderrIsTerminal / initStdin).
+var (
+	skillStdinIsTerminal  = stdinIsTerminal
+	skillStderrIsTerminal = stderrIsTerminal
+	// skillPromptOut is where the question is painted (never w: w carries
+	// warnings, and a caller's test may assert its silence while the prompt
+	// still happened).
+	skillPromptOut io.Writer = os.Stderr
+	// skillPromptIn is where the answer is read from.
+	skillPromptIn io.Reader = os.Stdin
+)
+
+// skillAutoOptedOut is the one opt-out check every automatic skill write
+// passes: the --no-skill flag, GADAK_SKILL_AUTO=0 (one process, for CI and
+// scripts), or the machine-wide skill.autoInstall=false (which holds across
+// workspaces — it lives at the gadak home root, not in a workspace's
+// config.json). `gadak skill install` never asks this.
+func skillAutoOptedOut() bool {
+	if skillNoSkillFlag {
+		return true
+	}
+	if config.Env("SKILL_AUTO") == "0" {
+		return true
+	}
+	return !config.SkillAutoInstallEnabled()
+}
+
+// skillAutoOptions is what one run tells the consent gate about itself. The
+// terminal half of "can this run ask" is read through the seams above; this
+// carries the halves only the caller knows.
+type skillAutoOptions struct {
+	// jsonOut: stdout is a machine contract (--json) — never prompt, and the
+	// JSON document carries "skill":"skipped" instead.
+	jsonOut bool
+	// stdinUsed: this run already consumed stdin (a token or pairing offer
+	// read from "-stdin"), so there is no answer to read.
+	stdinUsed bool
+}
+
+// interactive reports whether the consent prompt may run.
+func (o skillAutoOptions) interactive() bool {
+	return !o.jsonOut && !o.stdinUsed && skillStdinIsTerminal() && skillStderrIsTerminal()
+}
+
+// askSkillConsent asks once (and, on an answer that is neither yes nor no,
+// once more) whether this machine gets the Claude Code skill. dest is the
+// SKILL.md path the answer decides. The return is the answer: true installs.
+//
+// The question goes to skillPromptOut; the result lines (the recorded
+// opt-out and how to undo it) go to w, beside the other skill warnings. An
+// answer of n records the machine-wide opt-out — that is what makes "a later
+// init of a different workspace does not prompt" true — and says the exact
+// command that undoes it. A second unreadable answer (garbage twice, or EOF
+// before a line arrives) declines without recording: the next interactive
+// run asks again rather than silently installing or silently opting out.
+func askSkillConsent(w io.Writer, dest string) bool {
+	dir := clitool.TildeHome(filepath.Dir(dest))
+	rd := bufio.NewReader(skillPromptIn)
+	answer := func() (string, bool) {
+		fmt.Fprintf(skillPromptOut, "Install the gadak skill for Claude Code into %s? It lets Claude Code sessions on this machine use gadak. [Y/n] ", dir)
+		line, err := rd.ReadString('\n')
+		if err != nil && line == "" {
+			return "", false
+		}
+		return strings.ToLower(strings.TrimSpace(line)), true
+	}
+	first, ok := answer()
+	if !ok {
+		return false
+	}
+	switch first {
+	case "", "y", "yes":
+		return true
+	case "n", "no":
+		if err := config.SetSkillAutoInstall(false); err != nil {
+			fmt.Fprintf(w, "skill: not installed — could not record that choice (%v); opt out with `gadak config set skill.autoInstall false`\n", err)
+			return false
+		}
+		fmt.Fprintf(w, "skill: not installed — gadak will not ask again; undo with `gadak config set skill.autoInstall true` (`gadak skill install` still works)\n")
+		return false
+	}
+	// Neither yes nor no: one retry, and whatever it brings is a decline
+	// without a recorded opt-out.
+	_, _ = answer()
+	return false
+}
+
 // autoInstallSkill writes the embedded Claude Code skill into the user-level
 // dest when ~/.claude already exists. force is always false: a file gadak
 // did not write is left in place. The return is one of "installed",
 // "skipped", "failed"; it never becomes the caller's exit status.
 //
-// w receives warnings (conflict --force hint, I/O failures). Callers pass
-// os.Stderr so --json stdout stays a single object.
-func autoInstallSkill(w io.Writer) string {
+// w receives warnings and the consent-gate lines (the non-install hint, the
+// "how to undo" line). Callers pass os.Stderr so --json stdout stays a
+// single object.
+//
+// GDK-2070 order of questions, one owner for every automatic path:
+//
+//  1. opt-out — --no-skill, GADAK_SKILL_AUTO=0 or the machine-wide
+//     skill.autoInstall=false — before anything else: no write, no prompt,
+//     no line.
+//  2. the unattended-write guard (GDK-1539/GDK-1611), unchanged: GADAK_HOME
+//     isolation and the dev-build create-never-replace rule.
+//  3. consent, only when the destination is empty: creating a copy that does
+//     not exist is the one act that asks. A copy that is already there —
+//     identical, stale-but-ours, or someone else's — never prompts (the
+//     user consented when it was created, and a foreign file is refused).
+func autoInstallSkill(w io.Writer, opts skillAutoOptions) string {
 	if w == nil {
 		w = io.Discard
 	}
@@ -396,9 +527,24 @@ func autoInstallSkill(w io.Writer) string {
 		fmt.Fprintf(w, "warning: skill auto-install: %v\n", err)
 		return "failed"
 	}
+	if skillAutoOptedOut() {
+		return "skipped"
+	}
 	// GDK-1539: a dev build may create the copy but never replace one.
 	if !skillAutoWriteAllowed(w, dest, "replacing") {
 		return "skipped"
+	}
+	// The consent gate. A status the classifier cannot read (a directory in
+	// the way) is not "missing": fall through so the install attempt below
+	// reports the real failure, exactly as before this gate existed.
+	if status, _, serr := skillDestStatus(dest, gadak.SkillMarkdown()); serr == nil && status == skillinstall.StatusMissing {
+		if !opts.interactive() {
+			fmt.Fprintf(w, "skill: not installed — run gadak skill install to let Claude Code use gadak\n")
+			return "skipped"
+		}
+		if !askSkillConsent(w, dest) {
+			return "skipped"
+		}
 	}
 	err = installSkill(io.Discard, gadak.SkillMarkdown(), dest, false, false)
 	if err == nil {
@@ -416,6 +562,14 @@ func autoInstallSkill(w io.Writer) string {
 
 // printSkillAutoResult is the one human line init prints after a successful
 // save. JSON callers skip this and put the same token in the document.
+//
+// GDK-2070: a "skipped" prints nothing here. Every reason a run can skip —
+// no ~/.claude, the opt-out, a declined or unaskable prompt, the dev-build
+// and GADAK_HOME refusals, a conflict — already said its one line on stderr
+// (or is deliberately silent, as --no-skill is), so a second "skill:
+// skipped" on stdout would be the doubled refusal this output was cleaned
+// of once before (GDK-1545). "installed" is the only status the policy says
+// nothing about, so it is the only one this line reports.
 func printSkillAutoResult(status string) {
 	if status == "installed" {
 		dest, err := resolveSkillDest(false, "")
@@ -426,7 +580,6 @@ func printSkillAutoResult(status string) {
 		fmt.Printf("skill: installed %s\n", clitool.TildeHome(dest))
 		return
 	}
-	fmt.Printf("skill: %s\n", status)
 }
 
 // ---------------------------------------------------------------------------
@@ -593,7 +746,11 @@ func maybeAutoSyncSkill(w io.Writer, cmd string) {
 	// have happened — once a day at most, and never for a machine with no
 	// skill installed. skillAutoWriteAllowed is the shared owner (GDK-1539);
 	// reaching it with status "stale" it always sees a copy in place.
-	if !skillAutoWriteAllowed(w, dest, "syncing") {
+	//
+	// GDK-2070: the machine-wide/process opt-out sits beside it and answers
+	// first, silently — an opted-out machine refreshes nothing, and the
+	// refusal it would print is a question the user already answered.
+	if skillAutoOptedOut() || !skillAutoWriteAllowed(w, dest, "syncing") {
 		return
 	}
 	// installSkill reuses the same classifier, the same atomic write and the

@@ -14,6 +14,15 @@
 하나가 플래너 통계 없이 캐시를 제곱으로 읽었기 때문입니다. 이제 이 쿼리는 수
 밀리초에 끝나고, 전체 동기화가 끝나면 다른 쿼리를 위해서도 통계를 남깁니다([GDK-2068]).
 
+**Claude Code 스킬을 설치하기 전에 먼저 묻습니다.** `gadak init`, 페어링,
+`gadak install-cli`는 `~/.claude`가 있으면 묻지 않고
+`~/.claude/skills/gadak/SKILL.md`를 썼고, 끌 방법도 없었습니다. 스크립트에서
+캐시만 읽으려고 설정해도 그 컴퓨터의 모든 Claude Code 세션이 영향을 받았습니다.
+이제 터미널에서 실행하면 먼저 묻고, `--json`이나 터미널 없이 실행하면 설치하지
+않고 `gadak skill install`을 안내합니다. `--no-skill`, `GADAK_SKILL_AUTO=0`,
+기기 전체에 걸리는 `gadak config set skill.autoInstall false`로 끌 수 있고,
+질문에 `n`이라고 답하면 같은 설정이 저장됩니다([GDK-2070]).
+
 ## v0.24.2 — 2026-10-19
 
 **동기화가 필요한 일만 하고, 일어나지 않은 손실을 보고하지 않습니다.**
@@ -1791,3 +1800,4 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-2058]: https://gadak.dev/backlog/#/?ks=GDK-2058
 [GDK-2068]: https://gadak.dev/backlog/#/?ks=GDK-2068
 [GDK-2069]: https://gadak.dev/backlog/#/?ks=GDK-2069
+[GDK-2070]: https://gadak.dev/backlog/#/?ks=GDK-2070

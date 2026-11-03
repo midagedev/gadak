@@ -70,6 +70,34 @@ func skillDestUnder(home string) string {
 	return filepath.Join(home, ".claude", "skills", "gadak", "SKILL.md")
 }
 
+// skillInteractiveYes pins the consent gate's terminal seams on and answers
+// "y", for one test (GDK-2070): under `go test` nothing is a TTY, and a
+// missing destination now asks before it installs. The prompt's output is
+// discarded — tests that want to assert on the question use
+// skillInteractiveAnswer, which returns its buffer.
+func skillInteractiveYes(t *testing.T) {
+	t.Helper()
+	skillInteractiveAnswer(t, "y\n")
+}
+
+// skillInteractiveAnswer is skillInteractiveYes with the answer chosen and
+// the prompt's output returned for assertions.
+func skillInteractiveAnswer(t *testing.T, answer string) *bytes.Buffer {
+	t.Helper()
+	prevIn, prevOut := skillPromptIn, skillPromptOut
+	prevStdinTTY, prevStderrTTY := skillStdinIsTerminal, skillStderrIsTerminal
+	var prompt bytes.Buffer
+	skillPromptIn = strings.NewReader(answer)
+	skillPromptOut = &prompt
+	skillStdinIsTerminal = func() bool { return true }
+	skillStderrIsTerminal = func() bool { return true }
+	t.Cleanup(func() {
+		skillPromptIn, skillPromptOut = prevIn, prevOut
+		skillStdinIsTerminal, skillStderrIsTerminal = prevStdinTTY, prevStderrTTY
+	})
+	return &prompt
+}
+
 func TestSkillInstallNewMatchesEmbedded(t *testing.T) {
 	root := t.TempDir()
 	dest := filepath.Join(root, "gadak", "SKILL.md")
@@ -804,7 +832,7 @@ func TestCmdSkillInstallPrintViaCLI(t *testing.T) {
 func TestAutoInstallSkillSkippedWithoutClaudeDir(t *testing.T) {
 	home := isolateHome(t)
 	var buf bytes.Buffer
-	if got := autoInstallSkill(&buf); got != "skipped" {
+	if got := autoInstallSkill(&buf, skillAutoOptions{}); got != "skipped" {
 		t.Fatalf("status = %q, want skipped", got)
 	}
 	if buf.Len() != 0 {
@@ -816,9 +844,14 @@ func TestAutoInstallSkillSkippedWithoutClaudeDir(t *testing.T) {
 }
 
 func TestAutoInstallSkillInstallsMissing(t *testing.T) {
+	// GDK-2070: an empty destination is a consent question now, so the test
+	// answers yes through the seams instead of relying on the TTY-less run
+	// silently installing (setup change only — the assertions are the ones
+	// this test always carried).
+	skillInteractiveYes(t)
 	home := isolateHomeWithClaude(t)
 	var buf bytes.Buffer
-	if got := autoInstallSkill(&buf); got != "installed" {
+	if got := autoInstallSkill(&buf, skillAutoOptions{}); got != "installed" {
 		t.Fatalf("status = %q, want installed; buf=%q", got, buf.String())
 	}
 	got, err := os.ReadFile(skillDestUnder(home))
@@ -847,7 +880,7 @@ func TestAutoInstallSkillIdenticalIsInstalled(t *testing.T) {
 		t.Fatal(err)
 	}
 	var buf bytes.Buffer
-	if got := autoInstallSkill(&buf); got != "installed" {
+	if got := autoInstallSkill(&buf, skillAutoOptions{}); got != "installed" {
 		t.Fatalf("status = %q, want installed", got)
 	}
 	got, err := os.ReadFile(dest)
@@ -868,7 +901,7 @@ func TestAutoInstallSkillUpdatesStaleCopy(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 	var buf bytes.Buffer
-	if got := autoInstallSkill(&buf); got != "installed" {
+	if got := autoInstallSkill(&buf, skillAutoOptions{}); got != "installed" {
 		t.Fatalf("status = %q, want installed; buf=%q", got, buf.String())
 	}
 	got, err := os.ReadFile(dest)
@@ -892,7 +925,7 @@ func TestAutoInstallSkillConflictDoesNotOverwrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	var buf bytes.Buffer
-	if got := autoInstallSkill(&buf); got != "skipped" {
+	if got := autoInstallSkill(&buf, skillAutoOptions{}); got != "skipped" {
 		t.Fatalf("status = %q, want skipped; buf=%q", got, buf.String())
 	}
 	raw, _ := os.ReadFile(dest)
@@ -911,7 +944,7 @@ func TestAutoInstallSkillFailedWhenDestIsDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	var buf bytes.Buffer
-	if got := autoInstallSkill(&buf); got != "failed" {
+	if got := autoInstallSkill(&buf, skillAutoOptions{}); got != "failed" {
 		t.Fatalf("status = %q, want failed; buf=%q", got, buf.String())
 	}
 	if !strings.Contains(buf.String(), "warning:") {
@@ -1593,7 +1626,7 @@ func TestAutoInstallSkillDevBuildLeavesOurStaleCopyAlone(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if got := autoInstallSkill(&buf); got != "skipped" {
+	if got := autoInstallSkill(&buf, skillAutoOptions{}); got != "skipped" {
 		t.Fatalf("status = %q, want skipped; buf=%q", got, buf.String())
 	}
 
@@ -1624,7 +1657,7 @@ func TestAutoInstallSkillDevBuildLeavesForeignCopyAlone(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if got := autoInstallSkill(&buf); got != "skipped" {
+	if got := autoInstallSkill(&buf, skillAutoOptions{}); got != "skipped" {
 		t.Fatalf("status = %q, want skipped; buf=%q", got, buf.String())
 	}
 	raw, err := os.ReadFile(dest)
@@ -1649,7 +1682,7 @@ func TestAutoInstallSkillDevBuildLeavesIdenticalCopyAlone(t *testing.T) {
 		t.Fatalf("seed identical copy: %v", err)
 	}
 	var buf bytes.Buffer
-	if got := autoInstallSkill(&buf); got != "skipped" {
+	if got := autoInstallSkill(&buf, skillAutoOptions{}); got != "skipped" {
 		t.Fatalf("status = %q, want skipped; buf=%q", got, buf.String())
 	}
 	got, err := os.ReadFile(dest)
@@ -1668,11 +1701,15 @@ func TestAutoInstallSkillDevBuildLeavesIdenticalCopyAlone(t *testing.T) {
 // working skill. The receipt says where it came from, so `gadak doctor` can
 // tell them it is a draft (GDK-1531).
 func TestAutoInstallSkillDevBuildInstallsIntoEmptyDest(t *testing.T) {
+	// GDK-2070 setup change: the create case asks first; the test answers
+	// yes through the seams. The prompt paints skillPromptOut, not w, so the
+	// silence assertion below still measures warnings only.
+	skillInteractiveYes(t)
 	home := isolateHomeWithClaude(t)
 	dest := skillDestUnder(home)
 
 	var buf bytes.Buffer
-	if got := autoInstallSkill(&buf); got != "installed" {
+	if got := autoInstallSkill(&buf, skillAutoOptions{}); got != "installed" {
 		t.Fatalf("status = %q, want installed; buf=%q", got, buf.String())
 	}
 	if buf.Len() != 0 {
@@ -1705,7 +1742,7 @@ func TestAutoInstallSkillDevBuildStillReportsUnreadableDest(t *testing.T) {
 		t.Fatal(err)
 	}
 	var buf bytes.Buffer
-	if got := autoInstallSkill(&buf); got != "failed" {
+	if got := autoInstallSkill(&buf, skillAutoOptions{}); got != "failed" {
 		t.Fatalf("status = %q, want failed; buf=%q", got, buf.String())
 	}
 	if !strings.Contains(buf.String(), "warning:") {
@@ -1751,7 +1788,7 @@ func TestSkillAutoInstallSkippedUnderGadakHome(t *testing.T) {
 	dest := skillDestUnder(home)
 
 	var buf bytes.Buffer
-	if got := autoInstallSkill(&buf); got != "skipped" {
+	if got := autoInstallSkill(&buf, skillAutoOptions{}); got != "skipped" {
 		t.Fatalf("autoInstallSkill under GADAK_HOME = %q, want skipped", got)
 	}
 	if _, err := os.Stat(dest); err == nil {

@@ -18,9 +18,13 @@ func cmdInstallCLI(args []string) error {
 	dirFlag := fs.String("dir", "", "install directory (default: prefer a PATH entry, else ~/.local/bin; %LOCALAPPDATA%\\Programs\\gadak on Windows)")
 	force := fs.Bool("force", false, "replace an existing file or symlink at the destination")
 	printOnly := fs.Bool("print", false, "print the plan without creating anything")
+	noSkill := fs.Bool("no-skill", false, "this run writes nothing under ~/.claude and says nothing about the Claude Code skill (gadak skill install is unaffected)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	// GDK-2070: the skill opt-out rides the shared flag var the auto-install
+	// policy reads (installCLI's signature is pinned by its tests).
+	skillNoSkillFlag = *noSkill
 
 	source, err := executablePath()
 	if err != nil {
@@ -62,7 +66,7 @@ func installCLI(w io.Writer, source, dir string, force, printOnly bool, pathEnv,
 	if p.Status == clitool.StatusLinked {
 		fmt.Fprintln(w, p.AlreadyInstalledLine())
 		advisePATH(w, p.Dir, pathEnv, shell, goos)
-		printInstallCLISkillFollowup(w, autoInstallSkill(os.Stderr))
+		printInstallCLISkillFollowup(w, autoInstallSkill(os.Stderr, skillAutoOptions{}))
 		return nil
 	}
 
@@ -72,7 +76,7 @@ func installCLI(w io.Writer, source, dir string, force, printOnly bool, pathEnv,
 
 	fmt.Fprintln(w, p.InstalledLine())
 	advisePATH(w, p.Dir, pathEnv, shell, goos)
-	printInstallCLISkillFollowup(w, autoInstallSkill(os.Stderr))
+	printInstallCLISkillFollowup(w, autoInstallSkill(os.Stderr, skillAutoOptions{}))
 	return nil
 }
 

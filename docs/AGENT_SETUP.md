@@ -25,10 +25,11 @@ machine already uses. Steps:
    GADAK_TOKEN=<token> gadak init --site <url> --email <email> --json
    Leave --projects off: an empty project list syncs every project I can see,
    and the first line of sync output shows the total so we can narrow later
-   with `gadak init --projects KEY1,KEY2` if it is huge. If `~/.claude`
-   already exists, init installs the Claude Code skill into
-   `~/.claude/skills/gadak/SKILL.md` (a file gadak did not write is left
-   in place).
+   with `gadak init --projects KEY1,KEY2` if it is huge. A non-interactive
+   run does not install the Claude Code skill; when the user wants it, run
+   `gadak skill install`. Pass `--no-skill` to make that explicit, or set
+   `gadak config set skill.autoInstall false` to stop the one-time ask on
+   every workspace on the machine.
 4. Run `gadak sync`. The first full sync auto-discovers the site's custom
    fields (labels, filter axes, editors) and prints what it configured.
 5. Verify: `gadak sql "select count(*) from issues_full"` returns a number,
@@ -57,8 +58,10 @@ a gadak workspace on the built-in tracker, file the first tickets, and show them
    gadak init --local --json
    If a Jira-site workspace already exists on this machine:
    gadak --workspace plan init --local --json
-   and pass `--workspace plan` on every later command. If `~/.claude`
-   already exists, init installs the Claude Code skill.
+   and pass `--workspace plan` on every later command. An interactive init
+   asks before creating the Claude Code skill (empty or y installs; n declines
+   permanently); a non-interactive one installs nothing — `gadak skill
+   install` does it when the user wants it.
 3. gadak sync
    then gadak create "first ticket title" -m "why this exists"
    Init seeds project STD and wiki space LOC and records the default
@@ -198,12 +201,28 @@ Cline, Kiro, Amp, and the `AGENTS.md` family — are not installable this way at
 all. Paste the block from the top of this page instead, or use
 `gadak mcp install <client>`.
 
-When `~/.claude` already exists, `gadak init` and `gadak install-cli` write
-`~/.claude/skills/gadak/SKILL.md` themselves. A file gadak did not write is
-left in place; `gadak skill install --force` overwrites it. If `~/.claude`
-is absent, those commands skip the skill and (for `install-cli`) still print
-`gadak skill install` as the next step. Auto-install and the once-a-day refresh
-only ever touch the Claude Code copy — the other hosts are installed on request.
+`gadak init` and `gadak install-cli` may create `~/.claude/skills/gadak/
+SKILL.md` for you, but only with consent: an interactive run (both stdio are
+terminals, no `--json`) asks once — empty or `y` installs, `n` declines and
+is remembered machine-wide, so no later init asks again. A non-interactive
+run installs nothing and prints `skill: not installed — run gadak skill
+install …` on stderr instead. Refreshing a copy gadak already wrote (a brew
+upgrade behind) still happens without asking; a file gadak did not write is
+left in place, and `gadak skill install --force` overwrites it. If
+`~/.claude` is absent, those commands skip the skill and (for `install-cli`)
+still print `gadak skill install` as the next step.
+
+To opt out entirely, in increasing scope: `--no-skill` on the one init or
+install-cli run, `GADAK_SKILL_AUTO=0` for one process (CI, scripts), and
+
+```bash
+gadak config set skill.autoInstall false
+```
+
+for the machine — machine-wide, so it holds across every workspace, and it is
+what answering `n` sets. `gadak skill install` ignores all three: it is the
+command you type on purpose. Auto-install and the once-a-day refresh only
+ever touch the Claude Code copy — the other hosts are installed on request.
 
 Flags:
 
@@ -228,8 +247,9 @@ pushing an unreviewed draft into your own agent it prints
 `skill: dev build — not syncing ~/.claude/skills/gadak`, once, and leaves the
 installed copy alone. The installs that come along with another command —
 `gadak init`, pairing, `gadak install-cli` — follow the same rule from a
-checkout: they create the skill if you have none, and if one is already there
-they leave it and say `skill: dev build — not replacing …` instead.
+checkout: creating the skill still asks first as described above, and if a
+copy is already there they leave it and say `skill: dev build — not
+replacing …` instead.
 `gadak skill install` still works — that one you typed on
 purpose — but the receipt beside the file then records `source: dev-tree` plus
 the short git hash, and `gadak doctor` says

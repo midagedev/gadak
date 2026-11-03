@@ -100,6 +100,7 @@ const (
 	initUsagePairingCodeStdin = "read the pairing offer from stdin"
 	initUsageJSON             = "emit one JSON object on success"
 	initUsageServer           = "the site is Jira Server / Data Center: authenticate with a Personal Access Token, no email"
+	initUsageNoSkill          = "this run writes nothing under ~/.claude and says nothing about the Claude Code skill (gadak skill install is unaffected)"
 )
 
 // renderReplaceRefusedJSON writes the --json document for a refused
@@ -211,9 +212,14 @@ func cmdInit(args []string) error {
 	pairingStdin := fs.Bool("pairing-code-stdin", false, initUsagePairingCodeStdin+" (keeps it out of ps and shell history)")
 	// Long name on purpose: a typo or a stray -f must not flip the origin.
 	replaceLocalFlag := fs.Bool("replace-local", false, replaceBuiltInUsage)
+	// GDK-2070: the skill opt-out for this one run. Parsed here, before any
+	// mode branch, so every init shape (connected, --server, --local,
+	// --pairing-code/-stdin) carries it.
+	noSkill := fs.Bool("no-skill", false, initUsageNoSkill)
 	if err := fs.Parse(renameLegacyInitFlags(args)); err != nil {
 		return err
 	}
+	skillNoSkillFlag = *noSkill
 	wantBuiltIn := *builtIn
 	replaceLocal := *replaceLocalFlag
 	if *tokenFlag != "" {
@@ -420,7 +426,9 @@ func cmdInit(args []string) error {
 		return err
 	}
 	p, _ := config.Path()
-	skill := autoInstallSkill(os.Stderr)
+	// stdinUsed: --token-stdin consumed stdin, so the consent prompt has no
+	// answer to read (GDK-2070).
+	skill := autoInstallSkill(os.Stderr, skillAutoOptions{jsonOut: *jsonOut, stdinUsed: *tokenStdin})
 	if *jsonOut {
 		return writeInitJSON(cfg, name, p, skill)
 	}
@@ -630,7 +638,7 @@ func initBuiltIn(cfg *config.Config, jsonOut bool, projectsFlag string) error {
 		return fmt.Errorf("flush origin persist: %w", err)
 	}
 	p, _ := config.Path()
-	skill := autoInstallSkill(os.Stderr)
+	skill := autoInstallSkill(os.Stderr, skillAutoOptions{jsonOut: jsonOut})
 	if jsonOut {
 		return writeInitJSON(cfg, "", p, skill)
 	}

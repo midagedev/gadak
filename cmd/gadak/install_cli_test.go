@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/clitool"
 )
 
@@ -399,10 +398,19 @@ func seedInstallCLI(t *testing.T) (source, dir string) {
 	return source, dir
 }
 
-// TestInstallCLIAutoInstallsSkillWhenClaudeDirExists — GDK-93.
-// FAIL-first (2026-08-21, pre-fix): install-cli succeeded, ~/.claude existed,
-// SKILL.md was not created, stdout still said "next: gadak skill install".
-func TestInstallCLIAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
+// TestInstallCLISkillAsksBeforeCreating — GDK-93 installed the skill
+// unasked; GDK-2070 made creating it a consent question. install-cli has no
+// --json and a TTY-less run (this test) cannot ask, so nothing is written and
+// the one hint goes to stderr.
+//
+// GDK-2070 (2026-11-03): the pre-fix assertions were SKILL.md equal to the
+// embed and "skill: installed" on stdout. A TTY-less run cannot consent, so
+// they are unsatisfiable under the new contract by any setup change; the
+// replacement is the contract itself ("no file created, stderr hint printed
+// once"). FAIL-first: TestInitNonInteractiveCreatesNoSkill ran red against
+// the unfixed code; the interactive-yes half lives in
+// TestAutoInstallSkillInstallsMissing.
+func TestInstallCLISkillAsksBeforeCreating(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("install-cli unsupported on windows")
 	}
@@ -410,26 +418,31 @@ func TestInstallCLIAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
 	home := isolateHomeWithClaude(t)
 	source, dir := seedInstallCLI(t)
 	var buf bytes.Buffer
-	if err := installCLI(&buf, source, dir, false, false, dir, "zsh", "linux"); err != nil {
+	_, stderr, err := captureErr(t, func() error {
+		return installCLI(&buf, source, dir, false, false, dir, "zsh", "linux")
+	})
+	if err != nil {
 		t.Fatalf("installCLI: %v", err)
 	}
-	got, err := os.ReadFile(skillDestUnder(home))
-	if err != nil {
-		t.Fatalf("SKILL.md missing after install-cli: %v\nout:\n%s", err, buf.String())
+	if _, serr := os.Stat(skillDestUnder(home)); !os.IsNotExist(serr) {
+		t.Fatalf("a TTY-less install-cli created the skill: %v", serr)
 	}
-	if !bytes.Equal(got, gadak.SkillMarkdown()) {
-		t.Fatalf("installed bytes differ from embed (%d vs %d)", len(got), len(gadak.SkillMarkdown()))
+	if !strings.Contains(stderr, "skill: not installed — run gadak skill install") {
+		t.Fatalf("stderr missing the one-line hint; got:\n%s", stderr)
 	}
-	out := buf.String()
-	if strings.Contains(out, "next: gadak skill install") {
-		t.Fatalf("installed skill still printed the next-step line:\n%s", out)
-	}
-	if !strings.Contains(out, "skill: installed") {
-		t.Fatalf("expected skill: installed, got:\n%s", out)
+	if strings.Contains(buf.String(), "next: gadak skill install") {
+		t.Fatalf("the hint already names the command; a second next-step line would double it:\n%s", buf.String())
 	}
 }
 
-func TestInstallCLIAlreadyInstalledAutoInstallsSkill(t *testing.T) {
+// TestInstallCLIAlreadyInstalledSkillAsksBeforeCreating is the same contract
+// on the already-linked path.
+//
+// GDK-2070 (2026-11-03): the pre-fix assertion was SKILL.md present after
+// the re-install; non-interactive runs create nothing now, so it is replaced
+// (not relaxed) with the absence plus the stderr hint. FAIL-first:
+// TestInitNonInteractiveCreatesNoSkill against the unfixed code.
+func TestInstallCLIAlreadyInstalledSkillAsksBeforeCreating(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("install-cli unsupported on windows")
 	}
@@ -442,11 +455,17 @@ func TestInstallCLIAlreadyInstalledAutoInstallsSkill(t *testing.T) {
 		t.Fatal(err)
 	}
 	var buf bytes.Buffer
-	if err := installCLI(&buf, source, dir, false, false, dir, "zsh", "linux"); err != nil {
+	_, stderr, err := captureErr(t, func() error {
+		return installCLI(&buf, source, dir, false, false, dir, "zsh", "linux")
+	})
+	if err != nil {
 		t.Fatalf("re-install: %v", err)
 	}
-	if _, err := os.Stat(skillDestUnder(home)); err != nil {
-		t.Fatalf("SKILL.md missing on already-installed path: %v\nout:\n%s", err, buf.String())
+	if _, serr := os.Stat(skillDestUnder(home)); !os.IsNotExist(serr) {
+		t.Fatalf("a TTY-less re-install created the skill: %v", serr)
+	}
+	if !strings.Contains(stderr, "skill: not installed") {
+		t.Fatalf("the skip must be named on stderr; got:\n%s", stderr)
 	}
 	out := buf.String()
 	if !strings.Contains(out, "already installed") {

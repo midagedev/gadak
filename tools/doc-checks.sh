@@ -3769,6 +3769,7 @@ INTENTIONAL_FLAGS = {
     "token-expires": "init credential entry — a human paste, not agent work",
     "token-file": "init credential entry — a human paste, not agent work",
     "token-stdin": "init credential entry — a human paste, not agent work",
+    "no-skill": "init/install-cli skill opt-out — a person's choice about their own ~/.claude; an agent reading SKILL.md already has the skill (GDK-2070)",
     "pairing-code": "argument form of the pairing bind; --pairing-code-stdin is the taught form (an argv code is visible in ps)",
     "no-sync": "flag of the untaught mcp verb (see INTENTIONAL_VERBS)",
     "public-url": "serve advertises its own URL (setup)",

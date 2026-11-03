@@ -477,7 +477,9 @@ func initPaired(cfg *config.Config, code string, fromStdin bool, jsonOut bool) e
 		return err
 	}
 	p, _ := config.Path()
-	skill := autoInstallSkill(os.Stderr)
+	// stdinUsed: --pairing-code-stdin consumed stdin, so the consent prompt
+	// has no answer to read (GDK-2070).
+	skill := autoInstallSkill(os.Stderr, skillAutoOptions{jsonOut: jsonOut, stdinUsed: fromStdin})
 	if jsonOut {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetEscapeHTML(false)

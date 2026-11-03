@@ -91,7 +91,7 @@ var helps = map[string]cmdHelp{
 		usage: "gadak [--workspace <name>] init [--local] [--site URL] [--email ADDR]\n" +
 			"[--projects A,B] [--spaces KEYS|all|none]\n" +
 			"[--token-file PATH | --token-stdin] [--token-expires DATE]\n" +
-			"[--pairing-code OFFER | --pairing-code-stdin] [--json]",
+			"[--pairing-code OFFER | --pairing-code-stdin] [--json] [--no-skill]",
 		// FlagSet VisitAll supplies Options when `gadak init --help` runs; this
 		// list covers formatHelp(nil) and documents the env-only token path.
 		options: []helpOption{
@@ -109,6 +109,7 @@ var helps = map[string]cmdHelp{
 			{name: "pairing-code", desc: initUsagePairingCode + "; binds this fresh workspace to that serve as its origin (verified against the serve before anything is saved)"},
 			{name: "pairing-code-stdin", desc: initUsagePairingCodeStdin + " (keeps the secret out of ps and shell history)"},
 			{name: "json", desc: initUsageJSON},
+			{name: "no-skill", desc: initUsageNoSkill},
 		},
 		examples: []string{
 			"gadak init",
@@ -219,7 +220,7 @@ var helps = map[string]cmdHelp{
 	},
 	"install-cli": {
 		summary: "put this binary on PATH (prefers a PATH entry, else ~/.local/bin; %LOCALAPPDATA%\\Programs\\gadak on Windows)",
-		usage:   "gadak install-cli [--dir <path>] [--force] [--print]",
+		usage:   "gadak install-cli [--dir <path>] [--force] [--print] [--no-skill]",
 		examples: []string{
 			"gadak install-cli",
 			"/Applications/Gadak.app/Contents/Resources/bin/gadak install-cli",

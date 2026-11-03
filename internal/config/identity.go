@@ -32,6 +32,9 @@ const (
 // the Go source and fails when this map falls behind.
 var envSuffixes = map[string]struct{}{
 	"HOME": {}, "PROFILE": {}, "WORKSPACE": {}, "TOKEN": {}, "SITE": {}, "EMAIL": {}, "PROJECTS": {},
+	// SKILL_AUTO=0 is the one-process skill auto-install opt-out (GDK-2070),
+	// read by cmd/gadak's consent gate beside the machine-wide setting.
+	"SKILL_AUTO": {},
 }
 
 // envLiterals are GADAK_* names production reads via os.Getenv, not Env.

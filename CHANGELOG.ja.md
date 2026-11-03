@@ -12,6 +12,12 @@
 診断クエリの一つがプランナー統計なしでキャッシュを二乗で読んでいたためです。
 いまはこのクエリが数ミリ秒で終わり、全体同期のあとには他のクエリのためにも統計を残します([GDK-2068])。
 
+**Claude Codeのスキルをインストールする前に確認するようになりました。**
+`gadak init`、ペアリング、`gadak install-cli`は、`~/.claude`があると確認なしに`~/.claude/skills/gadak/SKILL.md`を書き込み、止める方法もありませんでした。
+スクリプトからキャッシュを読むためだけに設定しても、そのマシンのすべてのClaude Codeセッションに影響していました。
+いまはターミナルで実行すると先に確認し、`--json`やターミナルなしの実行ではインストールせず`gadak skill install`を案内します。
+`--no-skill`、`GADAK_SKILL_AUTO=0`、マシン全体に効く`gadak config set skill.autoInstall false`で止められ、確認に`n`と答えると同じ設定が保存されます([GDK-2070])。
+
 ## v0.24.2 — 2026-10-19
 
 **同期は必要な仕事だけをし、起きていない損失を報告しなくなりました。**
@@ -1890,3 +1896,4 @@ Jiraサイトでも同じ意味になる軸をキーにします。解決の判�
 [GDK-2058]: https://gadak.dev/backlog/#/?ks=GDK-2058
 [GDK-2068]: https://gadak.dev/backlog/#/?ks=GDK-2068
 [GDK-2069]: https://gadak.dev/backlog/#/?ks=GDK-2069
+[GDK-2070]: https://gadak.dev/backlog/#/?ks=GDK-2070

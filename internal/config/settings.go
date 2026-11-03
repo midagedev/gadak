@@ -777,6 +777,19 @@ func buildSettings() []Setting {
 			func(c *Config) bool { return c != nil && c.DevStatus },
 			func(c *Config, b bool) { c.DevStatus = b },
 		),
+		// The one machine-level resident (GDK-2070): stored in
+		// machine-settings.json at the gadak home root, not in this
+		// workspace's config.json, so it holds across workspaces. Read and
+		// written through internal/config/machine.go; the per-workspace
+		// Config the catalog passes is deliberately ignored.
+		machineBoolSetting(SkillAutoInstallPath, "skill",
+			"machine-wide (every workspace on this machine, not this config.json): "+
+				"may init, pairing and install-cli install the Claude Code skill into "+
+				"~/.claude/skills/gadak (default true). When false they never create or "+
+				"refresh it and never ask; answering \"n\" at init's one-time prompt sets "+
+				"this to false. GADAK_SKILL_AUTO=0 opts out for one process. "+
+				"`gadak skill install` is the deliberate verb and always works",
+			true, SetSkillAutoInstall),
 		{
 			Path: "actor",
 			Root: "actor",

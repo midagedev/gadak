@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	gadak "github.com/midagedev/gadak"
 	"github.com/midagedev/gadak/internal/config"
 	"github.com/midagedev/gadak/internal/origin"
 	"github.com/midagedev/gadak/internal/pairing"
@@ -1193,27 +1192,40 @@ func runBuiltInInitJSON(t *testing.T) string {
 	return out
 }
 
-// TestInitBuiltInAutoInstallsSkillWhenClaudeDirExists — GDK-93.
-// FAIL-first (2026-08-21, pre-fix): init succeeded, ~/.claude existed,
-// SKILL.md was not created, --json had no "skill" field.
-func TestInitBuiltInAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
+// TestInitBuiltInSkillAsksBeforeCreating — GDK-93 installed the skill
+// unasked; GDK-2070 made creating it a consent question. This is the --json
+// half: a non-interactive run (go test has no TTY, --json forbids prompting)
+// installs nothing, reports "skipped", and the hint lands on stderr.
+//
+// GDK-2070 (2026-11-03): the pre-fix assertions here were skill ==
+// "installed" and SKILL.md equal to the embed. They cannot survive the new
+// contract — --json is non-interactive by definition, so no stub can make
+// this run install — and the derivation for changing them is the contract
+// itself: "Non-interactive init on a machine with ~/.claude and no skill: no
+// file created, stderr hint printed once, JSON "skill":"skipped"". FAIL-first
+// is TestInitNonInteractiveCreatesNoSkill (skill_optin_test.go), run red
+// against the unfixed code in the same round. The interactive-yes half of
+// the old coverage lives in TestAutoInstallSkillInstallsMissing.
+func TestInitBuiltInSkillAsksBeforeCreating(t *testing.T) {
 	// Pinned off the GADAK_HOME axis (GDK-1611): this test pins init's
-	// auto-install, a real (non-scratch) run. The GADAK_HOME below is the
+	// consent gate, a real (non-scratch) run. The GADAK_HOME below is the
 	// config home's isolation, not a scratch-workspace statement.
 	pinSkillHomeNotIsolated(t)
 	home := isolateHomeWithClaude(t)
 	t.Setenv("GADAK_HOME", home)
-	out := runBuiltInInitJSON(t)
-	skill, _ := initJSONSkill(t, out)
-	if skill != "installed" {
-		t.Fatalf("skill = %q, want installed; out=%s", skill, out)
-	}
-	got, err := os.ReadFile(skillDestUnder(home))
+	out, stderr, err := runBuiltInInitErr(t, "--json")
 	if err != nil {
-		t.Fatalf("SKILL.md missing after init: %v", err)
+		t.Fatalf("init --local --json: %v\nstdout=%s\nstderr=%s", err, out, stderr)
 	}
-	if !bytes.Equal(got, gadak.SkillMarkdown()) {
-		t.Fatalf("installed bytes differ from embed (%d vs %d)", len(got), len(gadak.SkillMarkdown()))
+	skill, _ := initJSONSkill(t, out)
+	if skill != "skipped" {
+		t.Fatalf("skill = %q, want skipped; out=%s", skill, out)
+	}
+	if _, serr := os.Stat(skillDestUnder(home)); !os.IsNotExist(serr) {
+		t.Fatalf("a non-interactive init created the skill: %v", serr)
+	}
+	if !strings.Contains(stderr, "skill: not installed") {
+		t.Fatalf("the skip must be named on stderr; got:\n%s", stderr)
 	}
 }
 
@@ -1277,9 +1289,21 @@ func TestInitBuiltInSkillConflictPreservesFile(t *testing.T) {
 	}
 }
 
-func TestInitBuiltInHumanSkillInstalledLine(t *testing.T) {
+// TestInitBuiltInHumanSkillHintWhenNotInstalled is the human-output half of
+// the GDK-2070 consent gate: a TTY-less `gadak init --local` (the shape a
+// script or an agent drives) creates nothing and says the one stderr line
+// that names the deliberate verb; stdout's skill status line is gone with
+// the skip (printSkillAutoResult speaks only for installs now).
+//
+// GDK-2070 (2026-11-03): the pre-fix assertions were "skill: installed" on
+// stdout and SKILL.md present. A TTY-less human run cannot consent, so under
+// the new contract those two assertions are unsatisfiable by any setup
+// change — the derivation is "Non-interactive: do not install. Print one
+// line on stderr" — and they are replaced rather than relaxed. FAIL-first:
+// TestInitNonInteractiveCreatesNoSkill ran red against the unfixed code.
+func TestInitBuiltInHumanSkillHintWhenNotInstalled(t *testing.T) {
 	releaseVersionForTest(t)
-	pinSkillHomeNotIsolated(t) // the installed line is a non-scratch-run axis (GDK-1611)
+	pinSkillHomeNotIsolated(t) // the consent gate is a non-scratch-run axis (GDK-1611)
 	home := isolateHomeWithClaude(t)
 	t.Setenv("GADAK_HOME", home)
 	clearCredentialEnv(t)
@@ -1288,17 +1312,20 @@ func TestInitBuiltInHumanSkillInstalledLine(t *testing.T) {
 		_ = origin.Close()
 		config.SetProfile("")
 	})
-	out, err := capture(t, func() error {
+	out, stderr, err := captureErr(t, func() error {
 		return cmdInit([]string{"--local"})
 	})
 	if err != nil {
-		t.Fatalf("init --standalone: %v\n%s", err, out)
+		t.Fatalf("init --standalone: %v\nstdout=%s\nstderr=%s", err, out, stderr)
 	}
-	if !strings.Contains(out, "skill: installed") {
-		t.Fatalf("human output missing skill: installed:\n%s", out)
+	if _, serr := os.Stat(skillDestUnder(home)); !os.IsNotExist(serr) {
+		t.Fatalf("a TTY-less human init created the skill: %v", serr)
 	}
-	if _, err := os.Stat(skillDestUnder(home)); err != nil {
-		t.Fatalf("SKILL.md missing: %v", err)
+	if !strings.Contains(stderr, "skill: not installed — run gadak skill install") {
+		t.Fatalf("stderr missing the one-line hint; got:\n%s", stderr)
+	}
+	if strings.Contains(out, "skill:") && !strings.Contains(out, "skill: not installed") {
+		t.Fatalf("stdout still carries a skill status line beside the stderr hint:\n%s", out)
 	}
 }
 
@@ -1349,8 +1376,19 @@ func TestInitBuiltInDevBuildLeavesInstalledSkillAlone(t *testing.T) {
 	assertDevSkillRefusal(t, stderr)
 }
 
-func TestInitConnectedAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
-	pinSkillHomeNotIsolated(t) // auto-install is a non-scratch-run axis (GDK-1611)
+// TestInitConnectedSkillAsksBeforeCreating / TestInitPairedSkillAsksBeforeCreating
+// are the connected and paired halves of the GDK-2070 contract. Both run
+// non-interactively (flags supplied / --json), so both install nothing and
+// report "skipped".
+//
+// GDK-2070 (2026-11-03): the pre-fix assertions were skill == "installed"
+// and SKILL.md present. A supplied-flag --json run is non-interactive by the
+// contract's own definition, so no setup change can keep them; the
+// replacement assertions are the contract ("no file created … JSON
+// "skill":"skipped""), and FAIL-first is
+// TestInitNonInteractiveCreatesNoSkill against the unfixed code.
+func TestInitConnectedSkillAsksBeforeCreating(t *testing.T) {
+	pinSkillHomeNotIsolated(t) // the consent gate is a non-scratch-run axis (GDK-1611)
 	home := isolateHomeWithClaude(t)
 	t.Setenv("GADAK_HOME", home)
 	clearCredentialEnv(t)
@@ -1358,10 +1396,10 @@ func TestInitConnectedAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
 	t.Cleanup(func() { config.SetProfile("") })
 
 	srv := myselfServer(t)
-	var out string
+	var out, stderr string
 	withClosedStdin(t, func() {
 		var err error
-		out, err = capture(t, func() error {
+		out, stderr, err = captureErr(t, func() error {
 			return cmdInit([]string{
 				"--site", srv.URL,
 				"--email", "agent@example.com",
@@ -1370,20 +1408,23 @@ func TestInitConnectedAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
 			})
 		})
 		if err != nil {
-			t.Fatalf("init: %v\n%s", err, out)
+			t.Fatalf("init: %v\n%s\n%s", err, out, stderr)
 		}
 	})
 	skill, _ := initJSONSkill(t, out)
-	if skill != "installed" {
-		t.Fatalf("skill = %q, want installed; out=%s", skill, out)
+	if skill != "skipped" {
+		t.Fatalf("skill = %q, want skipped; out=%s", skill, out)
 	}
-	if _, err := os.Stat(skillDestUnder(home)); err != nil {
-		t.Fatalf("SKILL.md missing after connected init: %v", err)
+	if _, serr := os.Stat(skillDestUnder(home)); !os.IsNotExist(serr) {
+		t.Fatalf("a non-interactive connected init created the skill: %v", serr)
+	}
+	if !strings.Contains(stderr, "skill: not installed") {
+		t.Fatalf("the skip must be named on stderr; got:\n%s", stderr)
 	}
 }
 
-func TestInitPairedAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
-	pinSkillHomeNotIsolated(t) // auto-install is a non-scratch-run axis (GDK-1611)
+func TestInitPairedSkillAsksBeforeCreating(t *testing.T) {
+	pinSkillHomeNotIsolated(t) // the consent gate is a non-scratch-run axis (GDK-1611)
 	home := isolateHomeWithClaude(t)
 	t.Setenv("GADAK_HOME", home)
 	clearCredentialEnv(t)
@@ -1394,18 +1435,21 @@ func TestInitPairedAutoInstallsSkillWhenClaudeDirExists(t *testing.T) {
 	offer := mustOffer(t, pairing.Offer{
 		V: pairing.OfferV1, Endpoint: srv.URL, Token: "pair-token-skill", Label: "laptop",
 	})
-	out, err := capture(t, func() error {
+	out, stderr, err := captureErr(t, func() error {
 		return cmdInit([]string{"--pairing-code", offer, "--json"})
 	})
 	if err != nil {
-		t.Fatalf("init --pairing-code: %v\n%s", err, out)
+		t.Fatalf("init --pairing-code: %v\n%s\n%s", err, out, stderr)
 	}
 	skill, _ := initJSONSkill(t, out)
-	if skill != "installed" {
-		t.Fatalf("skill = %q, want installed; out=%s", skill, out)
+	if skill != "skipped" {
+		t.Fatalf("skill = %q, want skipped; out=%s", skill, out)
 	}
-	if _, err := os.Stat(skillDestUnder(home)); err != nil {
-		t.Fatalf("SKILL.md missing after paired init: %v", err)
+	if _, serr := os.Stat(skillDestUnder(home)); !os.IsNotExist(serr) {
+		t.Fatalf("a non-interactive paired init created the skill: %v", serr)
+	}
+	if !strings.Contains(stderr, "skill: not installed") {
+		t.Fatalf("the skip must be named on stderr; got:\n%s", stderr)
 	}
 }
 
