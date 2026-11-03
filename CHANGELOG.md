@@ -4,12 +4,16 @@
 
 ## Unreleased
 
-**A large Jira Server site costs only the requests its configured projects
-need.** With `projects` set, sync still listed every board on the site and asked
-each one for its sprints on every tick: on a public Jira 10.3 Server with 265
+**A large Jira Server site no longer costs minutes.** With `projects` set,
+sync still listed every board on the site and asked each one for its sprints on
+every tick: on a public Jira 10.3 Server with 265
 visible boards, none of them the configured project's, a sync with nothing to
 fetch took 2m8s and 563 requests. Boards are now listed per configured project,
 and kanban boards are no longer asked for sprints they cannot have ([GDK-2069]).
+On the same site's 7,882-issue mirror, `gadak doctor` printed nothing for
+minutes: one diagnostic query had no planner statistics and read the mirror
+quadratically. It now finishes in milliseconds, and a full sync leaves
+statistics behind for every other query ([GDK-2068]).
 
 ## v0.24.2 — 2026-10-19
 
@@ -1879,4 +1883,5 @@ priority sorting keyed on `priority_rank`.
 [GDK-2054]: https://gadak.dev/backlog/#/?ks=GDK-2054
 [GDK-2055]: https://gadak.dev/backlog/#/?ks=GDK-2055
 [GDK-2058]: https://gadak.dev/backlog/#/?ks=GDK-2058
+[GDK-2068]: https://gadak.dev/backlog/#/?ks=GDK-2068
 [GDK-2069]: https://gadak.dev/backlog/#/?ks=GDK-2069

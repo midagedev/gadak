@@ -283,6 +283,10 @@ func runSource(
 		if err = db.RecomputeOpenBlockers(ctx); err != nil {
 			return res, err
 		}
+		// GDK-2068 (GitHub #115): refresh the planner's statistics while the mirror's
+		// whole shape is known. A plain call, not another branch here —
+		// runSource sits at its cyclomatic ratchet cap.
+		refreshPlannerStats(ctx, db, opts)
 	}
 
 	elapsed := time.Since(started).Round(time.Second)
@@ -296,6 +300,21 @@ func runSource(
 		donePrefix,
 		formatCount(res.Fetched), formatCount(res.Changed), formatCount(res.Deleted), unchanged, elapsed)
 	return res, nil
+}
+
+// refreshPlannerStats rebuilds sqlite_stat1 at the end of a full issue pass
+// (GDK-2068, GitHub #115): a mirror that never ran ANALYZE plans doctor's one-sided
+// link count quadratically, and every other reader against default
+// estimates. One statement, ~10 ms at 8k issues (optimize.go carries the
+// measurements). Bookkeeping, never a sync failure: an error is logged and
+// the pass stays successful — a missed refresh costs query plans, not data.
+func refreshPlannerStats(ctx context.Context, db *store.DB, opts Options) {
+	started := time.Now()
+	if serr := db.OptimizePlannerStats(ctx); serr != nil {
+		opts.logf("planner stats: not refreshed: %v", serr)
+		return
+	}
+	opts.logf("planner stats: refreshed in %s", time.Since(started).Round(time.Millisecond))
 }
 
 // syncRunKind is the SyncRun.Kind string: "full" | "incremental", optionally

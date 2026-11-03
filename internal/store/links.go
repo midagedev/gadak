@@ -117,6 +117,29 @@ func reconcileLinkCounterparts(tx *sql.Tx, sourceID, itemID, key string, old, fr
 	return out, nil
 }
 
+// oneSidedLinksSQL is CountOneSidedLinks' query. The unary + on f.kind is
+// load-bearing, not decoration: a mirror that never ran ANALYZE (gadak
+// builds statistics only at the end of a full sync, optimize.go) has no
+// sqlite_stat1, and without statistics SQLite plans f through
+// items_kind_updated (kind=?), drives the join from every issue row, and
+// walks every item of the source for each — quadratic. `gadak doctor` sat
+// silent for minutes on a 7.8k-issue mirror that way (GDK-2068, GitHub
+// #115): 45.6 s measured on the bundled SQLite 3.53.3, 0.015 s after the +.
+// The + keeps the term's meaning (a no-op on the value) while hiding it from
+// index planning, so f is reached once per link row through
+// items_source_key (source_id=? AND key=?). links_plan_test.go pins both the
+// plan text and the equivalence with the pre-fix query.
+const oneSidedLinksSQL = `
+		SELECT COUNT(*) FROM links l
+		JOIN items o ON o.id = l.item_id
+		JOIN items f ON f.source_id = o.source_id AND f.key = l.target_key AND +f.kind = 'issue'
+		WHERE l.direction IN ('inward','outward')
+		  AND NOT EXISTS (
+			SELECT 1 FROM links b
+			WHERE b.item_id = f.id AND b.type = l.type
+			  AND b.target_key = o.key
+			  AND b.direction = CASE l.direction WHEN 'inward' THEN 'outward' ELSE 'inward' END)`
+
 // CountOneSidedLinks counts stored link rows whose far end is in the mirror
 // and holds no counterpart row. Both ends must be mirrored for a row to
 // count: a link pointing outside the synced scope has no counterpart to
@@ -130,15 +153,6 @@ func reconcileLinkCounterparts(tx *sql.Tx, sourceID, itemID, key string, old, fr
 // doctor prints the number and draws no conclusion from it.
 func (db *DB) CountOneSidedLinks(ctx context.Context) (int, error) {
 	var n int
-	err := db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM links l
-		JOIN items o ON o.id = l.item_id
-		JOIN items f ON f.source_id = o.source_id AND f.key = l.target_key AND f.kind = 'issue'
-		WHERE l.direction IN ('inward','outward')
-		  AND NOT EXISTS (
-			SELECT 1 FROM links b
-			WHERE b.item_id = f.id AND b.type = l.type
-			  AND b.target_key = o.key
-			  AND b.direction = CASE l.direction WHEN 'inward' THEN 'outward' ELSE 'inward' END)`).Scan(&n)
+	err := db.QueryRowContext(ctx, oneSidedLinksSQL).Scan(&n)
 	return n, err
 }
