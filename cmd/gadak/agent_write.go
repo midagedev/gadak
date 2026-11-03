@@ -1595,6 +1595,12 @@ func resolveAccountUser(ctx context.Context, c origin.Writer, who, source string
 	if who == "-" {
 		return jira.User{}, nil
 	}
+	// An empty assignee is refused before any lookup (GDK-2075). It used to
+	// match the first member or search hit with no email — EqualFold("", "")
+	// — so a script's unset variable assigned an app account.
+	if strings.TrimSpace(who) == "" {
+		return jira.User{}, errors.New("assignee is empty — pass an email, a name or an accountId; - unassigns")
+	}
 	cfg, err := config.Load()
 	if err != nil {
 		return jira.User{}, err

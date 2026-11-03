@@ -3532,3 +3532,25 @@ func TestSearchJSONCarriesOriginURL(t *testing.T) {
 		t.Fatalf("url = %q, want the origin's own page for the row", got)
 	}
 }
+
+// GDK-2075: an empty assignee (a script's unset variable) must be refused
+// before any user search. It used to reach SearchUsers(""), whose answer
+// includes accounts with no email — and strings.EqualFold("", "") picked the
+// first of them, so `gadak assign KEY ""` assigned an app account.
+// FAIL-first (2026-11-03): resolveAccount returned "qm:app-1" for "".
+func TestResolveAccountRefusesEmptyAssignee(t *testing.T) {
+	saveResolveAccountConfig(t, []config.Member{{Email: "", JiraAccountID: "712020:member"}})
+	for _, who := range []string{"", "   "} {
+		stub := &searchUsersStub{query: "<not called>", users: []jira.User{
+			{AccountID: "qm:app-1", DisplayName: "Some Integration", Email: ""},
+			{AccountID: "712020:abc", DisplayName: "Dana", Email: "dana@example.com"},
+		}}
+		id, err := resolveAccount(context.Background(), stub, who, "jira")
+		if err == nil || !strings.Contains(err.Error(), "empty") {
+			t.Fatalf("who=%q: got id %q, err %v; want an empty-assignee refusal", who, id, err)
+		}
+		if stub.query != "<not called>" {
+			t.Fatalf("who=%q: SearchUsers was called with %q; the refusal must come first", who, stub.query)
+		}
+	}
+}
