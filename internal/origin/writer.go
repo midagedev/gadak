@@ -100,6 +100,35 @@ type MediaRef interface {
 	MediaRef(ctx context.Context, attachmentID string) (mediaID, filename string, err error)
 }
 
+// IssueAssigneeReader is the preflight read of the assign write (GDK-2063):
+// the issue's current assignee on the origin, one read. `gadak assign`
+// compares it with the mirror's issues.assignee_id before writing — a
+// mismatch means the origin moved since the mirror last saw the issue, and
+// replacing that assignee silently is the stale-overwrite defect. nil is
+// "unassigned". Jira Cloud, Jira Server and the built-in tracker answer via
+// jiraWriter (GET /issue/{key}?fields=status,assignee, the same read
+// claim's Cloud fallback judges); Linear via linearWriter (one issue(id:)
+// fetch). An origin that cannot answer does not implement the face, and the
+// caller treats that like a failed read — it says so, never writes blind.
+type IssueAssigneeReader interface {
+	IssueAssignee(ctx context.Context, key string) (*User, error)
+}
+
+// ErrNoIssueAssigneeRead is the face-miss refusal for AsIssueAssigneeReader.
+// The assign write surfaces it as a failed read (GDK-2063): refuse and name
+// the limitation, or --force.
+var ErrNoIssueAssigneeRead = unsupported("this origin cannot read one issue's current assignee")
+
+// AsIssueAssigneeReader returns w as IssueAssigneeReader, walking wrappers
+// (the actor trailer), or ErrNoIssueAssigneeRead.
+func AsIssueAssigneeReader(w Writer) (IssueAssigneeReader, error) {
+	r, ok := capability[IssueAssigneeReader](w)
+	if !ok {
+		return nil, ErrNoIssueAssigneeRead
+	}
+	return r, nil
+}
+
 // These strings were the linearWriter stubs' Error() values. Callers that
 // type-assert a missing face must return the same text (GDK-641).
 //

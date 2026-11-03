@@ -1837,9 +1837,15 @@ func TestResolveAccountIDExactMatchAmongMultiple(t *testing.T) {
 
 func TestResolveAccountAmbiguousNameStillRefused(t *testing.T) {
 	saveResolveAccountConfig(t, nil)
+	// 2026-11-03 GDK-2063: the fixture used to include a user whose display
+	// name IS the query ("Dana" among "Dana", "Dana Kim"), which the exact-
+	// display-name-wins rule now resolves — the assign-stale incident's
+	// second defect was exactly that refusal. Re-staged as substring-only
+	// ambiguity (no user is named plain "Dana"), the case this test guards:
+	// a substring hit with no exact winner still refuses.
 	stub := &searchUsersStub{users: []jira.User{
-		{AccountID: "712020:abc", DisplayName: "Dana", Email: ""},
-		{AccountID: "712020:def", DisplayName: "Dana Kim", Email: ""},
+		{AccountID: "712020:abc", DisplayName: "Dana Kim", Email: ""},
+		{AccountID: "712020:def", DisplayName: "Dana Whitfield", Email: ""},
 	}}
 	_, err := resolveAccount(context.Background(), stub, "Dana", "jira")
 	if err == nil {
@@ -1849,7 +1855,7 @@ func TestResolveAccountAmbiguousNameStillRefused(t *testing.T) {
 	if !strings.Contains(msg, "matches 2 users") {
 		t.Fatalf("want candidate-list refusal, got %v", err)
 	}
-	for _, want := range []string{"Dana", "Dana Kim"} {
+	for _, want := range []string{"Dana Kim", "Dana Whitfield"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("refusal %q missing %q", msg, want)
 		}
@@ -1970,9 +1976,14 @@ func TestResolveAccountServerUserKeysByName(t *testing.T) {
 func TestAssignJoinsTrailingWords(t *testing.T) {
 	f := newFakeJira(t)
 	mirror(t, f.URL)
+	// 2026-11-03 GDK-2063: the resolved user used to be the very account the
+	// fake origin already reports as the holder (acc-hc), which the
+	// already-assigned rule now correctly makes a no-op instead of a write.
+	// Re-keyed to acc-dw so the joined name still resolves to a *different*
+	// user than the holder and the PUT the test asserts on really fires.
 	f.searchUsers = func(query string) string {
 		if query == "Dana Whitfield" {
-			return `[{"accountId":"acc-hc","displayName":"Dana Whitfield","emailAddress":"dana@example.com","active":true}]`
+			return `[{"accountId":"acc-dw","displayName":"Dana Whitfield","emailAddress":"dana@example.com","active":true}]`
 		}
 		return "[]"
 	}
@@ -1981,7 +1992,7 @@ func TestAssignJoinsTrailingWords(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("assign Dana Whitfield: %v", err)
 	}
-	if body := f.bodies["PUT /issue/NMB-1/assignee"]; !strings.Contains(body, `"accountId":"acc-hc"`) {
+	if body := f.bodies["PUT /issue/NMB-1/assignee"]; !strings.Contains(body, `"accountId":"acc-dw"`) {
 		t.Fatalf("joined name did not resolve: %s (queries %v)", body, f.searchQueries)
 	}
 	if len(f.searchQueries) == 0 || f.searchQueries[len(f.searchQueries)-1] != "Dana Whitfield" {

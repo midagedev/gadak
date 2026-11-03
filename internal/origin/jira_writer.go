@@ -55,3 +55,15 @@ func (w *jiraWriter) UpdateSprint(ctx context.Context, sprintID int64, fields ma
 	s, err := w.Client.UpdateSprint(ctx, sprintID, fields)
 	return Sprint{ID: s.ID, Name: s.Name, State: s.State}, err
 }
+
+// IssueAssignee is the assign write's preflight read (GDK-2063):
+// the embedded client's one GET /issue/{key}?fields=status,assignee — the
+// same read claim's Cloud fallback judges — with the status half dropped.
+// Cloud, Server and the built-in tracker (issuetap speaks the Jira API) all
+// answer here, so the stale check needs no origin branch.
+func (w *jiraWriter) IssueAssignee(ctx context.Context, key string) (*User, error) {
+	_, who, err := w.Client.IssueStatus(ctx, key)
+	return who, err
+}
+
+var _ IssueAssigneeReader = (*jiraWriter)(nil)

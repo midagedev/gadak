@@ -182,7 +182,7 @@ Markers:
     (`internal/jira/write.go:238`, `:215`).
 
 [^18]: The write half refuses with `ErrNoIssueLinks`
-    (`internal/origin/writer.go:114`); reading relations is [^106].
+    (`internal/origin/writer.go:143`); reading relations is [^106].
 
 [^19]: Link-type catalog and both-direction elements
     (`issuetap/docs/COMPATIBILITY.md:59`, `:76`).
@@ -190,13 +190,13 @@ Markers:
 [^20]: `ref`, `link KEY <url>` and `unlink KEY <url>` need an origin that
     stores remote links
     where gadak can read them back; every non-Built-in origin is refused
-    (`internal/origin/writer.go:117`, `:186`).
+    (`internal/origin/writer.go:146`, `:215`).
 
 [^21]: Works embedded and paired (`cmd/gadak/link.go:130`,
     `cmd/gadak/ref.go:184`, `internal/jira/remotelink.go:51`); the sync pass
     refreshes the mirror only when the origin is embedded — on a paired
     workspace the rows update when `ref`/`link` writes, not on sync
-    (`internal/origin/writer.go:216`). A remote link whose URL is a GitHub
+    (`internal/origin/writer.go:245`). A remote link whose URL is a GitHub
     pull request also feeds the issue's `linked_prs`, on the CLI and in the
     app (`internal/server/read.go:562`).
 
@@ -222,7 +222,7 @@ Markers:
 
 [^29]: `GET /project/{key}/versions` (`internal/jira/write.go:186`).
 
-[^30]: `ErrNoVersionCatalog` (`internal/origin/writer.go:113`); the columns
+[^30]: `ErrNoVersionCatalog` (`internal/origin/writer.go:142`); the columns
     stay empty (`internal/sync/linear.go:360`).
 
 [^31]: The catalog is derived from the project's issues, and this is the one
@@ -333,7 +333,7 @@ Markers:
     create does not (`internal/server/write_create.go:185`).
 
 [^51]: Create works; assignee, labels, parent, and issue type are refused on
-    create (`internal/origin/linearwriter.go:335`).
+    create (`internal/origin/linearwriter.go:351`).
     The CLI create carries the same actor trailer as Jira[^50], rendered to
     markdown with the body.
 
@@ -370,16 +370,16 @@ Markers:
 [^59]: `PUT /issue/{key}/assignee` (`internal/jira/write.go:311`).
 
 [^60]: The fields path carries assign and unassign
-    (`internal/origin/linearwriter.go:218`); refused only at create time
-    (`:335`).
+    (`internal/origin/linearwriter.go:234`); refused only at create time
+    (`:351`).
 
 [^61]: `POST /issue/{key}/assignee` (`issuetap/docs/COMPATIBILITY.md:76`).
 
 [^62]: The two-part edit — `fields` replaces, `update` carries add/remove
     operations (`internal/jira/write.go:326`).
 
-[^63]: The `update` half is refused outright (`internal/origin/linearwriter.go:243`)
-    and any field outside the editable set is refused (`:230`); labels are
+[^63]: The `update` half is refused outright (`internal/origin/linearwriter.go:259`)
+    and any field outside the editable set is refused (`:246`); labels are
     deliberately absent from Linear edit metadata.
 
 [^64]: Editable set (`issuetap/docs/COMPATIBILITY.md:73`).
@@ -388,21 +388,21 @@ Markers:
     name (`issuetap/docs/COMPATIBILITY.md:76`).
 
 [^66]: Linear's 0-4 scale; clearing a priority maps to 0, "No priority"
-    (`internal/origin/linearwriter.go:200`, `:275`).
+    (`internal/origin/linearwriter.go:216`, `:291`).
 
 [^67]: `edit --due YYYY-MM-DD` → `fields.duedate` (`cmd/gadak/edit.go:368`);
-    Linear takes the date as-is (`internal/origin/linearwriter.go:217`).
+    Linear takes the date as-is (`internal/origin/linearwriter.go:233`).
 
 [^68]: `edit --due none` → `fields.duedate = nil` (`cmd/gadak/edit.go:366`).
 
 [^69]: "clearing a due date is not supported yet"
-    (`internal/origin/linearwriter.go:211`).
+    (`internal/origin/linearwriter.go:227`).
 
 [^70]: `fields.summary` / `fields.description` (`cmd/gadak/edit.go:297`,
     `internal/jira/write.go:326`).
 
 [^71]: The description is serialized back to markdown on write
-    (`internal/origin/linearwriter.go:196`, create `:363`) — headings,
+    (`internal/origin/linearwriter.go:212`, create `:379`) — headings,
     lists, tables and marks survive; panels, media and mentions degrade to
     text (GDK-1386). On Jira and Built-in, a body's nodes markdown cannot
     carry stand as placeholders in the editing source and `edit -m` puts
@@ -414,12 +414,12 @@ Markers:
     markdown on the way in.
 
 [^72]: Any field outside Linear's editable set is refused
-    (`internal/origin/linearwriter.go:230`).
+    (`internal/origin/linearwriter.go:246`).
 
 [^73]: `edit --type` → `fields.issuetype` (`cmd/gadak/edit.go:355`).
 
 [^74]: `ErrNoIssueTypes` — Linear has no issue types
-    (`internal/origin/writer.go:150`).
+    (`internal/origin/writer.go:179`).
 
 [^75]: `issuetype` with allowed values (`issuetap/docs/COMPATIBILITY.md:73`).
 
@@ -435,7 +435,7 @@ Markers:
     (`cmd/gadak/edit_verify.go:19`, GDK-1645).
 
 [^77]: Refused on create (`cmd/gadak/create.go:410`) and on edit
-    (`internal/origin/linearwriter.go:335`).
+    (`internal/origin/linearwriter.go:351`).
 
 [^78]: Same `fields.parent`, with hierarchy validation and honest 400s
     (`issuetap/docs/COMPATIBILITY.md:76`).
@@ -449,7 +449,7 @@ Markers:
     (GDK-1617).
 
 [^80]: URL-first: reserve storage, PUT the bytes, confirm
-    (`internal/origin/linearwriter.go:415`).
+    (`internal/origin/linearwriter.go:431`).
 
 [^81]: `POST /issueLink`, `DELETE /issueLink/{id}`, catalog via
     `GET /issueLinkType` (`internal/jira/write.go:226`, `:250`, `:215`).
@@ -465,10 +465,10 @@ Markers:
 
 [^85]: No atomic claim route on Cloud — the fallback runs assignee +
     transition as two calls and says so (`internal/claim/claim.go:136`,
-    `cmd/gadak/agent_write.go:1235`).
+    `cmd/gadak/agent_write.go:1481`).
 
 [^86]: Refused before any call: claim is a Jira-workflow verb and the Linear
-    writer does not implement it (`cmd/gadak/agent_write.go:1188`).
+    writer does not implement it (`cmd/gadak/agent_write.go:1434`).
 
 [^87]: One atomic mutation — the origin's own extension route
     (`issuetap/docs/COMPATIBILITY.md:72`).
@@ -691,15 +691,15 @@ Markers:
     issue — keeps its issue-side projection and gets no `sprints` row.
 
 [^142]: `sprint add` / `remove` go through `issueUpdate`
-    (`internal/origin/linearwriter.go:590` onward); `remove` sends
+    (`internal/origin/linearwriter.go:606` onward); `remove` sends
     `cycleId: null` because an omitted field means unchanged. Measured on a
     live Linear team with cycles switched on: an add fills the issue's three
     sprint columns and the `sprints` row's count, a remove empties them
     again, and `sprint in futureSprints()` finds the issue in between.
     **Three verbs refuse by name.** `start` and `close`
-    (`internal/origin/writer.go:356`): a cycle begins and ends by its dates,
+    (`internal/origin/writer.go:385`): a cycle begins and ends by its dates,
     so the place to move one is the cycle's dates. `create`
-    (`internal/origin/writer.go:364`, GDK-1678): Linear answers `cycleCreate`
+    (`internal/origin/writer.go:393`, GDK-1678): Linear answers `cycleCreate`
     with "Cycle creation is not supported." — cycles come from the team's
     cadence setting. The writer's `UpdateSprint` maps name/goal and the
     window onto `cycleUpdate`; no CLI verb reaches it yet.
@@ -794,7 +794,7 @@ this table from the code instead of maintaining it by hand is GDK-1301.
     path already sends (`internal/origin/body.go:28`). The CLI verb is
     `gadak comment edit|rm` (`cmd/gadak/agent_write.go:423`), and an edited body
     carries the actor trailer with the same idempotence a post has
-    (`internal/origin/trailer.go:266`).
+    (`internal/origin/trailer.go:276`).
 
 [^115]: `commentUpdate` / `commentDelete` over GraphQL
     (`internal/linear/write.go:268`, `:289`,

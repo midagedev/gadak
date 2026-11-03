@@ -1054,14 +1054,15 @@ func parseFieldFlagItem(item string) (string, any, error) {
 	return key, parsed, nil
 }
 
-const assignUsage = "usage: gadak assign <KEY> <email|name|accountId|-> [--json] [--dry-run] | --batch -"
+const assignUsage = "usage: gadak assign <KEY> <email|name|accountId|-> [--json] [--dry-run] [--force] | --batch -"
 
-var assignBatchFields = []string{"key", "assignee"}
+var assignBatchFields = []string{"key", "assignee", "force"}
 
 func cmdAssign(args []string) error {
 	fs := newFlagSet("assign")
 	asJSON := fs.Bool("json", false, "emit JSON")
-	dryRun := fs.Bool("dry-run", false, "print the assignee id this write would send and exit; nothing reaches the origin")
+	dryRun := fs.Bool("dry-run", false, "print the assignee id this write would send and the stale check's verdict, and exit; nothing reaches the origin")
+	force := fs.Bool("force", false, "replace an assignee the origin holds even when the mirror did not show them (the stale check refuses with exit 75 otherwise)")
 	batch := fs.String("batch", "", "JSON lines from stdin (`-` only); each object needs key and assignee")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("assign", fs))
@@ -1087,37 +1088,266 @@ func cmdAssign(args []string) error {
 
 	return foldDryRun(withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
 		if *dryRun {
-			// The account resolution a real write pays is the plan's whole
-			// content: the id, or null for `-` (unassign) — the request the
-			// origin would receive (GDK-1446).
-			id, err := resolveAccount(ctx, c, who, src)
-			if err != nil {
-				return err
-			}
-			var assignee any = id
-			if id == "" {
-				assignee = nil // `-`: resolveAccount's empty id is the unassign
-			}
-			req := map[string]any{"assignee": assignee}
-			if err := emitDryRun("assign", req, key); err != nil {
-				return err
-			}
-			return errDryRun
+			return assignDryRun(ctx, db, c, src, key, who, *force)
 		}
-		if err := assignTo(ctx, c, src, key, who); err != nil {
+		res, err := assignOne(ctx, cfg, db, c, src, key, who, *force)
+		if err != nil {
 			return err
 		}
+		if res.noop {
+			return emitAssignNoop(ctx, cfg, db, src, key, *asJSON, res.currentName)
+		}
 		recordAgentWrite(ctx, db, key, "assign")
-		return emitAfterWrite(ctx, cfg, db, src, key, *asJSON, nil)
+		if !*asJSON {
+			// The replaced assignee first (the row below shows only the
+			// new one — the defect was learning this from the changelog;
+			// see assign_stale_test.go's contract map), then the refreshed
+			// row every write prints.
+			if line := res.replacedLine(key, who); line != "" {
+				fmt.Println(line)
+			}
+		}
+		return emitAfterWrite(ctx, cfg, db, src, key, *asJSON, res.extra())
 	}))
 }
 
-func assignTo(ctx context.Context, c origin.Writer, src, key, who string) error {
-	id, err := resolveAccount(ctx, c, who, src)
+// assignResult is what one assign decided (GDK-2063).
+type assignResult struct {
+	// noop: the origin already holds the requested assignee, so nothing
+	// was sent (exit 0). currentName names them for the report (the
+	// assigneeDisplayName spelling, "(nobody)" for an unassign no-op).
+	noop        bool
+	currentName string
+	// target is the user the write resolved and sent.
+	target jira.User
+	// prevID/prevName name the assignee this write replaced, set only when
+	// it replaced one — an assign onto an unassigned issue replaces nobody.
+	prevID   string
+	prevName string
+}
+
+// extra is the --json addition a replacing write carries (the stale-
+// assignee round) and nil otherwise, so the non-replacing envelope stays
+// byte-identical.
+func (r assignResult) extra() map[string]any {
+	if r.prevID == "" {
+		return nil
+	}
+	return map[string]any{"previous_assignee": r.prevName, "previous_assignee_id": r.prevID}
+}
+
+// replacedLine is the human confirmation for a replacing write (the stale-
+// assignee round):
+// `KEY assignee: PREV → NEW`, PREV the holder the pre-write origin read
+// named, NEW the origin's display name for the resolved id ("(none)" for an
+// unassign, the typed spelling when the resolution carried no name). Empty
+// when nobody was replaced — the refreshed row alone says that.
+func (r assignResult) replacedLine(key, who string) string {
+	if r.prevID == "" {
+		return ""
+	}
+	next := "(none)" // `-`: target.ID() is empty, the unassign
+	if r.target.ID() != "" {
+		next = strings.TrimSpace(r.target.DisplayName)
+		if next == "" {
+			next = strings.TrimSpace(who)
+		}
+	}
+	return fmt.Sprintf("%s assignee: %s → %s", key, r.prevName, next)
+}
+
+// assignOne is the assign write behind the stale check (the 2026-10 stale-
+// assignee incident; the ticket key and the contract map live in
+// assign_stale_test.go). The
+// mirror is a cache, and a write that trusts it can silently replace a
+// person the caller never saw: in the incident a 15-hour-old mirror showed
+// no assignee while a colleague had taken the issue, and the assign
+// overwrote them, the output naming only the new assignee. So before
+// anything is sent, one read of the origin's current assignee is compared
+// with the mirror's issues.assignee_id — optimistic concurrency for a
+// tracker with no etag:
+//
+//   - equal (the caller saw the truth) → write as before. Reassigning away
+//     a holder the mirror already showed is a deliberate act and stays
+//     allowed.
+//   - different → refuse with exit 75, naming the origin's holder, what the
+//     mirror showed, and the two ways forward; then refresh the issue so
+//     the next read shows the truth. --force writes anyway.
+//   - the target already holds the issue on the origin → no write, exit 0.
+//   - the read fails, or the origin cannot answer it → refuse with the
+//     error rather than write blind; --force still writes.
+//
+// A key the mirror has no row for has nothing to compare and writes as it
+// always did — the write-through tail already reports that row's absence.
+func assignOne(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src, key, who string, force bool) (assignResult, error) {
+	target, err := resolveAccountUser(ctx, c, who, src)
+	if err != nil {
+		return assignResult{}, err
+	}
+	row := lookupOne(db, key)
+	var cur *jira.User
+	r, faceErr := origin.AsIssueAssigneeReader(c)
+	readErr := error(nil)
+	if faceErr != nil {
+		readErr = faceErr
+	} else if cur, readErr = r.IssueAssignee(ctx, key); readErr == nil {
+		// Idempotent first: asking for who already holds it is no write at
+		// all, whatever the mirror says (force included — sending the same
+		// assignee changes nothing).
+		if assigneeID(cur) == target.ID() {
+			return assignResult{noop: true, currentName: assigneeDisplayName(cur)}, nil
+		}
+	}
+	if readErr != nil && !force {
+		return assignResult{}, assignReadRefusal(key, readErr)
+	}
+	if !force && readErr == nil && row != nil {
+		if mirrorID := derefOrEmpty(row.AssigneeID, ""); mirrorID != assigneeID(cur) {
+			assignStaleRefresh(ctx, cfg, db, key, src)
+			return assignResult{}, &exitCodeError{code: exitAssignStale, msg: staleAssignMessage(key, cur, row)}
+		}
+	}
+	res := assignResult{target: target}
+	// The assignee this write replaces, for the report that names them: the
+	// origin's read when it answered; under --force past a failed read, the
+	// mirror's row — what the caller believed they were replacing.
+	if readErr == nil {
+		if id := assigneeID(cur); id != "" {
+			res.prevID, res.prevName = id, assigneeDisplayName(cur)
+		}
+	} else if row != nil {
+		if id := derefOrEmpty(row.AssigneeID, ""); id != "" {
+			res.prevID = id
+			res.prevName = derefOrEmpty(row.Assignee, id)
+		}
+	}
+	if err := c.SetAssignee(ctx, key, target.ID()); err != nil {
+		return assignResult{}, err
+	}
+	return res, nil
+}
+
+// assigneeID is the origin read's assignee id, "" for unassigned.
+func assigneeID(u *jira.User) string {
+	if u == nil {
+		return ""
+	}
+	return u.ID()
+}
+
+// assigneeDisplayName is how a refusal or a no-op names an assignee: the
+// display name, the id when the origin sent none, "(nobody)" when there is
+// no assignee.
+func assigneeDisplayName(u *jira.User) string {
+	if u == nil || u.ID() == "" {
+		return "(nobody)"
+	}
+	if name := strings.TrimSpace(u.DisplayName); name != "" {
+		return name
+	}
+	return u.ID()
+}
+
+// staleAssignMessage is the stale-mirror refusal (GDK-2063):
+// who holds the issue on the origin, what the mirror showed, and the two
+// ways forward.
+// The holder is always someone the mirror did not show — that is what
+// stale means here — so "unseen" is the word.
+func staleAssignMessage(key string, cur *jira.User, row *store.IssueLite) string {
+	holder := assigneeDisplayName(cur)
+	return fmt.Sprintf("%s: the origin's assignee is now %s, but the mirror showed %s — not replacing %s unseen. Run `gadak sync` and re-run, or pass --force to replace them anyway",
+		key, holder, derefOrEmpty(row.Assignee, "(nobody)"), holder)
+}
+
+// assignReadRefusal is the failed-preflight refusal (GDK-2063): the write does not go out blind. An origin that cannot answer the read is the same
+// class — its ErrNoIssueAssigneeRead sentence says so inside this one.
+func assignReadRefusal(key string, readErr error) error {
+	return fmt.Errorf("assign %s: reading the issue's current assignee failed — not writing blind (pass --force to write anyway): %w", key, readErr)
+}
+
+// assignStaleRefresh is the refusal's tail (GDK-2063):
+// re-read the refused issue into the mirror, the same refresh a landed
+// write pays, so the next read shows the truth the refusal just named. Best-effort — the refusal
+// stands whatever happens here; a failure only means `gadak sync` remains.
+func assignStaleRefresh(ctx context.Context, cfg *config.Config, db *store.DB, key, src string) {
+	if err := syncer.RefreshIssue(ctx, cfg, db, key, src); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: refreshing %s into the mirror failed (run `gadak sync`): %v\n", key, err)
+	}
+}
+
+// assignDryRun is assign's --dry-run: the GDK-1446 plan plus the stale
+// check's verdict (GDK-2063). It pays the same read the
+// real write pays, reports what the check would decide on stderr beside
+// the plan, and sends nothing. A dry run that would refuse refuses (the resolutions' rule): a
+// stale mirror returns the exit-75 refusal and a failed read its error,
+// with no plan printed — the refusal is the answer.
+func assignDryRun(ctx context.Context, db *store.DB, c origin.Writer, src, key, who string, force bool) error {
+	target, err := resolveAccountUser(ctx, c, who, src)
 	if err != nil {
 		return err
 	}
-	return c.SetAssignee(ctx, key, id)
+	plan := func() error {
+		var assignee any = target.ID()
+		if target.ID() == "" {
+			assignee = nil // `-`: the unassign the real write sends
+		}
+		req := map[string]any{"assignee": assignee}
+		if force {
+			req["force"] = true
+		}
+		if err := emitDryRun("assign", req, key); err != nil {
+			return err
+		}
+		return errDryRun
+	}
+	if force {
+		fmt.Fprintln(os.Stderr, "gadak assign --dry-run: stale check skipped (--force)")
+		return plan()
+	}
+	r, faceErr := origin.AsIssueAssigneeReader(c)
+	if faceErr != nil {
+		return assignReadRefusal(key, faceErr)
+	}
+	cur, readErr := r.IssueAssignee(ctx, key)
+	if readErr != nil {
+		return assignReadRefusal(key, readErr)
+	}
+	if assigneeID(cur) == target.ID() {
+		fmt.Fprintf(os.Stderr, "gadak assign --dry-run: already assigned to %s — the real write is a no-op\n", assigneeDisplayName(cur))
+		return plan()
+	}
+	if row := lookupOne(db, key); row != nil && derefOrEmpty(row.AssigneeID, "") != assigneeID(cur) {
+		return &exitCodeError{code: exitAssignStale, msg: "dry run: " + staleAssignMessage(key, cur, row)}
+	}
+	fmt.Fprintln(os.Stderr, "gadak assign --dry-run: fresh — the mirror's assignee matches the origin; the write would proceed")
+	return plan()
+}
+
+// emitAssignNoop is the already-assigned report (GDK-2063):
+// the origin holds
+// the requested assignee, so nothing was sent. Human: one line naming them
+// (transition's no-op shape); JSON: the refreshed row with changed:false,
+// the shape transition's no-op already prints.
+func emitAssignNoop(ctx context.Context, cfg *config.Config, db *store.DB, src, key string, asJSON bool, holder string) error {
+	if !asJSON {
+		if holder == "(nobody)" {
+			fmt.Printf("%s already unassigned — nothing to do\n", key)
+		} else {
+			fmt.Printf("%s already assigned to %s — nothing to do\n", key, holder)
+		}
+		return nil
+	}
+	if err := syncer.RefreshIssue(ctx, cfg, db, key, src); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: refreshing %s into the mirror failed (run `gadak sync`): %v\n", key, err)
+	}
+	lites, err := lookup(db, []string{key})
+	if err != nil {
+		return err
+	}
+	if len(lites) == 0 {
+		return writeNotMirroredError{Key: key}
+	}
+	return json.NewEncoder(os.Stdout).Encode(map[string]any{"issue": lites[0], "changed": false})
 }
 
 func runAssignBatch(asJSON bool) error {
@@ -1137,10 +1367,18 @@ func runAssignBatch(asJSON bool) error {
 		if who == "" {
 			return batchErr(key, false, errors.New("JSON line needs \"assignee\" (`\"-\"` unassigns)"))
 		}
+		force, _, err := jsonBoolField(obj, "force")
+		if err != nil {
+			return batchErr(key, false, err)
+		}
 		var wrote bool
 		err = withKeyWriteSession(key, func(ctx context.Context, cfg *config.Config, db *store.DB, c origin.Writer, src string) error {
-			if err := assignTo(ctx, c, src, key, who); err != nil {
+			res, err := assignOne(ctx, cfg, db, c, src, key, who, force)
+			if err != nil {
 				return err
+			}
+			if res.noop {
+				return nil // already assigned on the origin: ok row, nothing sent
 			}
 			recordAgentWrite(ctx, db, key, "assign")
 			wrote = true
@@ -1156,6 +1394,14 @@ func runAssignBatch(asJSON bool) error {
 // EX_TEMPFAIL: refused for now, retry after the holder finishes or pass
 // --take-over.
 const exitClaimConflict = 75
+
+// exitAssignStale is the stale-assignee refusal exit (GDK-2063): the
+// origin's assignee moved since the mirror last saw the issue, so the write
+// refuses rather than replace a person the caller never saw. Bound to
+// exitClaimConflict so the two "someone else got there first" refusals can
+// never drift apart — same EX_TEMPFAIL reading: retry after `gadak sync`,
+// or pass --force.
+const exitAssignStale = exitClaimConflict
 
 // cmdClaim is `gadak claim KEY`: take an issue as yours — assignee plus the
 // in-progress transition in one step (internal/claim). On built-in and
@@ -1330,43 +1576,58 @@ func postTerminalIssueBinding(base, session, key string) bool {
 // assign wants a Linear user UUID from Writer.SearchUsers. Account id
 // comparison is case-sensitive; email is not.
 func resolveAccount(ctx context.Context, c origin.Writer, who, source string) (string, error) {
+	u, err := resolveAccountUser(ctx, c, who, source)
+	if err != nil {
+		return "", err
+	}
+	return u.ID(), nil
+}
+
+// resolveAccountUser is resolveAccount with the matched user kept, not just
+// its id: the assign write names the assignee it lands (GDK-2063), and the
+// origin's own display name for the resolved id is the honest spelling. A
+// member-directory or Linear-UUID hit has no user record behind it, so the
+// User carries the id alone and callers fall back to the typed spelling.
+// The resolution ladder (email, exact id, exact display name, single hit)
+// lives here alone — one ladder, not two.
+func resolveAccountUser(ctx context.Context, c origin.Writer, who, source string) (jira.User, error) {
 	if who == "-" {
-		return "", nil
+		return jira.User{}, nil
 	}
 	cfg, err := config.Load()
 	if err != nil {
-		return "", err
+		return jira.User{}, err
 	}
 	if source != "linear" {
 		for _, m := range cfg.Members {
 			if strings.EqualFold(m.Email, who) && m.JiraAccountID != "" {
-				return m.JiraAccountID, nil
+				return jira.User{AccountID: m.JiraAccountID}, nil
 			}
 		}
 		for _, m := range cfg.Members {
 			if m.JiraAccountID != "" && m.JiraAccountID == who {
-				return m.JiraAccountID, nil
+				return jira.User{AccountID: m.JiraAccountID}, nil
 			}
 		}
 	}
 	users, err := c.SearchUsers(ctx, who)
 	if err != nil {
-		return "", err
+		return jira.User{}, err
 	}
 	for _, u := range users {
 		if strings.EqualFold(u.Email, who) {
-			return u.ID(), nil
+			return u, nil
 		}
 	}
 	for _, u := range users {
 		if u.ID() == who {
-			return u.ID(), nil
+			return u, nil
 		}
 	}
 	// A site that hides emails answers with no email to match on, so a single hit
 	// is taken at its word and an ambiguous one is refused rather than guessed.
 	if len(users) == 1 {
-		return users[0].ID(), nil
+		return users[0], nil
 	}
 	if len(users) == 0 {
 		// Linear SearchUsers is name/email contains; a UUID from the
@@ -1374,15 +1635,41 @@ func resolveAccount(ctx context.Context, c origin.Writer, who, source string) (s
 		// the user to do the thing that just failed. Accept
 		// the UUID as the id so the hint matches the behavior.
 		if source == "linear" && linear.LooksLikeID(who) {
-			return who, nil
+			return jira.User{AccountID: who}, nil
 		}
-		return "", fmt.Errorf("no user on this issue's origin matches %q — look up issues.assignee_id in the mirror or `gadak issue KEY --editmeta`", who)
+		return jira.User{}, fmt.Errorf("no user on this issue's origin matches %q — look up issues.assignee_id in the mirror or `gadak issue KEY --editmeta`", who)
 	}
+	// GDK-2063's second defect: an exact display name wins
+	// among substring hits. SearchUsers
+	// is name/email contains, so "Ravi Okafor" came back with every Okafor
+	// and the write was refused as matching twenty users while exactly one
+	// user is named that. Case-insensitive and trimmed, the tolerance email
+	// matching already gives. Two or more exact matches stay ambiguous — two
+	// accounts sharing one display name is a real site shape — and that
+	// refusal lists only the exact ones.
+	var exact []jira.User
+	for _, u := range users {
+		if strings.EqualFold(strings.TrimSpace(u.DisplayName), strings.TrimSpace(who)) {
+			exact = append(exact, u)
+		}
+	}
+	if len(exact) == 1 {
+		return exact[0], nil
+	}
+	if len(exact) > 1 {
+		return jira.User{}, fmt.Errorf("%q exactly matches %d users — be more specific: %s", who, len(exact), userLabelList(exact))
+	}
+	return jira.User{}, fmt.Errorf("%q matches %d users — be more specific: %s", who, len(users), userLabelList(users))
+}
+
+// userLabelList renders account candidates the way every account refusal
+// already does: display name plus email, semicolon-joined.
+func userLabelList(users []jira.User) string {
 	names := make([]string, 0, len(users))
 	for _, u := range users {
 		names = append(names, fmt.Sprintf("%s <%s>", u.DisplayName, u.Email))
 	}
-	return "", fmt.Errorf("%q matches %d users — be more specific: %s", who, len(users), strings.Join(names, "; "))
+	return strings.Join(names, "; ")
 }
 
 // cmdOpen jumps from a key in the terminal to the issue's page on its origin

@@ -867,7 +867,7 @@ var helps = map[string]cmdHelp{
 	},
 	"assign": {
 		summary: "set the assignee; pass - to unassign",
-		usage:   "gadak [--workspace <name>] assign <KEY> <email|name|accountId|-> [--json] [--dry-run] | --batch -",
+		usage:   "gadak [--workspace <name>] assign <KEY> <email|name|accountId|-> [--force] [--json] [--dry-run] | --batch -",
 		examples: []string{
 			"gadak assign NMB-140 dana@example.com",
 			"gadak assign NMB-140 -                 # unassign",

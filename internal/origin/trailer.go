@@ -231,6 +231,16 @@ func (w *actorTrailerWriter) MediaRef(ctx context.Context, attachmentID string) 
 	return "", "", ErrNoMediaRef
 }
 
+// IssueAssignee forwards the assign preflight read (GDK-2063) the same way:
+// without the forwarder every assign on a workspace with a resolved actor
+// would read as "this origin cannot answer" and refuse.
+func (w *actorTrailerWriter) IssueAssignee(ctx context.Context, key string) (*User, error) {
+	if v, ok := w.Writer.(IssueAssigneeReader); ok {
+		return v.IssueAssignee(ctx, key)
+	}
+	return nil, ErrNoIssueAssigneeRead
+}
+
 func (w *actorTrailerWriter) RemoteLinks(ctx context.Context, key string) ([]RemoteLink, error) {
 	if v, ok := w.Writer.(RemoteLinker); ok {
 		return v.RemoteLinks(ctx, key)

@@ -744,6 +744,7 @@ gadak transition NMB-140 done                 # status category: new | inprogres
 gadak close NMB-140                           # same as transition KEY done; already done is a no-op
 gadak transition NMB-140 done --resolution "Won't Do" -m "fixed in 1.2"
 gadak assign NMB-140 dana@example.com         # email, display name, or accountId; `-` unassigns. Ambiguous names are refused with the candidates.
+gadak assign NMB-140 dana@example.com --force # assign re-reads the issue's assignee on the origin and refuses (exit 75) when it differs from the mirror's — `gadak sync` first, or --force to replace anyway
 gadak claim NMB-140                            # Cloud has no atomic claim: assignee + transition run as two calls (warned on stderr); held issues refuse with exit 75
 gadak claim NMB-140 --take-over                # replace the current holder
 gadak create Batch worker drops the last page --project NMB --type Bug -m "repro on staging" --parent NMB-1

@@ -31,7 +31,12 @@ gadak ([GDK-2072]).
 strikethrough, so a body with two ranges such as `61~69%` and `36~37%` lost
 both tildes and struck the text between them on the origin — six of twelve
 issues in one Korean project. Only `~~text~~` is strikethrough now; one tilde
-is a tilde ([GDK-2062]).
+is a tilde ([GDK-2062]). `gadak assign` reads the issue's assignee on the origin
+first, and when someone took it after the cache last synced it refuses with
+exit 75 and names them, instead of replacing them unseen; `--force` replaces
+anyway, and a write that does replace someone says who. A display name that
+matches exactly one person now picks that person, even when the same surname
+matches others ([GDK-2063]).
 
 ## v0.24.2 — 2026-10-19
 
@@ -1902,6 +1907,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-2055]: https://gadak.dev/backlog/#/?ks=GDK-2055
 [GDK-2058]: https://gadak.dev/backlog/#/?ks=GDK-2058
 [GDK-2062]: https://gadak.dev/backlog/#/?ks=GDK-2062
+[GDK-2063]: https://gadak.dev/backlog/#/?ks=GDK-2063
 [GDK-2068]: https://gadak.dev/backlog/#/?ks=GDK-2068
 [GDK-2069]: https://gadak.dev/backlog/#/?ks=GDK-2069
 [GDK-2070]: https://gadak.dev/backlog/#/?ks=GDK-2070

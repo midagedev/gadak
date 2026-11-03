@@ -29,7 +29,11 @@
 본문에 `61~69%`와 `36~37%`처럼 범위를 두 번 쓰면 물결표 둘이 사라지고 그 사이
 글자에 줄이 그어진 채 origin에 올라갔습니다. 한 한국어 프로젝트에서는 이슈
 12건 중 6건이 그랬습니다. 이제 `~~텍스트~~`만 취소선이고, 물결표 하나는 그냥
-물결표입니다([GDK-2062]).
+물결표입니다([GDK-2062]). `gadak assign`은 먼저 origin에서 지금 담당자를 읽고,
+캐시가 마지막으로 동기화된 뒤 누군가 그 이슈를 가져갔으면 모르는 채 덮어쓰지
+않고 그 사람 이름을 대며 exit 75로 거절합니다. 그래도 바꾸려면 `--force`이고,
+누군가를 교체한 쓰기는 누구를 교체했는지 출력합니다. 표시 이름이 정확히 한
+사람과 일치하면, 같은 성이 다른 사람과 겹쳐도 그 사람으로 정합니다([GDK-2063]).
 
 ## v0.24.2 — 2026-10-19
 
@@ -1807,6 +1811,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-2055]: https://gadak.dev/backlog/#/?ks=GDK-2055
 [GDK-2058]: https://gadak.dev/backlog/#/?ks=GDK-2058
 [GDK-2062]: https://gadak.dev/backlog/#/?ks=GDK-2062
+[GDK-2063]: https://gadak.dev/backlog/#/?ks=GDK-2063
 [GDK-2068]: https://gadak.dev/backlog/#/?ks=GDK-2068
 [GDK-2069]: https://gadak.dev/backlog/#/?ks=GDK-2069
 [GDK-2070]: https://gadak.dev/backlog/#/?ks=GDK-2070

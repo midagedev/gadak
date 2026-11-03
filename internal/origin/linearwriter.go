@@ -148,6 +148,22 @@ func (w *linearWriter) SetAssignee(ctx context.Context, key, accountID string) e
 	return err
 }
 
+// IssueAssignee is the assign write's preflight read (GDK-2063): one
+// issue(id:) fetch — the same resolve every Linear write pays — carrying the
+// assignee UUID the stale check compares with the mirror's assignee_id.
+// userFromLinear is the one User mapping, the same one SearchUsers uses.
+func (w *linearWriter) IssueAssignee(ctx context.Context, key string) (*User, error) {
+	iss, err := w.resolve(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	if iss.Assignee == nil {
+		return nil, nil
+	}
+	u := userFromLinear(*iss.Assignee)
+	return &u, nil
+}
+
 func (w *linearWriter) SearchUsers(ctx context.Context, query string) ([]User, error) {
 	users, err := w.c.Users(ctx, query)
 	if err != nil {
@@ -729,3 +745,4 @@ func sprintDateStamp(field string, v any) (string, error) {
 
 var _ Writer = (*linearWriter)(nil)
 var _ SprintBoard = (*linearWriter)(nil)
+var _ IssueAssigneeReader = (*linearWriter)(nil)
