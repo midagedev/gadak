@@ -19,6 +19,11 @@
 `--no-skill`、`GADAK_SKILL_AUTO=0`、マシン全体に効く`gadak config set skill.autoInstall false`で止められ、確認に`n`と答えると同じ設定が保存されます([GDK-2070])。
 スキルの説明も、書き込みの規則をgadakのワークスペースが持つトラッカーだけに適用するよう改め、gadakと関係のないセッションの作業に影響しなくなりました([GDK-2072])。
 
+**書き込みは頼んだことだけを変えます。**
+マークダウンが波線一つも取り消し線として読んでいたため、本文に`61~69%`と`36~37%`のように範囲を二回書くと、波線が二つとも消え、その間の文字に線が引かれたままoriginに送られていました。
+ある韓国語のプロジェクトでは、イシュー12件のうち6件がそうなっていました。
+いまは`~~テキスト~~`だけが取り消し線で、波線一つはそのまま波線です([GDK-2062])。
+
 ## v0.24.2 — 2026-10-19
 
 **同期は必要な仕事だけをし、起きていない損失を報告しなくなりました。**
@@ -1895,6 +1900,7 @@ Jiraサイトでも同じ意味になる軸をキーにします。解決の判�
 [GDK-2054]: https://gadak.dev/backlog/#/?ks=GDK-2054
 [GDK-2055]: https://gadak.dev/backlog/#/?ks=GDK-2055
 [GDK-2058]: https://gadak.dev/backlog/#/?ks=GDK-2058
+[GDK-2062]: https://gadak.dev/backlog/#/?ks=GDK-2062
 [GDK-2068]: https://gadak.dev/backlog/#/?ks=GDK-2068
 [GDK-2069]: https://gadak.dev/backlog/#/?ks=GDK-2069
 [GDK-2070]: https://gadak.dev/backlog/#/?ks=GDK-2070

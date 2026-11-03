@@ -12,6 +12,7 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	extast "github.com/yuin/goldmark/extension/ast"
+	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 )
@@ -32,7 +33,63 @@ import (
 // Raw HTML is text. Anything else an ADF carries (panel, media, status,
 // mention, textColor, …) has no markdown and FormatLoss names it.
 
-var md = goldmark.New(goldmark.WithExtensions(extension.Strikethrough, extension.Table))
+// Strikethrough comes from strikeExt below, not goldmark's
+// extension.Strikethrough (GDK-2062): the built-in accepts a single `~` as
+// a delimiter, so two unrelated ranges in one paragraph — 61~69% and
+// 36~37% — became one strike, silently changing what the user wrote on the
+// origin. The writer side has always treated only `~~` as markup (marked
+// wraps strike in `~~`, escapeInline escapes `~` only next to another
+// `~`); the parser now agrees with it.
+var md = goldmark.New(goldmark.WithExtensions(strikeExt{}, extension.Table))
+
+// strikeExt registers an inline parser in place of goldmark's
+// extension.Strikethrough. It registers no renderer: this instance is only
+// ever parsed (MarkdownDoc), never rendered to HTML, and the node it
+// produces is still extension/ast.Strikethrough, which the converter below
+// already walks.
+type strikeExt struct{}
+
+func (strikeExt) Extend(m goldmark.Markdown) {
+	m.Parser().AddOptions(parser.WithInlineParsers(util.Prioritized(&strikeParser{}, 500)))
+}
+
+// strikeDelimiterProcessor and strikeParser are goldmark v1.8.5's
+// extension/strikethrough.go verbatim with a single change, marked GDK-2062:
+// the ScanDelimiter minimum is 2, so a run of exactly one `~` is never a
+// delimiter and stays literal text. For every run of two or more the call
+// behaves exactly as the built-in's — `~~` matches as before, and a run of
+// three or more is still rejected by the OriginalLength check below. The
+// priority is the built-in's.
+type strikeDelimiterProcessor struct{}
+
+func (*strikeDelimiterProcessor) IsDelimiter(b byte) bool { return b == '~' }
+
+func (*strikeDelimiterProcessor) CanOpenCloser(opener, closer *parser.Delimiter) bool {
+	return opener.Char == closer.Char
+}
+
+func (*strikeDelimiterProcessor) OnMatch(consumes int) ast.Node {
+	return extast.NewStrikethrough()
+}
+
+var strikeProcessor = &strikeDelimiterProcessor{}
+
+type strikeParser struct{}
+
+func (*strikeParser) Trigger() []byte { return []byte{'~'} }
+
+func (*strikeParser) Parse(parent ast.Node, block text.Reader, pc parser.Context) ast.Node {
+	before := block.PrecendingCharacter()
+	line, segment := block.PeekLine()
+	node := parser.ScanDelimiter(line, before, 2, strikeProcessor) // GDK-2062: was 1
+	if node == nil || node.OriginalLength > 2 || before == '~' {
+		return nil
+	}
+	node.Segment = segment.WithStop(segment.Start + node.OriginalLength)
+	block.Advance(node.OriginalLength)
+	pc.PushDelimiter(node)
+	return node
+}
 
 // FromMarkdown parses markdown text into an ADF document.
 func FromMarkdown(src string) json.RawMessage {

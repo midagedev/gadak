@@ -25,6 +25,12 @@
 규칙을 gadak 워크스페이스가 가진 트래커에만 적용하도록 고쳐, gadak과 상관없는
 세션의 작업에 끼어들지 않습니다([GDK-2072]).
 
+**쓰기는 요청한 것만 바꿉니다.** 마크다운이 물결표 하나도 취소선으로 읽어서,
+본문에 `61~69%`와 `36~37%`처럼 범위를 두 번 쓰면 물결표 둘이 사라지고 그 사이
+글자에 줄이 그어진 채 origin에 올라갔습니다. 한 한국어 프로젝트에서는 이슈
+12건 중 6건이 그랬습니다. 이제 `~~텍스트~~`만 취소선이고, 물결표 하나는 그냥
+물결표입니다([GDK-2062]).
+
 ## v0.24.2 — 2026-10-19
 
 **동기화가 필요한 일만 하고, 일어나지 않은 손실을 보고하지 않습니다.**
@@ -1800,6 +1806,7 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-2054]: https://gadak.dev/backlog/#/?ks=GDK-2054
 [GDK-2055]: https://gadak.dev/backlog/#/?ks=GDK-2055
 [GDK-2058]: https://gadak.dev/backlog/#/?ks=GDK-2058
+[GDK-2062]: https://gadak.dev/backlog/#/?ks=GDK-2062
 [GDK-2068]: https://gadak.dev/backlog/#/?ks=GDK-2068
 [GDK-2069]: https://gadak.dev/backlog/#/?ks=GDK-2069
 [GDK-2070]: https://gadak.dev/backlog/#/?ks=GDK-2070

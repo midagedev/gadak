@@ -27,6 +27,12 @@ The skill's description now applies its write rule only to trackers a gadak
 workspace holds, so it no longer steers sessions that have nothing to do with
 gadak ([GDK-2072]).
 
+**A write changes only what you asked it to.** Markdown read a single `~` as
+strikethrough, so a body with two ranges such as `61~69%` and `36~37%` lost
+both tildes and struck the text between them on the origin — six of twelve
+issues in one Korean project. Only `~~text~~` is strikethrough now; one tilde
+is a tilde ([GDK-2062]).
+
 ## v0.24.2 — 2026-10-19
 
 **Sync does only the work it needs, and stops reporting losses that did not
@@ -1895,6 +1901,7 @@ priority sorting keyed on `priority_rank`.
 [GDK-2054]: https://gadak.dev/backlog/#/?ks=GDK-2054
 [GDK-2055]: https://gadak.dev/backlog/#/?ks=GDK-2055
 [GDK-2058]: https://gadak.dev/backlog/#/?ks=GDK-2058
+[GDK-2062]: https://gadak.dev/backlog/#/?ks=GDK-2062
 [GDK-2068]: https://gadak.dev/backlog/#/?ks=GDK-2068
 [GDK-2069]: https://gadak.dev/backlog/#/?ks=GDK-2069
 [GDK-2070]: https://gadak.dev/backlog/#/?ks=GDK-2070
