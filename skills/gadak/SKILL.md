@@ -8,10 +8,10 @@ description: >
   reopened, what the wiki says, what is stuck or untriaged, how a release is
   shaped, about a backlog, or anything that would otherwise mean paging
   through Jira search — including when they have no Atlassian account and want
-  a tracker on this machine (the built-in tracker). Use it before any write —
-  creating an issue, attaching a file, editing a summary, label or priority,
-  commenting, transitioning, assigning, writing a wiki page all go through
-  gadak, not the API. When the user wants to see issues, do not paste a
+  a tracker on this machine (the built-in tracker). For a tracker a gadak
+  workspace holds, every write (create, edit, comment, transition, assign,
+  attach, wiki page) goes through gadak, not its API; a tracker no workspace
+  holds is out of scope. When the user wants to see issues, do not paste a
   markdown table: open them with `gadak views open`. Filter on status_category
   and ids, never on display names. Changing gadak itself (theme, sync
   interval, projects) is `gadak config`.

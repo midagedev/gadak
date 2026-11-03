@@ -21,7 +21,9 @@
 이제 터미널에서 실행하면 먼저 묻고, `--json`이나 터미널 없이 실행하면 설치하지
 않고 `gadak skill install`을 안내합니다. `--no-skill`, `GADAK_SKILL_AUTO=0`,
 기기 전체에 걸리는 `gadak config set skill.autoInstall false`로 끌 수 있고,
-질문에 `n`이라고 답하면 같은 설정이 저장됩니다([GDK-2070]).
+질문에 `n`이라고 답하면 같은 설정이 저장됩니다([GDK-2070]). 스킬 설명도 쓰기
+규칙을 gadak 워크스페이스가 가진 트래커에만 적용하도록 고쳐, gadak과 상관없는
+세션의 작업에 끼어들지 않습니다([GDK-2072]).
 
 ## v0.24.2 — 2026-10-19
 
@@ -1801,3 +1803,4 @@ FlagSet에서 생성되어 어긋날 수 없습니다. 즐겨찾기가 미러에
 [GDK-2068]: https://gadak.dev/backlog/#/?ks=GDK-2068
 [GDK-2069]: https://gadak.dev/backlog/#/?ks=GDK-2069
 [GDK-2070]: https://gadak.dev/backlog/#/?ks=GDK-2070
+[GDK-2072]: https://gadak.dev/backlog/#/?ks=GDK-2072

@@ -23,6 +23,9 @@ interactive run now asks first; a run with `--json` or without a terminal
 installs nothing and points to `gadak skill install`. `--no-skill`,
 `GADAK_SKILL_AUTO=0` and the machine-wide `gadak config set skill.autoInstall
 false` turn it off, and answering `n` stores the same setting ([GDK-2070]).
+The skill's description now applies its write rule only to trackers a gadak
+workspace holds, so it no longer steers sessions that have nothing to do with
+gadak ([GDK-2072]).
 
 ## v0.24.2 — 2026-10-19
 
@@ -1895,3 +1898,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-2068]: https://gadak.dev/backlog/#/?ks=GDK-2068
 [GDK-2069]: https://gadak.dev/backlog/#/?ks=GDK-2069
 [GDK-2070]: https://gadak.dev/backlog/#/?ks=GDK-2070
+[GDK-2072]: https://gadak.dev/backlog/#/?ks=GDK-2072

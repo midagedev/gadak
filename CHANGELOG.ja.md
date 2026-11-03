@@ -17,6 +17,7 @@
 スクリプトからキャッシュを読むためだけに設定しても、そのマシンのすべてのClaude Codeセッションに影響していました。
 いまはターミナルで実行すると先に確認し、`--json`やターミナルなしの実行ではインストールせず`gadak skill install`を案内します。
 `--no-skill`、`GADAK_SKILL_AUTO=0`、マシン全体に効く`gadak config set skill.autoInstall false`で止められ、確認に`n`と答えると同じ設定が保存されます([GDK-2070])。
+スキルの説明も、書き込みの規則をgadakのワークスペースが持つトラッカーだけに適用するよう改め、gadakと関係のないセッションの作業に影響しなくなりました([GDK-2072])。
 
 ## v0.24.2 — 2026-10-19
 
@@ -1897,3 +1898,4 @@ Jiraサイトでも同じ意味になる軸をキーにします。解決の判�
 [GDK-2068]: https://gadak.dev/backlog/#/?ks=GDK-2068
 [GDK-2069]: https://gadak.dev/backlog/#/?ks=GDK-2069
 [GDK-2070]: https://gadak.dev/backlog/#/?ks=GDK-2070
+[GDK-2072]: https://gadak.dev/backlog/#/?ks=GDK-2072
