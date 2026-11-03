@@ -17,36 +17,37 @@ import (
 // (GDK-1654). A site without Jira Software has no Agile API at all and says
 // so once, quietly — that is not a failed sync. As with filters, a failure
 // leaves the previous rows: a board-list 500 must not undo an issue pass.
-// cfg is read only for its project list, which scopes the board→project
-// backfill (GDK-1665); nil is a workspace with no configured projects and
-// takes the per-board fallback for every unmapped board.
+// cfg's project list scopes the listing the way it scopes the issue pass
+// (GDK-2069, measured on a public Jira 10.3 Server with projects=[CALCITE]:
+// 265 boards visible, none of them the configured project's, 559 agile
+// requests and 115 s per quiet tick): configured projects list boards per
+// project and never read the site-wide list; nil — or no non-blank entry —
+// is a workspace with no configured projects and keeps the site-wide listing
+// with its per-board project backfill (GDK-1665).
 func importAgile(ctx context.Context, c *jira.Client, cfg *config.Config, db *store.DB, opts Options) {
-	boards, err := c.Boards(ctx)
-	if err != nil {
-		if errors.Is(err, jira.ErrNoAgile) {
-			return
-		}
-		if errors.Is(err, jira.ErrAgileUnimplemented) {
-			// GDK-1691: a 501 here is the origin's age, not a failed sync.
-			// The sentence must say all three true things: whose limitation
-			// it is (the serve's, not the mirror's), that the issue rows are
-			// unaffected, and the one action that closes it.
-			opts.logf("boards: skipped — the origin's server predates sprints (Agile API answered 501); issue rows are unaffected. Upgrade the paired gadak serve, then run `gadak sync --full`")
-			return
-		}
-		opts.logf("boards: skipped (%v)", err)
+	boards, ok := listBoards(ctx, c, cfg, opts)
+	if !ok {
 		return
 	}
-	backfillBoardProjects(ctx, c, cfg, boards, opts)
 	rows := make([]store.BoardRow, 0, len(boards))
 	sprints := make([]store.SprintRow, 0, len(boards))
 	seen := map[int64]bool{}
 	for _, b := range boards {
 		rows = append(rows, store.BoardRow{ID: b.ID, Name: b.Name, Type: b.Type, ProjectKey: b.ProjectKey})
+		if strings.EqualFold(b.Type, "kanban") {
+			// A kanban board has no sprint backing: the ask is a guaranteed
+			// 400, one per board per tick (GDK-2069 measured a public server
+			// answering exactly that for every kanban board). The row is
+			// still stored; only the sprint read is skipped. scrum and
+			// simple stay asked — a Cloud team-managed board of type simple
+			// can hold sprints.
+			continue
+		}
 		got, err := c.Sprints(ctx, b.ID)
 		if err != nil {
 			if errors.Is(err, jira.ErrNoAgile) {
-				// A kanban board has no sprints; the route 400s or 404s.
+				// A board without a sprint backing 400s or 404s; kanban is
+				// skipped before the ask, so this guards the rest.
 				continue
 			}
 			if errors.Is(err, jira.ErrAgileUnimplemented) {
@@ -123,55 +124,121 @@ func RefreshAgile(ctx context.Context, cfg *config.Config, db *store.DB, src str
 	return nil
 }
 
+// listBoards answers the boards this workspace mirrors, both listing shapes
+// behind one call. ok=false ends the pass with the previous rows intact
+// (importAgile's header): a failed listing, an origin too old for the Agile
+// API, or a site without Jira Software at all.
+func listBoards(ctx context.Context, c *jira.Client, cfg *config.Config, opts Options) ([]jira.Board, bool) {
+	projects := configuredProjects(cfg)
+	if len(projects) == 0 {
+		boards, err := c.Boards(ctx)
+		if err != nil {
+			switch {
+			case errors.Is(err, jira.ErrNoAgile):
+				// No Jira Software on the site: nothing to mirror, and the
+				// previous rows stand.
+			case errors.Is(err, jira.ErrAgileUnimplemented):
+				logAgileUnimplemented(opts)
+			default:
+				opts.logf("boards: skipped (%v)", err)
+			}
+			return nil, false
+		}
+		backfillBoardProjects(ctx, c, boards, opts)
+		return boards, true
+	}
+	// One listing per configured project (GDK-2069) — the same route the
+	// backfill already read (GDK-1665), promoted from key-mapper to listing:
+	// the boards of projects the workspace does not configure were the
+	// site-wide list's only extra contribution, at one /board/{id}/project
+	// read each.
+	var (
+		boards  []jira.Board
+		byID    = map[int64]bool{}
+		failed  bool
+		noAgile int
+	)
+	for _, project := range projects {
+		scoped, err := c.BoardsForProject(ctx, project)
+		if err != nil {
+			switch {
+			case errors.Is(err, jira.ErrNoAgile):
+				// The project has no boards on this site — not a failure.
+				noAgile++
+				continue
+			case errors.Is(err, jira.ErrAgileUnimplemented):
+				logAgileUnimplemented(opts)
+				return nil, false
+			default:
+				// ReplaceAgile is wholesale, so a partial union must not
+				// reach it: one failed listing keeps every project's rows
+				// this pass.
+				opts.logf("boards: project %s listing skipped (%v)", project, err)
+				failed = true
+				continue
+			}
+		}
+		for _, b := range scoped {
+			if byID[b.ID] {
+				continue
+			}
+			byID[b.ID] = true
+			if b.ProjectKey == "" {
+				// Server's scoped listing carries no location (GDK-1665);
+				// the project asked for is the answer, and the first listing
+				// to return the board wins it.
+				b.ProjectKey = project
+			}
+			boards = append(boards, b)
+		}
+	}
+	if failed {
+		return nil, false
+	}
+	if noAgile == len(projects) {
+		// Every listing said "no Agile here": the same answer the site-wide
+		// listing gives on a site without Jira Software, so the same rule —
+		// the previous rows stand rather than being replaced by nothing.
+		return nil, false
+	}
+	return boards, true
+}
+
+// configuredProjects is the workspace's project scope, trimmed and
+// blank-dropped: one entry per project the issue pass reads. nil means the
+// workspace mirrors the whole site.
+func configuredProjects(cfg *config.Config) []string {
+	if cfg == nil {
+		return nil
+	}
+	var out []string
+	for _, project := range cfg.Projects {
+		if project = strings.TrimSpace(project); project != "" {
+			out = append(out, project)
+		}
+	}
+	return out
+}
+
+// logAgileUnimplemented says a 501 the way GDK-1691 measured it needing to
+// be said: whose limitation it is (the serve's, not the mirror's), that the
+// issue rows are unaffected, and the one action that closes it. Both listing
+// shapes can hit it, so the sentence has one owner.
+func logAgileUnimplemented(opts Options) {
+	opts.logf("boards: skipped — the origin's server predates sprints (Agile API answered 501); issue rows are unaffected. Upgrade the paired gadak serve, then run `gadak sync --full`")
+}
+
 // backfillBoardProjects fills ProjectKey on the boards the listing left
 // empty. Cloud's /board carries location.projectKey on every row; Jira
 // Server carries none, so without this every boards.project_key on a Server
 // workspace is the empty string and the board→project mapping is gone
 // (GDK-1665, measured on Jira Software 11.3.11 DC).
 //
-// Two reads, cheapest first, because importAgile runs every tick
-// (GDK-1661): ② one project-scoped listing per *configured* project, which
-// maps every board of the projects the workspace actually watches; then ①
-// one /board/{id}/project per board still unmapped — boards of projects the
-// config does not name, and every board on a workspace configuring none. A
-// listing that already answered (Cloud) leaves both loops with nothing to
-// do and costs no request.
-func backfillBoardProjects(ctx context.Context, c *jira.Client, cfg *config.Config, boards []jira.Board, opts Options) {
-	unmapped := func() bool {
-		for i := range boards {
-			if boards[i].ProjectKey == "" {
-				return true
-			}
-		}
-		return false
-	}
-	if !unmapped() {
-		return
-	}
-	byID := map[int64]int{}
-	for i := range boards {
-		byID[boards[i].ID] = i
-	}
-	if cfg != nil {
-		for _, project := range cfg.Projects {
-			project = strings.TrimSpace(project)
-			if project == "" || !unmapped() {
-				continue
-			}
-			scoped, err := c.BoardsForProject(ctx, project)
-			if err != nil {
-				if !errors.Is(err, jira.ErrNoAgile) {
-					opts.logf("boards: project %s listing skipped (%v)", project, err)
-				}
-				continue
-			}
-			for _, b := range scoped {
-				if i, ok := byID[b.ID]; ok && boards[i].ProjectKey == "" {
-					boards[i].ProjectKey = project
-				}
-			}
-		}
-	}
+// Only the unscoped listing reaches here: a workspace with configured
+// projects lists per project and that listing names the project itself
+// (GDK-2069), so the one-request-per-board read below is the price of a
+// whole-site workspace alone.
+func backfillBoardProjects(ctx context.Context, c *jira.Client, boards []jira.Board, opts Options) {
 	for i := range boards {
 		if boards[i].ProjectKey != "" {
 			continue

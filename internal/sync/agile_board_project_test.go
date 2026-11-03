@@ -31,6 +31,17 @@ import (
 // FAIL-first on the unmodified tree: both boards stored project_key = ”
 // and neither project route was requested — the listing's payload order was
 // the only input the importer had.
+//
+// Re-pinned 2026-11-03 (GDK-2069, GitHub #112): with configured projects the
+// scoped listing ② *is* the board listing now, so the site-wide listing and
+// fallback ① are no longer reached on this path and the MTX board of an
+// unconfigured project is not mirrored. Derivation: a user's quiet tick on a
+// public Server spent 559 agile requests listing 265 boards, none of them the
+// configured project's; the boards of unconfigured projects were the
+// site-wide listing's only extra contribution. Fallback ① keeps its own pin
+// in TestServerBoardBackfillWithoutConfiguredProjects (no projects
+// configured). FAIL-first of this re-pin on the pre-GDK-2069 tree: the
+// site-wide listing ran once and board 2 was stored as MTX.
 func TestServerBoardListingBackfillsProjectKeys(t *testing.T) {
 	issue := map[string]any{
 		"id": "9001", "key": "NMB-1",
@@ -52,7 +63,7 @@ func TestServerBoardListingBackfillsProjectKeys(t *testing.T) {
 	}
 
 	var mu sync.Mutex
-	var projectScoped, perBoardProject int
+	var projectScoped, perBoardProject, siteWide int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/rest/api/2/search":
@@ -83,6 +94,9 @@ func TestServerBoardListingBackfillsProjectKeys(t *testing.T) {
 				_, _ = w.Write([]byte(`{"maxResults":50,"startAt":0,"isLast":true,"values":[{"id":1,"name":"NMB board","type":"scrum"}]}`))
 				return
 			}
+			mu.Lock()
+			siteWide++
+			mu.Unlock()
 			_, _ = w.Write([]byte(`{"maxResults":50,"startAt":0,"isLast":true,"values":[` +
 				`{"id":1,"name":"NMB board","type":"scrum"},` +
 				`{"id":2,"name":"MTX board","type":"scrum"}]}`))
@@ -122,16 +136,23 @@ func TestServerBoardListingBackfillsProjectKeys(t *testing.T) {
 	if got := boardKey(1); got != "NMB" {
 		t.Errorf("board 1 project_key = %q, want NMB — the configured project resolves through the project-scoped listing", got)
 	}
-	if got := boardKey(2); got != "MTX" {
-		t.Errorf("board 2 project_key = %q, want MTX — an unconfigured board resolves through the per-board project read", got)
+	var unconfigured int
+	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM boards WHERE source_id = ? AND id = 2`, SourceID).Scan(&unconfigured); err != nil {
+		t.Fatal(err)
+	}
+	if unconfigured != 0 {
+		t.Errorf("board 2 (unconfigured project MTX) is mirrored; with projects configured only their boards are (GDK-2069)")
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if projectScoped == 0 {
-		t.Error("the project-scoped board listing (②) was never requested")
+	if projectScoped != 1 {
+		t.Errorf("project-scoped board listing (②) ran %d times, want 1", projectScoped)
 	}
-	if perBoardProject == 0 {
-		t.Error("the per-board project read (①) was never requested")
+	if siteWide != 0 {
+		t.Errorf("site-wide board listing ran %d times, want 0 with projects configured (GDK-2069)", siteWide)
+	}
+	if perBoardProject != 0 {
+		t.Errorf("per-board project read (①) ran %d times, want 0 — the scoped listing already names the project", perBoardProject)
 	}
 	if projectScoped > 1 {
 		t.Errorf("project-scoped listing ran %d times, want one per configured project", projectScoped)
@@ -193,7 +214,11 @@ func TestCloudBoardLocationNeedsNoBackfill(t *testing.T) {
 	var asked bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.URL.Path == "/rest/agile/1.0/board" && r.URL.Query().Get("projectKeyOrId") == "":
+		case r.URL.Path == "/rest/agile/1.0/board":
+			// 2026-11-03 (GDK-2069): the fake answers the project-scoped
+			// listing too — with NMB configured that is the only listing the
+			// pass sends now. Cloud's scoped listing carries location as the
+			// plain one does; the assertions below are unchanged.
 			_, _ = w.Write([]byte(`{"maxResults":50,"startAt":0,"isLast":true,"values":[{"id":1,"name":"NMB board","type":"scrum","location":{"projectKey":"NMB"}}]}`))
 		case strings.HasSuffix(r.URL.Path, "/project"):
 			asked = true

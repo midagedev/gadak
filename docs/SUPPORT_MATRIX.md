@@ -254,9 +254,11 @@ Markers:
 
 [^135]: `/rest/agile/1.0/board` and `/board/{id}/sprint`, which answer the same
     shape on Cloud and Server — measured on Jira Software 11.3.11 DC
-    (`internal/jira/agile.go:17`, `internal/sync/agile.go:23`, GDK-1654). A
+    (`internal/jira/agile.go:17`, `internal/sync/agile.go:27`, GDK-1654). A
     site without Jira Software has no Agile API and syncs no boards; that is
-    silent, not an error.
+    silent, not an error. With `projects` configured the boards are listed
+    per project (`?projectKeyOrId=`), and kanban boards are not asked for
+    sprints (`internal/sync/agile.go:131`, GDK-2069).
 
 [^136]: `gadak sprint` (`cmd/gadak/sprint.go:42`) over
     `POST /rest/agile/1.0/sprint/{id}/issue`, `/backlog/issue`, `/sprint` and

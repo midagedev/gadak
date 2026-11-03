@@ -2,6 +2,15 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
+## Unreleased
+
+**A large Jira Server site costs only the requests its configured projects
+need.** With `projects` set, sync still listed every board on the site and asked
+each one for its sprints on every tick: on a public Jira 10.3 Server with 265
+visible boards, none of them the configured project's, a sync with nothing to
+fetch took 2m8s and 563 requests. Boards are now listed per configured project,
+and kanban boards are no longer asked for sprints they cannot have ([GDK-2069]).
+
 ## v0.24.2 — 2026-10-19
 
 **Sync does only the work it needs, and stops reporting losses that did not
@@ -1870,3 +1879,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-2054]: https://gadak.dev/backlog/#/?ks=GDK-2054
 [GDK-2055]: https://gadak.dev/backlog/#/?ks=GDK-2055
 [GDK-2058]: https://gadak.dev/backlog/#/?ks=GDK-2058
+[GDK-2069]: https://gadak.dev/backlog/#/?ks=GDK-2069
