@@ -93,4 +93,21 @@ p.write_text(p.read_text().replace("placeholder", "see " + host), encoding="utf-
 EOF
 expect_fail "$WORKDIR/escaped" "bbtest${DOMAIN}"
 
-echo "backlog-scrub-check-test: OK (3 cases)"
+# 4. A denylisted name early in a corpus larger than a pipe buffer still
+#    fails (GDK-2074). The scan used to pipe the corpus into `grep -q`: grep
+#    exits at the first match while printf is still writing, printf dies of
+#    SIGPIPE, and under pipefail the pipeline reads as "no match". A name in
+#    bootstrap.json (the corpus's first line) passed whenever the detail
+#    files after it came to more than 64 KB — every real snapshot.
+stage "$WORKDIR/early-name" "reported by Zelda Quinlan"
+python3 - "$WORKDIR/early-name/detail/STD-1.json" << 'EOF'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p))
+d["description_adf"]["content"][0]["content"][0]["text"] = "padding " * 40000
+json.dump(d, open(p, "w"))
+EOF
+printf 'Zelda Quinlan\n' > "$WORKDIR/denylist.txt"
+BACKLOG_NAME_DENYLIST="$WORKDIR/denylist.txt" expect_fail "$WORKDIR/early-name" "Zelda Quinlan"
+
+echo "backlog-scrub-check-test: OK (4 cases)"

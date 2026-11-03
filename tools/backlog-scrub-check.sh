@@ -157,7 +157,10 @@ if [ -n "${BACKLOG_NAME_DENYLIST:-}" ] && [ -f "$BACKLOG_NAME_DENYLIST" ]; then
     [ -n "$n" ] || continue
     # Same decoded corpus as the host/mail scans: a name written as a
     # six-byte escape is still a name (GDK-1747's class).
-    if printf '%s\n' "$CORPUS" | grep -oiqE "(^|[^A-Za-z0-9])$n([^A-Za-z0-9]|$)"; then
+    # A here-string, not `printf | grep -q` (GDK-2074): grep -q exits at the
+    # first match, printf then dies of SIGPIPE, and pipefail turned every
+    # match early in a corpus over 64 KB into "no match".
+    if grep -iqE "(^|[^A-Za-z0-9])$n([^A-Za-z0-9]|$)" <<< "$CORPUS"; then
       found="$found $n"
     fi
   done <<< "$names"
