@@ -220,7 +220,8 @@ func cmdPageCreate(args []string) error {
 	title := fs.String("title", "", "page title (required)")
 	parent := fs.String("parent", "", "parent page id (omitted = space root)")
 	text := fs.String("m", "", "body as markdown; `-` reads stdin")
-	adfFile := fs.String("doc-file", "", "body as an ADF JSON document file; wins over -m")
+	adfFile := fs.String("adf-file", "", "body as an ADF JSON document file; wins over -m")
+	docFile := fs.String("doc-file", "", "older name of --adf-file, still accepted")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("page", fs))
@@ -231,7 +232,10 @@ func cmdPageCreate(args []string) error {
 		return err
 	}
 	if len(rest) != 0 {
-		return fmt.Errorf("page create: unexpected argument %q (usage: gadak page create --space KEY --title T [-m <text|->|--doc-file F] [--parent ID])", rest[0])
+		return fmt.Errorf("page create: unexpected argument %q (usage: gadak page create --space KEY --title T [-m <text|->|--adf-file F] [--parent ID])", rest[0])
+	}
+	if err := foldDocFileAlias("page create", adfFile, *docFile); err != nil {
+		return err
 	}
 	if *space == "" || *title == "" {
 		return fmt.Errorf("page create: --space and --title are required")
@@ -360,7 +364,8 @@ func formatPageSpaceError(ctx context.Context, wc *confluence.Client, space stri
 func cmdPageComment(args []string) error {
 	fs := newFlagSet("page comment")
 	text := fs.String("m", "", "comment body as markdown; `-` reads stdin")
-	adfFile := fs.String("doc-file", "", "comment body as an ADF JSON document file; wins over -m")
+	adfFile := fs.String("adf-file", "", "comment body as an ADF JSON document file; wins over -m")
+	docFile := fs.String("doc-file", "", "older name of --adf-file, still accepted")
 	asJSON := fs.Bool("json", false, "emit JSON")
 	if wantsHelp(args) {
 		fmt.Fprint(os.Stdout, formatHelp("page", fs))
@@ -370,8 +375,11 @@ func cmdPageComment(args []string) error {
 	if err != nil {
 		return err
 	}
+	if err := foldDocFileAlias("page comment", adfFile, *docFile); err != nil {
+		return err
+	}
 	if len(rest) != 1 {
-		return fmt.Errorf("page comment: exactly one page id (usage: gadak page comment <ID> -m <text|-> | --doc-file F)")
+		return fmt.Errorf("page comment: exactly one page id (usage: gadak page comment <ID> -m <text|-> | --adf-file F)")
 	}
 	id := rest[0]
 	body := *text
@@ -395,7 +403,7 @@ func cmdPageComment(args []string) error {
 	}
 	if doc == "" {
 		if body == "" {
-			return fmt.Errorf("page comment: nothing to post — pass -m or --doc-file")
+			return fmt.Errorf("page comment: nothing to post — pass -m or --adf-file")
 		}
 		if err := adf.RefusePlaceholders(body); err != nil {
 			return fmt.Errorf("page comment: %w", err)
@@ -654,4 +662,21 @@ func bodyFromMarkdown(text, current string, force bool) (string, []adf.Kept, err
 		return "", nil, err
 	}
 	return string(doc), dropped, nil
+}
+
+// foldDocFileAlias folds the older --doc-file spelling into --adf-file
+// (GDK-2066). page create and page comment shipped --doc-file while page
+// edit, issue edit and issue comment take --adf-file, and the page help
+// taught --adf-file for all three — so `page create --adf-file` was refused
+// by a binary whose own help suggested it. Both names stay accepted; giving
+// both with different files is refused rather than picking one.
+func foldDocFileAlias(verb string, adfFile *string, docFile string) error {
+	if docFile == "" {
+		return nil
+	}
+	if *adfFile != "" && *adfFile != docFile {
+		return fmt.Errorf("%s: --adf-file and --doc-file name the same input — pass one", verb)
+	}
+	*adfFile = docFile
+	return nil
 }

@@ -750,6 +750,7 @@ var helps = map[string]cmdHelp{
 			{name: "space", desc: "create in this space key (create); list only this space (list)"},
 			{name: "limit", desc: "maximum rows to list (default 30) (list)"},
 			{name: "storage", desc: "print the raw storage (ADF) document only, verbatim — the lossless half of the round trip (get)"},
+			{name: "adf-file", desc: "body as an ADF JSON document file, sent as it is; wins over -m (create, edit, comment; --doc-file is the older name)"},
 			{name: "storage-file", desc: "replace the whole body with a storage document `page get --storage` printed; wins over -m (edit)"},
 			{name: "json", desc: "one JSON object for get; one per row for list"},
 			{name: "csv", desc: "emit CSV with a header row (list)"},
