@@ -8,6 +8,7 @@ import { request, ApiError, type FetchLike, type ApiSession, type Envelope } fro
 import type {
   CreateIssuePayload,
   CreateMetaResponse,
+  IssueLite,
   IssueWriteResponse,
   PrioritiesResponse,
   UsersResponse,
@@ -40,6 +41,23 @@ export function setAssignee(
       ...opts,
     }),
   )
+}
+
+/**
+ * The stale-assignee refusal (GDK-2073): what the 409 assignee_changed body
+ * carried — the refreshed row naming the holder this cache did not show, and
+ * the holder's display name (null when nobody holds it) — or null when err
+ * is anything else. Lives here rather than in the sheet so the wire shape
+ * has one owner and a test that needs no DOM mount: AssigneeSheet keeps the
+ * sheet open on it and says who took the issue; picking again replaces them,
+ * because the refusal refreshed the server's cache.
+ */
+export function assigneeStaleRefusal(err: unknown): { issue: IssueLite; holderName: string | null } | null {
+  if (!(err instanceof ApiError) || err.code !== 'assignee_changed' || !err.body) return null
+  const issue = err.body.issue as IssueLite | undefined
+  if (!issue || !issue.issue_key) return null
+  const holder = err.body.current_assignee as { display_name?: string } | null | undefined
+  return { issue, holderName: holder?.display_name || null }
 }
 
 /** PUT `<key>/priority/` — `null` clears (the None row). Site id, never the name. */

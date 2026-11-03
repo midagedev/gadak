@@ -165,6 +165,15 @@ export const write = {
     ko: '담당자 변경에 실패했습니다. 다시 시도하세요.',
     ja: '担当者を変更できませんでした。再試行してください。',
   },
+  // GDK-2073: the origin's assignee moved since this cache last saw the
+  // issue, so the pick was refused instead of replacing the holder unseen.
+  // {name} is the holder's display name, or common.unassigned when nobody
+  // holds it; picking again replaces them (the refusal refreshed the row).
+  'write.assigneeChanged': {
+    en: '{key} was assigned to {name} in the meantime. Pick again to replace them.',
+    ko: '그사이 {key}의 담당자가 {name}(으)로 바뀌었습니다. 그래도 바꾸려면 다시 고르세요.',
+    ja: 'その間に{key}の担当者が{name}に変わりました。それでも変えるなら、もう一度選んでください。',
+  },
   'write.priorityFailed': {
     en: 'Could not change priority. Try again.',
     ko: '우선순위 변경에 실패했습니다. 다시 시도하세요.',

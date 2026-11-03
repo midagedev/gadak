@@ -36,7 +36,9 @@ first, and when someone took it after the cache last synced it refuses with
 exit 75 and names them, instead of replacing them unseen; `--force` replaces
 anyway, and a write that does replace someone says who. A display name that
 matches exactly one person now picks that person, even when the same surname
-matches others ([GDK-2063]).
+matches others ([GDK-2063]). The web and phone assignee pickers make the same
+check: they say who holds the issue now and show it, and picking again replaces
+them ([GDK-2073]).
 
 ## v0.24.2 — 2026-10-19
 
@@ -1912,3 +1914,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-2069]: https://gadak.dev/backlog/#/?ks=GDK-2069
 [GDK-2070]: https://gadak.dev/backlog/#/?ks=GDK-2070
 [GDK-2072]: https://gadak.dev/backlog/#/?ks=GDK-2072
+[GDK-2073]: https://gadak.dev/backlog/#/?ks=GDK-2073

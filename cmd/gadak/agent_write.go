@@ -1185,34 +1185,38 @@ func assignOne(ctx context.Context, cfg *config.Config, db *store.DB, c origin.W
 		return assignResult{}, err
 	}
 	row := lookupOne(db, key)
-	var cur *jira.User
 	r, faceErr := origin.AsIssueAssigneeReader(c)
+	var cur *jira.User
 	readErr := error(nil)
 	if faceErr != nil {
 		readErr = faceErr
-	} else if cur, readErr = r.IssueAssignee(ctx, key); readErr == nil {
-		// Idempotent first: asking for who already holds it is no write at
-		// all, whatever the mirror says (force included — sending the same
-		// assignee changes nothing).
-		if assigneeID(cur) == target.ID() {
-			return assignResult{noop: true, currentName: assigneeDisplayName(cur)}, nil
+	} else {
+		cur, readErr = r.IssueAssignee(ctx, key)
+	}
+	if readErr == nil {
+		// The verdict is the shared one (origin.DecideAssign, GDK-2073): the
+		// server's assignee route judges the same facts, so no-op-first and
+		// what counts as stale cannot drift between the two surfaces.
+		cacheID, cacheKnown := "", false
+		if row != nil {
+			cacheID, cacheKnown = derefOrEmpty(row.AssigneeID, ""), true
 		}
-	}
-	if readErr != nil && !force {
-		return assignResult{}, assignReadRefusal(key, readErr)
-	}
-	if !force && readErr == nil && row != nil {
-		if mirrorID := derefOrEmpty(row.AssigneeID, ""); mirrorID != assigneeID(cur) {
+		switch origin.DecideAssign(cur, cacheID, cacheKnown, target.ID(), force) {
+		case origin.AssignNoop:
+			return assignResult{noop: true, currentName: assigneeDisplayName(cur)}, nil
+		case origin.AssignStale:
 			assignStaleRefresh(ctx, cfg, db, key, src)
 			return assignResult{}, &exitCodeError{code: exitAssignStale, msg: staleAssignMessage(key, cur, row)}
 		}
+	} else if !force {
+		return assignResult{}, assignReadRefusal(key, readErr)
 	}
 	res := assignResult{target: target}
 	// The assignee this write replaces, for the report that names them: the
 	// origin's read when it answered; under --force past a failed read, the
 	// mirror's row — what the caller believed they were replacing.
 	if readErr == nil {
-		if id := assigneeID(cur); id != "" {
+		if id := origin.AssigneeID(cur); id != "" {
 			res.prevID, res.prevName = id, assigneeDisplayName(cur)
 		}
 	} else if row != nil {
@@ -1227,25 +1231,15 @@ func assignOne(ctx context.Context, cfg *config.Config, db *store.DB, c origin.W
 	return res, nil
 }
 
-// assigneeID is the origin read's assignee id, "" for unassigned.
-func assigneeID(u *jira.User) string {
-	if u == nil {
-		return ""
-	}
-	return u.ID()
-}
-
 // assigneeDisplayName is how a refusal or a no-op names an assignee: the
-// display name, the id when the origin sent none, "(nobody)" when there is
-// no assignee.
+// shared spelling (origin.AssigneeDisplayName — display name, else the id)
+// with this surface's word for "no assignee" on top. The wire 409 sends
+// current_assignee: null instead of a "(nobody)" token (GDK-2073).
 func assigneeDisplayName(u *jira.User) string {
-	if u == nil || u.ID() == "" {
-		return "(nobody)"
-	}
-	if name := strings.TrimSpace(u.DisplayName); name != "" {
+	if name := origin.AssigneeDisplayName(u); name != "" {
 		return name
 	}
-	return u.ID()
+	return "(nobody)"
 }
 
 // staleAssignMessage is the stale-mirror refusal (GDK-2063):
@@ -1312,11 +1306,18 @@ func assignDryRun(ctx context.Context, db *store.DB, c origin.Writer, src, key, 
 	if readErr != nil {
 		return assignReadRefusal(key, readErr)
 	}
-	if assigneeID(cur) == target.ID() {
+	// The same verdict the real write pays (origin.DecideAssign, GDK-2073):
+	// a would-refuse dry run refuses instead of printing a plan.
+	row := lookupOne(db, key)
+	cacheID, cacheKnown := "", false
+	if row != nil {
+		cacheID, cacheKnown = derefOrEmpty(row.AssigneeID, ""), true
+	}
+	switch origin.DecideAssign(cur, cacheID, cacheKnown, target.ID(), false) {
+	case origin.AssignNoop:
 		fmt.Fprintf(os.Stderr, "gadak assign --dry-run: already assigned to %s — the real write is a no-op\n", assigneeDisplayName(cur))
 		return plan()
-	}
-	if row := lookupOne(db, key); row != nil && derefOrEmpty(row.AssigneeID, "") != assigneeID(cur) {
+	case origin.AssignStale:
 		return &exitCodeError{code: exitAssignStale, msg: "dry run: " + staleAssignMessage(key, cur, row)}
 	}
 	fmt.Fprintln(os.Stderr, "gadak assign --dry-run: fresh — the mirror's assignee matches the origin; the write would proceed")

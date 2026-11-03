@@ -674,12 +674,18 @@ async function jsonW<T>(path: string, init?: RequestInit): Promise<T> {
     let code: string | null = null
     let jiraErrors: Record<string, unknown> | null = null
     let message = `${init?.method ?? 'GET'} ${path} → ${res.status}`
+    // The parsed refusal rides along (the read path's GDK-1713 rule, on the
+    // write path since GDK-2073): a 409 can carry what the surface must act
+    // on — the stale-assignee refusal hands over the holder and the
+    // refreshed row.
+    let parsed: Record<string, unknown> | null = null
     try {
       const body = (await res.json()) as {
         error?: string
         message?: string
         jira_errors?: Record<string, unknown>
       }
+      parsed = body as Record<string, unknown>
       if (body.error) {
         code = body.error
         // failMsg's reason (placeholder refusals, GDK-1396): the server's own
@@ -690,7 +696,7 @@ async function jsonW<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       /* No body / non-JSON — keep default message */
     }
-    throw new ApiError(res.status, message, code, jiraErrors)
+    throw new ApiError(res.status, message, code, jiraErrors, parsed)
   }
   return (await res.json()) as T
 }

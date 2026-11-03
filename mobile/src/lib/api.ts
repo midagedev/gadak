@@ -50,9 +50,12 @@ export function setApiActorName(name: string | null): void {
  * (GDK-1132): `implements Pick<WebApiError, …>` is type-only, so nothing of
  * the desktop's module loads here, but a rename on the desk breaks this
  * build instead of drifting. The extras differ on purpose — the desk carries
- * jiraErrors and the parsed refusal body, the phone carries serverMessage
- * (the placeholder refusal's own words). The phone's `code` stays required
- * where the desk's is nullable: this constructor always has one.
+ * jiraErrors, the phone carries serverMessage (the placeholder refusal's own
+ * words) and, since GDK-2073, the parsed refusal body the desk's ApiError
+ * already carried (its `body`, GDK-1713): a 4xx is an answer, and the
+ * assignee-stale 409 hands over the holder and the refreshed row. The
+ * phone's `code` stays required where the desk's is nullable: this
+ * constructor always has one.
  */
 export class ApiError extends Error implements Pick<WebApiError, 'code' | 'status'> {
   /**
@@ -65,6 +68,9 @@ export class ApiError extends Error implements Pick<WebApiError, 'code' | 'statu
     public code: string,
     public status: number,
     public serverMessage: string | null = null,
+    /** The parsed refusal body, when the server sent JSON. Read by the
+     * caller that knows which code it is waiting for, never echoed. */
+    public body: Record<string, unknown> | null = null,
   ) {
     super(code)
   }
@@ -239,14 +245,16 @@ async function dial(path: string, opts: RequestOpts): Promise<Response> {
   if (res.status !== 304 && !res.ok) {
     let code = 'internal_error'
     let serverMessage: string | null = null
+    let body: Record<string, unknown> | null = null
     try {
       const doc = (await res.json()) as { error?: unknown; message?: unknown }
+      body = doc as Record<string, unknown>
       if (typeof doc.error === 'string' && doc.error !== '') code = doc.error
       if (typeof doc.message === 'string' && doc.message !== '') serverMessage = doc.message
     } catch {
       // Non-JSON error body (a proxy page, an empty reply): keep the generic code.
     }
-    throw new ApiError(code, res.status, serverMessage)
+    throw new ApiError(code, res.status, serverMessage, body)
   }
   return res
 }

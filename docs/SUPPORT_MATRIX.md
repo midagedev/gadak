@@ -465,10 +465,10 @@ Markers:
 
 [^85]: No atomic claim route on Cloud — the fallback runs assignee +
     transition as two calls and says so (`internal/claim/claim.go:136`,
-    `cmd/gadak/agent_write.go:1481`).
+    `cmd/gadak/agent_write.go:1482`).
 
 [^86]: Refused before any call: claim is a Jira-workflow verb and the Linear
-    writer does not implement it (`cmd/gadak/agent_write.go:1434`).
+    writer does not implement it (`cmd/gadak/agent_write.go:1435`).
 
 [^87]: One atomic mutation — the origin's own extension route
     (`issuetap/docs/COMPATIBILITY.md:72`).

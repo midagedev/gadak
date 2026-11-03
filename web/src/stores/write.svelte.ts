@@ -481,6 +481,31 @@ class WriteStore {
       },
       () => api.setAssignee(key, user ? user.account_id : null),
       t('write.assignFailed'),
+      (e) => {
+        // GDK-2073: the origin's assignee moved since this cache last saw
+        // the issue, so the server refused rather than replace the holder
+        // unseen. Apply the refreshed row the refusal carries (the same way
+        // a success applies res.issue) so the pool names the real holder,
+        // and say who took it. Picking again is the replace: the refusal
+        // refreshed the cache, so the next write passes the check. No
+        // confirm dialog and no force from here — the second pick is the
+        // deliberate act.
+        if (e instanceof ApiError && e.code === 'assignee_changed' && e.body) {
+          this.#applyIssue(e.body.issue as IssueLite | undefined)
+          invalidate(key) // the holder changed on the origin: detail re-reads on next open
+          const holder = e.body.current_assignee as { display_name?: string } | null | undefined
+          this.toast(
+            t('write.assigneeChanged', {
+              key,
+              name: holder?.display_name || t('common.unassigned'),
+            }),
+            'error',
+            originAction(key),
+          )
+          return
+        }
+        this.#handleError(e, t('write.assignFailed'))
+      },
     )
     if (ok && user?.account_id) recordRecent('assignee', user.account_id) // record successes only
     return ok

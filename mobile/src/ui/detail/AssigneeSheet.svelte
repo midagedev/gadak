@@ -4,7 +4,7 @@
   import CurrentTick from './CurrentTick.svelte'
   import { t } from '../../lib/i18n'
   import { errorMessage } from '../../lib/api'
-  import { searchUsers, setAssignee } from '../../lib/writes'
+  import { assigneeStaleRefusal, searchUsers, setAssignee } from '../../lib/writes'
   import { app } from '../../lib/store.svelte'
   import type { IssueLite, UserDoc, WriteField } from '../../lib/types'
 
@@ -148,6 +148,23 @@
       onwritten(res.issue, 'assignee')
     } catch (err) {
       if (onrefused(err)) return
+      // The stale-assignee refusal (GDK-2073): the origin's holder moved
+      // since this cache last saw the issue, and the server refused rather
+      // than replace them unseen. The sheet stays open and says who took it
+      // — the description editor's 409 pattern (format_loss keeps the editor
+      // open and explains). onwritten is deliberately NOT called: it closes
+      // this sheet and announces a save that did not happen. Picking again
+      // replaces the holder, because the refusal refreshed the server's
+      // cache to match the origin.
+      const stale = assigneeStaleRefusal(err)
+      if (stale) {
+        rowError = t('write.assigneeChanged', {
+          key: issueKey,
+          name: stale.holderName ?? t('common.unassigned'),
+        })
+        failedRow = applyingId
+        return
+      }
       rowError = errorMessage(err)
       failedRow = applyingId
     } finally {
@@ -204,7 +221,12 @@
           {#if c.sub}
             <span class="t-to">{c.sub}</span>
           {/if}
-          {#if failedRow === c.id && rowError}
+          <!-- failedRow matches by account id, not the row's own key: the
+               pick hands pickAssignee the account id, so that is the only
+               spelling every row shape ('me', 'current', search hits) can
+               compare against — a row-key comparison never matched and a
+               refused pick of a person showed no error at all. -->
+          {#if failedRow === c.accountId && rowError}
             <span class="t-err">{rowError}</span>
           {/if}
         </span>

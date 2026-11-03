@@ -303,33 +303,45 @@ func (s *server) mutate(w http.ResponseWriter, r *http.Request, key string,
 }
 
 func (s *server) respondIssue(w http.ResponseWriter, r *http.Request, key string, extra map[string]any) {
-	st, err := s.db.SyncState(r.Context(), sourceID)
+	issue, found, err := s.issueView(r.Context(), key)
 	if err != nil {
 		serverError(w, r, err)
 		return
 	}
-	lites, err := s.db.IssueLites(r.Context())
-	if err != nil {
-		serverError(w, r, err)
+	if !found {
+		failMirrorStale(w, key, nil)
 		return
 	}
-	view, err := s.derived(r.Context(), st.Version, lites)
+	body := map[string]any{"issue": issue}
+	for k, v := range extra {
+		body[k] = v
+	}
+	writeJSON(w, http.StatusOK, body)
+}
+
+// issueView is one issue as the write responses carry it: the derived view
+// over the mirror's row. found is false when the mirror has no row for key.
+// respondIssue answers it with 200; the assign route's 409 carries it too
+// (GDK-2073).
+func (s *server) issueView(ctx context.Context, key string) (any, bool, error) {
+	st, err := s.db.SyncState(ctx, sourceID)
 	if err != nil {
-		serverError(w, r, err)
-		return
+		return nil, false, err
+	}
+	lites, err := s.db.IssueLites(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	view, err := s.derived(ctx, st.Version, lites)
+	if err != nil {
+		return nil, false, err
 	}
 	for _, l := range lites {
-		if l.IssueKey != key {
-			continue
+		if l.IssueKey == key {
+			return view.issues([]store.IssueLite{l})[0], true, nil
 		}
-		body := map[string]any{"issue": view.issues([]store.IssueLite{l})[0]}
-		for k, v := range extra {
-			body[k] = v
-		}
-		writeJSON(w, http.StatusOK, body)
-		return
 	}
-	failMirrorStale(w, key, nil)
+	return nil, false, nil
 }
 
 // failMirrorStale is the one REST owner of 502 write_applied_mirror_stale.

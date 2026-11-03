@@ -540,18 +540,115 @@ func normalizeLabels(in []string) []string {
 	return out
 }
 
+// PUT <key>/assignee/ — {"account_id": string|null, "force": bool} (force
+// optional, default false). The same preflight the CLI's assign pays
+// (GDK-2073): one read of the origin's current assignee, judged by
+// origin.DecideAssign against the cache row the web/phone editor was looking
+// at, so a person acting on a stale cache cannot silently replace whoever
+// took the issue in between. The id is compared exactly, never re-resolved
+// (GDK-1982): the client sends the account id it picked from a catalog.
+//
+//   - target already holds it on the origin → 200, the successful-write
+//     shape with "noop": true, no SetAssignee.
+//   - origin's holder differs from the cache row → refresh that issue into
+//     the mirror (best-effort, logged), then 409 assignee_changed carrying
+//     the holder and the refreshed row, no SetAssignee. Picking again is the
+//     way to replace the holder: the cache now matches the origin.
+//   - the read fails → 502 assignee_read_failed, no write (force still
+//     writes — the same branch the CLI's --force takes).
 func (s *server) handleAssignee(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		AccountID *string `json:"account_id"`
+		Force     bool    `json:"force"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		fail(w, http.StatusBadRequest, "invalid_body")
 		return
 	}
 	key := r.PathValue("key")
+	c, cfg, src, ok := s.keyWriter(w, r, key)
+	if !ok {
+		return
+	}
+	ctx := r.Context()
+	target := deref(body.AccountID)
+	rd, faceErr := origin.AsIssueAssigneeReader(c)
+	var cur *origin.User
+	readErr := error(nil)
+	if faceErr != nil {
+		readErr = faceErr
+	} else {
+		cur, readErr = rd.IssueAssignee(ctx, key)
+	}
+	if readErr == nil {
+		cacheID, cacheKnown := s.mirrorAssignee(ctx, key)
+		switch origin.DecideAssign(cur, cacheID, cacheKnown, target, body.Force) {
+		case origin.AssignNoop:
+			// A no-op changes nothing on the origin; refresh anyway so the
+			// row the answer carries names the holder the read just saw (the
+			// CLI's no-op pays the same refresh, best-effort).
+			if err := sync.RefreshIssue(ctx, cfg, s.db, key, src); err != nil {
+				log.Printf("server: assign noop refresh %s: %v", key, err)
+			}
+			s.respondIssue(w, r, key, map[string]any{"noop": true, "origin": writeOriginLabel(src)})
+			return
+		case origin.AssignStale:
+			// The refusal's tail is the refresh a landed write pays, so the
+			// 409 can carry the truth it just named and the next pick passes.
+			if err := sync.RefreshIssue(ctx, cfg, s.db, key, src); err != nil {
+				log.Printf("server: assign stale refresh %s: %v", key, err)
+			}
+			log.Printf("server: write failed %s %s key=%s status=%d: assignee_changed holder=%s cache=%s",
+				r.Method, r.URL.Path, key, http.StatusConflict, origin.AssigneeID(cur), cacheID)
+			s.writeAssigneeStale(w, r, key, cur)
+			return
+		}
+	} else if !body.Force {
+		log.Printf("server: write failed %s %s key=%s status=%d: assignee read failed: %v",
+			r.Method, r.URL.Path, key, http.StatusBadGateway, readErr)
+		fail(w, http.StatusBadGateway, "assignee_read_failed")
+		return
+	}
 	s.mutate(w, r, key, func(ctx context.Context, c origin.Writer) (map[string]any, error) {
-		return nil, c.SetAssignee(ctx, key, deref(body.AccountID))
+		return nil, c.SetAssignee(ctx, key, target)
 	})
+}
+
+// mirrorAssignee is the cache row's assignee id for the stale check: the
+// same typed read the CLI's lookupOne pays (IssueLitesByKeys). known is
+// false when the mirror has no row for the key — nothing to compare, so the
+// write proceeds as it always did. A nil AssigneeID and a stored "" both
+// answer "" known, the fold the CLI's derefOrEmpty gives.
+func (s *server) mirrorAssignee(ctx context.Context, key string) (id string, known bool) {
+	lites, err := s.db.IssueLitesByKeys(ctx, []string{key})
+	if err != nil || len(lites) == 0 {
+		return "", false
+	}
+	if lites[0].AssigneeID == nil {
+		return "", true
+	}
+	return *lites[0].AssigneeID, true
+}
+
+// writeAssigneeStale is the 409 assignee_changed body (GDK-2073): who holds
+// the issue on the origin (null when nobody does), and the refreshed row —
+// the same object respondIssue puts under "issue" (issueView). A mirror
+// this read cannot answer still gets its 409, without the row.
+func (s *server) writeAssigneeStale(w http.ResponseWriter, r *http.Request, key string, cur *origin.User) {
+	body := map[string]any{"error": "assignee_changed", "current_assignee": nil}
+	if id := origin.AssigneeID(cur); id != "" {
+		body["current_assignee"] = map[string]any{
+			"account_id":   id,
+			"display_name": origin.AssigneeDisplayName(cur),
+		}
+	}
+	issue, found, err := s.issueView(r.Context(), key)
+	if err != nil {
+		log.Printf("server: assign stale row %s: %v", key, err)
+	} else if found {
+		body["issue"] = issue
+	}
+	writeJSON(w, http.StatusConflict, body)
 }
 
 func (s *server) handleEditMeta(w http.ResponseWriter, r *http.Request) {
