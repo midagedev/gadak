@@ -2,18 +2,18 @@
 
 <sub>English · <a href="CHANGELOG.ko.md">한국어</a></sub>
 
-## Unreleased
+## v0.24.3 — 2026-11-03
 
 **A large Jira Server site no longer costs minutes.** With `projects` set,
 sync still listed every board on the site and asked each one for its sprints on
 every tick: on a public Jira 10.3 Server with 265
 visible boards, none of them the configured project's, a sync with nothing to
 fetch took 2m8s and 563 requests. Boards are now listed per configured project,
-and kanban boards are no longer asked for sprints they cannot have ([GDK-2069]).
+and kanban boards are no longer asked for sprints they cannot have ([GDK-2069]; #112, thanks @vlsi).
 On the same site's 7,882-issue mirror, `gadak doctor` printed nothing for
 minutes: one diagnostic query had no planner statistics and read the mirror
 quadratically. It now finishes in milliseconds, and a full sync leaves
-statistics behind for every other query ([GDK-2068]).
+statistics behind for every other query ([GDK-2068]; #115, thanks @vlsi).
 
 **gadak asks before it installs its Claude Code skill.** `gadak init`, pairing
 and `gadak install-cli` wrote `~/.claude/skills/gadak/SKILL.md` whenever
@@ -22,7 +22,7 @@ for scripts also changed every Claude Code session on the machine. An
 interactive run now asks first; a run with `--json` or without a terminal
 installs nothing and points to `gadak skill install`. `--no-skill`,
 `GADAK_SKILL_AUTO=0` and the machine-wide `gadak config set skill.autoInstall
-false` turn it off, and answering `n` stores the same setting ([GDK-2070]).
+false` turn it off, and answering `n` stores the same setting ([GDK-2070]; #113, thanks @vlsi).
 The skill's description now applies its write rule only to trackers a gadak
 workspace holds, so it no longer steers sessions that have nothing to do with
 gadak ([GDK-2072]).
@@ -38,7 +38,9 @@ anyway, and a write that does replace someone says who. A display name that
 matches exactly one person now picks that person, even when the same surname
 matches others ([GDK-2063]). The web and phone assignee pickers make the same
 check: they say who holds the issue now and show it, and picking again replaces
-them ([GDK-2073]).
+them ([GDK-2073]). An empty assignee, such as a script's unset variable, is
+refused; it used to pick the first account with no email, often an app
+([GDK-2075]).
 
 ## v0.24.2 — 2026-10-19
 
@@ -1915,3 +1917,4 @@ priority sorting keyed on `priority_rank`.
 [GDK-2070]: https://gadak.dev/backlog/#/?ks=GDK-2070
 [GDK-2072]: https://gadak.dev/backlog/#/?ks=GDK-2072
 [GDK-2073]: https://gadak.dev/backlog/#/?ks=GDK-2073
+[GDK-2075]: https://gadak.dev/backlog/#/?ks=GDK-2075
