@@ -706,7 +706,10 @@ jobs:
   # link. No real window: Restore/Focus and dock reopen are not exercised.
   desktop:
     name: Desktop tests
-    runs-on: macos-14
+    # macos-14 was retired on GitHub-hosted runners: the job got no runner and
+    # was cancelled at 0s ("macos-14-arm64-us-default is not supported",
+    # GDK-2079).
+    runs-on: macos-15
     timeout-minutes: 15
 
     steps:
