@@ -7,6 +7,7 @@
   <a href="https://github.com/midagedev/gadak/releases"><img src="https://img.shields.io/github/v/release/midagedev/gadak" alt="Latest Release"></a>
   <a href="https://github.com/midagedev/gadak/actions/workflows/ci.yml"><img src="https://github.com/midagedev/gadak/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
+  <a href="https://glama.ai/mcp/servers/midagedev/gadak"><img src="https://glama.ai/mcp/servers/midagedev/gadak/badges/score.svg" alt="midagedev/gadak MCP server"></a>
 </p>
 
 <p align="center"><b>Find the thread in your backlog.</b></p>

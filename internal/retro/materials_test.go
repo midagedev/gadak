@@ -683,7 +683,7 @@ func TestClosedDecompositionsPartitionClosed(t *testing.T) {
 // partition holds on real-shaped data with many types and epics.
 func TestClosedDecompositionsSumOnDemoFixture(t *testing.T) {
 	_, db := demoFixture(t, true)
-	rep, err := Compute(context.Background(), db, store.FeedIdentity{}, 8*7*24*time.Hour, time.Now(), Options{})
+	rep, err := Compute(context.Background(), db, store.FeedIdentity{}, 8*7*24*time.Hour, demoFixtureNow(t, db), Options{})
 	if err != nil {
 		t.Fatalf("Compute: %v", err)
 	}

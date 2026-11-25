@@ -46,6 +46,25 @@ import (
 // directory plus a read-only handle with local.db attached. The same fixture
 // pattern as cmd/gadak's sqlDemoHome, repeated here because package main's
 // helpers cannot be imported.
+// demoFixtureNow is the instant the demo fixture was generated at — its
+// newest updated_at, the anchor internal/snapshot's fixtureNow reads. A window
+// over the static fixture is measured back from here, never from time.Now():
+// eight weeks back from the wall clock slid past the fixture's last closure
+// in November 2026 and two tests went red on the date alone, while a third
+// kept passing over an empty window (GDK-2078; the class is GDK-1881).
+func demoFixtureNow(t *testing.T, db *sql.DB) time.Time {
+	t.Helper()
+	var s string
+	if err := db.QueryRow(`SELECT MAX(updated_at) FROM issues_raw`).Scan(&s); err != nil {
+		t.Fatal(err)
+	}
+	now, err := time.Parse(config.ISOMilli, s)
+	if err != nil {
+		t.Fatalf("fixture max updated_at %q: %v", s, err)
+	}
+	return now.UTC()
+}
+
 func demoFixture(t *testing.T, seed bool) (string, *sql.DB) {
 	t.Helper()
 	dir := t.TempDir()
@@ -95,7 +114,7 @@ func demoFixture(t *testing.T, seed bool) (string, *sql.DB) {
 func TestRetroCountsEqualKeyLengths(t *testing.T) {
 	_, db := demoFixture(t, true)
 
-	rep, err := Compute(context.Background(), db, store.FeedIdentity{}, 8*7*24*time.Hour, time.Now(), Options{})
+	rep, err := Compute(context.Background(), db, store.FeedIdentity{}, 8*7*24*time.Hour, demoFixtureNow(t, db), Options{})
 	if err != nil {
 		t.Fatalf("Compute: %v", err)
 	}

@@ -79,6 +79,21 @@ func retroOpenRO(t *testing.T) *sql.DB {
 	return db
 }
 
+// retroFixtureNow is the instant the demo fixture was generated at — its
+// newest updated_at, the same anchor internal/snapshot's fixtureNow reads.
+func retroFixtureNow(t *testing.T) time.Time {
+	t.Helper()
+	var s string
+	if err := retroOpenRO(t).QueryRow(`SELECT MAX(updated_at) FROM issues_raw`).Scan(&s); err != nil {
+		t.Fatal(err)
+	}
+	now, err := time.Parse(config.ISOMilli, s)
+	if err != nil {
+		t.Fatalf("fixture max updated_at %q: %v", s, err)
+	}
+	return now.UTC()
+}
+
 // retroJSON runs gadak retro --json and decodes the document.
 func retroJSON(t *testing.T, args []string) (buckets []map[string]any, defs map[string]string) {
 	t.Helper()
@@ -291,7 +306,13 @@ func TestRetroClosedAndWipMatchHandSQL(t *testing.T) {
 	// on different tenths — FAIL-first is CI run 34172962018 on 52c28d35
 	// ("retro 79.5, RECIPES hand SQL 79.4"), a docs-only commit (GDK-1594).
 	// Millisecond truncation because ISOMilli is what SQLite gets to parse.
-	fixedNow := time.Now().UTC().Truncate(time.Millisecond)
+	//
+	// And that clock is the fixture's, not the wall's: the 8w window below
+	// must reach the fixture's closures, and examples/demo.db stopped moving
+	// at its own generation instant. Anchored on time.Now() the window slid
+	// past the last resolved_at and the test went red with no commit
+	// touching it (GDK-2078; the class is GDK-1881).
+	fixedNow := retroFixtureNow(t)
 	retroNow = func() time.Time { return fixedNow }
 	t.Cleanup(func() { retroNow = time.Now })
 
